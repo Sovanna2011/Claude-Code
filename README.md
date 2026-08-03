@@ -16,7 +16,8 @@ It covers the three core HCM sub-modules:
   (HRP1001) — org units, positions, jobs, reporting lines, chief positions
 - **PT — Time Management**: absences (2001) and absence quotas (2006)
 
-See **[docs/architecture.md](docs/architecture.md)** for the full design.
+See **[docs/architecture.md](docs/architecture.md)** for the full design, and the
+**[User Manual](docs/USER_MANUAL.md)** for step-by-step end-user instructions.
 
 ```
 Claude-Code/
