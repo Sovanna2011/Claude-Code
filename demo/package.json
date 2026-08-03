@@ -1,0 +1,9 @@
+{
+  "name": "hr-module-demo",
+  "version": "1.0.0",
+  "description": "One-command demo of the HR module (SAPUI5 web app + stand-in REST API)",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  }
+}

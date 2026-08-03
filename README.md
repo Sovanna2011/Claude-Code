@@ -19,6 +19,19 @@ It covers the three core HCM sub-modules:
 See **[docs/architecture.md](docs/architecture.md)** for the full design, and the
 **[User Manual](docs/USER_MANUAL.md)** for step-by-step end-user instructions.
 
+## Try it in one command (demo)
+
+Want to see it running without installing .NET or SQL Server? A self-contained
+demo serves the real SAPUI5 app plus a faithful stand-in of the API from a
+single zero-dependency Node process:
+
+```bash
+node demo/server.js       # then open http://localhost:8080
+```
+
+See **[demo/README.md](demo/README.md)** for details. For the full production
+stack (C# + SQL Server), follow the setup steps below.
+
 ```
 Claude-Code/
 ├── database/                 # SQL Server scripts (run in numeric order)
