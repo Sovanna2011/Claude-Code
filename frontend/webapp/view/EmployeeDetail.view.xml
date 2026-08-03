@@ -8,12 +8,15 @@
 
     <Page id="detailPage" title="{i18n>employeeDetailTitle}" showNavButton="true" navButtonPress=".onNavBack">
         <headerContent>
-            <Button icon="sap-icon://edit" text="{i18n>editPersonal}" press=".onOpenEditPersonal"/>
-            <Button icon="sap-icon://addresses" text="{i18n>editAddress}" press=".onOpenEditAddress"/>
-            <Button icon="sap-icon://family-care" text="{i18n>addFamily}" press=".onOpenAddFamily"/>
-            <Button icon="sap-icon://org-chart" text="{i18n>reassign}" press=".onOpenReassign"/>
-            <Button icon="sap-icon://attachment-time-sheet" text="{i18n>recordAttendance}" press=".onOpenAttendance"/>
-            <Button type="Emphasized" icon="sap-icon://calendar" text="{i18n>recordAbsence}" press=".onOpenAbsence"/>
+            <Button icon="sap-icon://edit" text="{i18n>editPersonal}" press=".onOpenEditPersonal" visible="{auth>/isAdmin}"/>
+            <Button icon="sap-icon://addresses" text="{i18n>editAddress}" press=".onOpenEditAddress" visible="{auth>/isAdmin}"/>
+            <Button icon="sap-icon://family-care" text="{i18n>addFamily}" press=".onOpenAddFamily" visible="{auth>/isAdmin}"/>
+            <Button icon="sap-icon://org-chart" text="{i18n>reassign}" press=".onOpenReassign" visible="{auth>/isAdmin}"/>
+            <Button icon="sap-icon://attachment-time-sheet" text="{i18n>recordAttendance}" press=".onOpenAttendance"
+                visible="{= ${auth>/isAdmin} || ${auth>/isManager} }"/>
+            <Button type="Emphasized" icon="sap-icon://calendar" text="{i18n>recordAbsence}" press=".onOpenAbsence"
+                visible="{= ${auth>/isAdmin} || ${auth>/isManager} }"/>
+            <Button icon="sap-icon://log" tooltip="{i18n>signOut}" press=".onLogout"/>
         </headerContent>
 
         <content>

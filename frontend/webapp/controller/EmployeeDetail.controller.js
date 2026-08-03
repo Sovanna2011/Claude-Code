@@ -15,6 +15,7 @@ sap.ui.define([
         },
 
         _onRouteMatched: function (oEvent) {
+            if (!this.requireAuth()) { return; }
             this._pernr = oEvent.getParameter("arguments").pernr;
             this._loadEmployee();
         },

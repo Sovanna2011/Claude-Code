@@ -236,6 +236,32 @@ a.mail:hover{text-decoration:underline}
 :root[data-theme="dark"] .banner{color:var(--accent)}
 .banner svg{width:16px;height:16px;fill:currentColor;flex:0 0 auto}
 .empty{padding:40px;text-align:center;color:var(--muted)}
+.whoami{display:flex;flex-direction:column;line-height:1.15;text-align:right;margin-right:4px}
+.whoami b{font-size:12.5px}.whoami span{font-size:11px;opacity:.8}
+.rolebadge{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;background:var(--accent-soft);color:var(--accent)}
+/* Login */
+.login-wrap{min-height:calc(100vh - 52px);display:grid;place-items:center;padding:24px}
+.login{background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);
+  width:min(400px,100%);padding:30px 28px}
+.login .brandrow{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.login .brandrow .mark{width:40px;height:40px;border-radius:10px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:800}
+.login h1{font-size:20px;margin:0}
+.login .tag{color:var(--muted);font-size:13px;margin:2px 0 22px}
+.login .grp{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.login .grp label{font-size:12px;color:var(--muted);font-weight:600}
+.login input{width:100%}
+.login .btn{width:100%;justify-content:center;margin-top:4px}
+.login .err{background:var(--bad-bg);color:var(--bad);border-radius:8px;padding:9px 12px;font-size:13px;margin-bottom:14px;display:none}
+.demo-users{margin-top:20px;border-top:1px solid var(--border);padding-top:16px}
+.demo-users .t{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:700;margin-bottom:8px}
+.demo-users .u{display:flex;justify-content:space-between;gap:10px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer;font-size:13px}
+.demo-users .u:hover{border-color:var(--accent);background:var(--surface-2)}
+.demo-users .u .r{font-size:11px;color:var(--muted)}
+.stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow-sm)}
+.stat .v{font-size:26px;font-weight:800;color:var(--accent);line-height:1}
+.stat .l{font-size:12px;color:var(--muted);margin-top:4px}
+.shell .util #logout,.shell .util #reset,.shell .util #theme{font-size:16px}
 @media(prefers-reduced-motion:reduce){*{animation:none!important}}
 </style>
 
@@ -244,8 +270,10 @@ a.mail:hover{text-decoration:underline}
   <nav id="nav"></nav>
   <div class="spacer"></div>
   <div class="util">
+    <span id="whoami" class="whoami" style="display:none"></span>
     <button id="reset" title="Reset demo data">↻</button>
     <button id="theme" title="Toggle light / dark">◐</button>
+    <button id="logout" title="Sign out" style="display:none">⎋</button>
   </div>
 </header>
 
@@ -365,9 +393,34 @@ function seed(){return{
        SLART:{"10":"University","20":"Secondary school","30":"Vocational training","40":"Doctorate"},
        TMART:{"01":"Expiry of probation","02":"Work permit expiry","03":"Contract end","04":"Next appraisal"},
        QUALG:{"01":"Technical","02":"Language","03":"Leadership"},
-       ANSSA:{"1":"Permanent residence","2":"Temporary residence","3":"Home address","4":"Mailing address","5":"Emergency address"}}
+       ANSSA:{"1":"Permanent residence","2":"Temporary residence","3":"Home address","4":"Mailing address","5":"Emergency address"}},
+  users:[
+   {username:"admin",password:"admin123",name:"Alex Admin",role:"HR_ADMIN",pernr:null},
+   {username:"manager",password:"manager123",name:"Andreas Schmidt",role:"HR_MANAGER",pernr:1000},
+   {username:"linda",password:"linda123",name:"Linda Nguyen",role:"EMPLOYEE",pernr:1001}],
+  roleNames:{HR_ADMIN:"HR Administrator",HR_MANAGER:"HR Manager",EMPLOYEE:"Employee (Self-Service)"},
+  leaveSeq:2,
+  leaveRequests:[
+   {id:1,pernr:1001,name:"Linda Nguyen",type:"0100",begda:"2026-08-10",endda:"2026-08-14",days:5,status:"Pending",note:"Summer holiday"},
+   {id:2,pernr:1001,name:"Linda Nguyen",type:"0200",begda:"2026-05-04",endda:"2026-05-04",days:1,status:"Approved",note:"Doctor"}],
+  reqData:[
+   {id:50001,title:"HR Business Partner",orgeh:50000010,orgN:"Human Resources",status:"Open",openings:1,posted:"2026-06-01"},
+   {id:50002,title:"Financial Analyst",orgeh:50000020,orgN:"Finance",status:"Open",openings:2,posted:"2026-07-01"}],
+  applicants:[
+   {id:1,reqId:50001,name:"Sophie Turner",email:"s.turner@mail.com",stage:"Interview",applied:"2026-06-10"},
+   {id:2,reqId:50001,name:"Mark Lee",email:"m.lee@mail.com",stage:"Screening",applied:"2026-06-15"},
+   {id:3,reqId:50002,name:"Ana Silva",email:"a.silva@mail.com",stage:"Offer",applied:"2026-07-08"}],
+  courses:[
+   {id:"D100",title:"Leadership Essentials",cat:"Leadership",hours:16,date:"2026-09-15",seats:12},
+   {id:"D200",title:"SAP HCM Fundamentals",cat:"Technical",hours:24,date:"2026-10-06",seats:20},
+   {id:"D300",title:"Business English (B2)",cat:"Language",hours:40,date:"2026-11-03",seats:15},
+   {id:"D400",title:"Data Privacy & GDPR",cat:"Compliance",hours:4,date:"2026-09-01",seats:50}],
+  bookings:[
+   {pernr:1000,course:"D100",status:"Confirmed"},
+   {pernr:1001,course:"D200",status:"Confirmed"}]
 };}
 let db=seed();
+let SESSION=null; // {username,name,role,pernr}
 
 /* ============================ LOGIC (mirrors C# services) ============================ */
 const today=()=>new Date().toISOString().slice(0,10);
@@ -375,6 +428,16 @@ const validOn=(rows,pernr,key)=>rows.filter(r=>r.pernr===pernr&&r.begda<=key&&r.
   .sort((a,b)=>a.begda<b.begda?1:-1)[0]||null;
 const orgText=(ot,id,key)=>{const o=db.HRP1000.find(x=>x.otype===ot&&x.objid===id&&x.begda<=key&&x.endda>=key);return o?o.stext:null;};
 const dom=(d,k)=>db.dom[d]&&db.dom[d][k]||null;
+/* Reporting person level: the line manager of an employee. The position reports
+   to another position (A 002 S->S); otherwise the org unit's chief (B 012). */
+function holderOfPosition(posId,key){const a=db.PA0001.find(x=>x.plans===posId&&x.begda<=key&&x.endda>=key);if(!a)return null;const p=validOn(db.PA0002,a.pernr,key);return p?{pernr:a.pernr,name:p.vorna+" "+p.nachn,pos:orgText("S",posId,key)}:null;}
+function lineManager(pernr,key){key=key||today();const a=validOn(db.PA0001,pernr,key);if(!a)return null;
+  let mgrPos=null;
+  const rel=db.HRP1001.find(r=>r.otype==="S"&&r.objid===a.plans&&r.rsign==="A"&&r.relat==="002"&&r.sclas==="S"&&r.begda<=key&&r.endda>=key);
+  if(rel)mgrPos=+rel.sobid;
+  if(!mgrPos&&a.orgeh){const ch=db.HRP1001.find(r=>r.otype==="O"&&r.objid===a.orgeh&&r.rsign==="B"&&r.relat==="012"&&r.sclas==="S"&&r.begda<=key&&r.endda>=key);if(ch)mgrPos=+ch.sobid;}
+  if(!mgrPos||mgrPos===a.plans)return null;
+  return holderOfPosition(mgrPos,key);}
 const dayBefore=d=>{const x=new Date(d);x.setDate(x.getDate()-1);return x.toISOString().slice(0,10);};
 const daysBetween=(a,b)=>Math.round((new Date(b)-new Date(a))/864e5)+1;
 const fmtDate=s=>!s?"":s.startsWith("9999")?"unlimited":s.split("-").reverse().join(".");
@@ -406,7 +469,8 @@ function getEmployee(pernr,key){
     org:p1&&{bukrs:p1.bukrs,company:db.T001[p1.bukrs],werks:p1.werks,werksN:db.T500P[p1.werks],
       persg:p1.persg,persgN:db.T501[p1.persg],persk:p1.persk,perskN:db.T503K[p1.persk],
       orgeh:p1.orgeh,orgN:p1.orgeh?orgText("O",p1.orgeh,key):null,
-      plans:p1.plans,posN:p1.plans?orgText("S",p1.plans,key):null,kostl:p1.kostl,begda:p1.begda,endda:p1.endda},
+      plans:p1.plans,posN:p1.plans?orgText("S",p1.plans,key):null,kostl:p1.kostl,
+      reportsTo:lineManager(pernr,key),begda:p1.begda,endda:p1.endda},
     addr:p6&&{stras:p6.stras,ort01:p6.ort01,pstlz:p6.pstlz,land1:p6.land1},
     wt:p7&&{schkz:p7.schkz,empct:p7.empct,wostd:p7.wostd},
     pay:p8&&{trfgr:p8.trfgr,bsgrd:p8.bsgrd,waers:p8.waers,ansal:p8.ansal,
@@ -504,26 +568,66 @@ const S={view:"list",pernr:null,search:"",key:"",tab:"personal",orgFilter:"",ope
 const $=s=>document.querySelector(s);
 const app=$("#app");
 
+/* role helpers */
+const isAdmin=()=>SESSION&&SESSION.role==="HR_ADMIN";
+const isManager=()=>SESSION&&SESSION.role==="HR_MANAGER";
+const isEmployee=()=>SESSION&&SESSION.role==="EMPLOYEE";
+const can=(...roles)=>SESSION&&roles.includes(SESSION.role);
+function navFor(role){
+  if(role==="HR_ADMIN")return [["list","People","people"],["org","Org Chart","org"],["pos","Positions","pos"],["leave","Leave","cal"],["recruit","Recruitment","person"],["training","Training","education"]];
+  if(role==="HR_MANAGER")return [["mss","My Team","people"],["leave","Approvals","cal"],["org","Org Chart","org"],["training","Training","education"]];
+  return [["ess","My Profile","person"],["myleave","My Leave","cal"],["training","Training","education"]];
+}
 function navBar(){
-  const items=[["list","People","people"],["org","Org Chart","org"],["pos","Positions","pos"]];
+  if(!SESSION){$("#nav").innerHTML="";return;}
+  const items=navFor(SESSION.role);
   $("#nav").innerHTML=items.map(([v,l,ic])=>
     `<button data-nav="${v}" class="${S.view===v||(S.view==="detail"&&v==="list")?'active':''}">${I[ic]}${l}</button>`).join("");
 }
 
 function render(){
+  // Auth gate
+  $("#whoami").style.display=SESSION?"flex":"none";
+  $("#logout").style.display=SESSION?"grid":"none";
+  if(SESSION){$("#whoami").innerHTML=`<b>${esc(SESSION.name)}</b><span>${esc(db.roleNames[SESSION.role])}</span>`;}
+  if(!SESSION){navBar();renderLogin();return;}
   navBar();
   if(S.view==="list")renderList();
   else if(S.view==="detail")renderDetail();
   else if(S.view==="org")renderOrg();
   else if(S.view==="pos")renderPositions();
+  else if(S.view==="leave")renderLeave();
+  else if(S.view==="myleave")renderMyLeave();
+  else if(S.view==="recruit")renderRecruit();
+  else if(S.view==="training")renderTraining();
+  else if(S.view==="mss")renderMss();
+  else if(S.view==="ess"){S.pernr=SESSION.pernr;S.view="detail";renderDetail();}
+  else renderList();
   window.scrollTo(0,0);
+}
+
+function renderLogin(){
+  app.innerHTML=`<div class="login-wrap"><div class="login">
+    <div class="brandrow"><span class="mark">HR</span><div><h1>Sign in</h1></div></div>
+    <div class="tag">HR Module — Human Capital Management</div>
+    <div class="err" id="loginErr"></div>
+    <div class="grp"><label>Username</label><input id="lu" autocomplete="username" placeholder="e.g. admin"></div>
+    <div class="grp"><label>Password</label><input id="lp" type="password" autocomplete="current-password" placeholder="Password"></div>
+    <button class="btn primary" data-do="login">Sign in</button>
+    <div class="demo-users"><div class="t">Demo accounts — click to fill</div>
+      ${db.users.map(u=>`<div class="u" data-fill="${u.username}"><span><b>${u.username}</b> / ${u.password}</span><span class="r">${db.roleNames[u.role]}</span></div>`).join("")}
+    </div>
+  </div></div>`;
+  const go=()=>doAction("login");
+  $("#lp").addEventListener("keydown",e=>{if(e.key==="Enter")go();});
+  $("#lu").focus();
 }
 
 function renderList(){
   const rows=getEmployees(S.search,S.key);
   app.innerHTML=`
   <div class="page-head"><div><div class="crumb">Personnel Administration</div><h1>Employees</h1></div>
-    <button class="btn primary" data-act="hire">${I.person} Hire employee</button></div>
+    ${isAdmin()?`<button class="btn primary" data-act="hire">${I.person} Hire employee</button>`:""}</div>
   <div class="toolbar">
     <div class="search">${I.search}<input id="q" placeholder="Search by name or personnel number" value="${esc(S.search)}"></div>
     <div class="field"><label>Key date</label><input type="date" id="kd" value="${S.key}"></div>
@@ -564,6 +668,7 @@ function renderDetail(){
       ["Company code",esc(o.bukrs)+" – "+esc(o.company)],["Personnel area",esc(o.werks)+" – "+esc(o.werksN)],
       ["Employee group",esc(o.persg)+" – "+esc(o.persgN)],["Employee subgroup",esc(o.persk)+" – "+esc(o.perskN)],
       ["Organizational unit",o.orgeh?esc(o.orgeh)+" "+esc(o.orgN):"—"],["Position",o.plans?esc(o.plans)+" "+esc(o.posN):"—"],
+      ["Reports to",o.reportsTo?`<b>${esc(o.reportsTo.name)}</b> · ${esc(o.reportsTo.pos)}`:"—"],
       ["Cost center",esc(o.kostl)],["Validity",fmtDate(o.begda)+" – "+fmtDate(o.endda)]])}</div></div>`;}
   else if(S.tab==="contact"){const a=e.addr||{};content=`<div class="card"><div class="subcard">
     <div class="section-title">Address · IT0006</div>${dl([["Street",esc(a.stras)],["City",esc(a.pstlz)+" "+esc(a.ort01)],["Country",esc(a.land1)]])}</div>
@@ -626,14 +731,15 @@ function renderDetail(){
 
   app.innerHTML=`
   <div class="page-head">
-    <div><div class="crumb"><a href="#" data-nav="list" style="color:inherit;text-decoration:none">← Employees</a> / Master data</div></div>
+    <div><div class="crumb">${isEmployee()?"Employee Self-Service / My profile":`<a href="#" data-nav="${isManager()?'mss':'list'}" style="color:inherit;text-decoration:none">← ${isManager()?'My team':'Employees'}</a> / Master data`}</div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn" data-act="edit">${I.edit} Edit personal</button>
+      ${isAdmin()?`<button class="btn" data-act="edit">${I.edit} Edit personal</button>
       <button class="btn" data-act="address">${I.addr} Edit address</button>
       <button class="btn" data-act="family">${I.people} Add family</button>
-      <button class="btn" data-act="reassign">${I.move} Reassign</button>
-      <button class="btn" data-act="attendance">${I.cal} Attendance</button>
-      <button class="btn primary" data-act="absence">${I.cal} Absence</button>
+      <button class="btn" data-act="reassign">${I.move} Reassign</button>`:""}
+      ${can("HR_ADMIN","HR_MANAGER")?`<button class="btn" data-act="attendance">${I.cal} Attendance</button>
+      <button class="btn primary" data-act="absence">${I.cal} Absence</button>`:""}
+      ${isEmployee()?`<button class="btn primary" data-nav="myleave">${I.cal} My leave</button>`:""}
     </div>
   </div>
   <div class="obj-head">
@@ -642,7 +748,7 @@ function renderDetail(){
       <div class="attrs">
         <span>Org unit: <b>${esc((e.org&&e.org.orgN)||"—")}</b></span>
         <span>Position: <b>${esc((e.org&&e.org.posN)||"—")}</b></span>
-        <span>Company: <b>${esc((e.org&&e.org.company)||"—")}</b></span>
+        <span>Reports to: <b>${esc((e.org&&e.org.reportsTo&&e.org.reportsTo.name)||"—")}</b></span>
       </div></div>
     <div class="id"><div class="n num">${e.pernr}</div><div class="l">Personnel no.</div>
       <div class="l" style="margin-top:6px">Key date ${fmtDate(e.key)}</div></div>
@@ -696,6 +802,114 @@ function renderPositions(){
         <td><span class="pill ${p.vacant?'warn':'good'}">${p.vacant?"Vacant":"Occupied"}</span></td></tr>`).join("")}
     </tbody></table></div></div>`;
   $("#of").addEventListener("change",e=>{S.orgFilter=e.target.value;renderPositions();});
+}
+
+/* ============================ MODULE LOGIC ============================ */
+function directReports(mgrPernr,key){
+  key=key||today();
+  // Employees whose position reports to (A 002 S->S) the manager's position, OR same org unit.
+  const mp=validOn(db.PA0001,mgrPernr,key); if(!mp)return [];
+  const mgrPos=mp.plans, mgrOrg=mp.orgeh;
+  const subPos=db.HRP1001.filter(r=>r.otype==="S"&&r.rsign==="A"&&r.relat==="002"&&r.sclas==="S"&&String(r.sobid)===String(mgrPos)&&r.begda<=key&&r.endda>=key).map(r=>r.objid);
+  return db.emp.filter(e=>e.pernr!==mgrPernr).map(e=>{const a=validOn(db.PA0001,e.pernr,key),p=validOn(db.PA0002,e.pernr,key);
+    if(!a||!p)return null;
+    if(subPos.includes(a.plans)||a.orgeh===mgrOrg)return {pernr:e.pernr,name:p.vorna+" "+p.nachn,pos:a.plans?orgText("S",a.plans,key):"",org:a.orgeh?orgText("O",a.orgeh,key):""};
+    return null;}).filter(Boolean);
+}
+function requestLeave(f){
+  const emp=validOn(db.PA0002,f.pernr,today());
+  const days=f.days!=null&&f.days!==""?Number(f.days):daysBetween(f.begda,f.endda);
+  db.leaveRequests.push({id:++db.leaveSeq,pernr:f.pernr,name:emp?emp.vorna+" "+emp.nachn:String(f.pernr),
+    type:f.type,begda:f.begda,endda:f.endda,days,status:"Pending",note:f.note||""});
+  return days;
+}
+function decideLeave(id,approve){
+  const r=db.leaveRequests.find(x=>x.id===id); if(!r)return;
+  if(approve){
+    const q=db.PA2006.filter(x=>x.pernr===r.pernr&&x.ktart===r.type&&x.begda<=r.begda&&x.endda>=r.begda).sort((a,b)=>a.begda<b.begda?1:-1)[0];
+    if(q){if(q.anzhl-q.kverb<r.days)throw new Error("Insufficient quota to approve this request.");q.kverb+=r.days;}
+    db.PA2001.push({pernr:r.pernr,begda:r.begda,endda:r.endda,awart:r.type,abwtg:r.days});
+    r.status="Approved";
+  }else r.status="Rejected";
+}
+function bookCourse(pernr,courseId){
+  if(db.bookings.find(b=>b.pernr===pernr&&b.course===courseId))throw new Error("Already booked on this course.");
+  db.bookings.push({pernr,course:courseId,status:"Confirmed"});
+}
+const STAGES=["Screening","Interview","Offer","Hired","Rejected"];
+function advanceApplicant(id){const a=db.applicants.find(x=>x.id===id);if(!a)return;const i=STAGES.indexOf(a.stage);if(i<STAGES.length-2)a.stage=STAGES[i+1];}
+
+/* ============================ MODULE VIEWS ============================ */
+function pageHead(crumb,title,right){return `<div class="page-head"><div><div class="crumb">${crumb}</div><h1>${title}</h1></div>${right||""}</div>`;}
+function statusPill(s){return `<span class="pill ${s==='Approved'||s==='Confirmed'||s==='Hired'?'good':s==='Rejected'?'bad':s==='Pending'||s==='Open'?'warn':'neutral'}">${esc(s)}</span>`;}
+
+function renderLeave(){ // admin/manager: approvals inbox
+  const reqs=db.leaveRequests.slice().sort((a,b)=>a.status==="Pending"?-1:1);
+  const pending=reqs.filter(r=>r.status==="Pending").length;
+  app.innerHTML=pageHead("Leave Management","Leave requests")+`
+  <div class="stat-row">
+    <div class="stat"><div class="v num">${pending}</div><div class="l">Pending approval</div></div>
+    <div class="stat"><div class="v num">${reqs.filter(r=>r.status==='Approved').length}</div><div class="l">Approved</div></div>
+    <div class="stat"><div class="v num">${reqs.length}</div><div class="l">Total requests</div></div>
+  </div>
+  <div class="card"><div class="card-head"><h2>Requests</h2><span class="count">${reqs.length}</span></div>
+  <div class="tbl-wrap"><table><thead><tr><th>Employee</th><th>Type</th><th>Period</th><th class="th-r">Days</th><th>Note</th><th>Status</th><th></th></tr></thead><tbody>
+  ${reqs.map(r=>`<tr><td><b>${esc(r.name)}</b><br><span style="color:var(--muted)" class="num">${r.pernr}</span></td>
+    <td>${esc(db.T554S[r.type]||r.type)}</td><td class="num">${fmtDate(r.begda)} – ${fmtDate(r.endda)}</td>
+    <td class="td-r num">${r.days}</td><td>${esc(r.note)}</td><td>${statusPill(r.status)}</td>
+    <td class="td-r">${r.status==="Pending"?`<button class="btn sm primary" data-approve="${r.id}">Approve</button> <button class="btn sm" data-reject="${r.id}">Reject</button>`:"—"}</td></tr>`).join("")||`<tr><td colspan=7><div class="empty">No requests.</div></td></tr>`}
+  </tbody></table></div></div>`;
+}
+function renderMyLeave(){ // employee self-service leave
+  const bals=leaveBalances(SESSION.pernr);
+  const mine=db.leaveRequests.filter(r=>r.pernr===SESSION.pernr);
+  app.innerHTML=pageHead("Employee Self-Service","My leave",`<button class="btn primary" data-act="reqleave">${I.cal} Request leave</button>`)+`
+  <div class="stat-row">${bals.map(b=>`<div class="stat"><div class="v num">${b.rem}</div><div class="l">${esc(b.txt)} — days remaining</div></div>`).join("")}</div>
+  <div class="card"><div class="card-head"><h2>My requests</h2></div>
+  <div class="tbl-wrap"><table><thead><tr><th>Type</th><th>Period</th><th class="th-r">Days</th><th>Note</th><th>Status</th></tr></thead><tbody>
+  ${mine.map(r=>`<tr><td>${esc(db.T554S[r.type]||r.type)}</td><td class="num">${fmtDate(r.begda)} – ${fmtDate(r.endda)}</td><td class="td-r num">${r.days}</td><td>${esc(r.note)}</td><td>${statusPill(r.status)}</td></tr>`).join("")||`<tr><td colspan=5><div class="empty">No requests yet.</div></td></tr>`}
+  </tbody></table></div></div>`;
+}
+function renderMss(){ // manager self-service: team
+  const team=directReports(SESSION.pernr,S.key);
+  const pend=db.leaveRequests.filter(r=>r.status==="Pending"&&team.some(t=>t.pernr===r.pernr)).length;
+  app.innerHTML=pageHead("Manager Self-Service","My team",`<button class="btn" data-nav="leave">${I.cal} Approvals${pend?` (${pend})`:""}</button>`)+`
+  <div class="stat-row">
+    <div class="stat"><div class="v num">${team.length}</div><div class="l">Team members</div></div>
+    <div class="stat"><div class="v num">${pend}</div><div class="l">Pending leave approvals</div></div>
+  </div>
+  <div class="card"><div class="card-head"><h2>Direct reports</h2><span class="count">${team.length}</span></div>
+  <div class="tbl-wrap"><table><thead><tr><th>Pers.No.</th><th>Name</th><th>Position</th><th>Org unit</th><th></th></tr></thead><tbody>
+  ${team.map(t=>`<tr class="click" data-open="${t.pernr}"><td class="pernr num">${t.pernr}</td><td>${esc(t.name)}</td><td>${esc(t.pos)}</td><td>${esc(t.org)}</td><td class="td-r">${I.chev}</td></tr>`).join("")||`<tr><td colspan=5><div class="empty">No direct reports.</div></td></tr>`}
+  </tbody></table></div></div>`;
+}
+function renderRecruit(){
+  app.innerHTML=pageHead("Recruitment","Job requisitions & applicants")+`
+  <div class="card"><div class="card-head"><h2>Requisitions</h2><span class="count">${db.reqData.length}</span></div>
+  <div class="tbl-wrap"><table><thead><tr><th>Req ID</th><th>Title</th><th>Org unit</th><th class="th-r">Openings</th><th>Posted</th><th>Status</th></tr></thead><tbody>
+  ${db.reqData.map(r=>`<tr><td class="pernr num">${r.id}</td><td><b>${esc(r.title)}</b></td><td>${esc(r.orgN)}</td><td class="td-r num">${r.openings}</td><td class="num">${fmtDate(r.posted)}</td><td>${statusPill(r.status)}</td></tr>`).join("")}
+  </tbody></table></div></div>
+  <div class="card" style="margin-top:14px"><div class="card-head"><h2>Applicants</h2><span class="count">${db.applicants.length}</span></div>
+  <div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Applied for</th><th>Applied</th><th>Stage</th><th></th></tr></thead><tbody>
+  ${db.applicants.map(a=>{const r=db.reqData.find(x=>x.id===a.reqId);return `<tr><td><b>${esc(a.name)}</b><br><span style="color:var(--muted)">${esc(a.email)}</span></td>
+    <td>${esc(r?r.title:a.reqId)}</td><td class="num">${fmtDate(a.applied)}</td><td>${statusPill(a.stage)}</td>
+    <td class="td-r">${(a.stage!=="Hired"&&a.stage!=="Rejected"&&isAdmin())?`<button class="btn sm" data-advance="${a.id}">Advance →</button>`:"—"}</td></tr>`;}).join("")}
+  </tbody></table></div></div>`;
+}
+function renderTraining(){
+  const myP=SESSION.pernr;
+  app.innerHTML=pageHead("Training & Event Management","Course catalog")+`
+  <div class="card"><div class="card-head"><h2>Courses</h2><span class="count">${db.courses.length}</span></div>
+  <div class="tbl-wrap"><table><thead><tr><th>Course</th><th>Category</th><th class="th-r">Hours</th><th>Date</th><th class="th-r">Booked</th><th></th></tr></thead><tbody>
+  ${db.courses.map(c=>{const booked=db.bookings.filter(b=>b.course===c.id).length;const mine=myP&&db.bookings.some(b=>b.course===c.id&&b.pernr===myP);
+    return `<tr><td><b>${esc(c.id)}</b> · ${esc(c.title)}</td><td>${esc(c.cat)}</td><td class="td-r num">${c.hours}</td><td class="num">${fmtDate(c.date)}</td>
+    <td class="td-r num">${booked}/${c.seats}</td>
+    <td class="td-r">${myP?(mine?`<span class="pill good">Booked</span>`:`<button class="btn sm primary" data-book="${c.id}">Book</button>`):"—"}</td></tr>`;}).join("")}
+  </tbody></table></div></div>
+  ${myP?`<div class="card" style="margin-top:14px"><div class="card-head"><h2>My bookings</h2></div>
+  <div class="tbl-wrap"><table><thead><tr><th>Course</th><th>Date</th><th>Status</th></tr></thead><tbody>
+  ${db.bookings.filter(b=>b.pernr===myP).map(b=>{const c=db.courses.find(x=>x.id===b.course)||{};return `<tr><td>${esc(b.course)} · ${esc(c.title)}</td><td class="num">${fmtDate(c.date)}</td><td>${statusPill(b.status)}</td></tr>`;}).join("")||`<tr><td colspan=3><div class="empty">No bookings yet.</div></td></tr>`}
+  </tbody></table></div>`:""}`;
 }
 
 /* ============================ MODALS ============================ */
@@ -815,6 +1029,19 @@ function attendanceDialog(){
     <div class="grp"><label>Hours</label><input id="at_hours" type="number" step="0.5"></div>`,
     `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="attendance">Submit</button>`);
 }
+function reqLeaveDialog(){
+  const q={}; db.PA2006.filter(x=>x.pernr===SESSION.pernr).forEach(x=>q[x.ktart]=db.T554S[x.ktart]);
+  if(!Object.keys(q).length)Object.assign(q,{"0100":"Annual leave","0200":"Sick leave"});
+  modal("Request leave",`
+    <div class="hint">${I.info}<span>Your request goes to your manager / HR for approval; approval deducts your quota.</span></div>
+    <div class="grp"><label>Leave type <span class="req">*</span></label><select id="rl_type">${opt(q,"0100")}</select></div>
+    <div class="two">
+      <div class="grp"><label>From <span class="req">*</span></label><input type="date" id="rl_begda"></div>
+      <div class="grp"><label>To <span class="req">*</span></label><input type="date" id="rl_endda"></div>
+    </div>
+    <div class="grp"><label>Note</label><input id="rl_note" placeholder="Optional"></div>`,
+    `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="reqleave">Submit request</button>`);
+}
 
 /* ============================ TOAST ============================ */
 function toast(msg,kind){
@@ -839,8 +1066,14 @@ document.addEventListener("click",ev=>{
     else if(t.dataset.act==="address")addressDialog();
     else if(t.dataset.act==="family")familyDialog();
     else if(t.dataset.act==="attendance")attendanceDialog();
+    else if(t.dataset.act==="reqleave")reqLeaveDialog();
     return;
   }
+  if(t.dataset.fill){const u=db.users.find(x=>x.username===t.dataset.fill);if(u){$("#lu").value=u.username;$("#lp").value=u.password;}return;}
+  if(t.dataset.approve){try{decideLeave(+t.dataset.approve,true);toast("Leave approved and quota deducted.","good");render();}catch(e){toast(e.message,"bad");}return;}
+  if(t.dataset.reject){decideLeave(+t.dataset.reject,false);toast("Leave request rejected.","good");render();return;}
+  if(t.dataset.book){try{bookCourse(SESSION.pernr,t.dataset.book);toast("Course booked.","good");render();}catch(e){toast(e.message,"bad");}return;}
+  if(t.dataset.advance){advanceApplicant(+t.dataset.advance);toast("Applicant advanced to next stage.","good");render();return;}
   if(t.hasAttribute("data-close")){if(ev.target.closest(".modal")&&!t.hasAttribute("data-close"))return;closeModal();return;}
   if(t.dataset.do){doAction(t.dataset.do);return;}
 });
@@ -882,12 +1115,25 @@ function doAction(kind){
       const f={attendanceType:val("at_type"),begda:val("at_begda"),endda:val("at_endda"),hours:val("at_hours")};
       if(!f.begda||!f.endda){toast("Enter start and end dates.","bad");return;}
       const d=recordAttendance(S.pernr,f);closeModal();toast("Attendance recorded ("+d+" day(s)).","good");S.tab="time";renderDetail();
+    }else if(kind==="login"){
+      const u=val("lu").trim(),pw=val("lp");
+      const found=db.users.find(x=>x.username===u&&x.password===pw&&pw);
+      if(!found){const e=$("#loginErr");e.textContent="Invalid username or password.";e.style.display="block";return;}
+      SESSION={username:found.username,name:found.name,role:found.role,pernr:found.pernr};
+      S.view=found.role==="EMPLOYEE"?"ess":found.role==="HR_MANAGER"?"mss":"list";
+      toast("Welcome, "+found.name+".","good");render();
+    }else if(kind==="reqleave"){
+      const f={pernr:SESSION.pernr,type:val("rl_type"),begda:val("rl_begda"),endda:val("rl_endda"),note:val("rl_note").trim()};
+      if(!f.begda||!f.endda){toast("Enter start and end dates.","bad");return;}
+      if(f.endda<f.begda){toast("End date must not be before start date.","bad");return;}
+      const d=requestLeave(f);closeModal();toast("Leave request submitted ("+d+" day(s)).","good");render();
     }
   }catch(err){toast(err.message,"bad");}
 }
 
 /* ---- utility buttons ---- */
-$("#reset").addEventListener("click",()=>{db=seed();S.view="list";S.pernr=null;S.search="";S.open=new Set([50000001]);render();toast("Demo data reset to seed.","good");});
+$("#logout").addEventListener("click",()=>{SESSION=null;S.view="list";S.pernr=null;render();toast("Signed out.","good");});
+$("#reset").addEventListener("click",()=>{db=seed();S.view=SESSION?(isEmployee()?"ess":isManager()?"mss":"list"):"list";S.pernr=null;S.search="";S.open=new Set([50000001]);render();toast("Demo data reset to seed.","good");});
 (function themeInit(){
   const btn=$("#theme");
   btn.addEventListener("click",()=>{

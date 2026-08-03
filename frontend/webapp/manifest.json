@@ -79,6 +79,11 @@
       },
       "routes": [
         {
+          "name": "login",
+          "pattern": "login",
+          "target": "login"
+        },
+        {
           "name": "employeeList",
           "pattern": "",
           "target": "employeeList"
@@ -100,6 +105,10 @@
         }
       ],
       "targets": {
+        "login": {
+          "viewName": "Login",
+          "viewLevel": 0
+        },
         "employeeList": {
           "viewName": "EmployeeList",
           "viewLevel": 1

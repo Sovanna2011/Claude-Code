@@ -11,6 +11,8 @@ sap.ui.define([
     return {
 
         _base: "/api",
+        _token: null,
+        _onUnauthorized: null,
 
         /**
          * Sets the API base URL (from the config model).
@@ -19,6 +21,12 @@ sap.ui.define([
         setBase: function (sBase) {
             if (sBase) { this._base = sBase.replace(/\/$/, ""); }
         },
+
+        /** Sets the bearer token used for subsequent requests. */
+        setToken: function (sToken) { this._token = sToken || null; },
+
+        /** Registers a callback invoked on any 401 response (e.g. to show login). */
+        setUnauthorizedHandler: function (fn) { this._onUnauthorized = fn; },
 
         _request: function (sMethod, sPath, oBody) {
             var that = this;
@@ -29,8 +37,12 @@ sap.ui.define([
                     contentType: "application/json",
                     dataType: "json",
                     data: oBody ? JSON.stringify(oBody) : undefined,
+                    beforeSend: function (xhr) {
+                        if (that._token) { xhr.setRequestHeader("Authorization", "Bearer " + that._token); }
+                    },
                     success: function (oData) { resolve(oData); },
                     error: function (oXhr) {
+                        if (oXhr.status === 401 && that._onUnauthorized) { that._onUnauthorized(); }
                         var sMsg = "Request failed (" + oXhr.status + ")";
                         try {
                             var oErr = JSON.parse(oXhr.responseText);
@@ -41,6 +53,12 @@ sap.ui.define([
                 });
             });
         },
+
+        // ---- Authentication ------------------------------------------------
+        login: function (sUser, sPassword) {
+            return this._request("POST", "/auth/login", { username: sUser, password: sPassword });
+        },
+        me: function () { return this._request("GET", "/auth/me"); },
 
         // ---- Employees -----------------------------------------------------
         getEmployees: function (sSearch, sKeyDate) {

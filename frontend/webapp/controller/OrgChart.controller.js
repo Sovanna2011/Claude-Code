@@ -13,6 +13,7 @@ sap.ui.define([
         },
 
         _loadTree: function () {
+            if (!this.requireAuth()) { return; }
             var oView = this.getView();
             oView.setBusy(true);
             var oSvc = this.getService();

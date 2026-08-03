@@ -7,9 +7,12 @@
 
     <Page id="employeeListPage" title="{i18n>employeeListTitle}" showNavButton="false">
         <headerContent>
+            <Text text="{auth>/displayName} · {auth>/roleName}" class="sapUiTinyMarginEnd"/>
             <Button icon="sap-icon://org-chart" text="{i18n>navOrg}" press=".onNavOrg"/>
             <Button icon="sap-icon://employee-lookup" text="{i18n>navPositions}" press=".onNavPositions"/>
-            <Button type="Emphasized" icon="sap-icon://add-employee" text="{i18n>hireEmployee}" press=".onOpenHire"/>
+            <Button type="Emphasized" icon="sap-icon://add-employee" text="{i18n>hireEmployee}"
+                press=".onOpenHire" visible="{auth>/isAdmin}"/>
+            <Button icon="sap-icon://log" tooltip="{i18n>signOut}" press=".onLogout"/>
         </headerContent>
 
         <subHeader>

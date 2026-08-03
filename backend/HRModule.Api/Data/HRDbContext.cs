@@ -2,6 +2,7 @@ using HRModule.Api.Models;
 using HRModule.Api.Models.Customizing;
 using HRModule.Api.Models.Infotypes;
 using HRModule.Api.Models.OrgManagement;
+using HRModule.Api.Models.Security;
 using Microsoft.EntityFrameworkCore;
 
 namespace HRModule.Api.Data;
@@ -55,6 +56,10 @@ public class HRDbContext : DbContext
     public DbSet<T547T> T547T => Set<T547T>();
     public DbSet<DomainValue> DomainValues => Set<DomainValue>();
     public DbSet<NumberRange> NumberRanges => Set<NumberRange>();
+
+    // Security
+    public DbSet<AppUser> AppUsers => Set<AppUser>();
+    public DbSet<AppRole> AppRoles => Set<AppRole>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -133,6 +138,15 @@ public class HRDbContext : DbContext
         mb.Entity<T547T>(e => { e.ToTable("T547T", "HR"); e.HasKey(x => x.CTTYP); });
         mb.Entity<DomainValue>(e => { e.ToTable("DomainValue", "HR"); e.HasKey(x => new { x.Domain, x.ValueKey }); });
         mb.Entity<NumberRange>(e => { e.ToTable("NumberRange", "HR"); e.HasKey(x => x.RangeObject); });
+
+        // ---- Security --------------------------------------------------
+        mb.Entity<AppRole>(e => { e.ToTable("AppRole", "HR"); e.HasKey(x => x.RoleKey); });
+        mb.Entity<AppUser>(e =>
+        {
+            e.ToTable("AppUser", "HR");
+            e.HasKey(x => x.UserId);
+            e.HasIndex(x => x.Username).IsUnique();
+        });
 
         base.OnModelCreating(mb);
     }

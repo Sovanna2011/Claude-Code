@@ -1,5 +1,7 @@
 using HRModule.Api.DTOs;
+using HRModule.Api.Security;
 using HRModule.Api.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HRModule.Api.Controllers;
@@ -8,6 +10,7 @@ namespace HRModule.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
+[Authorize(Policy = Policies.TimeKeepers)]
 public class OrgUnitsController : ControllerBase
 {
     private readonly IOrgService _service;

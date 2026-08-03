@@ -16,6 +16,7 @@ sap.ui.define([
         },
 
         _onRouteMatched: function () {
+            if (!this.requireAuth()) { return; }
             this._loadEmployees();
         },
 

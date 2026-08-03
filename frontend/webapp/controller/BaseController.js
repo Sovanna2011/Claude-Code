@@ -28,6 +28,21 @@ sap.ui.define([
             return UIComponent.getRouterFor(this);
         },
 
+        /** @returns {boolean} whether a user is currently authenticated */
+        isAuthenticated: function () {
+            return !!this.getOwnerComponent().getModel("auth").getProperty("/authenticated");
+        },
+
+        /**
+         * Route guard: if not authenticated, redirect to login and return false.
+         * @returns {boolean} true if the caller may proceed
+         */
+        requireAuth: function () {
+            if (this.isAuthenticated()) { return true; }
+            this.getRouter().navTo("login", {}, true);
+            return false;
+        },
+
         /**
          * Gets an i18n text.
          * @param {string} sKey resource key
@@ -54,6 +69,11 @@ sap.ui.define([
         showError: function (vError) {
             var sMsg = vError instanceof Error ? vError.message : String(vError);
             MessageBox.error(sMsg);
+        },
+
+        /** Signs the current user out and returns to the login screen. */
+        onLogout: function () {
+            this.getOwnerComponent().logout();
         },
 
         /** Navigates back to the employee list, or browser history. */

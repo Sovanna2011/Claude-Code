@@ -17,6 +17,27 @@ node demo/server.js
 # then open http://localhost:8080
 ```
 
+### Sign in (demo accounts)
+
+The app requires authentication. Three role-based accounts are seeded:
+
+| Username | Password | Role | Sees |
+|----------|----------|------|------|
+| `admin` | `admin123` | HR Administrator | Everything: People, Org Chart, Positions, Leave, Recruitment, Training |
+| `manager` | `manager123` | HR Manager | Manager Self-Service: My Team, leave Approvals, Org Chart, Training |
+| `linda` | `linda123` | Employee | Employee Self-Service: My Profile, My Leave (request), Training |
+
+Role gates both the UI and the API: employees may read only their own record;
+only admins hire/maintain master data; admins & managers record time and approve
+leave. In the hosted single-file demo, click a demo account to fill the form.
+
+### Modules included
+
+Personnel Administration · Organizational Management (org chart + **reporting
+lines**) · Time Management · **Leave Management** (request/approve) ·
+**Recruitment** (requisitions & applicants) · **Training** (catalog & bookings) ·
+**ESS** (employee self-service) · **MSS** (manager self-service).
+
 That's it. One Node process serves, on one origin:
 
 - the **real SAPUI5 web app** from `frontend/webapp` (unmodified), and

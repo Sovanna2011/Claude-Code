@@ -8,13 +8,21 @@ Capital Management application, built on an open stack:
 - **Backend** — **C# / ASP.NET Core 8** Web API with **Entity Framework Core**
 - **Frontend** — **SAPUI5** (Fiori, Horizon theme) master–detail application
 
-It covers the three core HCM sub-modules:
+It covers the core HCM sub-modules plus common HR processes:
 
 - **PA — Personnel Administration**: infotypes 0000, 0001, 0002, 0006, 0007,
-  0008, 0009, 0105 with SAP time-slicing and time-constraint-1 updates
+  0008, 0009, 0016, 0019, 0021, 0022, 0023, 0024, 0105 with SAP time-slicing
+  and time-constraint-1 updates
 - **OM — Organizational Management**: objects (HRP1000) and relationships
-  (HRP1001) — org units, positions, jobs, reporting lines, chief positions
-- **PT — Time Management**: absences (2001) and absence quotas (2006)
+  (HRP1001) — org units, positions, jobs, **reporting lines (line manager)**,
+  chief positions
+- **PT — Time Management**: absences (2001), attendances (2002), quotas (2006)
+- **Leave Management**: request / approval workflow (ESS → MSS/HR)
+- **Recruitment**: job requisitions and applicant pipeline
+- **Training & Event Management**: course catalog and bookings
+- **ESS / MSS**: employee and manager self-service
+- **Authentication & authorization**: JWT login with three roles
+  (HR Administrator, HR Manager, Employee) gating both UI and API
 
 See **[docs/architecture.md](docs/architecture.md)** for the full design, and the
 **[User Manual](docs/USER_MANUAL.md)** for step-by-step end-user instructions.

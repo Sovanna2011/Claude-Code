@@ -14,6 +14,7 @@ sap.ui.define([
         },
 
         _onRouteMatched: function () {
+            if (!this.requireAuth()) { return; }
             var that = this;
             this.getService().getOrgUnits().then(function (aUnits) {
                 that.getView().getModel("view").setProperty("/orgUnits", aUnits);

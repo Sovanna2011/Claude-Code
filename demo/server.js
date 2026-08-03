@@ -36,6 +36,7 @@ const http = require("http");
 const url = require("url");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 
 const WEBAPP = path.join(__dirname, "..", "frontend", "webapp");
 const PORT = process.env.PORT || 8080;
@@ -163,10 +164,42 @@ function seed() {
             TMART: [{ key: "01", text: "Expiry of probation" }, { key: "02", text: "Work permit expiry" }, { key: "03", text: "Contract end" }, { key: "04", text: "Next appraisal" }],
             QUALG: [{ key: "01", text: "Technical" }, { key: "02", text: "Language" }, { key: "03", text: "Leadership" }],
             ANSSA: [{ key: "1", text: "Permanent residence" }, { key: "2", text: "Temporary residence" }, { key: "3", text: "Home address" }, { key: "4", text: "Mailing address" }, { key: "5", text: "Emergency address" }]
-        }
+        },
+        users: [
+            { username: "admin", password: "admin123", name: "Alex Admin", role: "HR_ADMIN", pernr: null },
+            { username: "manager", password: "manager123", name: "Andreas Schmidt", role: "HR_MANAGER", pernr: 1000 },
+            { username: "linda", password: "linda123", name: "Linda Nguyen", role: "EMPLOYEE", pernr: 1001 }
+        ],
+        roleNames: { HR_ADMIN: "HR Administrator", HR_MANAGER: "HR Manager", EMPLOYEE: "Employee (Self-Service)" },
+        leaveSeq: 2,
+        leaveRequests: [
+            { id: 1, pernr: 1001, name: "Linda Nguyen", type: "0100", begda: "2026-08-10", endda: "2026-08-14", days: 5, status: "Pending", note: "Summer holiday" },
+            { id: 2, pernr: 1001, name: "Linda Nguyen", type: "0200", begda: "2026-05-04", endda: "2026-05-04", days: 1, status: "Approved", note: "Doctor" }
+        ],
+        requisitions: [
+            { id: 50001, title: "HR Business Partner", orgeh: 50000010, orgN: "Human Resources", status: "Open", openings: 1, posted: "2026-06-01" },
+            { id: 50002, title: "Financial Analyst", orgeh: 50000020, orgN: "Finance", status: "Open", openings: 2, posted: "2026-07-01" }
+        ],
+        applicants: [
+            { id: 1, reqId: 50001, name: "Sophie Turner", email: "s.turner@mail.com", stage: "Interview", applied: "2026-06-10" },
+            { id: 2, reqId: 50001, name: "Mark Lee", email: "m.lee@mail.com", stage: "Screening", applied: "2026-06-15" },
+            { id: 3, reqId: 50002, name: "Ana Silva", email: "a.silva@mail.com", stage: "Offer", applied: "2026-07-08" }
+        ],
+        courses: [
+            { id: "D100", title: "Leadership Essentials", cat: "Leadership", hours: 16, date: "2026-09-15", seats: 12 },
+            { id: "D200", title: "SAP HCM Fundamentals", cat: "Technical", hours: 24, date: "2026-10-06", seats: 20 },
+            { id: "D300", title: "Business English (B2)", cat: "Language", hours: 40, date: "2026-11-03", seats: 15 },
+            { id: "D400", title: "Data Privacy & GDPR", cat: "Compliance", hours: 4, date: "2026-09-01", seats: 50 }
+        ],
+        bookings: [
+            { pernr: 1000, course: "D100", status: "Confirmed" },
+            { pernr: 1001, course: "D200", status: "Confirmed" }
+        ]
     };
 }
 let db = seed();
+const sessions = {}; // token -> user
+
 
 // ===========================================================================
 // Helpers (mirror EmployeeService/OrgService/TimeService)
@@ -178,6 +211,24 @@ const orgText = (otype, objid, key) => {
     const o = db.HRP1000.find(x => x.otype === otype && x.objid === objid && x.begda <= key && x.endda >= key);
     return o ? o.stext : null;
 };
+/* Reporting person level: the line manager of an employee (holder of the
+   position this position reports to, else the org unit's chief position). */
+function holderOfPosition(posId, key) {
+    const a = db.PA0001.find(x => x.plans === posId && x.begda <= key && x.endda >= key);
+    if (!a) return null;
+    const p = validOn(db.PA0002, a.pernr, key);
+    return p ? { pernr: a.pernr, name: p.vorna + " " + p.nachn, pos: orgText("S", posId, key) } : null;
+}
+function lineManager(pernr, key) {
+    key = key || today();
+    const a = validOn(db.PA0001, pernr, key); if (!a) return null;
+    let mgrPos = null;
+    const rel = db.HRP1001.find(r => r.otype === "S" && r.objid === a.plans && r.rsign === "A" && r.relat === "002" && r.sclas === "S" && r.begda <= key && r.endda >= key);
+    if (rel) mgrPos = +rel.sobid;
+    if (!mgrPos && a.orgeh) { const ch = db.HRP1001.find(r => r.otype === "O" && r.objid === a.orgeh && r.rsign === "B" && r.relat === "012" && r.sclas === "S" && r.begda <= key && r.endda >= key); if (ch) mgrPos = +ch.sobid; }
+    if (!mgrPos || mgrPos === a.plans) return null;
+    return holderOfPosition(mgrPos, key);
+}
 const domText = (domain, key) => {
     const d = (db.DomainValue[domain] || []).find(x => x.key === key);
     return d ? d.text : null;
@@ -231,7 +282,7 @@ function getEmployee(pernr, q) {
             employeeSubgroup: p1.persk, employeeSubgroupName: (db.T503K.find(t => t.persk === p1.persk) || {}).ptext,
             orgUnitId: p1.orgeh, orgUnitName: p1.orgeh ? orgText("O", p1.orgeh, key) : null,
             positionId: p1.plans, positionName: p1.plans ? orgText("S", p1.plans, key) : null,
-            jobId: p1.stell, costCenter: p1.kostl, begda: p1.begda, endda: p1.endda
+            jobId: p1.stell, costCenter: p1.kostl, reportsTo: lineManager(pernr, key), begda: p1.begda, endda: p1.endda
         };
     }
     const p6 = validOn(db.PA0006, pernr, key);
@@ -388,6 +439,65 @@ const vh = {
 };
 
 // ===========================================================================
+// Auth + module handlers
+// ===========================================================================
+function login(body) {
+    const u = db.users.find(x => x.username === body.username && x.password === body.password && body.password);
+    if (!u) return { _status: 401, message: "Invalid username or password." };
+    const token = crypto.randomBytes(24).toString("hex");
+    sessions[token] = { username: u.username, name: u.name, role: u.role, pernr: u.pernr };
+    return { token, user: userInfo(sessions[token]) };
+}
+/** Shapes a session into the client contract (matches the C# UserInfoDto). */
+function userInfo(u) {
+    return { username: u.username, displayName: u.name, roleKey: u.role, roleName: db.roleNames[u.role], pernr: u.pernr };
+}
+const has = (user, ...roles) => user && roles.includes(user.role);
+
+function directReports(mgrPernr, key) {
+    key = key || today();
+    const mp = db.PA0001.filter(x => x.pernr === mgrPernr && x.begda <= key && x.endda >= key)[0];
+    if (!mp) return [];
+    const subPos = db.HRP1001.filter(r => r.otype === "S" && r.rsign === "A" && r.relat === "002" && r.sclas === "S" && String(r.sobid) === String(mp.plans) && r.begda <= key && r.endda >= key).map(r => r.objid);
+    return db.employees.filter(e => e.pernr !== mgrPernr).map(e => {
+        const a = db.PA0001.filter(x => x.pernr === e.pernr && x.begda <= key && x.endda >= key)[0];
+        const p = validOn(db.PA0002, e.pernr, key);
+        if (!a || !p) return null;
+        if (subPos.includes(a.plans) || a.orgeh === mp.orgeh)
+            return { pernr: e.pernr, name: p.vorna + " " + p.nachn, position: a.plans ? orgText("S", a.plans, key) : null, orgUnit: a.orgeh ? orgText("O", a.orgeh, key) : null };
+        return null;
+    }).filter(Boolean);
+}
+function listLeave(user) {
+    if (has(user, "EMPLOYEE")) return db.leaveRequests.filter(r => r.pernr === user.pernr);
+    return db.leaveRequests;
+}
+function requestLeave(user, body) {
+    const pernr = user.pernr; const emp = validOn(db.PA0002, pernr, today());
+    if (body.endda < body.begda) return { _status: 400, message: "End date must not be before start date." };
+    const days = body.days != null ? body.days : daysBetween(body.begda, body.endda);
+    db.leaveRequests.push({ id: ++db.leaveSeq, pernr, name: emp ? emp.vorna + " " + emp.nachn : String(pernr), type: body.type, begda: body.begda, endda: body.endda, days, status: "Pending", note: body.note || "" });
+    return { _status: 204 };
+}
+function decideLeave(id, approve) {
+    const r = db.leaveRequests.find(x => x.id === id); if (!r) return { _status: 404, message: "Request not found." };
+    if (approve) {
+        const q = db.PA2006.filter(x => x.pernr === r.pernr && x.ktart === r.type && x.begda <= r.begda && x.endda >= r.begda).sort((a, b) => a.begda < b.begda ? 1 : -1)[0];
+        if (q) { if (q.anzhl - q.kverb < r.days) return { _status: 400, message: "Insufficient quota to approve." }; q.kverb += r.days; }
+        db.PA2001.push({ pernr: r.pernr, begda: r.begda, endda: r.endda, awart: r.type, abwtg: r.days }); r.status = "Approved";
+    } else r.status = "Rejected";
+    return { _status: 204 };
+}
+const STAGES = ["Screening", "Interview", "Offer", "Hired", "Rejected"];
+function advanceApplicant(id) { const a = db.applicants.find(x => x.id === id); if (!a) return { _status: 404, message: "Applicant not found." }; const i = STAGES.indexOf(a.stage); if (i < STAGES.length - 2) a.stage = STAGES[i + 1]; return { _status: 204 }; }
+function listBookings(user) { return has(user, "EMPLOYEE") ? db.bookings.filter(b => b.pernr === user.pernr) : db.bookings; }
+function bookCourse(user, courseId) {
+    const pernr = user.pernr; if (pernr == null) return { _status: 400, message: "This account is not linked to an employee." };
+    if (db.bookings.find(b => b.pernr === pernr && b.course === courseId)) return { _status: 400, message: "Already booked on this course." };
+    db.bookings.push({ pernr, course: courseId, status: "Confirmed" }); return { _status: 204 };
+}
+
+// ===========================================================================
 // Routing
 // ===========================================================================
 function sendJson(res, status, obj) {
@@ -399,24 +509,70 @@ function result(res, r) {
     return sendJson(res, 200, r);
 }
 
-function handleApi(req, res, path, q, json) {
+function handleApi(req, res, path, q, json, user) {
     const m = req.method; let mm;
+    const deny = () => sendJson(res, 403, { message: "You do not have permission for this action." });
+    // Employee self-service may access only their own PERNR.
+    const canAccess = pernr => has(user, "HR_ADMIN", "HR_MANAGER") || (user && user.pernr === pernr);
     try {
-        if (path === "/api/employees" && m === "GET") return result(res, getEmployees(q));
-        if (path === "/api/employees/hire" && m === "POST") return result(res, hire(json));
-        if ((mm = path.match(/^\/api\/employees\/(\d+)$/)) && m === "GET") return result(res, getEmployee(+mm[1], q));
-        if ((mm = path.match(/^\/api\/employees\/(\d+)\/personaldata$/)) && m === "PUT") return result(res, updatePersonal(+mm[1], json));
-        if ((mm = path.match(/^\/api\/employees\/(\d+)\/reassign$/)) && m === "PUT") return result(res, reassign(+mm[1], json));
-        if ((mm = path.match(/^\/api\/employees\/(\d+)\/leave-balances$/)) && m === "GET") return result(res, leaveBalances(+mm[1]));
-        if ((mm = path.match(/^\/api\/employees\/(\d+)\/absences$/)) && m === "POST") return result(res, recordAbsence(+mm[1], json));
-        if ((mm = path.match(/^\/api\/employees\/(\d+)\/address$/)) && m === "PUT") return result(res, updateAddress(+mm[1], json));
-        if ((mm = path.match(/^\/api\/employees\/(\d+)\/family$/)) && m === "POST") return result(res, addFamily(+mm[1], json));
-        if ((mm = path.match(/^\/api\/employees\/(\d+)\/attendances$/)) && m === "POST") return result(res, recordAttendance(+mm[1], json));
+        // ---- Auth ----
+        if (path === "/api/auth/me" && m === "GET") return result(res, userInfo(user));
+
+        // ---- Personnel administration ----
+        if (path === "/api/employees" && m === "GET")
+            return has(user, "HR_ADMIN", "HR_MANAGER") ? result(res, getEmployees(q)) : deny();
+        if (path === "/api/employees/hire" && m === "POST")
+            return has(user, "HR_ADMIN") ? result(res, hire(json)) : deny();
+        if ((mm = path.match(/^\/api\/employees\/(\d+)$/)) && m === "GET")
+            return canAccess(+mm[1]) ? result(res, getEmployee(+mm[1], q)) : deny();
+        if ((mm = path.match(/^\/api\/employees\/(\d+)\/personaldata$/)) && m === "PUT")
+            return has(user, "HR_ADMIN") ? result(res, updatePersonal(+mm[1], json)) : deny();
+        if ((mm = path.match(/^\/api\/employees\/(\d+)\/reassign$/)) && m === "PUT")
+            return has(user, "HR_ADMIN") ? result(res, reassign(+mm[1], json)) : deny();
+        if ((mm = path.match(/^\/api\/employees\/(\d+)\/address$/)) && m === "PUT")
+            return has(user, "HR_ADMIN") ? result(res, updateAddress(+mm[1], json)) : deny();
+        if ((mm = path.match(/^\/api\/employees\/(\d+)\/family$/)) && m === "POST")
+            return has(user, "HR_ADMIN") ? result(res, addFamily(+mm[1], json)) : deny();
+        if ((mm = path.match(/^\/api\/employees\/(\d+)\/attendances$/)) && m === "POST")
+            return has(user, "HR_ADMIN", "HR_MANAGER") ? result(res, recordAttendance(+mm[1], json)) : deny();
+        if ((mm = path.match(/^\/api\/employees\/(\d+)\/absences$/)) && m === "POST")
+            return has(user, "HR_ADMIN", "HR_MANAGER") ? result(res, recordAbsence(+mm[1], json)) : deny();
+        if ((mm = path.match(/^\/api\/employees\/(\d+)\/leave-balances$/)) && m === "GET")
+            return canAccess(+mm[1]) ? result(res, leaveBalances(+mm[1])) : deny();
+
+        // ---- Organizational management ----
         if (path === "/api/orgunits" && m === "GET") return result(res, orgUnitsFlat(q.keyDate || today()));
         if ((mm = path.match(/^\/api\/orgunits\/(\d+)\/structure$/)) && m === "GET") return result(res, orgStructure(+mm[1], q.keyDate || today()));
         if (path === "/api/orgunits/positions" && m === "GET") return result(res, positions(q.orgUnitId ? +q.orgUnitId : null, q.keyDate || today()));
+
+        // ---- Manager self-service ----
+        if (path === "/api/me/team" && m === "GET")
+            return user.pernr != null ? result(res, directReports(user.pernr, q.keyDate)) : result(res, []);
+
+        // ---- Leave management ----
+        if (path === "/api/leave-requests" && m === "GET") return result(res, listLeave(user));
+        if (path === "/api/leave-requests" && m === "POST") return result(res, requestLeave(user, json));
+        if ((mm = path.match(/^\/api\/leave-requests\/(\d+)\/decide$/)) && m === "POST")
+            return has(user, "HR_ADMIN", "HR_MANAGER") ? result(res, decideLeave(+mm[1], !!json.approve)) : deny();
+
+        // ---- Recruitment ----
+        if (path === "/api/recruitment/requisitions" && m === "GET")
+            return has(user, "HR_ADMIN", "HR_MANAGER") ? result(res, db.requisitions) : deny();
+        if (path === "/api/recruitment/applicants" && m === "GET")
+            return has(user, "HR_ADMIN", "HR_MANAGER") ? result(res, db.applicants) : deny();
+        if ((mm = path.match(/^\/api\/recruitment\/applicants\/(\d+)\/advance$/)) && m === "POST")
+            return has(user, "HR_ADMIN") ? result(res, advanceApplicant(+mm[1])) : deny();
+
+        // ---- Training ----
+        if (path === "/api/training/courses" && m === "GET")
+            return result(res, db.courses.map(c => ({ ...c, booked: db.bookings.filter(b => b.course === c.id).length })));
+        if (path === "/api/training/bookings" && m === "GET") return result(res, listBookings(user));
+        if (path === "/api/training/book" && m === "POST") return result(res, bookCourse(user, json.courseId));
+
+        // ---- Value help ----
         if ((mm = path.match(/^\/api\/valuehelp\/([a-z-]+)$/)) && m === "GET" && vh[mm[1]]) return result(res, vh[mm[1]]());
         if ((mm = path.match(/^\/api\/valuehelp\/domain\/(\w+)$/)) && m === "GET") return result(res, db.DomainValue[mm[1]] || []);
+
         if (path === "/api/reset" && m === "POST") { db = seed(); return sendJson(res, 200, { message: "Demo data reset." }); }
         return sendJson(res, 404, { message: "Unknown API route: " + path });
     } catch (e) {
@@ -452,7 +608,18 @@ const server = http.createServer((req, res) => {
     if (pathname.startsWith("/api/")) {
         let body = "";
         req.on("data", c => body += c);
-        req.on("end", () => { let json = {}; try { json = body ? JSON.parse(body) : {}; } catch (e) { return sendJson(res, 400, { message: "Invalid JSON body." }); } handleApi(req, res, pathname.replace(/\/$/, ""), u.query, json); });
+        req.on("end", () => {
+            let json = {};
+            try { json = body ? JSON.parse(body) : {}; } catch (e) { return sendJson(res, 400, { message: "Invalid JSON body." }); }
+            const p = pathname.replace(/\/$/, "");
+            // Login is anonymous; everything else requires a bearer token.
+            if (p === "/api/auth/login" && req.method === "POST") return result(res, login(json));
+            const auth = req.headers["authorization"] || "";
+            const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+            const user = token ? sessions[token] : null;
+            if (!user) return sendJson(res, 401, { message: "Authentication required." });
+            handleApi(req, res, p, u.query, json, user);
+        });
         return;
     }
     serveStatic(res, pathname);

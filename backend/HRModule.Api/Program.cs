@@ -1,9 +1,13 @@
+using System.Text;
 using System.Text.Json.Serialization;
 using HRModule.Api.Data;
 using HRModule.Api.Middleware;
+using HRModule.Api.Security;
 using HRModule.Api.Services;
 using HRModule.Api.Services.Interfaces;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,6 +27,34 @@ builder.Services.AddScoped<IEmployeeService, EmployeeService>();
 builder.Services.AddScoped<IOrgService, OrgService>();
 builder.Services.AddScoped<ITimeService, TimeService>();
 builder.Services.AddScoped<IValueHelpService, ValueHelpService>();
+
+// ---- Authentication (JWT) ----
+var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
+builder.Services.AddSingleton(jwtOptions);
+builder.Services.AddSingleton<JwtTokenService>();
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtOptions.Issuer,
+            ValidAudience = jwtOptions.Audience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Key)),
+            ClockSkew = TimeSpan.FromMinutes(1)
+        };
+    });
+
+builder.Services.AddAuthorization(o =>
+{
+    o.AddPolicy(Policies.AdminOnly, p => p.RequireRole(Roles.Admin));
+    o.AddPolicy(Policies.TimeKeepers, p => p.RequireRole(Roles.Admin, Roles.Manager));
+    o.AddPolicy(Policies.AllStaff, p => p.RequireRole(Roles.Admin, Roles.Manager, Roles.Employee));
+});
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -50,6 +82,9 @@ app.UseCors("ui5");
 // Serve the bundled SAPUI5 app from wwwroot if present.
 app.UseDefaultFiles();
 app.UseStaticFiles();
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { status = "UP", module = "HCM", time = DateTime.UtcNow }));

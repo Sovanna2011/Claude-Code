@@ -1,0 +1,28 @@
+<mvc:View
+    controllerName="hr.module.controller.Login"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    xmlns:f="sap.ui.layout.form"
+    height="100%">
+
+    <Page id="loginPage" showHeader="false" class="sapUiContentPadding">
+        <VBox height="100%" justifyContent="Center" alignItems="Center" class="sapUiResponsiveMargin">
+            <Panel width="24rem" class="sapUiResponsiveMargin">
+                <VBox class="sapUiMediumMargin">
+                    <Title text="{i18n>appTitle}" level="H2" class="sapUiSmallMarginBottom"/>
+                    <Text text="{i18n>loginPrompt}" class="sapUiSmallMarginBottom"/>
+                    <MessageStrip id="loginError" type="Error" showIcon="true" visible="false" class="sapUiSmallMarginBottom"/>
+                    <Label text="{i18n>fldUsername}" labelFor="usr"/>
+                    <Input id="usr" value="{/username}" placeholder="admin" submit=".onLogin" class="sapUiSmallMarginBottom"/>
+                    <Label text="{i18n>fldPassword}" labelFor="pwd"/>
+                    <Input id="pwd" value="{/password}" type="Password" submit=".onLogin" class="sapUiSmallMarginBottom"/>
+                    <Button type="Emphasized" text="{i18n>btnSignIn}" press=".onLogin" width="100%" class="sapUiSmallMarginTop"/>
+                    <Text text="{i18n>demoAccounts}" class="sapUiMediumMarginTop"/>
+                    <List items="{/demoUsers}" showSeparators="Inner">
+                        <StandardListItem title="{name} / {pw}" description="{role}" type="Active" press=".onFillDemo"/>
+                    </List>
+                </VBox>
+            </Panel>
+        </VBox>
+    </Page>
+</mvc:View>

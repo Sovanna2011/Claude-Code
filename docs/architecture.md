@@ -94,6 +94,24 @@ range (`NumberRange`, emulating SAP SNRO).
 | `GET /api/orgunits/{root}/structure` | Nested org hierarchy (PPOME) |
 | `GET /api/orgunits/positions?orgUnitId=` | Positions with holder/vacancy |
 | `GET /api/valuehelp/*` | Value helps (F4) for dropdowns |
+| `POST /api/auth/login`, `GET /api/auth/me` | Authenticate; current user |
+
+## Authentication & authorization
+
+JWT bearer authentication (`AuthController` issues a signed token via
+`JwtTokenService`; passwords are PBKDF2-HMAC-SHA256, `PasswordHasher`). Three
+roles mirror SAP authorization roles and gate both the API (policies
+`AdminOnly`, `TimeKeepers`, `AllStaff`) and the SAPUI5 UI (visibility bindings):
+
+| Role | Can |
+|------|-----|
+| `HR_ADMIN` | Everything — hiring, master data, org, time, all modules |
+| `HR_MANAGER` | Display all, record time, approve leave, manager self-service |
+| `EMPLOYEE` | Employee self-service — own record only, request leave, book training |
+
+Employees are restricted to their own PERNR via a `pernr` claim checked in the
+controller. Additional modules (Leave Management, Recruitment, Training) and the
+person-level **reporting line** build on the OM relationships (A 002 / B 012).
 
 ## Design notes
 - **DTO boundary** — entities never leave the API; services map to DTOs that
