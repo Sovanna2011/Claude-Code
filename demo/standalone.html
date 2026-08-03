@@ -491,8 +491,9 @@ function seed(){return{
    {pernr:1000,begda:"2020-03-01",endda:HIGH,stras:"Hauptstrasse 12",ort01:"Berlin",pstlz:"10115",land1:"DE"},
    {pernr:1001,begda:"2021-06-15",endda:HIGH,stras:"5th Avenue 200",ort01:"New York",pstlz:"10001",land1:"US"}],
   PA0007:[
-   {pernr:1000,begda:"2020-03-01",endda:HIGH,schkz:"FLEX",empct:100,wostd:40},
-   {pernr:1001,begda:"2021-06-15",endda:HIGH,schkz:"FLEX",empct:100,wostd:40}],
+   {pernr:1000,begda:"2020-03-01",endda:HIGH,schkz:"FLEX",empct:100,wostd:40,beguz:"08:00",enduz:"17:00"},
+   {pernr:1001,begda:"2021-06-15",endda:HIGH,schkz:"FLEX",empct:100,wostd:40,beguz:"09:00",enduz:"18:00"},
+   {pernr:1002,begda:"2019-01-01",endda:HIGH,schkz:"NORM",empct:100,wostd:40,beguz:"08:30",enduz:"17:30"}],
   PA0008:[
    {pernr:1000,begda:"2020-03-01",endda:HIGH,trfgr:"E4",bsgrd:100,waers:"EUR",ansal:96000,wt:[{lgart:"1010",betrg:8000,waers:"EUR"}]},
    {pernr:1001,begda:"2021-06-15",endda:HIGH,trfgr:"E2",bsgrd:100,waers:"EUR",ansal:60000,wt:[{lgart:"1010",betrg:5000,waers:"EUR"}]}],
@@ -805,7 +806,7 @@ function getEmployee(pernr,key){
       reportsTo:lineManager(pernr,key),begda:p1.begda,endda:p1.endda},
     addr:p6&&{stras:p6.stras,ort01:p6.ort01,pstlz:p6.pstlz,land1:p6.land1},
     addresses:db.PA0006.filter(x=>x.pernr===pernr&&x.begda<=key&&x.endda>=key).map(x=>({_id:rid(x),subty:x.subty,type:dom("ANSSA",x.subty),stras:x.stras,ort01:x.ort01,pstlz:x.pstlz,land1:x.land1,begda:x.begda})),
-    wt:p7&&{schkz:p7.schkz,empct:p7.empct,wostd:p7.wostd},
+    wt:p7&&{schkz:p7.schkz,empct:p7.empct,wostd:p7.wostd,beguz:p7.beguz,enduz:p7.enduz},
     pay:p8&&{trfgr:p8.trfgr,bsgrd:p8.bsgrd,waers:p8.waers,ansal:p8.ansal,
       wt:(p8.wt||[]).map(w=>({lgart:w.lgart,txt:db.T512T[w.lgart],betrg:w.betrg,waers:w.waers}))},
     comms:db.PA0105.filter(x=>x.pernr===pernr&&x.begda<=key&&x.endda>=key).map(c=>({_id:rid(c),t:dom("USRTY",c.subty),subty:c.subty,v:c.usrid})),
@@ -883,7 +884,9 @@ function delimitInsert(arr,pernr,begda,rec,match,mode){
   if(cur)cur.endda=dayBefore(begda);
   arr.push(Object.assign({pernr,begda,endda:HIGH},rec));
 }
-function editWorkingTime(pernr,f){delimitInsert(db.PA0007,pernr,f.begda,{schkz:f.schkz,empct:f.empct!==""?Number(f.empct):null,wostd:f.wostd!==""?Number(f.wostd):null},null,f.mode);}
+function editWorkingTime(pernr,f){delimitInsert(db.PA0007,pernr,f.begda,{schkz:f.schkz,empct:f.empct!==""?Number(f.empct):null,wostd:f.wostd!==""?Number(f.wostd):null,beguz:f.beguz||"",enduz:f.enduz||""},null,f.mode);}
+/* Planned clock in/out for an employee on a date, from IT0007 (fallback 08:00–17:00). */
+function workingTimeDefault(pernr,date){const w=validOn(db.PA0007,pernr,date||today())||{};return{tin:w.beguz||"08:00",tout:w.enduz||"17:00"};}
 function editPay(pernr,f){const cur=validOn(db.PA0008,pernr,f.begda)||{};
   delimitInsert(db.PA0008,pernr,f.begda,{trfar:cur.trfar||"01",trfgb:cur.trfgb||"01",trfgr:f.trfgr,bsgrd:f.bsgrd!==""?Number(f.bsgrd):100,waers:f.waers||"EUR",ansal:f.ansal!==""?Number(f.ansal):0,wt:cur.wt||[]},null,f.mode);}
 function editBank(pernr,f){delimitInsert(db.PA0009,pernr,f.begda,{subty:"0",banks:f.banks,bankl:f.bankl,bankn:f.bankn,waers:f.waers||"EUR"},x=>x.subty==="0",f.mode);}
@@ -1252,7 +1255,7 @@ function renderDetail(){
     </tbody></table></div></div>`;}
   else if(S.tab==="pay"){const w=e.wt||{},pay=e.pay||{};content=
     `<div class="card list-card"><div class="card-head"><h2>Planned working time · IT0007</h2><div class="spacer"></div>${allowed("0007","update")?`<button class="btn sm primary" data-act="work">${I.edit} Edit</button>`:""}</div>
-      <div class="subcard">${dl([["Work schedule rule",esc(w.schkz)],["Employment percent",w.empct!=null?w.empct+" %":"—"],["Weekly hours",esc(w.wostd)]])}</div></div>
+      <div class="subcard">${dl([["Work schedule rule",esc(w.schkz)],["Employment percent",w.empct!=null?w.empct+" %":"—"],["Weekly hours",esc(w.wostd)],["Planned start (clock in)",esc(w.beguz||"—")],["Planned end (clock out)",esc(w.enduz||"—")]])}</div></div>
     <div style="height:16px"></div>
     <div class="card list-card"><div class="card-head"><h2>Basic pay · IT0008</h2><div class="spacer"></div>${allowed("0008","update")?`<button class="btn sm primary" data-act="pay">${I.edit} Edit</button>`:""}</div>
       <div class="subcard">${dl([["Pay scale group",esc(pay.trfgr)],["Capacity utilization",pay.bsgrd!=null?pay.bsgrd+" %":"—"],["Annual salary",`<b>${fmtAmt(pay.ansal,pay.waers)}</b>`]])}</div></div>
@@ -1870,7 +1873,9 @@ function renderAttReg(){
   const canEdit=allowed("2002","add");
   const sts=regStatuses();
   const emps=db.emp.slice().sort((a,b)=>a.pernr-b.pernr);
-  const rows=emps.map(e=>{const r=regGet(e.pernr,S.regDate)||{};return{pernr:e.pernr,name:empName(e.pernr),status:r.status||"P",tin:r.tin||"",tout:r.tout||"",hours:r.hours,note:r.note||""};});
+  // Default clock in/out come from each employee's planned working time (IT0007) until the day is saved.
+  const rows=emps.map(e=>{const r=regGet(e.pernr,S.regDate),def=workingTimeDefault(e.pernr,S.regDate);
+    return{pernr:e.pernr,name:empName(e.pernr),status:r?r.status:"P",tin:r&&r.tin?r.tin:def.tin,tout:r&&r.tout?r.tout:def.tout,hours:r?r.hours:null,note:r?(r.note||""):""};});
   const present=rows.filter(r=>r.status==="P").length,absent=rows.filter(r=>r.status==="A").length,other=rows.length-present-absent;
   const statusSel=(v,pernr)=>`<select class=" areg-in" data-regf="status" data-regp="${pernr}" ${canEdit?"":"disabled"}>${Object.entries(sts).map(([k,l])=>`<option value="${k}" ${k===v?"selected":""}>${esc(l)}</option>`).join("")}</select>`;
   const timeIn=(v,pernr,f)=>`<input type="time" class="areg-in areg-t" data-regf="${f}" data-regp="${pernr}" value="${v||""}" ${canEdit?"":"disabled"}>`;
@@ -1900,7 +1905,7 @@ function renderAttReg(){
     <div class="tbl-wrap dt-grid dt-grid-1"><table class="dt"><thead><tr>
       <th>Pers.No.</th><th>Employee</th><th>Status</th><th>Clock in</th><th>Clock out</th><th>Hours</th><th>Note</th>
     </tr></thead><tbody>${body||`<tr><td colspan="7"><div class="empty">No employees.</div></td></tr>`}</tbody></table></div>
-    ${canEdit?`<div class="hint">Set each employee's status, clock times and note for the selected day, then <b>Save register</b>. Hours auto-fill from clock in/out when left blank.</div>`:""}
+    ${canEdit?`<div class="hint">Clock in/out default to each employee's planned working time (IT0007). Adjust status, clock times and note, then <b>Save register</b>. Hours auto-fill from clock in/out when left blank.</div>`:""}
   </div>`;
   const dd=$("#regDate");if(dd)dd.addEventListener("change",e=>{S.regDate=e.target.value;renderAttReg();});
 }
@@ -2264,6 +2269,10 @@ function workDialog(){const w=validOn(db.PA0007,S.pernr,S.key)||{};
     <div class="two">
       <div class="grp"><label>Employment %</label><input id="w_empct" type="number" step="0.01" value="${w.empct!=null?w.empct:""}"></div>
       <div class="grp"><label>Weekly hours</label><input id="w_wostd" type="number" step="0.5" value="${w.wostd!=null?w.wostd:""}"></div>
+    </div>
+    <div class="two">
+      <div class="grp"><label>Planned start (clock in)</label><input id="w_beguz" type="time" value="${esc(w.beguz||"")}"></div>
+      <div class="grp"><label>Planned end (clock out)</label><input id="w_enduz" type="time" value="${esc(w.enduz||"")}"></div>
     </div>`,`<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="work">Save</button>`);}
 function payDialog(){const p=validOn(db.PA0008,S.pernr,S.key)||{};
   modal("Edit basic pay / salary · IT0008",`
@@ -2665,7 +2674,7 @@ function doAction(kind){
       else{addCommunication(S.pernr,f);toast("Communication added.","good");}
       editingRec=null;closeModal();S.tab="comm";renderDetail();
     }else if(kind==="work"){
-      const f={begda:val("w_begda"),mode:val("w_mode"),schkz:val("w_schkz").trim(),empct:val("w_empct"),wostd:val("w_wostd")};
+      const f={begda:val("w_begda"),mode:val("w_mode"),schkz:val("w_schkz").trim(),empct:val("w_empct"),wostd:val("w_wostd"),beguz:val("w_beguz"),enduz:val("w_enduz")};
       if(!f.begda){toast("Enter a valid-from date.","bad");return;}
       editWorkingTime(S.pernr,f);closeModal();toast("Working time updated.","good");S.tab="pay";renderDetail();
     }else if(kind==="pay"){
