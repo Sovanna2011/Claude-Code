@@ -1,3 +1,16 @@
+# SAP ECC 6.0 EHP8-style modules on an open stack
+
+This repository hosts SAP-faithful modules built on **SQL Server + ASP.NET Core
++ SAPUI5**:
+
+- **HR / HCM** (this document) — Personnel Administration, Organizational
+  Management, Time Management.
+- **PO Approval** — Purchase Order release/approval (MM-PUR) with **user-level
+  authentication** and a SAP ECC connection seam. See
+  **[po-approval/README.md](po-approval/README.md)**.
+
+---
+
 # HR Module — Human Capital Management (SAP ECC 6.0 EHP8 style)
 
 A full-stack **HR / HCM module** modelled on the **SAP ECC 6.0 EHP8** Human

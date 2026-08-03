@@ -1,0 +1,16 @@
+/* PO Approval - small visual tweaks on top of the Horizon theme. */
+
+.poLoginPage {
+    background: linear-gradient(135deg, #0a6ed1 0%, #354a5f 100%);
+}
+
+.poLoginPanel {
+    background-color: var(--sapGroup_ContentBackground, #ffffff);
+    border-radius: 0.75rem;
+    box-shadow: 0 0.5rem 2rem rgba(0, 0, 0, 0.25);
+}
+
+.sapUiTinyText {
+    font-size: 0.75rem;
+    color: var(--sapContent_LabelColor, #6a6d70);
+}
