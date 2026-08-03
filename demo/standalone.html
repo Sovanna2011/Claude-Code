@@ -262,6 +262,33 @@ a.mail:hover{text-decoration:underline}
 .stat .v{font-size:26px;font-weight:800;color:var(--accent);line-height:1}
 .stat .l{font-size:12px;color:var(--muted);margin-top:4px}
 .shell .util #logout,.shell .util #reset,.shell .util #theme{font-size:16px}
+/* Graphical org / reporting charts (boxed tree) */
+.chart-scroll{overflow-x:auto;padding:24px 16px}
+.orgtree,.orgtree ul{list-style:none;margin:0;padding:0}
+.orgtree{display:flex;justify-content:center}
+.orgtree ul{display:flex;justify-content:center}
+.orgtree li{position:relative;padding:26px 10px 0;text-align:center}
+/* connectors */
+.orgtree li::before,.orgtree li::after{content:"";position:absolute;top:0;height:26px;width:50%;border-top:2px solid var(--border-strong)}
+.orgtree li::before{right:50%;border-right:2px solid var(--border-strong)}
+.orgtree li::after{left:50%}
+.orgtree li:only-child::before,.orgtree li:only-child::after{display:none}
+.orgtree li:first-child::before,.orgtree li:last-child::after{border:0}
+.orgtree li:last-child::before{border-right:2px solid var(--border-strong)}
+.orgtree>li{padding-top:0}.orgtree>li::before,.orgtree>li::after{display:none}
+.orgtree ul::before{content:"";position:absolute;top:0;left:50%;height:26px;border-left:2px solid var(--border-strong)}
+.orgtree ul{position:relative;padding-top:26px}
+.gbox{display:inline-block;min-width:150px;background:var(--surface);border:1px solid var(--border-strong);
+  border-radius:10px;padding:10px 12px;box-shadow:var(--shadow-sm);text-align:left}
+.gbox .t{font-weight:700;font-size:13px}.gbox .s{font-size:11px;color:var(--muted);margin-top:2px}
+.gorg{border-top:3px solid var(--accent)}
+.gper{border-top:3px solid var(--good)}
+/* Payslip */
+.ps-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.ps-sec{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--accent);font-weight:700;margin-top:8px;border-top:1px solid var(--border);padding-top:8px}
+.ps-row{display:flex;justify-content:space-between;padding:6px 0;font-size:14px}
+.ps-row.tot{border-top:1px solid var(--border);margin-top:4px;font-weight:700}
+.ps-row.net{color:var(--good);font-size:16px}
 @media(prefers-reduced-motion:reduce){*{animation:none!important}}
 </style>
 
@@ -417,7 +444,19 @@ function seed(){return{
    {id:"D400",title:"Data Privacy & GDPR",cat:"Compliance",hours:4,date:"2026-09-01",seats:50}],
   bookings:[
    {pernr:1000,course:"D100",status:"Confirmed"},
-   {pernr:1001,course:"D200",status:"Confirmed"}]
+   {pernr:1001,course:"D200",status:"Confirmed"}],
+  // ---- Time / Payroll ----
+  publicHolidays:["2026-01-01","2026-04-03","2026-05-01","2026-10-03","2026-12-25","2026-12-26"],
+  // Overtime entries (category is derived from the date: holiday > Sunday > normal)
+  overtime:[
+   {pernr:1000,date:"2026-06-02",hours:2.0},   // Tue - normal
+   {pernr:1000,date:"2026-06-07",hours:4.0},   // Sun - Sunday OT
+   {pernr:1000,date:"2026-05-01",hours:3.0},   // Public holiday OT
+   {pernr:1001,date:"2026-06-03",hours:1.5},   // Wed - normal
+   {pernr:1001,date:"2026-06-14",hours:3.0},   // Sun - Sunday OT
+   {pernr:1001,date:"2026-12-25",hours:2.0}],  // Public holiday OT
+  // Payroll: rates & OT multipliers (SAP-style customizing)
+  payroll:{taxRate:0.15,socialRate:0.09,otMult:{normal:1.25,sunday:1.5,holiday:2.0},monthlyFactor:4.33}
 };}
 let db=seed();
 let SESSION=null; // {username,name,role,pernr}
@@ -574,8 +613,8 @@ const isManager=()=>SESSION&&SESSION.role==="HR_MANAGER";
 const isEmployee=()=>SESSION&&SESSION.role==="EMPLOYEE";
 const can=(...roles)=>SESSION&&roles.includes(SESSION.role);
 function navFor(role){
-  if(role==="HR_ADMIN")return [["list","People","people"],["org","Org Chart","org"],["pos","Positions","pos"],["leave","Leave","cal"],["recruit","Recruitment","person"],["training","Training","education"]];
-  if(role==="HR_MANAGER")return [["mss","My Team","people"],["leave","Approvals","cal"],["org","Org Chart","org"],["training","Training","education"]];
+  if(role==="HR_ADMIN")return [["list","People","people"],["orggraph","Org Chart","org"],["pos","Positions","pos"],["payroll","Payroll","money"],["reports","Reports","doc"],["leave","Leave","cal"],["recruit","Recruitment","person"],["training","Training","education"]];
+  if(role==="HR_MANAGER")return [["mss","My Team","people"],["leave","Approvals","cal"],["orggraph","Org Chart","org"],["reports","Reports","doc"],["training","Training","education"]];
   return [["ess","My Profile","person"],["myleave","My Leave","cal"],["training","Training","education"]];
 }
 function navBar(){
@@ -600,6 +639,10 @@ function render(){
   else if(S.view==="myleave")renderMyLeave();
   else if(S.view==="recruit")renderRecruit();
   else if(S.view==="training")renderTraining();
+  else if(S.view==="reports")renderReports();
+  else if(S.view==="payroll")renderPayroll();
+  else if(S.view==="orggraph")renderOrgGraph();
+  else if(S.view==="repgraph")renderReportGraph();
   else if(S.view==="mss")renderMss();
   else if(S.view==="ess"){S.pernr=SESSION.pernr;S.view="detail";renderDetail();}
   else renderList();
@@ -839,6 +882,47 @@ function bookCourse(pernr,courseId){
 const STAGES=["Screening","Interview","Offer","Hired","Rejected"];
 function advanceApplicant(id){const a=db.applicants.find(x=>x.id===id);if(!a)return;const i=STAGES.indexOf(a.stage);if(i<STAGES.length-2)a.stage=STAGES[i+1];}
 
+/* ============================ REPORTS & PAYROLL LOGIC ============================ */
+const empName=pernr=>{const p=validOn(db.PA0002,pernr,today());return p?p.vorna+" "+p.nachn:String(pernr);};
+function otCategory(dateStr){
+  if(db.publicHolidays.includes(dateStr))return "holiday";
+  return new Date(dateStr+"T00:00:00").getDay()===0?"sunday":"normal";
+}
+/* Overtime report: per employee, hours split by category over [from,to]. */
+function overtimeReport(from,to){
+  const inRange=d=>(!from||d>=from)&&(!to||d<=to);
+  const byEmp={};
+  db.overtime.filter(o=>inRange(o.date)).forEach(o=>{
+    const e=byEmp[o.pernr]||(byEmp[o.pernr]={pernr:o.pernr,name:empName(o.pernr),normal:0,sunday:0,holiday:0});
+    e[otCategory(o.date)]+=o.hours;
+  });
+  return Object.values(byEmp).map(e=>({...e,total:e.normal+e.sunday+e.holiday})).sort((a,b)=>a.pernr-b.pernr);
+}
+/* Attendance report (IT2002) over a date range, all employees. */
+function attendanceReport(from,to){
+  const overlaps=(b,e)=>(!to||b<=to)&&(!from||e>=from);
+  return db.PA2002.filter(a=>overlaps(a.begda,a.endda)).map(a=>({
+    pernr:a.pernr,name:empName(a.pernr),type:db.T554S[a.awart]||a.awart,begda:a.begda,endda:a.endda,days:a.abwtg,hours:a.stdaz
+  })).sort((a,b)=>a.begda<b.begda?1:-1);
+}
+/* Payslip: gross (base + OT) − deductions (tax + social) = net. */
+function payslip(pernr,from,to){
+  const p8=validOn(db.PA0008,pernr,to||today());
+  const p7=validOn(db.PA0007,pernr,to||today());
+  const annual=p8?p8.ansal||0:0, base=annual/12;
+  const weekly=p7&&p7.wostd?p7.wostd:40;
+  const hourly=base/(weekly*db.payroll.monthlyFactor);
+  const ot=overtimeReport(from,to).find(x=>x.pernr===pernr)||{normal:0,sunday:0,holiday:0};
+  const m=db.payroll.otMult;
+  const otPay={normal:ot.normal*hourly*m.normal,sunday:ot.sunday*hourly*m.sunday,holiday:ot.holiday*hourly*m.holiday};
+  const otTotal=otPay.normal+otPay.sunday+otPay.holiday;
+  const gross=base+otTotal;
+  const tax=gross*db.payroll.taxRate, social=gross*db.payroll.socialRate;
+  const net=gross-tax-social;
+  return {pernr,name:empName(pernr),currency:p8?p8.waers||"EUR":"EUR",base,hourly,ot,otPay,otTotal,gross,tax,social,net};
+}
+function payrollRun(from,to){return db.emp.map(e=>payslip(e.pernr,from,to)).sort((a,b)=>a.pernr-b.pernr);}
+
 /* ============================ MODULE VIEWS ============================ */
 function pageHead(crumb,title,right){return `<div class="page-head"><div><div class="crumb">${crumb}</div><h1>${title}</h1></div>${right||""}</div>`;}
 function statusPill(s){return `<span class="pill ${s==='Approved'||s==='Confirmed'||s==='Hired'?'good':s==='Rejected'?'bad':s==='Pending'||s==='Open'?'warn':'neutral'}">${esc(s)}</span>`;}
@@ -910,6 +994,111 @@ function renderTraining(){
   <div class="tbl-wrap"><table><thead><tr><th>Course</th><th>Date</th><th>Status</th></tr></thead><tbody>
   ${db.bookings.filter(b=>b.pernr===myP).map(b=>{const c=db.courses.find(x=>x.id===b.course)||{};return `<tr><td>${esc(b.course)} · ${esc(c.title)}</td><td class="num">${fmtDate(c.date)}</td><td>${statusPill(b.status)}</td></tr>`;}).join("")||`<tr><td colspan=3><div class="empty">No bookings yet.</div></td></tr>`}
   </tbody></table></div>`:""}`;
+}
+
+/* ---- Reports (overtime + attendance, date range) ---- */
+function renderReports(){
+  if(!S.rFrom)S.rFrom="2026-01-01"; if(!S.rTo)S.rTo="2026-12-31";
+  const ot=overtimeReport(S.rFrom,S.rTo), att=attendanceReport(S.rFrom,S.rTo);
+  const sum=k=>ot.reduce((a,e)=>a+e[k],0);
+  app.innerHTML=pageHead("Reports","Working time & overtime")+`
+  <div class="toolbar">
+    <div class="field"><label>From date</label><input type="date" id="rFrom" value="${S.rFrom}"></div>
+    <div class="field"><label>To date</label><input type="date" id="rTo" value="${S.rTo}"></div>
+  </div>
+  <div class="stat-row">
+    <div class="stat"><div class="v num">${sum("normal").toFixed(1)}</div><div class="l">Normal OT hours</div></div>
+    <div class="stat"><div class="v num">${sum("sunday").toFixed(1)}</div><div class="l">Sunday OT hours</div></div>
+    <div class="stat"><div class="v num">${sum("holiday").toFixed(1)}</div><div class="l">Public-holiday OT hours</div></div>
+    <div class="stat"><div class="v num">${sum("total").toFixed(1)}</div><div class="l">Total OT hours</div></div>
+  </div>
+  <div class="card"><div class="card-head"><h2>Overtime by employee · ${fmtDate(S.rFrom)} – ${fmtDate(S.rTo)}</h2></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Pers.No.</th><th>Employee</th><th class="th-r">Normal OT</th><th class="th-r">Sunday OT</th><th class="th-r">Holiday OT</th><th class="th-r">Total</th></tr></thead><tbody>
+    ${ot.map(e=>`<tr><td class="pernr num">${e.pernr}</td><td>${esc(e.name)}</td>
+      <td class="td-r num">${e.normal.toFixed(1)}</td><td class="td-r num">${e.sunday.toFixed(1)}</td>
+      <td class="td-r num">${e.holiday.toFixed(1)}</td><td class="td-r"><b class="num">${e.total.toFixed(1)}</b></td></tr>`).join("")||`<tr><td colspan=6><div class="empty">No overtime in this period.</div></td></tr>`}
+    </tbody></table></div></div>
+  <div class="card" style="margin-top:14px"><div class="card-head"><h2>Attendances · ${fmtDate(S.rFrom)} – ${fmtDate(S.rTo)}</h2><span class="count">${att.length}</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Pers.No.</th><th>Employee</th><th>Type</th><th>From – To</th><th class="th-r">Days</th><th class="th-r">Hours</th></tr></thead><tbody>
+    ${att.map(a=>`<tr><td class="pernr num">${a.pernr}</td><td>${esc(a.name)}</td><td>${esc(a.type)}</td>
+      <td class="num">${fmtDate(a.begda)} – ${fmtDate(a.endda)}</td><td class="td-r num">${a.days!=null?a.days:"—"}</td><td class="td-r num">${a.hours!=null?a.hours:"—"}</td></tr>`).join("")||`<tr><td colspan=6><div class="empty">No attendances in this period.</div></td></tr>`}
+    </tbody></table></div></div>`;
+  $("#rFrom").addEventListener("change",e=>{S.rFrom=e.target.value;renderReports();});
+  $("#rTo").addEventListener("change",e=>{S.rTo=e.target.value;renderReports();});
+}
+
+/* ---- Graphical org chart (boxed tree) ---- */
+function orgBox(n){return `<li><div class="gbox gorg"><div class="t">${esc(n.name)}</div>
+  <div class="s">ID ${n.id}${n.mgr?" · "+esc(n.mgr):""}</div>
+  <div class="s"><span class="hc">${I.people}${n.hc||0}</span></div></div>
+  ${n.children&&n.children.length?`<ul>${n.children.map(orgBox).join("")}</ul>`:""}</li>`;}
+function renderOrgGraph(){
+  const roots=orgTree(S.key);
+  app.innerHTML=pageHead("Organizational Management","Organization chart",
+    `<button class="btn" data-nav="repgraph">${I.people} Reporting line</button>`)+
+    `<div class="card"><div class="chart-scroll"><ul class="orgtree">${roots.map(orgBox).join("")}</ul></div></div>`;
+}
+/* ---- Graphical reporting line (people hierarchy) ---- */
+function buildReportTree(key){
+  key=key||today();
+  const people=db.emp.map(e=>{const p=validOn(db.PA0002,e.pernr,key),a=validOn(db.PA0001,e.pernr,key);
+    return p?{pernr:e.pernr,name:p.vorna+" "+p.nachn,pos:a&&a.plans?orgText("S",a.plans,key):"",mgr:(lineManager(e.pernr,key)||{}).pernr||null,children:[]}:null;}).filter(Boolean);
+  const by={};people.forEach(p=>by[p.pernr]=p);const roots=[];
+  people.forEach(p=>{if(p.mgr&&by[p.mgr])by[p.mgr].children.push(p);else roots.push(p);});
+  return roots;
+}
+function personBox(n){return `<li><div class="gbox gper"><div class="t">${esc(n.name)}</div><div class="s">${esc(n.pos)}</div><div class="s num">#${n.pernr}</div></div>
+  ${n.children.length?`<ul>${n.children.map(personBox).join("")}</ul>`:""}</li>`;}
+function renderReportGraph(){
+  const roots=buildReportTree(S.key);
+  app.innerHTML=pageHead("Organizational Management","Reporting line",
+    `<button class="btn" data-nav="orggraph">${I.org} Org chart</button>`)+
+    `<div class="card"><div class="chart-scroll"><ul class="orgtree">${roots.map(personBox).join("")}</ul></div></div>`;
+}
+
+/* ---- Payroll ---- */
+function renderPayroll(){
+  if(!S.payFrom)S.payFrom="2026-06-01"; if(!S.payTo)S.payTo="2026-06-30";
+  const run=payrollRun(S.payFrom,S.payTo);
+  const fmtC=(v,c)=>fmtAmt(v,c);
+  const totGross=run.reduce((a,r)=>a+r.gross,0), totNet=run.reduce((a,r)=>a+r.net,0);
+  app.innerHTML=pageHead("Payroll","Payroll run")+`
+  <div class="toolbar">
+    <div class="field"><label>Period from</label><input type="date" id="payFrom" value="${S.payFrom}"></div>
+    <div class="field"><label>Period to</label><input type="date" id="payTo" value="${S.payTo}"></div>
+  </div>
+  <div class="stat-row">
+    <div class="stat"><div class="v num">${run.length}</div><div class="l">Employees</div></div>
+    <div class="stat"><div class="v num">${fmtC(totGross,"EUR")}</div><div class="l">Total gross</div></div>
+    <div class="stat"><div class="v num">${fmtC(totNet,"EUR")}</div><div class="l">Total net</div></div>
+  </div>
+  <div class="card"><div class="card-head"><h2>Payroll results · ${fmtDate(S.payFrom)} – ${fmtDate(S.payTo)}</h2></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Pers.No.</th><th>Employee</th><th class="th-r">Base</th><th class="th-r">Overtime</th><th class="th-r">Gross</th><th class="th-r">Deductions</th><th class="th-r">Net</th><th></th></tr></thead><tbody>
+    ${run.map(r=>`<tr><td class="pernr num">${r.pernr}</td><td>${esc(r.name)}</td>
+      <td class="td-r num">${fmtC(r.base,r.currency)}</td><td class="td-r num">${fmtC(r.otTotal,r.currency)}</td>
+      <td class="td-r num">${fmtC(r.gross,r.currency)}</td><td class="td-r num">${fmtC(r.tax+r.social,r.currency)}</td>
+      <td class="td-r"><b class="num">${fmtC(r.net,r.currency)}</b></td>
+      <td class="td-r"><button class="btn sm" data-payslip="${r.pernr}">Payslip</button></td></tr>`).join("")}
+    </tbody></table></div></div>`;
+  $("#payFrom").addEventListener("change",e=>{S.payFrom=e.target.value;renderPayroll();});
+  $("#payTo").addEventListener("change",e=>{S.payTo=e.target.value;renderPayroll();});
+}
+function payslipDialog(pernr){
+  const s=payslip(pernr,S.payFrom||"2026-06-01",S.payTo||"2026-06-30");const c=s.currency;
+  const row=(l,v,neg)=>`<div class="ps-row"><span>${l}</span><span class="num">${neg?"−":""}${fmtAmt(v,c)}</span></div>`;
+  modal("Payslip · "+esc(s.name),`
+    <div class="ps-head"><div><b>${esc(s.name)}</b> · #${s.pernr}</div><div style="color:var(--muted)">${fmtDate(S.payFrom||"2026-06-01")} – ${fmtDate(S.payTo||"2026-06-30")}</div></div>
+    <div class="ps-sec">Earnings</div>
+    ${row("Base salary",s.base)}
+    ${row("Overtime — normal ("+s.ot.normal.toFixed(1)+"h)",s.otPay.normal)}
+    ${row("Overtime — Sunday ("+s.ot.sunday.toFixed(1)+"h)",s.otPay.sunday)}
+    ${row("Overtime — public holiday ("+s.ot.holiday.toFixed(1)+"h)",s.otPay.holiday)}
+    <div class="ps-row tot"><span>Gross pay</span><span class="num">${fmtAmt(s.gross,c)}</span></div>
+    <div class="ps-sec">Deductions</div>
+    ${row("Income tax (15%)",s.tax,true)}
+    ${row("Social insurance (9%)",s.social,true)}
+    <div class="ps-row tot net"><span>Net pay</span><span class="num">${fmtAmt(s.net,c)}</span></div>`,
+    `<button class="btn primary" data-close>Close</button>`);
 }
 
 /* ============================ MODALS ============================ */
@@ -1052,7 +1241,7 @@ function toast(msg,kind){
 
 /* ============================ EVENTS ============================ */
 document.addEventListener("click",ev=>{
-  const t=ev.target.closest("[data-nav],[data-open],[data-act],[data-tab],[data-tog],[data-do],[data-close]");
+  const t=ev.target.closest("[data-nav],[data-open],[data-act],[data-tab],[data-tog],[data-do],[data-close],[data-fill],[data-approve],[data-reject],[data-book],[data-advance],[data-payslip]");
   if(!t)return;
   if(t.dataset.nav){ev.preventDefault();S.view=t.dataset.nav;S.tab="personal";render();return;}
   if(t.dataset.open){S.view="detail";S.pernr=+t.dataset.open;S.tab="personal";render();return;}
@@ -1074,6 +1263,7 @@ document.addEventListener("click",ev=>{
   if(t.dataset.reject){decideLeave(+t.dataset.reject,false);toast("Leave request rejected.","good");render();return;}
   if(t.dataset.book){try{bookCourse(SESSION.pernr,t.dataset.book);toast("Course booked.","good");render();}catch(e){toast(e.message,"bad");}return;}
   if(t.dataset.advance){advanceApplicant(+t.dataset.advance);toast("Applicant advanced to next stage.","good");render();return;}
+  if(t.dataset.payslip){payslipDialog(+t.dataset.payslip);return;}
   if(t.hasAttribute("data-close")){if(ev.target.closest(".modal")&&!t.hasAttribute("data-close"))return;closeModal();return;}
   if(t.dataset.do){doAction(t.dataset.do);return;}
 });

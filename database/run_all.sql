@@ -16,6 +16,7 @@
 :r 10_seed_hr_extended.sql
 :r 11_schema_security.sql
 :r 12_schema_modules.sql
+:r 13_schema_payroll_time.sql
 GO
 PRINT 'HR Module database installation complete.';
 GO
