@@ -1014,6 +1014,7 @@ function renderList(){
     if(c.num)return `<span class="pernr num">${esc(r[c.k])}</span>`;
     return esc(r[c.k]||"—");
   };
+  _dtReg["emplist"]={cols:cols,rows:rows,title:t("Employees")};
   app.innerHTML=`
   <div class="page-head"><div><div class="crumb">${esc(t("Personnel Administration"))}</div><h1>${esc(t("Employees"))}</h1></div>
     <div style="display:flex;gap:8px">
@@ -1024,6 +1025,7 @@ function renderList(){
   </div>
   <div class="card list-card">
     <div class="card-head"><h2>${esc(t("Employee list"))}</h2><span class="count">${rows.length}</span><div class="spacer"></div>
+      <button class="btn sm" data-dtexport="emplist" title="Export to Excel (CSV)">⭳ Excel</button>
       <div class="colmenu-wrap">
         <button class="btn sm" data-act="cols">${I.doc} ${esc(t("Columns"))} ▾</button>
         ${S.showCols?`<div class="colmenu">${EMP_COLS.map(c=>`<label class="colchk">
@@ -1262,6 +1264,7 @@ function renderPositions(){
     if(c.pill)return `<span class="pill ${p.vacant?'warn':'good'}">${esc(t(p.occ))}</span>`;
     if(c.num)return `<span class="pernr num">${esc(p[c.k])}</span>`;
     return esc(p[c.k]||"—");};
+  _dtReg["poslist"]={cols:POS_COLS,rows:list,title:"Positions"};
   app.innerHTML=`
   <div class="page-head"><div><div class="crumb">Organizational Management</div><h1>Positions</h1></div></div>
   <div class="toolbar">
@@ -1270,7 +1273,7 @@ function renderPositions(){
       <select id="of"><option value="">All units</option>
       ${orgs.map(o=>`<option value="${o.id}" ${String(S.orgFilter)===String(o.id)?'selected':''}>${esc(o.name)}</option>`).join("")}</select></div>
   </div>
-  <div class="card"><div class="card-head"><h2>Positions</h2><span class="count">${list.length}</span><div class="spacer"></div>${canEdit?`<button class="btn sm primary" data-posadd>${I.person} Add position</button>`:""}</div>
+  <div class="card"><div class="card-head"><h2>Positions</h2><span class="count">${list.length}</span><div class="spacer"></div><button class="btn sm" data-dtexport="poslist" title="Export to Excel (CSV)">⭳ Excel</button>${canEdit?` <button class="btn sm primary" data-posadd>${I.person} Add position</button>`:""}</div>
     <div class="tbl-wrap"><table><thead><tr>
       ${POS_COLS.map(c=>`<th class="sortable" data-possort="${c.k}" style="cursor:pointer">${esc(t(c.l))}${sc===c.k?(sd==="asc"?" ▲":" ▼"):""}</th>`).join("")}${canEdit?`<th class="th-r">Actions</th>`:""}
     </tr><tr class="filter-row">
@@ -1503,20 +1506,18 @@ function cfgRemove(def,key){const s=cfgStore(def);
   if(def.rel&&db[def.rel.path])delete db[def.rel.path][key];}
 function cfgLabel(src,key){if(!key)return "—";const m=db[src]||db.dom[src]||{};const v=m[key];
   const t=v&&typeof v==="object"?(v.name||v.text||""):v;return esc(key+(t?" – "+t:""));}
+function cfgLabelText(src,key){if(!key)return "";const m=db[src]||db.dom[src]||{};const v=m[key];
+  const t=v&&typeof v==="object"?(v.name||v.text||""):v;return key+(t?" – "+t:"");}
 function cfgTable(tab){const def=CFG_SCHEMA[tab];const rows=cfgRows(def);
-  const cols=[{k:"key",l:def.keyL}].concat(def.fields.map(f=>({k:f.k,l:f.l,src:f.src})));
-  if(def.rel)cols.push({k:def.rel.k,l:def.rel.l,rel:true});
-  const head=cols.map(c=>`<th>${esc(c.l)}</th>`).join("")+`<th class="th-r">Actions</th>`;
   const relMap=def.rel?(db[def.rel.path]||{}):null;
-  const body=rows.map(r=>{
-    const cells=cols.map(c=>{
-      if(c.rel)return `<td>${cfgLabel(def.rel.src,relMap[r.key])}</td>`;
-      if(c.k==="key")return `<td class="num">${esc(r.key)}</td>`;
-      if(c.src)return `<td>${cfgLabel(c.src,r[c.k])}</td>`;
-      return `<td>${esc(r[c.k]!=null&&r[c.k]!==""?r[c.k]:"—")}</td>`;}).join("");
-    return `<tr>${cells}<td class="td-r nowrap"><button class="btn xs" data-cfgedit="${tab}" data-key="${esc(r.key)}">${I.edit} Edit</button> <button class="btn xs ghost" data-cfgdel="${tab}" data-key="${esc(r.key)}">Delete</button></td></tr>`;}).join("");
-  return `<div class="card"><div class="card-head"><h2>${esc(def.h)}</h2><span class="count">${rows.length}</span><div class="spacer"></div><button class="btn sm primary" data-cfgadd="${tab}">+ Add</button></div>
-    <div class="tbl-wrap"><table><thead><tr>${head}</tr></thead><tbody>${body||`<tr><td colspan="${cols.length+1}"><div class="empty">No entries.</div></td></tr>`}</tbody></table></div></div>`;}
+  const cols=[{k:"key",l:def.keyL,always:true}];
+  def.fields.forEach(f=>{
+    if(f.src)cols.push({k:f.k,l:f.l,v:r=>cfgLabelText(f.src,r[f.k]),html:r=>cfgLabel(f.src,r[f.k])});
+    else cols.push({k:f.k,l:f.l});
+  });
+  if(def.rel)cols.push({k:def.rel.k,l:def.rel.l,v:r=>cfgLabelText(def.rel.src,relMap[r.key]),html:r=>cfgLabel(def.rel.src,relMap[r.key])});
+  cols.push({k:"act",l:"Actions",always:true,html:r=>`<button class="btn xs" data-cfgedit="${tab}" data-key="${esc(r.key)}">${I.edit} Edit</button> <button class="btn xs ghost" data-cfgdel="${tab}" data-key="${esc(r.key)}">Delete</button>`});
+  return dtTable("cfg_"+tab,def.h,cols,rows,{actions:`<button class="btn sm primary" data-cfgadd="${tab}">+ Add</button>`});}
 let cfgCtx=null;
 let editingRec=null; // {type,id} when editing an individual infotype record
 function cfgDialog(tab,key){const def=CFG_SCHEMA[tab];const edit=key!=null;const r=edit?cfgGet(def,key)||{}:{};
