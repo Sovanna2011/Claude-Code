@@ -508,6 +508,12 @@ function seed(){return{
    "GBP":{name:"Pound Sterling",symbol:"£",decimals:2},"KHR":{name:"Cambodian Riel",symbol:"៛",decimals:0},
    "CNY":{name:"Chinese Yuan",symbol:"¥",decimals:2},"SGD":{name:"Singapore Dollar",symbol:"S$",decimals:2},
    "VND":{name:"Vietnamese Dong",symbol:"₫",decimals:0},"JPY":{name:"Japanese Yen",symbol:"¥",decimals:0}},
+  sysLangs:{"EN":"English","KH":"Khmer (ខ្មែរ)","CN":"Chinese (中文)"},
+  numObjects:{"PERNR":"Employee (PERNR)","PLANS":"Position","REQ":"Requisition"},
+  numberRanges:[
+   {id:"EE-1000",object:"PERNR",bukrs:"1000",from:1000,to:1999,current:1002},
+   {id:"POS-1000",object:"PLANS",bukrs:"1000",from:50000100,to:50000999,current:50000101},
+   {id:"REQ-1000",object:"REQ",bukrs:"1000",from:50001,to:59999,current:50002}],
   regions:{"Europe":{},"Asia":{},"Americas":{},"Africa":{},"Oceania":{},
    "Berlin":{country:"DE"},"Bavaria":{country:"DE"},"New York":{country:"US"},"England":{country:"GB"},
    "Île-de-France":{country:"FR"},"Phnom Penh":{country:"KH"},"Singapore":{country:"SG"},"Hanoi":{country:"VN"}},
@@ -1451,6 +1457,9 @@ const CFG_SCHEMA={
   city:{h:"Cities",store:"omap",path:"cities",keyL:"City",
     fields:[{k:"country",l:"Country",src:"T005"},{k:"region",l:"Region / State",src:"regions"},{k:"postal",l:"Postal code"}]},
   region:{h:"Regions",store:"omap",path:"regions",keyL:"Region",fields:[{k:"country",l:"Country",src:"T005"}]},
+  syslang:{h:"System languages (UI)",store:"smap",path:"sysLangs",keyL:"Language key",fields:[{k:"text",l:"Language"}]},
+  numrange:{h:"Number ranges (by company code)",store:"arr",path:"numberRanges",keyF:"id",keyL:"Range key",
+    fields:[{k:"object",l:"Object",src:"numObjects"},{k:"bukrs",l:"Company code",src:"T001"},{k:"from",l:"From no."},{k:"to",l:"To no."},{k:"current",l:"Current no."}]},
   parea:{h:"Personnel areas (T500P)",store:"omap",path:"T500P",keyL:"Personnel area",
     fields:[{k:"text",l:"Name"},{k:"bukrs",l:"Company code",src:"T001"}]},
   groups:{h:"Employee groups (T501)",store:"smap",path:"T501",keyL:"Group key",fields:[{k:"text",l:"Text"}]},
@@ -1548,7 +1557,7 @@ function renderConfig(){
   else if(S.cfgTab==="org")body=cfgOrgTable();
   else if(CFG_SCHEMA[S.cfgTab])body=cfgTable(S.cfgTab);
   app.innerHTML=pageHead(t("Configuration"),t("System configuration"))+
-    `<div class="toolbar" style="gap:6px;flex-wrap:wrap">${T("company","Company codes")}${T("parea","Personnel areas")}${T("groups","Employee groups")}${T("subgroups","Employee subgroups")}${T("cost","Cost centers")}${T("org","Organizational units")}${T("lang","Languages")}${T("nat","Countries")}${T("currency","Currencies")}${T("region","Regions")}${T("city","Cities")}${T("titles","Titles")}${T("roles","Roles")}${T("users","Users & roles")}${T("auth","Authorizations")}</div>${body}`;
+    `<div class="toolbar" style="gap:6px;flex-wrap:wrap">${T("company","Company codes")}${T("parea","Personnel areas")}${T("groups","Employee groups")}${T("subgroups","Employee subgroups")}${T("cost","Cost centers")}${T("org","Organizational units")}${T("lang","Languages")}${T("nat","Countries")}${T("currency","Currencies")}${T("region","Regions")}${T("city","Cities")}${T("titles","Titles")}${T("syslang","System languages")}${T("numrange","Number ranges")}${T("roles","Roles")}${T("users","Users & roles")}${T("auth","Authorizations")}</div>${body}`;
 }
 
 /* ============================ MODULE VIEWS ============================ */
