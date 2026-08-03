@@ -1130,27 +1130,55 @@ function renderOrg(){
   $("#kd").addEventListener("change",e=>{S.key=e.target.value;renderOrg();});
 }
 
+const POS_COLS=[
+  {k:"id",l:"Position ID",num:true},
+  {k:"name",l:"Position"},
+  {k:"orgN",l:"Organizational unit"},
+  {k:"jobN",l:"Job"},
+  {k:"holder",l:"Holder"},
+  {k:"occ",l:"Occupancy",pill:true}
+];
 function renderPositions(){
-  const list=positions(S.orgFilter,S.key);
+  if(!S.posFilters)S.posFilters={};
   const orgs=orgFlat(S.key);
   const canEdit=allowed("0001","update")||isAdmin();
+  let list=positions(S.orgFilter,S.key).map(p=>({...p,occ:p.vacant?"Vacant":"Occupied"}));
+  // Global search + per-column (header-level) filters.
+  if(S.posSearch){const s=S.posSearch.toLowerCase();
+    list=list.filter(p=>POS_COLS.some(c=>String(p[c.k]==null?"":p[c.k]).toLowerCase().includes(s)));}
+  list=list.filter(p=>POS_COLS.every(c=>{const f=(S.posFilters[c.k]||"").toLowerCase();
+    return !f||String(p[c.k]==null?"":p[c.k]).toLowerCase().includes(f);}));
+  const sc=S.posSort||"id", sd=S.posDir||"asc";
+  list=list.slice().sort((a,b)=>{let x=a[sc],y=b[sc];
+    if(sc==="id"){x=+x;y=+y;}else{x=(x==null?"":String(x)).toLowerCase();y=(y==null?"":String(y)).toLowerCase();}
+    return (x<y?-1:x>y?1:0)*(sd==="asc"?1:-1);});
+  const cell=(p,c)=>{
+    if(c.pill)return `<span class="pill ${p.vacant?'warn':'good'}">${esc(t(p.occ))}</span>`;
+    if(c.num)return `<span class="pernr num">${esc(p[c.k])}</span>`;
+    return esc(p[c.k]||"—");};
   app.innerHTML=`
   <div class="page-head"><div><div class="crumb">Organizational Management</div><h1>Positions</h1></div></div>
   <div class="toolbar">
+    <div class="search">${I.search}<input id="pq" placeholder="${esc(t("Search all columns…"))}" value="${esc(S.posSearch||"")}"></div>
     <div class="field"><label>Organizational unit</label>
       <select id="of"><option value="">All units</option>
       ${orgs.map(o=>`<option value="${o.id}" ${String(S.orgFilter)===String(o.id)?'selected':''}>${esc(o.name)}</option>`).join("")}</select></div>
   </div>
   <div class="card"><div class="card-head"><h2>Positions</h2><span class="count">${list.length}</span><div class="spacer"></div>${canEdit?`<button class="btn sm primary" data-posadd>${I.person} Add position</button>`:""}</div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>Position ID</th><th>Position</th><th>Organizational unit</th><th>Job</th><th>Holder</th><th>Occupancy</th>${canEdit?`<th class="th-r">Actions</th>`:""}
-    </tr></thead><tbody>${list.map(p=>`
-      <tr><td class="pernr num">${p.id}</td><td>${esc(p.name)}</td><td>${esc(p.orgN||"—")}</td>
-        <td>${esc(p.jobN||"—")}</td><td>${esc(p.holder||"—")}</td>
-        <td><span class="pill ${p.vacant?'warn':'good'}">${p.vacant?"Vacant":"Occupied"}</span></td>
-        ${canEdit?`<td class="td-r nowrap"><button class="btn xs" data-posedit="${p.id}">${I.edit} Edit</button> <button class="btn xs ghost" data-posdel="${p.id}">Delete</button></td>`:""}</tr>`).join("")}
+      ${POS_COLS.map(c=>`<th class="sortable" data-possort="${c.k}" style="cursor:pointer">${esc(t(c.l))}${sc===c.k?(sd==="asc"?" ▲":" ▼"):""}</th>`).join("")}${canEdit?`<th class="th-r">Actions</th>`:""}
+    </tr><tr class="filter-row">
+      ${POS_COLS.map(c=>`<th><input class="colf" data-posfilter="${c.k}" value="${esc(S.posFilters[c.k]||"")}" placeholder="🔍 ${esc(t(c.l))}"></th>`).join("")}${canEdit?`<th></th>`:""}
+    </tr></thead><tbody>${list.length?list.map(p=>`
+      <tr>${POS_COLS.map(c=>`<td>${cell(p,c)}</td>`).join("")}
+        ${canEdit?`<td class="td-r nowrap"><button class="btn xs" data-posedit="${p.id}">${I.edit} Edit</button> <button class="btn xs ghost" data-posdel="${p.id}">Delete</button></td>`:""}</tr>`).join("")
+      :`<tr><td colspan="${POS_COLS.length+(canEdit?1:0)}"><div class="empty">No positions match your search.</div></td></tr>`}
     </tbody></table></div></div>`;
+  const pq=$("#pq");pq.addEventListener("input",e=>{S.posSearch=e.target.value;S.posFocus="pq";renderPositions();});
   $("#of").addEventListener("change",e=>{S.orgFilter=e.target.value;renderPositions();});
+  app.querySelectorAll(".colf").forEach(inp=>{inp.addEventListener("input",e=>{S.posFilters[e.target.dataset.posfilter]=e.target.value;S.posFocus="col:"+e.target.dataset.posfilter;renderPositions();});});
+  let target=S.posFocus==="pq"?pq:(S.posFocus&&S.posFocus.startsWith("col:")?app.querySelector('.colf[data-posfilter="'+S.posFocus.slice(4)+'"]'):null);
+  if(target){target.focus();const v=target.value;target.value="";target.value=v;}
 }
 
 /* ============================ MODULE LOGIC ============================ */
@@ -1895,7 +1923,7 @@ function toast(msg,kind){
 
 /* ============================ EVENTS ============================ */
 document.addEventListener("click",ev=>{
-  const t=ev.target.closest("[data-nav],[data-open],[data-act],[data-tab],[data-tog],[data-do],[data-close],[data-fill],[data-approve],[data-reject],[data-book],[data-advance],[data-payslip],[data-cfg],[data-authrole],[data-cfgadd],[data-cfgedit],[data-cfgdel],[data-useredit],[data-userdel],[data-orgedit],[data-orgdel],[data-roleadd],[data-roleedit],[data-roledel],[data-posadd],[data-posedit],[data-posdel],[data-comedit],[data-comdel],[data-famedit],[data-famdel],[data-eduedit],[data-edudel],[data-expedit],[data-expdel],[data-qualedit],[data-qualdel],[data-sort],[data-more],[data-tabmore],[data-photo]");
+  const t=ev.target.closest("[data-nav],[data-open],[data-act],[data-tab],[data-tog],[data-do],[data-close],[data-fill],[data-approve],[data-reject],[data-book],[data-advance],[data-payslip],[data-cfg],[data-authrole],[data-cfgadd],[data-cfgedit],[data-cfgdel],[data-useredit],[data-userdel],[data-orgedit],[data-orgdel],[data-roleadd],[data-roleedit],[data-roledel],[data-posadd],[data-posedit],[data-posdel],[data-comedit],[data-comdel],[data-famedit],[data-famdel],[data-eduedit],[data-edudel],[data-expedit],[data-expdel],[data-qualedit],[data-qualdel],[data-sort],[data-possort],[data-more],[data-tabmore],[data-photo]");
   if(!t){const mm=$("#moreMenu");if(mm)mm.classList.remove("open");const tm=$("#tabMoreMenu");if(tm)tm.classList.remove("open");return;}
   if(t.hasAttribute("data-more")){const mm=$("#moreMenu");mm.classList.toggle("open");return;}
   if(t.hasAttribute("data-tabmore")){const tm=$("#tabMoreMenu");tm.classList.toggle("open");return;}
@@ -1967,6 +1995,7 @@ document.addEventListener("click",ev=>{
   if(t.dataset.qualedit){qualDialog(recFor("qual",+t.dataset.qualedit));return;}
   if(t.dataset.qualdel){if(confirm("Delete this qualification?")){deleteQualification(+t.dataset.qualdel);toast("Qualification deleted.","good");renderDetail();}return;}
   if(t.dataset.sort){const c=t.dataset.sort;if(S.sortCol===c)S.sortDir=S.sortDir==="asc"?"desc":"asc";else{S.sortCol=c;S.sortDir="asc";}renderList();return;}
+  if(t.dataset.possort){const c=t.dataset.possort;if(S.posSort===c)S.posDir=S.posDir==="asc"?"desc":"asc";else{S.posSort=c;S.posDir="asc";}renderPositions();return;}
   if(t.hasAttribute("data-close")){
     // Backdrop closes only on a direct click; clicks inside the dialog (e.g. a
     // dropdown or input) must NOT close it. Close buttons always close.
