@@ -653,7 +653,8 @@ function seed(){return{
    {pernr:1001,date:"2026-12-25",hours:2.0}],  // Public holiday OT
   // Payroll: rates & OT multipliers (SAP-style customizing)
   payroll:{taxRate:0.15,socialRate:0.09,otMult:{normal:1.25,sunday:1.5,holiday:2.0},monthlyFactor:4.33},
-  photos:{}  // pernr -> data URI (uploaded photo); default is a generated avatar
+  photos:{},  // pernr -> data URI (uploaded photo); default is a generated avatar
+  attachments:[]  // {id,kind,pernr,refId,name,mime,size,data,uploaded}
 };}
 let db=seed();
 let SESSION=null; // {username,name,role,pernr}
@@ -687,13 +688,43 @@ function avatarSvg(name,seed){
   const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="96" height="96" rx="48" fill="${c}"/><text x="48" y="61" font-family="Segoe UI,Arial,sans-serif" font-size="38" font-weight="700" fill="#fff" text-anchor="middle">${init}</text></svg>`;
   return "data:image/svg+xml;base64,"+btoa(svg);
 }
-function empPhoto(pernr,name){return (db.photos&&db.photos[pernr])||avatarSvg(name,pernr);}
+function empPhoto(pernr,name){const a=(db.attachments||[]).find(x=>x.kind==="photo"&&x.pernr===pernr);
+  return (a&&a.data)||(db.photos&&db.photos[pernr])||avatarSvg(name,pernr);}
 function uploadPhoto(pernr){
   const inp=document.createElement("input");inp.type="file";inp.accept="image/*";
   inp.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
-    r.onload=()=>{db.photos[pernr]=r.result;toast("Photo updated.","good");render();};r.readAsDataURL(f);};
+    r.onload=()=>{db.attachments=db.attachments||[];
+      db.attachments=db.attachments.filter(a=>!(a.kind==="photo"&&a.pernr===pernr));
+      db.attachments.push({id:_attId++,kind:"photo",pernr,refId:"",name:f.name,mime:f.type,size:f.size,data:r.result,uploaded:today()});
+      toast("Photo updated.","good");render();};r.readAsDataURL(f);};
   inp.click();
 }
+/* ---- Attachments table: {id,kind,pernr,refId,name,mime,size,data,uploaded} ----
+   kind is "edu" | "exp" | "qual" | "cv". One file per record (kind+refId). */
+let _attId=1;
+function pickAttachment(kind,pernr,refId){
+  const inp=document.createElement("input");inp.type="file";
+  inp.onchange=()=>{const f=inp.files[0];if(!f)return;const r=new FileReader();
+    r.onload=()=>{db.attachments=db.attachments||[];
+      db.attachments=db.attachments.filter(a=>!(a.kind===kind&&a.pernr===pernr&&String(a.refId)===String(refId||"")));
+      db.attachments.push({id:_attId++,kind,pernr,refId:refId||"",name:f.name,mime:f.type,size:f.size,data:r.result,uploaded:today()});
+      toast("File attached.","good");render();};
+    r.readAsDataURL(f);};
+  inp.click();
+}
+function attachmentFor(kind,pernr,refId){return (db.attachments||[]).find(a=>a.kind===kind&&a.pernr===pernr&&String(a.refId)===String(refId||""));}
+function removeAttachment(id){db.attachments=(db.attachments||[]).filter(a=>a.id!==id);}
+function viewAttachment(id){const a=(db.attachments||[]).find(x=>x.id===id);if(!a)return;
+  const isImg=(a.mime||"").indexOf("image/")===0;
+  modal("Attachment · "+esc(a.name),
+    `<div class="hint">${I.info}<span>${esc(a.name)} · ${(a.size/1024).toFixed(0)} KB · uploaded ${fmtDate(a.uploaded)}</span></div>
+     ${isImg?`<img src="${a.data}" style="max-width:100%;border-radius:8px">`:`<p class="muted">Inline preview isn't available for this file type — use the download link.</p>`}
+     <div class="grp"><a class="btn primary" href="${a.data}" download="${esc(a.name)}" style="text-decoration:none;display:inline-flex;gap:6px;align-items:center">⭳ Download ${esc(a.name)}</a></div>`,
+    `<button class="btn ghost" data-attdel="${a.id}">Delete</button><button class="btn" data-close>Close</button>`);
+}
+function attachCell(kind,pernr,refId){const a=attachmentFor(kind,pernr,refId);
+  return a?`<a class="mail" data-attview="${a.id}" style="cursor:pointer" title="${esc(a.name)}">${I.doc} ${esc(a.name.length>18?a.name.slice(0,16)+"…":a.name)}</a>`
+          :`<button class="btn xs" data-attach="${kind}:${pernr}:${refId||""}">📎 Attach</button>`;}
 
 function getEmployees(search,key){
   key=key||today();
@@ -1179,7 +1210,10 @@ function renderDetail(){
     const eduAct=allowed("0022","update")||allowed("0022","delete");
     const expAct=allowed("0023","update")||allowed("0023","delete");
     const qualAct=allowed("0024","update")||allowed("0024","delete");
-    content=
+    const cv=attachmentFor("cv",S.pernr,"");
+    const cvCard=`<div class="card list-card"><div class="card-head"><h2>Curriculum Vitae (CV)</h2><div class="spacer"></div>${cv?`<a class="btn sm" data-attview="${cv.id}">${I.doc} ${esc(cv.name)}</a> `:""}<button class="btn sm primary" data-attach="cv:${S.pernr}:">📎 ${cv?"Replace":"Upload"} CV</button></div>
+      <div style="padding:12px 16px;color:var(--muted)">${cv?`Uploaded ${fmtDate(cv.uploaded)} · ${(cv.size/1024).toFixed(0)} KB`:"No CV uploaded."}</div></div><div style="height:16px"></div>`;
+    content=cvCard+
     dtTable("eduT","Education · IT0022",[
       {k:"est",l:"Establishment",always:true,v:x=>x.est+" "+(x.insti||""),html:x=>`<b>${esc(x.est)}</b><br><span style="color:var(--muted)">${esc(x.insti)}</span>`},
       {k:"cert",l:"Certificate"},
@@ -1188,6 +1222,7 @@ function renderDetail(){
       {k:"loc",l:"City / Country",v:x=>[x.city,x.countryN].filter(Boolean).join(", ")},
       {k:"note",l:"Notes"},
       {k:"period",l:"Period",v:x=>x.begda,html:x=>`<span class="num">${fmtDate(x.begda)} – ${fmtDate(x.endda)}</span>`},
+      {k:"att",l:"Attachment",always:true,html:x=>attachCell("edu",S.pernr,x._id)},
       ...(eduAct?[{k:"act",l:"Actions",always:true,html:x=>`${allowed("0022","update")?`<button class="btn xs" data-eduedit="${x._id}">${I.edit} Edit</button> `:""}${allowed("0022","delete")?`<button class="btn xs ghost" data-edudel="${x._id}">Delete</button>`:""}`}]:[])
     ],e.education,{simple:true,actions:allowed("0022","add")?`<button class="btn sm primary" data-act="edu">${I.education} Add education</button>`:""})
     +`<div style="height:16px"></div>`+
@@ -1199,6 +1234,7 @@ function renderDetail(){
       {k:"place",l:"Place"},
       {k:"reason",l:"Reason for leaving"},
       {k:"period",l:"Period",v:x=>x.begda,html:x=>`<span class="num">${fmtDate(x.begda)} – ${fmtDate(x.endda)}</span>`},
+      {k:"att",l:"Attachment",always:true,html:x=>attachCell("exp",S.pernr,x._id)},
       ...(expAct?[{k:"act",l:"Actions",always:true,html:x=>`${allowed("0023","update")?`<button class="btn xs" data-expedit="${x._id}">${I.edit} Edit</button> `:""}${allowed("0023","delete")?`<button class="btn xs ghost" data-expdel="${x._id}">Delete</button>`:""}`}]:[])
     ],e.exp,{simple:true,actions:allowed("0023","add")?`<button class="btn sm primary" data-act="exp">${I.doc} Add previous employer</button>`:""})
     +`<div style="height:16px"></div>`+
@@ -1206,6 +1242,7 @@ function renderDetail(){
       {k:"grp",l:"Group",always:true},
       {k:"q",l:"Qualification",always:true},
       {k:"lvl",l:"Proficiency",v:x=>x.lvl,html:x=>`<span class="pill ${x.lvl>=7?'good':x.lvl>=4?'warn':'neutral'} num">${x.lvl} / 9</span>`},
+      {k:"att",l:"Attachment",always:true,html:x=>attachCell("qual",S.pernr,x._id)},
       ...(qualAct?[{k:"act",l:"Actions",always:true,html:x=>`${allowed("0024","update")?`<button class="btn xs" data-qualedit="${x._id}">${I.edit} Edit</button> `:""}${allowed("0024","delete")?`<button class="btn xs ghost" data-qualdel="${x._id}">Delete</button>`:""}`}]:[])
     ],e.quals,{simple:true,actions:allowed("0024","add")?`<button class="btn sm primary" data-act="qual">${I.check} Add qualification</button>`:""});}
   else if(S.tab==="contract"){const c=e.contract||{};content=`
@@ -2281,7 +2318,7 @@ document.addEventListener("click",ev=>{
   const comboOpt=ev.target.closest("[data-cityopt]");
   if(comboOpt){const combo=comboOpt.closest(".combo"),inp=combo.querySelector("input");
     inp.value=comboOpt.dataset.cityopt;onAddrCity();combo.querySelector(".combo-list").classList.remove("open");return;}
-  const t=ev.target.closest("[data-nav],[data-open],[data-act],[data-tab],[data-tog],[data-do],[data-close],[data-fill],[data-approve],[data-reject],[data-book],[data-advance],[data-payslip],[data-cfg],[data-authrole],[data-cfgadd],[data-cfgedit],[data-cfgdel],[data-useredit],[data-userdel],[data-orgedit],[data-orgdel],[data-roleadd],[data-roleedit],[data-roledel],[data-posadd],[data-posedit],[data-posdel],[data-addredit],[data-addrdel],[data-comedit],[data-comdel],[data-famedit],[data-famdel],[data-eduedit],[data-edudel],[data-expedit],[data-expdel],[data-qualedit],[data-qualdel],[data-sort],[data-possort],[data-dtsort],[data-dtcols],[data-dtexport],[data-copycsv],[data-reqadd],[data-reqedit],[data-reqdel],[data-appladd],[data-appledit],[data-appldel],[data-crsadd],[data-crsedit],[data-crsdel],[data-more],[data-tabmore],[data-photo]");
+  const t=ev.target.closest("[data-nav],[data-open],[data-act],[data-tab],[data-tog],[data-do],[data-close],[data-fill],[data-approve],[data-reject],[data-book],[data-advance],[data-payslip],[data-cfg],[data-authrole],[data-cfgadd],[data-cfgedit],[data-cfgdel],[data-useredit],[data-userdel],[data-orgedit],[data-orgdel],[data-roleadd],[data-roleedit],[data-roledel],[data-posadd],[data-posedit],[data-posdel],[data-attach],[data-attview],[data-attdel],[data-addredit],[data-addrdel],[data-comedit],[data-comdel],[data-famedit],[data-famdel],[data-eduedit],[data-edudel],[data-expedit],[data-expdel],[data-qualedit],[data-qualdel],[data-sort],[data-possort],[data-dtsort],[data-dtcols],[data-dtexport],[data-copycsv],[data-reqadd],[data-reqedit],[data-reqdel],[data-appladd],[data-appledit],[data-appldel],[data-crsadd],[data-crsedit],[data-crsdel],[data-more],[data-tabmore],[data-photo]");
   if(!t){const mm=$("#moreMenu");if(mm)mm.classList.remove("open");const tm=$("#tabMoreMenu");if(tm)tm.classList.remove("open");return;}
   if(t.hasAttribute("data-more")){const mm=$("#moreMenu");mm.classList.toggle("open");return;}
   if(t.hasAttribute("data-tabmore")){const tm=$("#tabMoreMenu");tm.classList.toggle("open");return;}
@@ -2327,6 +2364,9 @@ document.addEventListener("click",ev=>{
   if(t.dataset.advance){advanceApplicant(+t.dataset.advance);toast("Applicant advanced to next stage.","good");render();return;}
   if(t.dataset.payslip){payslipDialog(+t.dataset.payslip);return;}
   if(t.dataset.pspdf){printPayslip(+t.dataset.pspdf);return;}
+  if(t.dataset.attach){const parts=t.dataset.attach.split(":");pickAttachment(parts[0],+parts[1],parts[2]||"");return;}
+  if(t.dataset.attview){viewAttachment(+t.dataset.attview);return;}
+  if(t.dataset.attdel){if(confirm("Delete this attachment?")){removeAttachment(+t.dataset.attdel);toast("Attachment deleted.","good");closeModal();render();}return;}
   if(t.dataset.photo){uploadPhoto(+t.dataset.photo);return;}
   if(t.dataset.cfg){S.cfgTab=t.dataset.cfg;renderConfig();return;}
   if(t.dataset.authrole){S.authRole=t.dataset.authrole;renderConfig();return;}
