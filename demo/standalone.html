@@ -1134,14 +1134,13 @@ function renderPositions(){
   const orgs=orgFlat(S.key);
   const canEdit=allowed("0001","update")||isAdmin();
   app.innerHTML=`
-  <div class="page-head"><div><div class="crumb">Organizational Management</div><h1>Positions</h1></div>
-    ${canEdit?`<button class="btn primary" data-posadd>${I.person} Add position</button>`:""}</div>
+  <div class="page-head"><div><div class="crumb">Organizational Management</div><h1>Positions</h1></div></div>
   <div class="toolbar">
     <div class="field"><label>Organizational unit</label>
       <select id="of"><option value="">All units</option>
       ${orgs.map(o=>`<option value="${o.id}" ${String(S.orgFilter)===String(o.id)?'selected':''}>${esc(o.name)}</option>`).join("")}</select></div>
   </div>
-  <div class="card"><div class="card-head"><h2>Positions</h2><span class="count">${list.length}</span></div>
+  <div class="card"><div class="card-head"><h2>Positions</h2><span class="count">${list.length}</span><div class="spacer"></div>${canEdit?`<button class="btn sm primary" data-posadd>${I.person} Add position</button>`:""}</div>
     <div class="tbl-wrap"><table><thead><tr>
       <th>Position ID</th><th>Position</th><th>Organizational unit</th><th>Job</th><th>Holder</th><th>Occupancy</th>${canEdit?`<th class="th-r">Actions</th>`:""}
     </tr></thead><tbody>${list.map(p=>`
