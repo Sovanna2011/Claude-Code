@@ -154,6 +154,10 @@ input:focus,select:focus{border-color:var(--accent);outline:none;box-shadow:0 0 
 .dt-grid thead tr:first-child th{top:0}
 .dt-grid.dt-grid-2 thead tr.filter-row th{top:36px;background:var(--surface);z-index:2}
 .dt-grid td{border-bottom:1px solid var(--border)}
+.areg-in{padding:5px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font:inherit;width:100%;box-sizing:border-box}
+.areg-in:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+.areg-in:disabled{background:var(--surface-2);color:var(--muted)}
+.areg-t{max-width:120px}.areg-h{max-width:90px;text-align:right}
 .dt-search input{border:1px solid var(--border);background:var(--surface);color:var(--text);
   border-radius:8px;padding:6px 10px;font-size:13px;min-width:180px}
 .card-head .dt-search{margin-right:6px}
@@ -676,7 +680,11 @@ function seed(){return{
   // Payroll: rates & OT multipliers (SAP-style customizing)
   payroll:{taxRate:0.15,socialRate:0.09,otMult:{normal:1.25,sunday:1.5,holiday:2.0},monthlyFactor:4.33},
   photos:{},  // pernr -> data URI (uploaded photo); default is a generated avatar
-  attachments:[]  // {id,kind,pernr,refId,name,mime,size,data,uploaded}
+  attachments:[],  // {id,kind,pernr,refId,name,mime,size,data,uploaded}
+  // Daily attendance register: one row per employee per day
+  attReg:[
+   {pernr:1000,date:"2026-08-03",status:"P",tin:"08:00",tout:"17:00",hours:8,note:""},
+   {pernr:1001,date:"2026-08-03",status:"P",tin:"09:00",tout:"18:00",hours:8,note:""}]
 };}
 let db=seed();
 let SESSION=null; // {username,name,role,pernr}
@@ -890,6 +898,40 @@ function recordAttendance(pernr,f){
   db.PA2002.push({pernr,awart:f.attendanceType,begda:f.begda,endda:f.endda,abwtg:days,stdaz:f.hours?Number(f.hours):null});
   return days;
 }
+/* Daily attendance register status options: Present/Absent + all T554S event types. */
+function regStatuses(){const m={P:"Present",A:"Absent"};Object.keys(db.T554S).forEach(k=>m[k]=db.T554S[k]);return m;}
+function regLabel(code){return regStatuses()[code]||code||"";}
+function regGet(pernr,date){return db.attReg.find(r=>r.pernr===pernr&&r.date===date)||null;}
+/* Upsert one register entry for (pernr,date); blank/Present with no times can still be stored. */
+function regUpsert(pernr,date,f){let r=regGet(pernr,date);
+  const rec={pernr,date,status:f.status||"P",tin:f.tin||"",tout:f.tout||"",hours:f.hours!==""&&f.hours!=null?Number(f.hours):null,note:f.note||""};
+  if(r)Object.assign(r,rec);else db.attReg.push(rec);return rec;}
+/* Compute hours from clock in/out (HH:MM); null if either missing/invalid. */
+function clockHours(tin,tout){if(!tin||!tout)return null;const a=tin.split(":"),b=tout.split(":");
+  if(a.length<2||b.length<2)return null;let m=(+b[0]*60+ +b[1])-(+a[0]*60+ +a[1]);if(!isFinite(m)||m<=0)return null;return Math.round(m/6)/10;}
+/* Per-employee daily attendance across a range: register entry wins, else absence/attendance infotypes, else present/holiday/weekend. */
+function employeeAttendance(pernr,from,to){
+  const days=[];let d=new Date(from+"T00:00:00"),end=new Date(to+"T00:00:00");
+  const abs=db.PA2001.filter(a=>a.pernr===pernr),att=db.PA2002.filter(a=>a.pernr===pernr);
+  const sum={present:0,absent:0,event:0,holiday:0,off:0,hours:0};
+  while(d<=end){const iso=d.toISOString().slice(0,10),dow=d.getDay();
+    const weekend=dow===0||dow===6,holiday=db.publicHolidays.includes(iso);
+    const reg=regGet(pernr,iso);let code,label,hours=null,note="";
+    if(reg){code=reg.status;label=regLabel(reg.status);hours=reg.hours;note=reg.note||((reg.tin||reg.tout)?`${reg.tin||"—"}–${reg.tout||"—"}`:"");}
+    else{const a=abs.find(x=>x.begda<=iso&&x.endda>=iso);
+      if(a){code="A";label=db.T554S[a.awart]||"Absence";}
+      else{const t=att.find(x=>x.begda<=iso&&x.endda>=iso);
+        if(t){code="T";label=db.T554S[t.awart]||"Attendance";hours=t.stdaz;}
+        else if(holiday){code="H";label="Public holiday";}
+        else if(weekend){code="·";label="Non-working day";}
+        else{code="P";label="Present";}}}
+    if(code==="P"){sum.present++;}else if(code==="A"){sum.absent++;}
+    else if(code==="H"){sum.holiday++;}else if(code==="·"){sum.off++;}else{sum.event++;}
+    if(hours)sum.hours+=hours;
+    days.push({iso,wd:["Su","Mo","Tu","We","Th","Fr","Sa"][dow],weekend,holiday,code,label,hours,note});
+    d.setDate(d.getDate()+1);}
+  return {days,sum};
+}
 function orgFlat(key){key=key||today();
   return db.HRP1000.filter(o=>o.otype==="O"&&o.begda<=key&&o.endda>=key).map(o=>{
     const r=db.HRP1001.find(x=>x.otype==="O"&&x.sclas==="O"&&x.rsign==="A"&&x.relat==="002"&&x.objid===o.objid&&x.begda<=key&&x.endda>=key);
@@ -949,8 +991,8 @@ const can=(...roles)=>roles.some(hasRole);
    activity (display/add/update/delete) on this infotype? */
 function allowed(it,act){return (SESSION&&SESSION.roles||[]).some(r=>db.auth[r]&&db.auth[r][it]&&db.auth[r][it][act]);}
 function navFor(role){
-  if(role==="HR_ADMIN")return [["list","People","people"],["orggraph","Org Chart","org"],["pos","Positions","pos"],["payroll","Payroll","money"],["leave","Leave","cal"],["recruit","Recruitment","person"],["training","Training","education"],["config","Config","doc"],["reports","Reports","doc"]];
-  if(role==="HR_MANAGER")return [["mss","My Team","people"],["leave","Approvals","cal"],["orggraph","Org Chart","org"],["training","Training","education"],["reports","Reports","doc"]];
+  if(role==="HR_ADMIN")return [["list","People","people"],["orggraph","Org Chart","org"],["pos","Positions","pos"],["payroll","Payroll","money"],["attreg","Attendance","cal"],["leave","Leave","cal"],["recruit","Recruitment","person"],["training","Training","education"],["config","Config","doc"],["reports","Reports","doc"]];
+  if(role==="HR_MANAGER")return [["mss","My Team","people"],["attreg","Attendance","cal"],["leave","Approvals","cal"],["orggraph","Org Chart","org"],["training","Training","education"],["reports","Reports","doc"]];
   return [["ess","My Profile","person"],["myleave","My Leave","cal"],["training","Training","education"]];
 }
 function navBar(){
@@ -998,15 +1040,17 @@ function exportCsv(id){const reg=_dtReg[id];if(!reg)return;
   const cols=reg.cols.filter(c=>c.k!=="act"&&c.l);
   const q=s=>{s=(s==null?"":String(s));return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
   const csv=[cols.map(c=>q(t(c.l))).join(",")].concat(reg.rows.map(r=>cols.map(c=>q(dtRaw(r,c))).join(","))).join("\r\n");
+  csvModal((reg.title||id).replace(/[^\w]+/g,"_")+".csv",csv,reg.title||id);
+}
+/* Shared CSV export modal: tries a direct download and also shows copyable text (sandbox-safe). */
+function csvModal(fname,csv,title){
   _lastCsv=csv;
-  const fname=(reg.title||id).replace(/[^\w]+/g,"_")+".csv";
   const dataUrl="data:text/csv;charset=utf-8,"+encodeURIComponent("﻿"+csv);
-  // Attempt a direct download; also open a modal so it works inside sandboxed viewers.
   try{const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8;"});
     const url=URL.createObjectURL(blob),a=document.createElement("a");
     a.href=url;a.download=fname;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}catch(e){}
-  modal("Export to Excel — "+esc(reg.title||id),
-    `<div class="hint">${I.info}<span>The file may download automatically. If not, use the download link or copy the data into Excel/Sheets. ${cols.length} column(s), ${reg.rows.length} row(s).</span></div>
+  modal("Export to Excel"+(title?" — "+esc(title):""),
+    `<div class="hint">${I.info}<span>The file may download automatically. If not, use the download link or copy the data into Excel/Sheets.</span></div>
      <div class="grp"><a class="btn primary" href="${dataUrl}" download="${esc(fname)}" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px">⭳ Download ${esc(fname)}</a></div>
      <textarea id="csvOut" readonly style="width:100%;height:200px;font-family:ui-monospace,monospace;font-size:12px;white-space:pre;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text);padding:8px">${esc(csv)}</textarea>`,
     `<button class="btn" data-copycsv>Copy to clipboard</button><button class="btn ghost" data-close>Close</button>`);
@@ -1040,6 +1084,7 @@ function render(){
   else if(S.view==="detail")renderDetail();
   else if(S.view==="org")renderOrg();
   else if(S.view==="pos")renderPositions();
+  else if(S.view==="attreg")renderAttReg();
   else if(S.view==="leave")renderLeave();
   else if(S.view==="myleave")renderMyLeave();
   else if(S.view==="recruit")renderRecruit();
@@ -1795,11 +1840,93 @@ function renderTraining(){
   ],db.bookings.filter(b=>b.pernr===myP)):"");
 }
 
+/* ---- Daily attendance register: record all employees for one day ---- */
+function renderAttReg(){
+  if(!allowed("2002","display")){app.innerHTML=pageHead("Attendance","Not authorized")+`<div class="card"><div class="empty">You are not authorized to view the attendance register.</div></div>`;return;}
+  if(!S.regDate)S.regDate=today();
+  const canEdit=allowed("2002","add");
+  const sts=regStatuses();
+  const emps=db.emp.slice().sort((a,b)=>a.pernr-b.pernr);
+  const rows=emps.map(e=>{const r=regGet(e.pernr,S.regDate)||{};return{pernr:e.pernr,name:empName(e.pernr),status:r.status||"P",tin:r.tin||"",tout:r.tout||"",hours:r.hours,note:r.note||""};});
+  const present=rows.filter(r=>r.status==="P").length,absent=rows.filter(r=>r.status==="A").length,other=rows.length-present-absent;
+  const statusSel=(v,pernr)=>`<select class=" areg-in" data-regf="status" data-regp="${pernr}" ${canEdit?"":"disabled"}>${Object.entries(sts).map(([k,l])=>`<option value="${k}" ${k===v?"selected":""}>${esc(l)}</option>`).join("")}</select>`;
+  const timeIn=(v,pernr,f)=>`<input type="time" class="areg-in areg-t" data-regf="${f}" data-regp="${pernr}" value="${v||""}" ${canEdit?"":"disabled"}>`;
+  const body=rows.map(r=>`<tr>
+    <td><span class="pernr num">${r.pernr}</span></td>
+    <td>${esc(r.name)}</td>
+    <td>${statusSel(r.status,r.pernr)}</td>
+    <td>${timeIn(r.tin,r.pernr,"tin")}</td>
+    <td>${timeIn(r.tout,r.pernr,"tout")}</td>
+    <td><input type="number" step="0.1" min="0" class="areg-in areg-h" data-regf="hours" data-regp="${r.pernr}" value="${r.hours!=null?r.hours:""}" placeholder="${clockHours(r.tin,r.tout)??""}" ${canEdit?"":"disabled"}></td>
+    <td><input type="text" class="areg-in areg-note" data-regf="note" data-regp="${r.pernr}" value="${esc(r.note)}" ${canEdit?"":"disabled"}></td>
+  </tr>`).join("");
+  app.innerHTML=pageHead("Attendance register","All employees · one day",
+    canEdit?`<button class="btn primary" data-regsave>${I.cal} Save register</button>`:"")+`
+  <div class="toolbar">
+    <div class="field"><label>Attendance date</label><input type="date" id="regDate" value="${S.regDate}"></div>
+    <div class="field"><label>&nbsp;</label><button class="btn" data-regtoday>Today</button></div>
+  </div>
+  <div class="stat-row">
+    <div class="stat"><div class="v num">${rows.length}</div><div class="l">Employees</div></div>
+    <div class="stat"><div class="v num">${present}</div><div class="l">Present</div></div>
+    <div class="stat"><div class="v num">${absent}</div><div class="l">Absent</div></div>
+    <div class="stat"><div class="v num">${other}</div><div class="l">Other status</div></div>
+  </div>
+  <div class="card list-card"><div class="card-head"><h2>Register · ${fmtDate(S.regDate)}</h2><span class="count">${rows.length}</span><div class="spacer"></div>
+    <button class="btn sm" data-regexport>${I.doc} Export to Excel</button></div>
+    <div class="tbl-wrap dt-grid dt-grid-1"><table class="dt"><thead><tr>
+      <th>Pers.No.</th><th>Employee</th><th>Status</th><th>Clock in</th><th>Clock out</th><th>Hours</th><th>Note</th>
+    </tr></thead><tbody>${body||`<tr><td colspan="7"><div class="empty">No employees.</div></td></tr>`}</tbody></table></div>
+    ${canEdit?`<div class="hint">Set each employee's status, clock times and note for the selected day, then <b>Save register</b>. Hours auto-fill from clock in/out when left blank.</div>`:""}
+  </div>`;
+  const dd=$("#regDate");if(dd)dd.addEventListener("change",e=>{S.regDate=e.target.value;renderAttReg();});
+}
+/* Read all register inputs from the DOM and upsert them for the selected day. */
+function saveAttReg(){
+  const map={};
+  document.querySelectorAll(".areg-in").forEach(el=>{const p=+el.dataset.regp,f=el.dataset.regf;(map[p]=map[p]||{})[f]=el.value;});
+  let n=0;Object.keys(map).forEach(p=>{const f=map[p];
+    if(f.hours===""||f.hours==null){const ch=clockHours(f.tin,f.tout);if(ch!=null)f.hours=ch;}
+    regUpsert(+p,S.regDate,f);n++;});
+  toast("Attendance register saved for "+fmtDate(S.regDate)+" ("+n+" employees).","good");
+  renderAttReg();
+}
+/* CSV export of the current register view. */
+function exportAttReg(){
+  const sts=regStatuses();
+  const rows=db.emp.slice().sort((a,b)=>a.pernr-b.pernr).map(e=>{const r=regGet(e.pernr,S.regDate)||{};
+    return[e.pernr,empName(e.pernr),sts[r.status||"P"]||"Present",r.tin||"",r.tout||"",r.hours!=null?r.hours:"",(r.note||"").replace(/"/g,'""')];});
+  const head=["Pers.No.","Employee","Status","Clock in","Clock out","Hours","Note"];
+  const csv=[head,...rows].map(r=>r.map(c=>`"${String(c)}"`).join(",")).join("\r\n");
+  csvModal("attendance-register-"+S.regDate+".csv",csv);
+}
+
 /* ---- Reports (overtime + attendance, date range) ---- */
 function renderReports(){
   if(!S.rFrom)S.rFrom="2026-01-01"; if(!S.rTo)S.rTo="2026-12-31";
   if(!S.mFrom)S.mFrom="2026-05-01"; if(!S.mTo)S.mTo="2026-05-14";
+  if(!S.eaFrom)S.eaFrom="2026-08-01"; if(!S.eaTo)S.eaTo="2026-08-14";
+  if(S.attEmp==null&&db.emp.length)S.attEmp=db.emp[0].pernr;
   const ot=overtimeReport(S.rFrom,S.rTo), att=attendanceReport(S.rFrom,S.rTo);
+  // Per-employee attendance from date to date
+  const ea=employeeAttendance(S.attEmp,S.eaFrom,S.eaTo);
+  const eaOpts=db.emp.slice().sort((a,b)=>a.pernr-b.pernr).map(e=>`<option value="${e.pernr}" ${e.pernr===S.attEmp?"selected":""}>${e.pernr} – ${esc(empName(e.pernr))}</option>`).join("");
+  const eaCode=c=>({P:"m-pre",A:"m-abs",T:"m-att",H:"m-hol","·":"m-off"}[c]||"m-att");
+  const eaHtml=`<div class="card list-card"><div class="card-head"><h2>Employee attendance — ${esc(empName(S.attEmp))} · ${fmtDate(S.eaFrom)} – ${fmtDate(S.eaTo)}</h2><span class="count">${ea.days.length}</span><div class="spacer"></div>
+    <div class="dt-search"><select id="eaEmp">${eaOpts}</select></div>
+    <div class="dt-search"><input id="eaFrom" type="date" value="${S.eaFrom}"></div><div class="dt-search"><input id="eaTo" type="date" value="${S.eaTo}"></div>
+    <button class="btn sm" data-dtexport="empatt" title="Export to Excel (CSV)">${I.doc} Excel</button></div>
+    <div class="stat-row">
+      <div class="stat"><div class="v num">${ea.sum.present}</div><div class="l">Present</div></div>
+      <div class="stat"><div class="v num">${ea.sum.absent}</div><div class="l">Absent</div></div>
+      <div class="stat"><div class="v num">${ea.sum.event}</div><div class="l">Attendance/Event</div></div>
+      <div class="stat"><div class="v num">${ea.sum.holiday+ea.sum.off}</div><div class="l">Non-working</div></div>
+      <div class="stat"><div class="v num">${ea.sum.hours.toFixed(1)}</div><div class="l">Total hours</div></div>
+    </div>
+    <div class="tbl-wrap dt-grid dt-grid-1"><table class="dt"><thead><tr><th>Date</th><th>Day</th><th>Status</th><th>Hours</th><th>Note</th></tr></thead>
+    <tbody>${ea.days.map(d=>`<tr><td class="num">${fmtDate(d.iso)}</td><td>${d.wd}</td><td><span class="pill ${eaCode(d.code)}">${esc(d.label)}</span></td><td class="num">${d.hours!=null?d.hours:"—"}</td><td>${esc(d.note||"")}</td></tr>`).join("")||`<tr><td colspan="5"><div class="empty">No days in range.</div></td></tr>`}</tbody></table></div></div>`;
+  _dtReg.empatt={title:"Employee attendance "+empName(S.attEmp)+" "+S.eaFrom+"_"+S.eaTo,
+    cols:[{k:"iso",l:"Date"},{k:"wd",l:"Day"},{k:"label",l:"Status"},{k:"hours",l:"Hours"},{k:"note",l:"Note"}],rows:ea.days};
   const sum=k=>ot.reduce((a,e)=>a+e[k],0);
   // Daily attendance matrix (capped at 31 columns)
   let mTo=S.mTo; if(daysBetween(S.mFrom,S.mTo)>31){const d=new Date(S.mFrom+"T00:00:00");d.setDate(d.getDate()+30);mTo=d.toISOString().slice(0,10);}
@@ -1838,11 +1965,16 @@ function renderReports(){
     {k:"hours",l:"Hours",v:a=>a.hours!=null?a.hours:"",html:a=>`<span class="num">${a.hours!=null?a.hours:"—"}</span>`}
   ],att)}
   <div style="height:14px"></div>
+  ${eaHtml}
+  <div style="height:14px"></div>
   ${matrixHtml}`;
   $("#rFrom").addEventListener("change",e=>{S.rFrom=e.target.value;renderReports();});
   $("#rTo").addEventListener("change",e=>{S.rTo=e.target.value;renderReports();});
   $("#mFrom").addEventListener("change",e=>{S.mFrom=e.target.value;renderReports();});
   $("#mTo").addEventListener("change",e=>{S.mTo=e.target.value;renderReports();});
+  const eaEmp=$("#eaEmp");if(eaEmp)eaEmp.addEventListener("change",e=>{S.attEmp=+e.target.value;renderReports();});
+  const eaF=$("#eaFrom");if(eaF)eaF.addEventListener("change",e=>{S.eaFrom=e.target.value;renderReports();});
+  const eaT=$("#eaTo");if(eaT)eaT.addEventListener("change",e=>{S.eaTo=e.target.value;renderReports();});
 }
 
 /* ---- Graphical org chart (boxed tree) ---- */
@@ -2341,7 +2473,7 @@ document.addEventListener("click",ev=>{
   const comboOpt=ev.target.closest("[data-cityopt]");
   if(comboOpt){const combo=comboOpt.closest(".combo"),inp=combo.querySelector("input");
     inp.value=comboOpt.dataset.cityopt;onAddrCity();combo.querySelector(".combo-list").classList.remove("open");return;}
-  const t=ev.target.closest("[data-nav],[data-open],[data-act],[data-tab],[data-tog],[data-do],[data-close],[data-fill],[data-approve],[data-reject],[data-book],[data-advance],[data-payslip],[data-cfg],[data-authrole],[data-cfgadd],[data-cfgedit],[data-cfgdel],[data-useredit],[data-userdel],[data-orgedit],[data-orgdel],[data-roleadd],[data-roleedit],[data-roledel],[data-posadd],[data-posedit],[data-posdel],[data-attach],[data-attview],[data-attdel],[data-addredit],[data-addrdel],[data-comedit],[data-comdel],[data-famedit],[data-famdel],[data-eduedit],[data-edudel],[data-expedit],[data-expdel],[data-qualedit],[data-qualdel],[data-sort],[data-possort],[data-dtsort],[data-dtcols],[data-dtexport],[data-copycsv],[data-reqadd],[data-reqedit],[data-reqdel],[data-appladd],[data-appledit],[data-appldel],[data-crsadd],[data-crsedit],[data-crsdel],[data-more],[data-tabmore],[data-photo]");
+  const t=ev.target.closest("[data-nav],[data-open],[data-act],[data-tab],[data-tog],[data-do],[data-close],[data-fill],[data-approve],[data-reject],[data-book],[data-advance],[data-payslip],[data-cfg],[data-authrole],[data-cfgadd],[data-cfgedit],[data-cfgdel],[data-useredit],[data-userdel],[data-orgedit],[data-orgdel],[data-roleadd],[data-roleedit],[data-roledel],[data-posadd],[data-posedit],[data-posdel],[data-attach],[data-attview],[data-attdel],[data-addredit],[data-addrdel],[data-comedit],[data-comdel],[data-famedit],[data-famdel],[data-eduedit],[data-edudel],[data-expedit],[data-expdel],[data-qualedit],[data-qualdel],[data-sort],[data-possort],[data-dtsort],[data-dtcols],[data-dtexport],[data-copycsv],[data-reqadd],[data-reqedit],[data-reqdel],[data-appladd],[data-appledit],[data-appldel],[data-crsadd],[data-crsedit],[data-crsdel],[data-regsave],[data-regtoday],[data-regexport],[data-empatt],[data-more],[data-tabmore],[data-photo]");
   if(!t){const mm=$("#moreMenu");if(mm)mm.classList.remove("open");const tm=$("#tabMoreMenu");if(tm)tm.classList.remove("open");return;}
   if(t.hasAttribute("data-more")){const mm=$("#moreMenu");mm.classList.toggle("open");return;}
   if(t.hasAttribute("data-tabmore")){const tm=$("#tabMoreMenu");tm.classList.toggle("open");return;}
@@ -2423,6 +2555,10 @@ document.addEventListener("click",ev=>{
   if(t.dataset.dtsort){const [id,k]=t.dataset.dtsort.split(":");const st=dtState(id);if(st.sort===k)st.dir=st.dir==="asc"?"desc":"asc";else{st.sort=k;st.dir="asc";}render();return;}
   if(t.dataset.dtcols){const st=dtState(t.dataset.dtcols);st.showCols=!st.showCols;render();return;}
   if(t.dataset.dtexport){exportCsv(t.dataset.dtexport);return;}
+  if(t.hasAttribute("data-regsave")){saveAttReg();return;}
+  if(t.hasAttribute("data-regtoday")){S.regDate=today();renderAttReg();return;}
+  if(t.hasAttribute("data-regexport")){exportAttReg();return;}
+  if(t.dataset.empatt){S.attEmp=+t.dataset.empatt;renderReports();return;}
   if(t.hasAttribute("data-copycsv")){const ta=$("#csvOut");if(ta){ta.select();try{navigator.clipboard.writeText(_lastCsv);}catch(e){try{document.execCommand("copy");}catch(_){}}toast("Copied to clipboard.","good");}return;}
   if(t.hasAttribute("data-reqadd")){reqDialog(null);return;}
   if(t.dataset.reqedit){reqDialog(+t.dataset.reqedit);return;}
