@@ -375,11 +375,12 @@ a.mail:hover{text-decoration:underline}
 .orgtree{display:flex;justify-content:center}
 .orgtree ul{display:flex;justify-content:center}
 .orgtree li{position:relative;padding:26px 10px 0;text-align:center}
-/* connectors */
+/* connectors: each child gets a centered vertical drop (::after border-left)
+   plus a horizontal bus (::before/::after border-top), trimmed at the ends. */
 .orgtree li::before,.orgtree li::after{content:"";position:absolute;top:0;height:26px;width:50%;border-top:2px solid var(--border-strong)}
-.orgtree li::before{right:50%;border-right:2px solid var(--border-strong)}
-.orgtree li::after{left:50%}
-.orgtree li:only-child::before{display:none}
+.orgtree li::before{right:50%}
+.orgtree li::after{left:50%;border-left:2px solid var(--border-strong)}
+.orgtree li:only-child::before{border:0}
 .orgtree li:only-child::after{left:50%;width:0;border-top:0;border-left:2px solid var(--border-strong)}
 .orgtree li:first-child::before,.orgtree li:last-child::after{border:0}
 .orgtree li:last-child::before{border-right:2px solid var(--border-strong)}
