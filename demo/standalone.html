@@ -147,6 +147,9 @@ input:focus,select:focus{border-color:var(--accent);outline:none;box-shadow:0 0 
 .card-head .spacer{flex:1}
 .tbl-wrap{overflow-x:auto}
 .list-card{overflow:visible}
+.dt-search input{border:1px solid var(--border);background:var(--surface);color:var(--text);
+  border-radius:8px;padding:6px 10px;font-size:13px;min-width:180px}
+.card-head .dt-search{margin-right:6px}
 .list-card .card-head{border-radius:var(--radius) var(--radius) 0 0}
 table{width:100%;border-collapse:collapse;font-size:13.5px}
 th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);
@@ -499,6 +502,9 @@ function seed(){return{
   subgroupGroup:{"DU":"1","DW":"1","DT":"1"},
   T002:{"EN":"English","DE":"German","FR":"French","ES":"Spanish","VI":"Vietnamese"},
   currencies:{"EUR":"Euro","USD":"US Dollar","GBP":"Pound Sterling","KHR":"Cambodian Riel","CNY":"Chinese Yuan","SGD":"Singapore Dollar","VND":"Vietnamese Dong","JPY":"Japanese Yen"},
+  regions:{"Europe":{},"Asia":{},"Americas":{},"Africa":{},"Oceania":{},
+   "Berlin":{country:"DE"},"Bavaria":{country:"DE"},"New York":{country:"US"},"England":{country:"GB"},
+   "Île-de-France":{country:"FR"},"Phnom Penh":{country:"KH"},"Singapore":{country:"SG"},"Hanoi":{country:"VN"}},
   cities:{
    "Berlin":{country:"DE",region:"Berlin",postal:"10115"},
    "Munich":{country:"DE",region:"Bavaria",postal:"80331"},
@@ -876,6 +882,42 @@ function fitNav(){
 }
 let _navResize;
 window.addEventListener("resize",()=>{clearTimeout(_navResize);_navResize=setTimeout(fitNav,120);});
+
+/* ===== Reusable data table: global search + per-column filter + sort + column show/hide =====
+   cols: [{k,l,v?(row)->text,html?(row)->html,num?,always?}]. State keyed by table id. */
+function dtState(id){S.dt=S.dt||{};return S.dt[id]||(S.dt[id]={sort:null,dir:"asc",filters:{},search:"",hidden:[],showCols:false});}
+function dtRaw(r,c){const v=c.v?c.v(r):r[c.k];return v==null?"":v;}
+function dtApply(id,cols,rows){const st=dtState(id);let data=rows.slice();
+  if(st.search){const s=st.search.toLowerCase();data=data.filter(r=>cols.some(c=>String(dtRaw(r,c)).toLowerCase().includes(s)));}
+  data=data.filter(r=>cols.every(c=>{const f=(st.filters[c.k]||"").toLowerCase();return !f||String(dtRaw(r,c)).toLowerCase().includes(f);}));
+  if(st.sort){const c=cols.find(x=>x.k===st.sort)||{k:st.sort};
+    data.sort((a,b)=>{let x=dtRaw(a,c),y=dtRaw(b,c);const nx=parseFloat(x),ny=parseFloat(y);
+      if(!isNaN(nx)&&!isNaN(ny)&&String(x).trim()!==""&&String(y).trim()!==""){x=nx;y=ny;}else{x=(""+x).toLowerCase();y=(""+y).toLowerCase();}
+      return (x<y?-1:x>y?1:0)*(st.dir==="asc"?1:-1);});}
+  return data;}
+let _dtReg={};
+function exportCsv(id){const reg=_dtReg[id];if(!reg)return;
+  const cols=reg.cols.filter(c=>c.k!=="act"&&c.l);
+  const q=s=>{s=(s==null?"":String(s));return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
+  const csv=[cols.map(c=>q(t(c.l))).join(",")].concat(reg.rows.map(r=>cols.map(c=>q(dtRaw(r,c))).join(","))).join("\r\n");
+  const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8;"});
+  const url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download=(reg.title||id).replace(/[^\w]+/g,"_")+".csv";document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);}
+function dtTable(id,title,cols,rows,opts){opts=opts||{};const st=dtState(id);
+  const data=dtApply(id,cols,rows);
+  const vis=cols.filter(c=>c.always||!st.hidden.includes(c.k));
+  _dtReg[id]={cols:vis,rows:data,title};
+  const cellHtml=(r,c)=>c.html?c.html(r):esc(dtRaw(r,c));
+  return `<div class="card list-card"><div class="card-head"><h2>${esc(title)}</h2><span class="count">${data.length}</span><div class="spacer"></div>
+    ${opts.actions||""}
+    <div class="dt-search"><input data-dtsearch="${id}" placeholder="${esc(t("Search all columns…"))}" value="${esc(st.search)}"></div>
+    <button class="btn sm" data-dtexport="${id}" title="Export to Excel (CSV)">⭳ Excel</button>
+    <div class="colmenu-wrap"><button class="btn sm" data-dtcols="${id}">${I.doc} ${esc(t("Columns"))} ▾</button>
+      ${st.showCols?`<div class="colmenu">${cols.map(c=>`<label class="colchk"><input type="checkbox" data-dtcol="${id}:${c.k}" ${!st.hidden.includes(c.k)?"checked":""} ${c.always?"disabled":""}> ${esc(t(c.l))}</label>`).join("")}</div>`:""}</div>
+    </div>
+    <div class="tbl-wrap"><table><thead><tr>${vis.map(c=>`<th class="sortable" data-dtsort="${id}:${c.k}" style="cursor:pointer">${esc(t(c.l))}${st.sort===c.k?(st.dir==="asc"?" ▲":" ▼"):""}</th>`).join("")}</tr>
+    <tr class="filter-row">${vis.map(c=>`<th><input class="colf" data-dtfilter="${id}:${c.k}" value="${esc(st.filters[c.k]||"")}" placeholder="🔍"></th>`).join("")}</tr></thead>
+    <tbody>${data.length?data.map(r=>`<tr ${opts.rowOpen&&r[opts.rowOpen]!=null?`class="click" data-open="${r[opts.rowOpen]}"`:""}>${vis.map(c=>`<td>${cellHtml(r,c)}</td>`).join("")}</tr>`).join(""):`<tr><td colspan="${vis.length}"><div class="empty">${esc(t("No records."))}</div></td></tr>`}</tbody></table></div></div>`;}
 
 function render(){
   // Auth gate
@@ -1262,6 +1304,26 @@ function bookCourse(pernr,courseId){
 }
 const STAGES=["Screening","Interview","Offer","Hired","Rejected"];
 function advanceApplicant(id){const a=db.applicants.find(x=>x.id===id);if(!a)return;const i=STAGES.indexOf(a.stage);if(i<STAGES.length-2)a.stage=STAGES[i+1];}
+function addRequisition(f){if(!f.title)throw new Error("Enter a title.");
+  const ids=db.reqData.map(r=>r.id);const id=(ids.length?Math.max.apply(null,ids):50000)+1;
+  const o=db.HRP1000.find(x=>x.otype==="O"&&x.objid===+f.orgeh);
+  db.reqData.push({id,title:f.title,orgeh:+f.orgeh||null,orgN:o?o.stext:"",status:f.status||"Open",openings:+f.openings||1,posted:f.posted||today()});return id;}
+function editRequisition(id,f){const r=db.reqData.find(x=>x.id===id);if(!r)return;
+  const o=db.HRP1000.find(x=>x.otype==="O"&&x.objid===+f.orgeh);
+  Object.assign(r,{title:f.title,orgeh:+f.orgeh||null,orgN:o?o.stext:r.orgN,status:f.status,openings:+f.openings||1,posted:f.posted});}
+function deleteRequisition(id){db.reqData=db.reqData.filter(x=>x.id!==id);}
+function addApplicant(f){if(!f.name)throw new Error("Enter a name.");
+  const ids=db.applicants.map(a=>a.id);const id=(ids.length?Math.max.apply(null,ids):0)+1;
+  db.applicants.push({id,name:f.name,email:f.email,reqId:+f.reqId||null,applied:f.applied||today(),stage:f.stage||"Screening"});return id;}
+function editApplicant(id,f){const a=db.applicants.find(x=>x.id===id);if(!a)return;
+  Object.assign(a,{name:f.name,email:f.email,reqId:+f.reqId||null,applied:f.applied,stage:f.stage});}
+function deleteApplicant(id){db.applicants=db.applicants.filter(x=>x.id!==id);}
+function addCourse(f){if(!f.id||!f.title)throw new Error("Enter a course id and title.");
+  if(db.courses.find(c=>c.id===f.id))throw new Error("Course id already exists.");
+  db.courses.push({id:f.id,title:f.title,cat:f.cat,hours:+f.hours||0,date:f.date,seats:+f.seats||0});}
+function editCourse(id,f){const c=db.courses.find(x=>x.id===id);if(!c)return;
+  Object.assign(c,{title:f.title,cat:f.cat,hours:+f.hours||0,date:f.date,seats:+f.seats||0});}
+function deleteCourse(id){db.courses=db.courses.filter(x=>x.id!==id);db.bookings=db.bookings.filter(b=>b.course!==id);}
 
 /* ============================ REPORTS & PAYROLL LOGIC ============================ */
 const empName=pernr=>{const p=validOn(db.PA0002,pernr,today());return p?p.vorna+" "+p.nachn:String(pernr);};
@@ -1375,7 +1437,8 @@ const CFG_SCHEMA={
     fields:[{k:"name",l:"Name"},{k:"country",l:"Country",src:"T005"},{k:"currency",l:"Currency",src:"currencies"},{k:"city",l:"City",src:"cities"}]},
   currency:{h:"Currencies",store:"smap",path:"currencies",keyL:"Currency code",fields:[{k:"text",l:"Currency"}]},
   city:{h:"Cities",store:"omap",path:"cities",keyL:"City",
-    fields:[{k:"country",l:"Country",src:"T005"},{k:"region",l:"Region / State"},{k:"postal",l:"Postal code"}]},
+    fields:[{k:"country",l:"Country",src:"T005"},{k:"region",l:"Region / State",src:"regions"},{k:"postal",l:"Postal code"}]},
+  region:{h:"Regions",store:"omap",path:"regions",keyL:"Region",fields:[{k:"country",l:"Country",src:"T005"}]},
   parea:{h:"Personnel areas (T500P)",store:"omap",path:"T500P",keyL:"Personnel area",
     fields:[{k:"text",l:"Name"},{k:"bukrs",l:"Company code",src:"T001"}]},
   groups:{h:"Employee groups (T501)",store:"smap",path:"T501",keyL:"Group key",fields:[{k:"text",l:"Text"}]},
@@ -1385,7 +1448,7 @@ const CFG_SCHEMA={
     fields:[{k:"name",l:"Name"},{k:"bukrs",l:"Company code",src:"T001"}]},
   lang:{h:"Languages (T002)",store:"smap",path:"T002",keyL:"Language key",fields:[{k:"text",l:"Language"}]},
   nat:{h:"Countries / nationalities (T005)",store:"omap",path:"T005",keyL:"Country key",
-    fields:[{k:"text",l:"Country"},{k:"iso",l:"ISO code"},{k:"currency",l:"Currency",src:"currencies"},{k:"dial",l:"Dialing code"},{k:"region",l:"Region"}]},
+    fields:[{k:"text",l:"Country"},{k:"iso",l:"ISO code"},{k:"currency",l:"Currency",src:"currencies"},{k:"dial",l:"Dialing code"},{k:"region",l:"Region",src:"regions"}]},
   titles:{h:"Titles (Form of address · IT0002)",store:"dom",path:"TITEL",keyL:"Key",autokey:true,fields:[{k:"text",l:"Title"}]}
 };
 function cfgStore(def){return def.store==="dom"?db.dom[def.path]:db[def.path];}
@@ -1473,7 +1536,7 @@ function renderConfig(){
   else if(S.cfgTab==="org")body=cfgOrgTable();
   else if(CFG_SCHEMA[S.cfgTab])body=cfgTable(S.cfgTab);
   app.innerHTML=pageHead(t("Configuration"),t("System configuration"))+
-    `<div class="toolbar" style="gap:6px;flex-wrap:wrap">${T("company","Company codes")}${T("parea","Personnel areas")}${T("groups","Employee groups")}${T("subgroups","Employee subgroups")}${T("cost","Cost centers")}${T("org","Organizational units")}${T("lang","Languages")}${T("nat","Countries")}${T("currency","Currencies")}${T("city","Cities")}${T("titles","Titles")}${T("roles","Roles")}${T("users","Users & roles")}${T("auth","Authorizations")}</div>${body}`;
+    `<div class="toolbar" style="gap:6px;flex-wrap:wrap">${T("company","Company codes")}${T("parea","Personnel areas")}${T("groups","Employee groups")}${T("subgroups","Employee subgroups")}${T("cost","Cost centers")}${T("org","Organizational units")}${T("lang","Languages")}${T("nat","Countries")}${T("currency","Currencies")}${T("region","Regions")}${T("city","Cities")}${T("titles","Titles")}${T("roles","Roles")}${T("users","Users & roles")}${T("auth","Authorizations")}</div>${body}`;
 }
 
 /* ============================ MODULE VIEWS ============================ */
@@ -1489,23 +1552,28 @@ function renderLeave(){ // admin/manager: approvals inbox
     <div class="stat"><div class="v num">${reqs.filter(r=>r.status==='Approved').length}</div><div class="l">Approved</div></div>
     <div class="stat"><div class="v num">${reqs.length}</div><div class="l">Total requests</div></div>
   </div>
-  <div class="card"><div class="card-head"><h2>Requests</h2><span class="count">${reqs.length}</span></div>
-  <div class="tbl-wrap"><table><thead><tr><th>Employee</th><th>Type</th><th>Period</th><th class="th-r">Days</th><th>Note</th><th>Status</th><th></th></tr></thead><tbody>
-  ${reqs.map(r=>`<tr><td><b>${esc(r.name)}</b><br><span style="color:var(--muted)" class="num">${r.pernr}</span></td>
-    <td>${esc(db.T554S[r.type]||r.type)}</td><td class="num">${fmtDate(r.begda)} – ${fmtDate(r.endda)}</td>
-    <td class="td-r num">${r.days}</td><td>${esc(r.note)}</td><td>${statusPill(r.status)}</td>
-    <td class="td-r">${r.status==="Pending"?`<button class="btn sm primary" data-approve="${r.id}">Approve</button> <button class="btn sm" data-reject="${r.id}">Reject</button>`:"—"}</td></tr>`).join("")||`<tr><td colspan=7><div class="empty">No requests.</div></td></tr>`}
-  </tbody></table></div></div>`;
+  ${dtTable("leave","Requests",[
+    {k:"name",l:"Employee",always:true,v:r=>r.name+" "+r.pernr,html:r=>`<b>${esc(r.name)}</b><br><span style="color:var(--muted)" class="num">${r.pernr}</span>`},
+    {k:"type",l:"Type",v:r=>db.T554S[r.type]||r.type},
+    {k:"period",l:"Period",v:r=>r.begda,html:r=>`<span class="num">${fmtDate(r.begda)} – ${fmtDate(r.endda)}</span>`},
+    {k:"days",l:"Days",v:r=>r.days},
+    {k:"note",l:"Note"},
+    {k:"status",l:"Status",v:r=>r.status,html:r=>statusPill(r.status)},
+    {k:"act",l:"Actions",always:true,html:r=>r.status==="Pending"?`<button class="btn sm primary" data-approve="${r.id}">Approve</button> <button class="btn sm" data-reject="${r.id}">Reject</button>`:"—"}
+  ],reqs)}`;
 }
 function renderMyLeave(){ // employee self-service leave
   const bals=leaveBalances(SESSION.pernr);
   const mine=db.leaveRequests.filter(r=>r.pernr===SESSION.pernr);
   app.innerHTML=pageHead("Employee Self-Service","My leave",`<button class="btn primary" data-act="reqleave">${I.cal} Request leave</button>`)+`
   <div class="stat-row">${bals.map(b=>`<div class="stat"><div class="v num">${b.rem}</div><div class="l">${esc(b.txt)} — days remaining</div></div>`).join("")}</div>
-  <div class="card"><div class="card-head"><h2>My requests</h2></div>
-  <div class="tbl-wrap"><table><thead><tr><th>Type</th><th>Period</th><th class="th-r">Days</th><th>Note</th><th>Status</th></tr></thead><tbody>
-  ${mine.map(r=>`<tr><td>${esc(db.T554S[r.type]||r.type)}</td><td class="num">${fmtDate(r.begda)} – ${fmtDate(r.endda)}</td><td class="td-r num">${r.days}</td><td>${esc(r.note)}</td><td>${statusPill(r.status)}</td></tr>`).join("")||`<tr><td colspan=5><div class="empty">No requests yet.</div></td></tr>`}
-  </tbody></table></div></div>`;
+  ${dtTable("myleave","My requests",[
+    {k:"type",l:"Type",v:r=>db.T554S[r.type]||r.type},
+    {k:"period",l:"Period",v:r=>r.begda,html:r=>`<span class="num">${fmtDate(r.begda)} – ${fmtDate(r.endda)}</span>`},
+    {k:"days",l:"Days",v:r=>r.days},
+    {k:"note",l:"Note"},
+    {k:"status",l:"Status",v:r=>r.status,html:r=>statusPill(r.status)}
+  ],mine)}`;
 }
 function renderMss(){ // manager self-service: team
   const team=directReports(SESSION.pernr,S.key);
@@ -1515,38 +1583,51 @@ function renderMss(){ // manager self-service: team
     <div class="stat"><div class="v num">${team.length}</div><div class="l">Team members</div></div>
     <div class="stat"><div class="v num">${pend}</div><div class="l">Pending leave approvals</div></div>
   </div>
-  <div class="card"><div class="card-head"><h2>Direct reports</h2><span class="count">${team.length}</span></div>
-  <div class="tbl-wrap"><table><thead><tr><th>Pers.No.</th><th>Name</th><th>Position</th><th>Org unit</th><th></th></tr></thead><tbody>
-  ${team.map(t=>`<tr class="click" data-open="${t.pernr}"><td class="pernr num">${t.pernr}</td><td>${esc(t.name)}</td><td>${esc(t.pos)}</td><td>${esc(t.org)}</td><td class="td-r">${I.chev}</td></tr>`).join("")||`<tr><td colspan=5><div class="empty">No direct reports.</div></td></tr>`}
-  </tbody></table></div></div>`;
+  ${dtTable("mss","Direct reports",[
+    {k:"pernr",l:"Pers.No.",always:true,html:t=>`<span class="pernr num">${t.pernr}</span>`},
+    {k:"name",l:"Name",always:true},
+    {k:"pos",l:"Position"},
+    {k:"org",l:"Org unit"}
+  ],team,{rowOpen:"pernr"})}`;
 }
 function renderRecruit(){
-  app.innerHTML=pageHead("Recruitment","Job requisitions & applicants")+`
-  <div class="card"><div class="card-head"><h2>Requisitions</h2><span class="count">${db.reqData.length}</span></div>
-  <div class="tbl-wrap"><table><thead><tr><th>Req ID</th><th>Title</th><th>Org unit</th><th class="th-r">Openings</th><th>Posted</th><th>Status</th></tr></thead><tbody>
-  ${db.reqData.map(r=>`<tr><td class="pernr num">${r.id}</td><td><b>${esc(r.title)}</b></td><td>${esc(r.orgN)}</td><td class="td-r num">${r.openings}</td><td class="num">${fmtDate(r.posted)}</td><td>${statusPill(r.status)}</td></tr>`).join("")}
-  </tbody></table></div></div>
-  <div class="card" style="margin-top:14px"><div class="card-head"><h2>Applicants</h2><span class="count">${db.applicants.length}</span></div>
-  <div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Applied for</th><th>Applied</th><th>Stage</th><th></th></tr></thead><tbody>
-  ${db.applicants.map(a=>{const r=db.reqData.find(x=>x.id===a.reqId);return `<tr><td><b>${esc(a.name)}</b><br><span style="color:var(--muted)">${esc(a.email)}</span></td>
-    <td>${esc(r?r.title:a.reqId)}</td><td class="num">${fmtDate(a.applied)}</td><td>${statusPill(a.stage)}</td>
-    <td class="td-r">${(a.stage!=="Hired"&&a.stage!=="Rejected"&&isAdmin())?`<button class="btn sm" data-advance="${a.id}">Advance →</button>`:"—"}</td></tr>`;}).join("")}
-  </tbody></table></div></div>`;
+  const canEdit=isAdmin();
+  app.innerHTML=pageHead("Recruitment","Job requisitions & applicants")+
+  dtTable("req","Requisitions",[
+    {k:"id",l:"Req ID",always:true,html:r=>`<span class="pernr num">${r.id}</span>`},
+    {k:"title",l:"Title",always:true,html:r=>`<b>${esc(r.title)}</b>`},
+    {k:"orgN",l:"Org unit"},
+    {k:"openings",l:"Openings",v:r=>r.openings},
+    {k:"posted",l:"Posted",v:r=>r.posted,html:r=>`<span class="num">${fmtDate(r.posted)}</span>`},
+    {k:"status",l:"Status",v:r=>r.status,html:r=>statusPill(r.status)},
+    ...(canEdit?[{k:"act",l:"Actions",always:true,html:r=>`<button class="btn xs" data-reqedit="${r.id}">${I.edit} Edit</button> <button class="btn xs ghost" data-reqdel="${r.id}">Delete</button>`}]:[])
+  ],db.reqData,{actions:canEdit?`<button class="btn sm primary" data-reqadd>+ Add requisition</button>`:""})+
+  `<div style="height:14px"></div>`+
+  dtTable("appl","Applicants",[
+    {k:"name",l:"Name",always:true,v:a=>a.name+" "+a.email,html:a=>`<b>${esc(a.name)}</b><br><span style="color:var(--muted)">${esc(a.email)}</span>`},
+    {k:"reqId",l:"Applied for",v:a=>{const r=db.reqData.find(x=>x.id===a.reqId);return r?r.title:a.reqId;}},
+    {k:"applied",l:"Applied",v:a=>a.applied,html:a=>`<span class="num">${fmtDate(a.applied)}</span>`},
+    {k:"stage",l:"Stage",v:a=>a.stage,html:a=>statusPill(a.stage)},
+    {k:"act",l:"Actions",always:true,html:a=>`${(a.stage!=="Hired"&&a.stage!=="Rejected"&&canEdit)?`<button class="btn sm" data-advance="${a.id}">Advance →</button> `:""}${canEdit?`<button class="btn xs" data-appledit="${a.id}">${I.edit} Edit</button> <button class="btn xs ghost" data-appldel="${a.id}">Delete</button>`:""}`}
+  ],db.applicants,{actions:canEdit?`<button class="btn sm primary" data-appladd>+ Add applicant</button>`:""});
 }
 function renderTraining(){
-  const myP=SESSION.pernr;
-  app.innerHTML=pageHead("Training & Event Management","Course catalog")+`
-  <div class="card"><div class="card-head"><h2>Courses</h2><span class="count">${db.courses.length}</span></div>
-  <div class="tbl-wrap"><table><thead><tr><th>Course</th><th>Category</th><th class="th-r">Hours</th><th>Date</th><th class="th-r">Booked</th><th></th></tr></thead><tbody>
-  ${db.courses.map(c=>{const booked=db.bookings.filter(b=>b.course===c.id).length;const mine=myP&&db.bookings.some(b=>b.course===c.id&&b.pernr===myP);
-    return `<tr><td><b>${esc(c.id)}</b> · ${esc(c.title)}</td><td>${esc(c.cat)}</td><td class="td-r num">${c.hours}</td><td class="num">${fmtDate(c.date)}</td>
-    <td class="td-r num">${booked}/${c.seats}</td>
-    <td class="td-r">${myP?(mine?`<span class="pill good">Booked</span>`:`<button class="btn sm primary" data-book="${c.id}">Book</button>`):"—"}</td></tr>`;}).join("")}
-  </tbody></table></div></div>
-  ${myP?`<div class="card" style="margin-top:14px"><div class="card-head"><h2>My bookings</h2></div>
-  <div class="tbl-wrap"><table><thead><tr><th>Course</th><th>Date</th><th>Status</th></tr></thead><tbody>
-  ${db.bookings.filter(b=>b.pernr===myP).map(b=>{const c=db.courses.find(x=>x.id===b.course)||{};return `<tr><td>${esc(b.course)} · ${esc(c.title)}</td><td class="num">${fmtDate(c.date)}</td><td>${statusPill(b.status)}</td></tr>`;}).join("")||`<tr><td colspan=3><div class="empty">No bookings yet.</div></td></tr>`}
-  </tbody></table></div>`:""}`;
+  const myP=SESSION.pernr;const canEdit=isAdmin();
+  app.innerHTML=pageHead("Training & Event Management","Course catalog")+
+  dtTable("courses","Courses",[
+    {k:"course",l:"Course",always:true,v:c=>c.id+" "+c.title,html:c=>`<b>${esc(c.id)}</b> · ${esc(c.title)}`},
+    {k:"cat",l:"Category"},
+    {k:"hours",l:"Hours",v:c=>c.hours},
+    {k:"date",l:"Date",v:c=>c.date,html:c=>`<span class="num">${fmtDate(c.date)}</span>`},
+    {k:"booked",l:"Booked",v:c=>db.bookings.filter(b=>b.course===c.id).length,html:c=>`<span class="num">${db.bookings.filter(b=>b.course===c.id).length}/${c.seats}</span>`},
+    {k:"act",l:"Actions",always:true,html:c=>{const mine=myP&&db.bookings.some(b=>b.course===c.id&&b.pernr===myP);
+      return `${myP?(mine?`<span class="pill good">Booked</span>`:`<button class="btn sm primary" data-book="${c.id}">Book</button>`):""} ${canEdit?`<button class="btn xs" data-crsedit="${c.id}">${I.edit} Edit</button> <button class="btn xs ghost" data-crsdel="${c.id}">Delete</button>`:""}`;}}
+  ],db.courses,{actions:canEdit?`<button class="btn sm primary" data-crsadd>+ Add course</button>`:""})+
+  (myP?`<div style="height:14px"></div>`+dtTable("bookings","My bookings",[
+    {k:"course",l:"Course",always:true,v:b=>{const c=db.courses.find(x=>x.id===b.course)||{};return b.course+" "+(c.title||"");},html:b=>{const c=db.courses.find(x=>x.id===b.course)||{};return `${esc(b.course)} · ${esc(c.title||"")}`;}},
+    {k:"date",l:"Date",v:b=>{const c=db.courses.find(x=>x.id===b.course)||{};return c.date||"";},html:b=>{const c=db.courses.find(x=>x.id===b.course)||{};return `<span class="num">${fmtDate(c.date)}</span>`;}},
+    {k:"status",l:"Status",v:b=>b.status,html:b=>statusPill(b.status)}
+  ],db.bookings.filter(b=>b.pernr===myP)):"");
 }
 
 /* ---- Reports (overtime + attendance, date range) ---- */
@@ -1565,17 +1646,23 @@ function renderReports(){
     <div class="stat"><div class="v num">${sum("holiday").toFixed(1)}</div><div class="l">Public-holiday OT hours</div></div>
     <div class="stat"><div class="v num">${sum("total").toFixed(1)}</div><div class="l">Total OT hours</div></div>
   </div>
-  <div class="card"><div class="card-head"><h2>Overtime by employee · ${fmtDate(S.rFrom)} – ${fmtDate(S.rTo)}</h2></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Pers.No.</th><th>Employee</th><th class="th-r">Normal OT</th><th class="th-r">Sunday OT</th><th class="th-r">Holiday OT</th><th class="th-r">Total</th></tr></thead><tbody>
-    ${ot.map(e=>`<tr><td class="pernr num">${e.pernr}</td><td>${esc(e.name)}</td>
-      <td class="td-r num">${e.normal.toFixed(1)}</td><td class="td-r num">${e.sunday.toFixed(1)}</td>
-      <td class="td-r num">${e.holiday.toFixed(1)}</td><td class="td-r"><b class="num">${e.total.toFixed(1)}</b></td></tr>`).join("")||`<tr><td colspan=6><div class="empty">No overtime in this period.</div></td></tr>`}
-    </tbody></table></div></div>
-  <div class="card" style="margin-top:14px"><div class="card-head"><h2>Attendances · ${fmtDate(S.rFrom)} – ${fmtDate(S.rTo)}</h2><span class="count">${att.length}</span></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Pers.No.</th><th>Employee</th><th>Type</th><th>From – To</th><th class="th-r">Days</th><th class="th-r">Hours</th></tr></thead><tbody>
-    ${att.map(a=>`<tr><td class="pernr num">${a.pernr}</td><td>${esc(a.name)}</td><td>${esc(a.type)}</td>
-      <td class="num">${fmtDate(a.begda)} – ${fmtDate(a.endda)}</td><td class="td-r num">${a.days!=null?a.days:"—"}</td><td class="td-r num">${a.hours!=null?a.hours:"—"}</td></tr>`).join("")||`<tr><td colspan=6><div class="empty">No attendances in this period.</div></td></tr>`}
-    </tbody></table></div></div>`;
+  ${dtTable("otrep","Overtime by employee · "+fmtDate(S.rFrom)+" – "+fmtDate(S.rTo),[
+    {k:"pernr",l:"Pers.No.",always:true,html:e=>`<span class="pernr num">${e.pernr}</span>`},
+    {k:"name",l:"Employee",always:true},
+    {k:"normal",l:"Normal OT",v:e=>e.normal,html:e=>`<span class="num">${e.normal.toFixed(1)}</span>`},
+    {k:"sunday",l:"Sunday OT",v:e=>e.sunday,html:e=>`<span class="num">${e.sunday.toFixed(1)}</span>`},
+    {k:"holiday",l:"Holiday OT",v:e=>e.holiday,html:e=>`<span class="num">${e.holiday.toFixed(1)}</span>`},
+    {k:"total",l:"Total",v:e=>e.total,html:e=>`<b class="num">${e.total.toFixed(1)}</b>`}
+  ],ot)}
+  <div style="height:14px"></div>
+  ${dtTable("attrep","Attendances · "+fmtDate(S.rFrom)+" – "+fmtDate(S.rTo),[
+    {k:"pernr",l:"Pers.No.",always:true,html:a=>`<span class="pernr num">${a.pernr}</span>`},
+    {k:"name",l:"Employee",always:true},
+    {k:"type",l:"Type"},
+    {k:"period",l:"From – To",v:a=>a.begda,html:a=>`<span class="num">${fmtDate(a.begda)} – ${fmtDate(a.endda)}</span>`},
+    {k:"days",l:"Days",v:a=>a.days!=null?a.days:"",html:a=>`<span class="num">${a.days!=null?a.days:"—"}</span>`},
+    {k:"hours",l:"Hours",v:a=>a.hours!=null?a.hours:"",html:a=>`<span class="num">${a.hours!=null?a.hours:"—"}</span>`}
+  ],att)}`;
   $("#rFrom").addEventListener("change",e=>{S.rFrom=e.target.value;renderReports();});
   $("#rTo").addEventListener("change",e=>{S.rTo=e.target.value;renderReports();});
 }
@@ -1626,15 +1713,17 @@ function renderPayroll(){
     <div class="stat"><div class="v num">${fmtC(totGross,"EUR")}</div><div class="l">Total gross</div></div>
     <div class="stat"><div class="v num">${fmtC(totNet,"EUR")}</div><div class="l">Total net</div></div>
   </div>
-  <div class="card"><div class="card-head"><h2>Payroll results · ${fmtDate(S.payFrom)} – ${fmtDate(S.payTo)}</h2></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Pers.No.</th><th>Employee</th><th class="th-r">Working days</th><th class="th-r">Base</th><th class="th-r">Overtime</th><th class="th-r">Gross</th><th class="th-r">Deductions</th><th class="th-r">Net</th><th></th></tr></thead><tbody>
-    ${run.map(r=>`<tr><td class="pernr num">${r.pernr}</td><td>${esc(r.name)}</td>
-      <td class="td-r num">${r.workingDays}</td>
-      <td class="td-r num">${fmtC(r.base,r.currency)}</td><td class="td-r num">${fmtC(r.otTotal,r.currency)}</td>
-      <td class="td-r num">${fmtC(r.gross,r.currency)}</td><td class="td-r num">${fmtC(r.tax+r.social,r.currency)}</td>
-      <td class="td-r"><b class="num">${fmtC(r.net,r.currency)}</b></td>
-      <td class="td-r"><button class="btn sm" data-payslip="${r.pernr}">Payslip</button></td></tr>`).join("")}
-    </tbody></table></div></div>`;
+  ${dtTable("payroll","Payroll results · "+fmtDate(S.payFrom)+" – "+fmtDate(S.payTo),[
+    {k:"pernr",l:"Pers.No.",always:true,html:r=>`<span class="pernr num">${r.pernr}</span>`},
+    {k:"name",l:"Employee",always:true},
+    {k:"workingDays",l:"Working days",v:r=>r.workingDays},
+    {k:"base",l:"Base",v:r=>r.base,html:r=>`<span class="num">${fmtC(r.base,r.currency)}</span>`},
+    {k:"otTotal",l:"Overtime",v:r=>r.otTotal,html:r=>`<span class="num">${fmtC(r.otTotal,r.currency)}</span>`},
+    {k:"gross",l:"Gross",v:r=>r.gross,html:r=>`<span class="num">${fmtC(r.gross,r.currency)}</span>`},
+    {k:"ded",l:"Deductions",v:r=>r.tax+r.social,html:r=>`<span class="num">${fmtC(r.tax+r.social,r.currency)}</span>`},
+    {k:"net",l:"Net",v:r=>r.net,html:r=>`<b class="num">${fmtC(r.net,r.currency)}</b>`},
+    {k:"act",l:"Actions",always:true,html:r=>`<button class="btn sm" data-payslip="${r.pernr}">Payslip</button>`}
+  ],run)}`;
   $("#payFrom").addEventListener("change",e=>{S.payFrom=e.target.value;renderPayroll();});
   $("#payTo").addEventListener("change",e=>{S.payTo=e.target.value;renderPayroll();});
 }
@@ -1939,6 +2028,41 @@ function posDialog(id){const edit=id!=null;const orgs=orgFlat(S.key);
   <div class="grp"><label>Position name <span class="req">*</span></label><input id="po_name" value="${edit?esc(cur?cur.name:""):""}"></div>
   <div class="grp"><label>Organizational unit</label><select id="po_org"><option value="">— none —</option>${orgs.map(o=>`<option value="${o.id}" ${edit&&cur&&String(cur.orgId)===String(o.id)?"selected":""}>${esc(o.name)}</option>`).join("")}</select></div>`,
   `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="posSave">Save</button>`);}
+function reqDialog(id){const edit=id!=null;const r=edit?db.reqData.find(x=>x.id===id)||{}:{};const orgs=orgFlat(S.key);cfgCtx={reqid:edit?id:null};
+  modal((edit?"Edit":"Add")+" requisition",`
+  <div class="grp"><label>Title <span class="req">*</span></label><input id="rq_title" value="${esc(r.title||"")}"></div>
+  <div class="grp"><label>Organizational unit</label><select id="rq_org"><option value="">— none —</option>${orgs.map(o=>`<option value="${o.id}" ${String(r.orgeh)===String(o.id)?"selected":""}>${esc(o.name)}</option>`).join("")}</select></div>
+  <div class="two">
+    <div class="grp"><label>Openings</label><input id="rq_open" type="number" min="1" value="${r.openings||1}"></div>
+    <div class="grp"><label>Status</label><select id="rq_status">${["Open","On hold","Closed"].map(s=>`<option ${r.status===s?"selected":""}>${s}</option>`).join("")}</select></div>
+  </div>
+  <div class="grp"><label>Posted</label><input type="date" id="rq_posted" value="${r.posted||today()}"></div>`,
+  `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="reqSave">Save</button>`);}
+function applDialog(id){const edit=id!=null;const a=edit?db.applicants.find(x=>x.id===id)||{}:{};cfgCtx={applid:edit?id:null};
+  modal((edit?"Edit":"Add")+" applicant",`
+  <div class="two">
+    <div class="grp"><label>Name <span class="req">*</span></label><input id="ap_name" value="${esc(a.name||"")}"></div>
+    <div class="grp"><label>E-mail</label><input id="ap_email" type="email" value="${esc(a.email||"")}"></div>
+  </div>
+  <div class="grp"><label>Applied for</label><select id="ap_req"><option value="">—</option>${db.reqData.map(r=>`<option value="${r.id}" ${String(a.reqId)===String(r.id)?"selected":""}>${esc(r.title)}</option>`).join("")}</select></div>
+  <div class="two">
+    <div class="grp"><label>Applied on</label><input type="date" id="ap_applied" value="${a.applied||today()}"></div>
+    <div class="grp"><label>Stage</label><select id="ap_stage">${STAGES.map(s=>`<option ${a.stage===s?"selected":""}>${s}</option>`).join("")}</select></div>
+  </div>`,
+  `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="applSave">Save</button>`);}
+function courseDialog(id){const edit=id!=null;const c=edit?db.courses.find(x=>x.id===id)||{}:{};cfgCtx={crsid:edit?id:null};
+  modal((edit?"Edit":"Add")+" course",`
+  <div class="two">
+    <div class="grp"><label>Course ID <span class="req">*</span></label><input id="cr_id" value="${esc(c.id||"")}" ${edit?"disabled":""}></div>
+    <div class="grp"><label>Category</label><select id="cr_cat">${["Leadership","Technical","Language","Compliance"].map(x=>`<option ${c.cat===x?"selected":""}>${x}</option>`).join("")}</select></div>
+  </div>
+  <div class="grp"><label>Title <span class="req">*</span></label><input id="cr_title" value="${esc(c.title||"")}"></div>
+  <div class="two">
+    <div class="grp"><label>Hours</label><input id="cr_hours" type="number" min="0" value="${c.hours||""}"></div>
+    <div class="grp"><label>Seats</label><input id="cr_seats" type="number" min="0" value="${c.seats||""}"></div>
+  </div>
+  <div class="grp"><label>Date</label><input type="date" id="cr_date" value="${c.date||today()}"></div>`,
+  `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="courseSave">Save</button>`);}
 function cfgUserDialog(username){
   const edit=username!=null;const u=edit?db.users.find(x=>x.username===username)||{}:{};
   const uRoles=u.roles||(u.role?[u.role]:[]);
@@ -2012,7 +2136,7 @@ document.addEventListener("click",ev=>{
   const comboOpt=ev.target.closest("[data-cityopt]");
   if(comboOpt){const combo=comboOpt.closest(".combo"),inp=combo.querySelector("input");
     inp.value=comboOpt.dataset.cityopt;onAddrCity();combo.querySelector(".combo-list").classList.remove("open");return;}
-  const t=ev.target.closest("[data-nav],[data-open],[data-act],[data-tab],[data-tog],[data-do],[data-close],[data-fill],[data-approve],[data-reject],[data-book],[data-advance],[data-payslip],[data-cfg],[data-authrole],[data-cfgadd],[data-cfgedit],[data-cfgdel],[data-useredit],[data-userdel],[data-orgedit],[data-orgdel],[data-roleadd],[data-roleedit],[data-roledel],[data-posadd],[data-posedit],[data-posdel],[data-comedit],[data-comdel],[data-famedit],[data-famdel],[data-eduedit],[data-edudel],[data-expedit],[data-expdel],[data-qualedit],[data-qualdel],[data-sort],[data-possort],[data-more],[data-tabmore],[data-photo]");
+  const t=ev.target.closest("[data-nav],[data-open],[data-act],[data-tab],[data-tog],[data-do],[data-close],[data-fill],[data-approve],[data-reject],[data-book],[data-advance],[data-payslip],[data-cfg],[data-authrole],[data-cfgadd],[data-cfgedit],[data-cfgdel],[data-useredit],[data-userdel],[data-orgedit],[data-orgdel],[data-roleadd],[data-roleedit],[data-roledel],[data-posadd],[data-posedit],[data-posdel],[data-comedit],[data-comdel],[data-famedit],[data-famdel],[data-eduedit],[data-edudel],[data-expedit],[data-expdel],[data-qualedit],[data-qualdel],[data-sort],[data-possort],[data-dtsort],[data-dtcols],[data-dtexport],[data-reqadd],[data-reqedit],[data-reqdel],[data-appladd],[data-appledit],[data-appldel],[data-crsadd],[data-crsedit],[data-crsdel],[data-more],[data-tabmore],[data-photo]");
   if(!t){const mm=$("#moreMenu");if(mm)mm.classList.remove("open");const tm=$("#tabMoreMenu");if(tm)tm.classList.remove("open");return;}
   if(t.hasAttribute("data-more")){const mm=$("#moreMenu");mm.classList.toggle("open");return;}
   if(t.hasAttribute("data-tabmore")){const tm=$("#tabMoreMenu");tm.classList.toggle("open");return;}
@@ -2085,6 +2209,18 @@ document.addEventListener("click",ev=>{
   if(t.dataset.qualdel){if(confirm("Delete this qualification?")){deleteQualification(+t.dataset.qualdel);toast("Qualification deleted.","good");renderDetail();}return;}
   if(t.dataset.sort){const c=t.dataset.sort;if(S.sortCol===c)S.sortDir=S.sortDir==="asc"?"desc":"asc";else{S.sortCol=c;S.sortDir="asc";}renderList();return;}
   if(t.dataset.possort){const c=t.dataset.possort;if(S.posSort===c)S.posDir=S.posDir==="asc"?"desc":"asc";else{S.posSort=c;S.posDir="asc";}renderPositions();return;}
+  if(t.dataset.dtsort){const [id,k]=t.dataset.dtsort.split(":");const st=dtState(id);if(st.sort===k)st.dir=st.dir==="asc"?"desc":"asc";else{st.sort=k;st.dir="asc";}render();return;}
+  if(t.dataset.dtcols){const st=dtState(t.dataset.dtcols);st.showCols=!st.showCols;render();return;}
+  if(t.dataset.dtexport){exportCsv(t.dataset.dtexport);return;}
+  if(t.hasAttribute("data-reqadd")){reqDialog(null);return;}
+  if(t.dataset.reqedit){reqDialog(+t.dataset.reqedit);return;}
+  if(t.dataset.reqdel){if(confirm("Delete this requisition?")){deleteRequisition(+t.dataset.reqdel);toast("Requisition deleted.","good");render();}return;}
+  if(t.hasAttribute("data-appladd")){applDialog(null);return;}
+  if(t.dataset.appledit){applDialog(+t.dataset.appledit);return;}
+  if(t.dataset.appldel){if(confirm("Delete this applicant?")){deleteApplicant(+t.dataset.appldel);toast("Applicant deleted.","good");render();}return;}
+  if(t.hasAttribute("data-crsadd")){courseDialog(null);return;}
+  if(t.dataset.crsedit){courseDialog(t.dataset.crsedit);return;}
+  if(t.dataset.crsdel){if(confirm("Delete this course?")){deleteCourse(t.dataset.crsdel);toast("Course deleted.","good");render();}return;}
   if(t.hasAttribute("data-close")){
     // Backdrop closes only on a direct click; clicks inside the dialog (e.g. a
     // dropdown or input) must NOT close it. Close buttons always close.
@@ -2101,11 +2237,24 @@ document.addEventListener("change",ev=>{
     db.auth[role][it][act]=a.checked;
     if(act!=="display"&&a.checked)db.auth[role][it].display=true; // any activity implies display
     return;}
+  const dc=ev.target.closest("[data-dtcol]");
+  if(dc){const [id,k]=dc.dataset.dtcol.split(":");const st=dtState(id);
+    if(dc.checked)st.hidden=st.hidden.filter(x=>x!==k);else if(!st.hidden.includes(k))st.hidden.push(k);
+    render();return;}
   const c=ev.target.closest("[data-col]");if(!c)return;
   const k=c.dataset.col;
   if(c.checked){if(!S.empCols.includes(k))S.empCols.push(k);}
   else S.empCols=S.empCols.filter(x=>x!==k);
   renderList();
+});
+/* Data-table search + per-column filter (delegated, with caret-preserving refocus). */
+document.addEventListener("input",ev=>{
+  const s=ev.target.closest("[data-dtsearch]");
+  if(s){const id=s.dataset.dtsearch,car=s.selectionStart;dtState(id).search=s.value;render();
+    const el=document.querySelector('[data-dtsearch="'+id+'"]');if(el){el.focus();try{el.setSelectionRange(car,car);}catch(e){}}return;}
+  const f=ev.target.closest("[data-dtfilter]");
+  if(f){const key=f.dataset.dtfilter,[id,k]=key.split(":"),car=f.selectionStart;dtState(id).filters[k]=f.value;render();
+    const el=document.querySelector('[data-dtfilter="'+key+'"]');if(el){el.focus();try{el.setSelectionRange(car,car);}catch(e){}}return;}
 });
 
 function doAction(kind){
@@ -2196,6 +2345,20 @@ function doAction(kind){
       if(cfgCtx&&cfgCtx.posid){editPosition(cfgCtx.posid,name,org);toast("Position updated.","good");}
       else{addPosition(name,org);toast("Position added.","good");}
       closeModal();renderPositions();
+    }else if(kind==="reqSave"){
+      const f={title:val("rq_title").trim(),orgeh:val("rq_org"),openings:val("rq_open"),status:val("rq_status"),posted:val("rq_posted")};
+      if(!f.title){toast("Enter a title.","bad");return;}
+      if(cfgCtx&&cfgCtx.reqid){editRequisition(cfgCtx.reqid,f);toast("Requisition updated.","good");}else{addRequisition(f);toast("Requisition added.","good");}
+      closeModal();render();
+    }else if(kind==="applSave"){
+      const f={name:val("ap_name").trim(),email:val("ap_email").trim(),reqId:val("ap_req"),applied:val("ap_applied"),stage:val("ap_stage")};
+      if(!f.name){toast("Enter a name.","bad");return;}
+      if(cfgCtx&&cfgCtx.applid){editApplicant(cfgCtx.applid,f);toast("Applicant updated.","good");}else{addApplicant(f);toast("Applicant added.","good");}
+      closeModal();render();
+    }else if(kind==="courseSave"){
+      const f={id:val("cr_id").trim(),title:val("cr_title").trim(),cat:val("cr_cat"),hours:val("cr_hours"),seats:val("cr_seats"),date:val("cr_date")};
+      if(cfgCtx&&cfgCtx.crsid){editCourse(cfgCtx.crsid,f);toast("Course updated.","good");}else{addCourse(f);toast("Course added.","good");}
+      closeModal();render();
     }else if(kind==="cfgOrg"){
       const id=addOrgUnit(val("co_name").trim(),val("co_parent")?+val("co_parent"):null);closeModal();toast("Organizational unit "+id+" added.","good");renderConfig();
     }else if(kind==="orgSave"){
