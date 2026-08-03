@@ -575,6 +575,10 @@ function seed(){return{
    "GBP":{name:"Pound Sterling",symbol:"£",decimals:2},"KHR":{name:"Cambodian Riel",symbol:"៛",decimals:0},
    "CNY":{name:"Chinese Yuan",symbol:"¥",decimals:2},"SGD":{name:"Singapore Dollar",symbol:"S$",decimals:2},
    "VND":{name:"Vietnamese Dong",symbol:"₫",decimals:0},"JPY":{name:"Japanese Yen",symbol:"¥",decimals:0}},
+  // Payroll exchange rates: units of currency per 1 unit of the base currency (EUR).
+  baseCurrency:"EUR",
+  exchangeRates:{"EUR":{rate:1},"USD":{rate:1.085},"GBP":{rate:0.858},"KHR":{rate:4450},
+   "CNY":{rate:7.85},"SGD":{rate:1.46},"VND":{rate:27000},"JPY":{rate:170}},
   sysLangs:{"EN":"English","KH":"Khmer (ខ្មែរ)","CN":"Chinese (中文)"},
   numObjects:{"PERNR":"Employee (PERNR)","PLANS":"Position","ORGEH":"Organizational unit","REQ":"Requisition"},
   numberRanges:[
@@ -1632,6 +1636,11 @@ function workingDays(from,to){
   return n;
 }
 function payrollRun(from,to){const wd=workingDays(from,to);return db.emp.map(e=>Object.assign(payslip(e.pernr,from,to),{workingDays:wd})).sort((a,b)=>a.pernr-b.pernr);}
+/* Exchange rate = units of the currency per 1 unit of the base currency. */
+function fxRate(cur){const r=db.exchangeRates[cur];return r&&r.rate!=null?Number(r.rate):(cur===db.baseCurrency?1:null);}
+/* Convert an amount from one currency to another via the base currency. */
+function fxConvert(amount,from,to){if(from===to)return amount;const rf=fxRate(from),rt=fxRate(to);
+  if(!rf||!rt)return amount;return amount/rf*rt;}
 
 /* ---- Configuration (customizing + users) ---- */
 function addCompanyCode(k,name,country,currency){if(!k)throw new Error("Enter a company code.");db.T001[k]={name,country,currency};}
@@ -1695,6 +1704,8 @@ const CFG_SCHEMA={
     fields:[{k:"name",l:"Name"},{k:"country",l:"Country",src:"T005"},{k:"currency",l:"Currency",src:"currencies"},{k:"city",l:"City",src:"cities"}]},
   currency:{h:"Currencies",store:"omap",path:"currencies",keyL:"Currency code",
     fields:[{k:"name",l:"Name"},{k:"symbol",l:"Symbol"},{k:"decimals",l:"Decimals"}]},
+  exchange:{h:"Exchange rates (payroll · units per 1 base currency)",store:"omap",path:"exchangeRates",keyL:"Currency",
+    fields:[{k:"rate",l:"Rate (per 1 base)"}]},
   city:{h:"Cities",store:"omap",path:"cities",keyL:"City",
     fields:[{k:"country",l:"Country",src:"T005"},{k:"region",l:"Region / State",src:"regions"},{k:"postal",l:"Postal code"}]},
   region:{h:"Regions",store:"omap",path:"regions",keyL:"Region",fields:[{k:"country",l:"Country",src:"T005"}]},
@@ -1800,7 +1811,7 @@ function renderConfig(){
   else if(S.cfgTab==="org")body=cfgOrgTable();
   else if(CFG_SCHEMA[S.cfgTab])body=cfgTable(S.cfgTab);
   app.innerHTML=pageHead(t("Configuration"),t("System configuration"))+
-    `<div class="toolbar" style="gap:6px;flex-wrap:wrap">${T("company","Company codes")}${T("parea","Personnel areas")}${T("groups","Employee groups")}${T("subgroups","Employee subgroups")}${T("cost","Cost centers")}${T("org","Organizational units")}${T("lang","Languages")}${T("nat","Countries")}${T("currency","Currencies")}${T("region","Regions")}${T("city","Cities")}${T("anred","Forms of address")}${T("titles","Titles")}${T("addrtype","Address types")}${T("commtype","Comm. types")}${T("famtype","Family types")}${T("syslang","System languages")}${T("numrange","Number ranges")}${T("roles","Roles")}${T("users","Users & roles")}${T("auth","Authorizations")}</div>${body}`;
+    `<div class="toolbar" style="gap:6px;flex-wrap:wrap">${T("company","Company codes")}${T("parea","Personnel areas")}${T("groups","Employee groups")}${T("subgroups","Employee subgroups")}${T("cost","Cost centers")}${T("org","Organizational units")}${T("lang","Languages")}${T("nat","Countries")}${T("currency","Currencies")}${T("exchange","Exchange rates")}${T("region","Regions")}${T("city","Cities")}${T("anred","Forms of address")}${T("titles","Titles")}${T("addrtype","Address types")}${T("commtype","Comm. types")}${T("famtype","Family types")}${T("syslang","System languages")}${T("numrange","Number ranges")}${T("roles","Roles")}${T("users","Users & roles")}${T("auth","Authorizations")}</div>${body}`;
 }
 
 /* ============================ MODULE VIEWS ============================ */
@@ -2063,35 +2074,49 @@ function renderReportGraph(){
 }
 
 /* ---- Payroll ---- */
+/* First/last calendar day of a YYYY-MM month string. */
+function monthRange(ym){const [y,m]=ym.split("-").map(Number);const from=ym+"-01";
+  const last=new Date(y,m,0).getDate();const to=ym+"-"+String(last).padStart(2,"0");return {from,to};}
 function renderPayroll(){
-  if(!S.payFrom)S.payFrom="2026-06-01"; if(!S.payTo)S.payTo="2026-06-30";
+  if(!S.payMonth)S.payMonth="2026-06";
+  const mr=monthRange(S.payMonth);S.payFrom=mr.from;S.payTo=mr.to;
+  if(!S.payCurr)S.payCurr=db.baseCurrency;
+  const doc=S.payCurr;               // document / reporting currency (chosen)
   const run=payrollRun(S.payFrom,S.payTo);
   const fmtC=(v,c)=>fmtAmt(v,c);
-  const totGross=run.reduce((a,r)=>a+r.gross,0), totNet=run.reduce((a,r)=>a+r.net,0);
-  app.innerHTML=pageHead("Payroll","Payroll run")+`
+  // Local currency = each employee's pay currency; document currency = chosen currency.
+  const totGrossDoc=run.reduce((a,r)=>a+fxConvert(r.gross,r.currency,doc),0), totNetDoc=run.reduce((a,r)=>a+fxConvert(r.net,r.currency,doc),0);
+  const rate=r=>fxConvert(1,r.currency,doc);
+  const monthLbl=new Date(S.payFrom+"T00:00:00").toLocaleDateString("en-US",{month:"long",year:"numeric"});
+  app.innerHTML=pageHead("Payroll","Payroll run — monthly")+`
   <div class="toolbar">
-    <div class="field"><label>Period from</label><input type="date" id="payFrom" value="${S.payFrom}"></div>
-    <div class="field"><label>Period to</label><input type="date" id="payTo" value="${S.payTo}"></div>
+    <div class="field"><label>Payroll month</label><input type="month" id="payMonth" value="${S.payMonth}"></div>
+    <div class="field"><label>Document currency</label><select id="payCurr">${opt(db.currencies,doc)}</select></div>
+    <div class="field"><label>Period</label><input type="text" value="${fmtDate(S.payFrom)} – ${fmtDate(S.payTo)}" readonly style="min-width:190px"></div>
   </div>
   <div class="stat-row">
     <div class="stat"><div class="v num">${run.length}</div><div class="l">Employees</div></div>
-    <div class="stat"><div class="v num">${workingDays(S.payFrom,S.payTo)}</div><div class="l">Working days in period</div></div>
-    <div class="stat"><div class="v num">${fmtC(totGross,"EUR")}</div><div class="l">Total gross</div></div>
-    <div class="stat"><div class="v num">${fmtC(totNet,"EUR")}</div><div class="l">Total net</div></div>
+    <div class="stat"><div class="v num">${workingDays(S.payFrom,S.payTo)}</div><div class="l">Working days</div></div>
+    <div class="stat"><div class="v num">${fmtC(totGrossDoc,doc)}</div><div class="l">Total gross (${doc})</div></div>
+    <div class="stat"><div class="v num">${fmtC(totNetDoc,doc)}</div><div class="l">Total net (${doc})</div></div>
   </div>
-  ${dtTable("payroll","Payroll results · "+fmtDate(S.payFrom)+" – "+fmtDate(S.payTo),[
+  ${dtTable("payroll","Payroll results · "+monthLbl+" · local & document currency",[
     {k:"pernr",l:"Pers.No.",always:true,html:r=>`<span class="pernr num">${r.pernr}</span>`},
     {k:"name",l:"Employee",always:true},
     {k:"workingDays",l:"Working days",v:r=>r.workingDays},
-    {k:"base",l:"Base",v:r=>r.base,html:r=>`<span class="num">${fmtC(r.base,r.currency)}</span>`},
-    {k:"otTotal",l:"Overtime",v:r=>r.otTotal,html:r=>`<span class="num">${fmtC(r.otTotal,r.currency)}</span>`},
-    {k:"gross",l:"Gross",v:r=>r.gross,html:r=>`<span class="num">${fmtC(r.gross,r.currency)}</span>`},
-    {k:"ded",l:"Deductions",v:r=>r.tax+r.social,html:r=>`<span class="num">${fmtC(r.tax+r.social,r.currency)}</span>`},
-    {k:"net",l:"Net",v:r=>r.net,html:r=>`<b class="num">${fmtC(r.net,r.currency)}</b>`},
+    {k:"loc",l:"Local curr.",v:r=>r.currency},
+    {k:"base",l:"Base (local)",v:r=>r.base,html:r=>`<span class="num">${fmtC(r.base,r.currency)}</span>`},
+    {k:"otTotal",l:"Overtime (local)",v:r=>r.otTotal,html:r=>`<span class="num">${fmtC(r.otTotal,r.currency)}</span>`},
+    {k:"gross",l:"Gross (local)",v:r=>r.gross,html:r=>`<span class="num">${fmtC(r.gross,r.currency)}</span>`},
+    {k:"ded",l:"Deductions (local)",v:r=>r.tax+r.social,html:r=>`<span class="num">${fmtC(r.tax+r.social,r.currency)}</span>`},
+    {k:"net",l:"Net (local)",v:r=>r.net,html:r=>`<b class="num">${fmtC(r.net,r.currency)}</b>`},
+    {k:"fxrate",l:"Exch. rate",v:r=>rate(r),html:r=>`<span class="num">${r.currency===doc?"1.0000":rate(r).toFixed(4)}</span>`},
+    {k:"grossfx",l:"Gross ("+doc+")",v:r=>fxConvert(r.gross,r.currency,doc),html:r=>`<span class="num">${fmtC(fxConvert(r.gross,r.currency,doc),doc)}</span>`},
+    {k:"netfx",l:"Net ("+doc+")",v:r=>fxConvert(r.net,r.currency,doc),html:r=>`<b class="num">${fmtC(fxConvert(r.net,r.currency,doc),doc)}</b>`},
     {k:"act",l:"Actions",always:true,html:r=>`<button class="btn sm" data-payslip="${r.pernr}">Payslip</button>`}
   ],run)}`;
-  $("#payFrom").addEventListener("change",e=>{S.payFrom=e.target.value;renderPayroll();});
-  $("#payTo").addEventListener("change",e=>{S.payTo=e.target.value;renderPayroll();});
+  $("#payMonth").addEventListener("change",e=>{S.payMonth=e.target.value||S.payMonth;renderPayroll();});
+  $("#payCurr").addEventListener("change",e=>{S.payCurr=e.target.value;renderPayroll();});
 }
 function payslipContent(pernr){
   const s=payslip(pernr,S.payFrom||"2026-06-01",S.payTo||"2026-06-30");const c=s.currency;
@@ -2106,7 +2131,10 @@ function payslipContent(pernr){
     <div class="ps-sec">Deductions</div>
     ${row("Income tax (15%)",s.tax,true)}
     ${row("Social insurance (9%)",s.social,true)}
-    <div class="ps-row tot net"><span>Net pay</span><span class="num">${fmtAmt(s.net,c)}</span></div>`;
+    <div class="ps-row tot net"><span>Net pay</span><span class="num">${fmtAmt(s.net,c)}</span></div>
+    ${(S.payCurr&&S.payCurr!==c)?`<div class="ps-sec">Payment</div>
+    <div class="ps-row"><span>Exchange rate (1 ${c} = ${fxConvert(1,c,S.payCurr).toFixed(4)} ${S.payCurr})</span><span class="num"></span></div>
+    <div class="ps-row tot net"><span>Net pay in ${S.payCurr}</span><span class="num">${fmtAmt(fxConvert(s.net,c,S.payCurr),S.payCurr)}</span></div>`:""}`;
 }
 function payslipDialog(pernr){
   const s=payslip(pernr,S.payFrom||"2026-06-01",S.payTo||"2026-06-30");
