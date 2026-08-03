@@ -143,17 +143,20 @@ input:focus,select:focus{border-color:var(--accent);outline:none;box-shadow:0 0 
   border-radius:20px;padding:2px 10px;font-size:12px}
 .card-head .spacer{flex:1}
 .tbl-wrap{overflow-x:auto}
+.list-card{overflow:visible}
+.list-card .card-head{border-radius:var(--radius) var(--radius) 0 0}
 table{width:100%;border-collapse:collapse;font-size:13.5px}
 th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);
   font-weight:700;padding:10px 16px;border-bottom:1px solid var(--border);white-space:nowrap;background:var(--surface-2)}
 td{padding:11px 16px;border-bottom:1px solid var(--border);vertical-align:middle}
 .cols-panel{margin-bottom:14px}
 .colmenu-wrap{position:relative;display:inline-block}
-.colmenu{position:absolute;top:calc(100% + 4px);left:0;z-index:40;background:var(--surface);
+.colmenu{position:absolute;top:calc(100% + 4px);right:0;left:auto;z-index:40;background:var(--surface);color:var(--text);
   border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.18);
   padding:8px;min-width:210px;max-height:340px;overflow:auto;display:flex;flex-direction:column;gap:2px}
 .colchk{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:7px;cursor:pointer;
-  font-size:13.5px;white-space:nowrap}
+  color:var(--text);font-size:13.5px;white-space:nowrap}
+.colchk input{width:auto;flex:0 0 auto;margin:0}
 .colchk:hover{background:var(--surface-2)}
 .rolechks{display:flex;flex-direction:column;gap:6px;margin-top:4px}
 .rolechk{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);
@@ -751,8 +754,8 @@ const can=(...roles)=>roles.some(hasRole);
    activity (display/add/update/delete) on this infotype? */
 function allowed(it,act){return (SESSION&&SESSION.roles||[]).some(r=>db.auth[r]&&db.auth[r][it]&&db.auth[r][it][act]);}
 function navFor(role){
-  if(role==="HR_ADMIN")return [["list","People","people"],["orggraph","Org Chart","org"],["pos","Positions","pos"],["payroll","Payroll","money"],["reports","Reports","doc"],["leave","Leave","cal"],["recruit","Recruitment","person"],["training","Training","education"],["config","Config","doc"]];
-  if(role==="HR_MANAGER")return [["mss","My Team","people"],["leave","Approvals","cal"],["orggraph","Org Chart","org"],["reports","Reports","doc"],["training","Training","education"]];
+  if(role==="HR_ADMIN")return [["list","People","people"],["orggraph","Org Chart","org"],["pos","Positions","pos"],["payroll","Payroll","money"],["leave","Leave","cal"],["recruit","Recruitment","person"],["training","Training","education"],["config","Config","doc"],["reports","Reports","doc"]];
+  if(role==="HR_MANAGER")return [["mss","My Team","people"],["leave","Approvals","cal"],["orggraph","Org Chart","org"],["training","Training","education"],["reports","Reports","doc"]];
   return [["ess","My Profile","person"],["myleave","My Leave","cal"],["training","Training","education"]];
 }
 function navBar(){
@@ -862,18 +865,19 @@ function renderList(){
   app.innerHTML=`
   <div class="page-head"><div><div class="crumb">Personnel Administration</div><h1>Employees</h1></div>
     <div style="display:flex;gap:8px">
-      <div class="colmenu-wrap">
-        <button class="btn" data-act="cols">${I.doc} Columns ▾</button>
-        ${S.showCols?`<div class="colmenu">${EMP_COLS.map(c=>`<label class="colchk">
-          <input type="checkbox" data-col="${c.k}" ${S.empCols.includes(c.k)?"checked":""} ${c.always?"disabled":""}> ${esc(c.l)}</label>`).join("")}</div>`:""}
-      </div>
       ${isAdmin()?`<button class="btn primary" data-act="hire">${I.person} Hire employee</button>`:""}</div></div>
   <div class="toolbar">
     <div class="search">${I.search}<input id="q" placeholder="Search all columns…" value="${esc(S.search)}"></div>
     <div class="field"><label>Key date</label><input type="date" id="kd" value="${S.key}"></div>
   </div>
-  <div class="card">
-    <div class="card-head"><h2>Employee list</h2><span class="count">${rows.length}</span></div>
+  <div class="card list-card">
+    <div class="card-head"><h2>Employee list</h2><span class="count">${rows.length}</span><div class="spacer"></div>
+      <div class="colmenu-wrap">
+        <button class="btn sm" data-act="cols">${I.doc} Columns ▾</button>
+        ${S.showCols?`<div class="colmenu">${EMP_COLS.map(c=>`<label class="colchk">
+          <input type="checkbox" data-col="${c.k}" ${S.empCols.includes(c.k)?"checked":""} ${c.always?"disabled":""}> ${esc(c.l)}</label>`).join("")}</div>`:""}
+      </div>
+    </div>
     <div class="tbl-wrap"><table><thead><tr>
       ${cols.map(c=>`<th class="sortable" data-sort="${c.k}" style="cursor:pointer">${esc(c.l)}${sc===c.k?(sd==="asc"?" ▲":" ▼"):""}</th>`).join("")}
     </tr><tr class="filter-row">
@@ -1075,8 +1079,10 @@ function renderOrg(){
 function renderPositions(){
   const list=positions(S.orgFilter,S.key);
   const orgs=orgFlat(S.key);
+  const canEdit=allowed("0001","update")||isAdmin();
   app.innerHTML=`
-  <div class="page-head"><div><div class="crumb">Organizational Management</div><h1>Positions</h1></div></div>
+  <div class="page-head"><div><div class="crumb">Organizational Management</div><h1>Positions</h1></div>
+    ${canEdit?`<button class="btn primary" data-posadd>${I.person} Add position</button>`:""}</div>
   <div class="toolbar">
     <div class="field"><label>Organizational unit</label>
       <select id="of"><option value="">All units</option>
@@ -1084,11 +1090,12 @@ function renderPositions(){
   </div>
   <div class="card"><div class="card-head"><h2>Positions</h2><span class="count">${list.length}</span></div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>Position ID</th><th>Position</th><th>Organizational unit</th><th>Job</th><th>Holder</th><th>Occupancy</th>
+      <th>Position ID</th><th>Position</th><th>Organizational unit</th><th>Job</th><th>Holder</th><th>Occupancy</th>${canEdit?`<th class="th-r">Actions</th>`:""}
     </tr></thead><tbody>${list.map(p=>`
       <tr><td class="pernr num">${p.id}</td><td>${esc(p.name)}</td><td>${esc(p.orgN||"—")}</td>
         <td>${esc(p.jobN||"—")}</td><td>${esc(p.holder||"—")}</td>
-        <td><span class="pill ${p.vacant?'warn':'good'}">${p.vacant?"Vacant":"Occupied"}</span></td></tr>`).join("")}
+        <td><span class="pill ${p.vacant?'warn':'good'}">${p.vacant?"Vacant":"Occupied"}</span></td>
+        ${canEdit?`<td class="td-r nowrap"><button class="btn xs" data-posedit="${p.id}">${I.edit} Edit</button> <button class="btn xs ghost" data-posdel="${p.id}">Delete</button></td>`:""}</tr>`).join("")}
     </tbody></table></div></div>`;
   $("#of").addEventListener("change",e=>{S.orgFilter=e.target.value;renderPositions();});
 }
@@ -1196,6 +1203,25 @@ function addOrgUnit(name,parent){if(!name)throw new Error("Enter an org unit nam
   db.HRP1000.push({otype:"O",objid,begda:"2020-01-01",endda:HIGH,short:name.slice(0,4).toUpperCase(),stext:name});
   if(parent)db.HRP1001.push({otype:"O",objid,rsign:"A",relat:"002",sclas:"O",sobid:String(parent),begda:"2020-01-01",endda:HIGH});
   return objid;}
+function addRole(key,name){key=(key||"").trim().toUpperCase().replace(/[^A-Z0-9_]/g,"_");
+  if(!key)throw new Error("Enter a role key.");
+  if(db.roleNames[key])throw new Error("Role already exists.");
+  db.roleNames[key]=name||key;db.auth[key]={};
+  db.infotypes.forEach(([c])=>db.auth[key][c]={display:false,add:false,update:false,delete:false});return key;}
+function removeRole(key){delete db.roleNames[key];delete db.auth[key];
+  db.users.forEach(u=>{if(u.roles)u.roles=u.roles.filter(r=>r!==key);});}
+function addPosition(name,orgId){if(!name)throw new Error("Enter a position name.");
+  const ids=db.HRP1000.filter(o=>o.otype==="S").map(o=>o.objid);
+  const objid=(ids.length?Math.max.apply(null,ids):50000100)+1;
+  db.HRP1000.push({otype:"S",objid,begda:"2020-01-01",endda:HIGH,short:name.slice(0,6).toUpperCase(),stext:name});
+  if(orgId)db.HRP1001.push({otype:"S",objid,rsign:"A",relat:"003",sclas:"O",sobid:String(orgId),begda:"2020-01-01",endda:HIGH});
+  return objid;}
+function editPosition(id,name,orgId){const p=db.HRP1000.find(o=>o.otype==="S"&&o.objid===id);
+  if(!p)throw new Error("Position not found.");p.stext=name;p.short=name.slice(0,6).toUpperCase();
+  db.HRP1001=db.HRP1001.filter(r=>!(r.otype==="S"&&r.objid===id&&r.relat==="003"&&r.rsign==="A"));
+  if(orgId)db.HRP1001.push({otype:"S",objid:id,rsign:"A",relat:"003",sclas:"O",sobid:String(orgId),begda:"2020-01-01",endda:HIGH});}
+function removePosition(id){db.HRP1000=db.HRP1000.filter(o=>!(o.otype==="S"&&o.objid===id));
+  db.HRP1001=db.HRP1001.filter(r=>!((r.otype==="S"&&r.objid===id)||(r.sclas==="S"&&+r.sobid===id)));}
 function addUser(u){if(!u.username||!u.password)throw new Error("Enter username and password.");
   if(db.users.find(x=>x.username===u.username))throw new Error("Username already exists.");
   const roles=(u.roles&&u.roles.length)?u.roles:(u.role?[u.role]:["EMPLOYEE"]);
@@ -1287,6 +1313,17 @@ function cfgDialog(tab,key){const def=CFG_SCHEMA[tab];const edit=key!=null;const
 function cfgUsersTable(){return `<div class="card"><div class="card-head"><h2>Users &amp; roles</h2><span class="count">${db.users.length}</span><div class="spacer"></div><button class="btn sm primary" data-act="cfgUser">+ Add user</button></div>
     <div class="tbl-wrap"><table><thead><tr><th>Username</th><th>Name</th><th>E-mail</th><th>Roles</th><th>Employee</th><th class="th-r">Actions</th></tr></thead><tbody>${db.users.map(u=>`<tr><td><b>${esc(u.username)}</b></td><td>${esc(u.name)}</td><td>${esc(u.email||"—")}</td><td>${(u.roles||[u.role]).map(r=>statusPill(db.roleNames[r])).join(" ")}</td><td class="num">${u.pernr||"—"}</td>
     <td class="td-r nowrap"><button class="btn xs" data-useredit="${esc(u.username)}">${I.edit} Edit</button> <button class="btn xs ghost" data-userdel="${esc(u.username)}">Delete</button></td></tr>`).join("")}</tbody></table></div></div>`;}
+function cfgRolesTable(){const roles=Object.entries(db.roleNames);
+  const cnt=k=>db.users.filter(u=>(u.roles||[]).includes(k)).length;
+  return `<div class="card"><div class="card-head"><h2>Roles</h2><span class="count">${roles.length}</span><div class="spacer"></div><button class="btn sm primary" data-roleadd>+ Add role</button></div>
+    <div class="hint">${I.info}<span>Define any number of roles. Grant each role activities per infotype on the Authorizations tab, then assign roles to users.</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Role key</th><th>Name</th><th class="th-r">Users</th><th class="th-r">Actions</th></tr></thead><tbody>${roles.map(([k,v])=>`<tr><td class="num">${esc(k)}</td><td>${esc(v)}</td><td class="td-r num">${cnt(k)}</td>
+    <td class="td-r nowrap"><button class="btn xs" data-roleedit="${esc(k)}">${I.edit} Edit</button> <button class="btn xs ghost" data-roledel="${esc(k)}">Delete</button></td></tr>`).join("")}</tbody></table></div></div>`;}
+function roleDialog(key){const edit=key!=null;cfgCtx={role:edit?key:null};
+  modal(edit?"Edit role":"Add role",`
+  <div class="grp"><label>Role key <span class="req">*</span></label><input id="ro_key" value="${edit?esc(key):""}" ${edit?"disabled":""} placeholder="e.g. PAYROLL_CLERK"></div>
+  <div class="grp"><label>Display name <span class="req">*</span></label><input id="ro_name" value="${edit?esc(db.roleNames[key]||""):""}" placeholder="e.g. Payroll Clerk"></div>`,
+  `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="roleSave">Save</button>`);}
 function cfgOrgTable(){const orgs=db.HRP1000.filter(o=>o.otype==="O");
   const parentOf=id=>{const rel=db.HRP1001.find(r=>r.otype==="O"&&r.objid===id&&r.relat==="002"&&r.rsign==="A");return rel?+rel.sobid:null;};
   return `<div class="card"><div class="card-head"><h2>Organizational units</h2><span class="count">${orgs.length}</span><div class="spacer"></div><button class="btn sm primary" data-act="cfgOrg">+ Add</button></div>
@@ -1298,11 +1335,12 @@ function renderConfig(){
   const T=(id,l)=>`<button class="btn sm ${S.cfgTab===id?'primary':''}" data-cfg="${id}">${l}</button>`;
   let body="";
   if(S.cfgTab==="auth")body=renderAuthMatrix();
+  else if(S.cfgTab==="roles")body=cfgRolesTable();
   else if(S.cfgTab==="users")body=cfgUsersTable();
   else if(S.cfgTab==="org")body=cfgOrgTable();
   else if(CFG_SCHEMA[S.cfgTab])body=cfgTable(S.cfgTab);
   app.innerHTML=pageHead("Configuration","System configuration")+
-    `<div class="toolbar" style="gap:6px;flex-wrap:wrap">${T("company","Company codes")}${T("parea","Personnel areas")}${T("groups","Employee groups")}${T("subgroups","Employee subgroups")}${T("cost","Cost centers")}${T("org","Organizational units")}${T("lang","Languages")}${T("nat","Nationalities")}${T("titles","Titles")}${T("users","Users & roles")}${T("auth","Authorizations")}</div>${body}`;
+    `<div class="toolbar" style="gap:6px;flex-wrap:wrap">${T("company","Company codes")}${T("parea","Personnel areas")}${T("groups","Employee groups")}${T("subgroups","Employee subgroups")}${T("cost","Cost centers")}${T("org","Organizational units")}${T("lang","Languages")}${T("nat","Nationalities")}${T("titles","Titles")}${T("roles","Roles")}${T("users","Users & roles")}${T("auth","Authorizations")}</div>${body}`;
 }
 
 /* ============================ MODULE VIEWS ============================ */
@@ -1729,6 +1767,14 @@ function cfgOrgDialog(){const orgs=orgFlat(S.key);
 function cfgTitleDialog(){modal("Add title · IT0002",`
   <div class="grp"><label>Title <span class="req">*</span></label><input id="ct_txt" placeholder="e.g. Dr., Prof., M.Sc."></div>`,
   `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="cfgTitle">Add</button>`);}
+function posDialog(id){const edit=id!=null;const orgs=orgFlat(S.key);
+  let cur=null;if(edit){const p=positions("",S.key).find(x=>x.id===id);cur=p;}
+  cfgCtx={posid:edit?id:null};
+  modal(edit?"Edit position · IT/OM":"Add position · IT/OM",`
+  <div class="hint">${I.info}<span>Positions are organizational objects (object type S) assigned to an organizational unit.</span></div>
+  <div class="grp"><label>Position name <span class="req">*</span></label><input id="po_name" value="${edit?esc(cur?cur.name:""):""}"></div>
+  <div class="grp"><label>Organizational unit</label><select id="po_org"><option value="">— none —</option>${orgs.map(o=>`<option value="${o.id}" ${edit&&cur&&String(cur.orgId)===String(o.id)?"selected":""}>${esc(o.name)}</option>`).join("")}</select></div>`,
+  `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="posSave">Save</button>`);}
 function cfgUserDialog(username){
   const edit=username!=null;const u=edit?db.users.find(x=>x.username===username)||{}:{};
   const uRoles=u.roles||(u.role?[u.role]:[]);
@@ -1793,7 +1839,7 @@ function toast(msg,kind){
 
 /* ============================ EVENTS ============================ */
 document.addEventListener("click",ev=>{
-  const t=ev.target.closest("[data-nav],[data-open],[data-act],[data-tab],[data-tog],[data-do],[data-close],[data-fill],[data-approve],[data-reject],[data-book],[data-advance],[data-payslip],[data-cfg],[data-authrole],[data-cfgadd],[data-cfgedit],[data-cfgdel],[data-useredit],[data-userdel],[data-orgedit],[data-orgdel],[data-sort],[data-more],[data-tabmore],[data-photo]");
+  const t=ev.target.closest("[data-nav],[data-open],[data-act],[data-tab],[data-tog],[data-do],[data-close],[data-fill],[data-approve],[data-reject],[data-book],[data-advance],[data-payslip],[data-cfg],[data-authrole],[data-cfgadd],[data-cfgedit],[data-cfgdel],[data-useredit],[data-userdel],[data-orgedit],[data-orgdel],[data-roleadd],[data-roleedit],[data-roledel],[data-posadd],[data-posedit],[data-posdel],[data-sort],[data-more],[data-tabmore],[data-photo]");
   if(!t){const mm=$("#moreMenu");if(mm)mm.classList.remove("open");const tm=$("#tabMoreMenu");if(tm)tm.classList.remove("open");return;}
   if(t.hasAttribute("data-more")){const mm=$("#moreMenu");mm.classList.toggle("open");return;}
   if(t.hasAttribute("data-tabmore")){const tm=$("#tabMoreMenu");tm.classList.toggle("open");return;}
@@ -1848,6 +1894,12 @@ document.addEventListener("click",ev=>{
   if(t.dataset.userdel){if(confirm("Delete user "+t.dataset.userdel+"?")){db.users=db.users.filter(u=>u.username!==t.dataset.userdel);toast("User deleted.","good");renderConfig();}return;}
   if(t.dataset.orgedit){orgEditDialog(+t.dataset.orgedit);return;}
   if(t.dataset.orgdel){const id=+t.dataset.orgdel;if(confirm("Delete organizational unit "+id+"?")){db.HRP1000=db.HRP1000.filter(o=>!(o.otype==="O"&&o.objid===id));db.HRP1001=db.HRP1001.filter(r=>!(r.otype==="O"&&r.objid===id));toast("Org unit deleted.","good");renderConfig();}return;}
+  if(t.hasAttribute("data-roleadd")){roleDialog(null);return;}
+  if(t.dataset.roleedit){roleDialog(t.dataset.roleedit);return;}
+  if(t.dataset.roledel){const k=t.dataset.roledel;if(confirm("Delete role "+db.roleNames[k]+"? It will be removed from all users.")){removeRole(k);toast("Role deleted.","good");renderConfig();}return;}
+  if(t.hasAttribute("data-posadd")){posDialog(null);return;}
+  if(t.dataset.posedit){posDialog(+t.dataset.posedit);return;}
+  if(t.dataset.posdel){const id=+t.dataset.posdel;if(confirm("Delete position "+id+"?")){removePosition(id);toast("Position deleted.","good");renderPositions();}return;}
   if(t.dataset.sort){const c=t.dataset.sort;if(S.sortCol===c)S.sortDir=S.sortDir==="asc"?"desc":"asc";else{S.sortCol=c;S.sortDir="asc";}renderList();return;}
   if(t.hasAttribute("data-close")){
     // Backdrop closes only on a direct click; clicks inside the dialog (e.g. a
@@ -1941,6 +1993,17 @@ function doAction(kind){
       const data={};def.fields.forEach(f=>data[f.k]=(document.getElementById("cf_"+f.k)?val("cf_"+f.k).trim():""));
       if(def.rel)data[def.rel.k]=val("cf_rel");
       cfgUpsert(def,cfgCtx.key,key,data);closeModal();toast("Saved.","good");renderConfig();
+    }else if(kind==="roleSave"){
+      const edit=cfgCtx&&cfgCtx.role;const name=val("ro_name").trim();
+      if(!name){toast("Enter a display name.","bad");return;}
+      if(edit){db.roleNames[edit]=name;}else{addRole(val("ro_key"),name);}
+      closeModal();toast("Role saved.","good");renderConfig();
+    }else if(kind==="posSave"){
+      const name=val("po_name").trim();if(!name){toast("Enter a position name.","bad");return;}
+      const org=val("po_org")?+val("po_org"):null;
+      if(cfgCtx&&cfgCtx.posid){editPosition(cfgCtx.posid,name,org);toast("Position updated.","good");}
+      else{addPosition(name,org);toast("Position added.","good");}
+      closeModal();renderPositions();
     }else if(kind==="cfgOrg"){
       const id=addOrgUnit(val("co_name").trim(),val("co_parent")?+val("co_parent"):null);closeModal();toast("Organizational unit "+id+" added.","good");renderConfig();
     }else if(kind==="orgSave"){
@@ -1977,7 +2040,7 @@ function doAction(kind){
       const primary=roles.includes("HR_ADMIN")?"HR_ADMIN":roles.includes("HR_MANAGER")?"HR_MANAGER":roles[0];
       SESSION={username:found.username,name:found.name,roles:roles,role:primary,pernr:found.pernr,email:found.email};
       if(found.theme){document.documentElement.setAttribute("data-theme",found.theme);}
-      S.view=primary==="EMPLOYEE"?"ess":primary==="HR_MANAGER"?"mss":"list";
+      S.view=primary==="HR_ADMIN"?"list":primary==="HR_MANAGER"?"mss":(found.pernr?"ess":"list");
       toast("Welcome, "+found.name+".","good");render();
     }else if(kind==="reqleave"){
       const f={pernr:SESSION.pernr,type:val("rl_type"),begda:val("rl_begda"),endda:val("rl_endda"),note:val("rl_note").trim()};
