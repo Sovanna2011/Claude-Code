@@ -6,7 +6,7 @@
    All data + business logic run in the browser; nothing is fetched.
    =================================================================== */
 :root{
-  --accent:#0064d9; --accent-strong:#0a4bb0; --accent-soft:#e5eefc;
+  --accent:#0064d9; --accent-strong:#0a4bb0; --accent-soft:#e5eefc; --shell-bg:#0a4bb0;
   --bg:#eef1f3; --surface:#ffffff; --surface-2:#f6f8f9; --surface-3:#eef2f4;
   --border:#d3dbe0; --border-strong:#b9c4cc;
   --text:#1a2733; --muted:#56646f; --faint:#8592a0;
@@ -19,7 +19,7 @@
 }
 @media (prefers-color-scheme:dark){
   :root{
-    --accent:#4db1ff; --accent-strong:#7cc6ff; --accent-soft:#122a44;
+    --accent:#4db1ff; --accent-strong:#7cc6ff; --accent-soft:#122a44; --shell-bg:#0c1620;
     --bg:#0f151b; --surface:#1b2531; --surface-2:#202c3a; --surface-3:#25333f;
     --border:#31404e; --border-strong:#425364;
     --text:#e7ecf0; --muted:#9fb0bd; --faint:#6f808e;
@@ -30,7 +30,7 @@
   }
 }
 :root[data-theme="light"]{
-  --accent:#0064d9; --accent-strong:#0a4bb0; --accent-soft:#e5eefc;
+  --accent:#0064d9; --accent-strong:#0a4bb0; --accent-soft:#e5eefc; --shell-bg:#0a4bb0;
   --bg:#eef1f3; --surface:#fff; --surface-2:#f6f8f9; --surface-3:#eef2f4;
   --border:#d3dbe0; --border-strong:#b9c4cc;
   --text:#1a2733; --muted:#56646f; --faint:#8592a0;
@@ -40,7 +40,7 @@
   --shadow:0 2px 4px rgba(20,40,60,.08),0 6px 20px rgba(20,40,60,.06);
 }
 :root[data-theme="dark"]{
-  --accent:#4db1ff; --accent-strong:#7cc6ff; --accent-soft:#122a44;
+  --accent:#4db1ff; --accent-strong:#7cc6ff; --accent-soft:#122a44; --shell-bg:#0c1620;
   --bg:#0f151b; --surface:#1b2531; --surface-2:#202c3a; --surface-3:#25333f;
   --border:#31404e; --border-strong:#425364;
   --text:#e7ecf0; --muted:#9fb0bd; --faint:#6f808e;
@@ -57,7 +57,7 @@ button{font-family:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 
 /* ---- ShellBar ---- */
-.shell{position:sticky;top:0;z-index:20;background:var(--accent-strong);
+.shell{position:sticky;top:0;z-index:20;background:var(--shell-bg);
   color:#fff;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
   padding:6px 16px;min-height:52px;box-shadow:var(--shadow-sm)}
 .shell .brandtext{white-space:nowrap}
@@ -68,9 +68,6 @@ button{font-family:inherit}
   .shell nav button{padding:8px 10px;font-size:12.5px}
   .shell nav button svg{display:none}
 }
-:root[data-theme="dark"] .shell,
-@media (prefers-color-scheme:dark){.shell{background:#0c1620}}
-:root[data-theme="dark"] .shell{background:#0c1620}
 .shell .logo{display:flex;align-items:center;gap:10px;font-weight:700;
   letter-spacing:.2px;white-space:nowrap}
 .shell .logo .mark{width:26px;height:26px;border-radius:6px;background:#fff;
@@ -146,6 +143,10 @@ table{width:100%;border-collapse:collapse;font-size:13.5px}
 th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);
   font-weight:700;padding:10px 16px;border-bottom:1px solid var(--border);white-space:nowrap;background:var(--surface-2)}
 td{padding:11px 16px;border-bottom:1px solid var(--border);vertical-align:middle}
+.filter-row th{padding:6px 10px;background:var(--surface-2);text-transform:none;letter-spacing:0}
+.colf{width:100%;min-width:90px;padding:5px 8px;font-size:12px;font-weight:400;
+  border:1px solid var(--border-strong);border-radius:6px;background:var(--surface);color:var(--text)}
+.colf:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 2px var(--accent-soft)}
 tbody tr{cursor:default}
 tbody tr.click{cursor:pointer}
 tbody tr.click:hover{background:var(--surface-2)}
@@ -755,12 +756,16 @@ function visibleCols(){
   return EMP_COLS.filter(c=>S.empCols.includes(c.k));
 }
 function renderList(){
+  if(!S.colFilters)S.colFilters={};
+  const cols=visibleCols();
   let rows=getEmployees(S.search,S.key);
+  // Per-column (header-level) filters.
+  rows=rows.filter(r=>cols.every(c=>{const f=(S.colFilters[c.k]||"").toLowerCase();
+    return !f||String(r[c.k]==null?"":r[c.k]).toLowerCase().includes(f);}));
   const sc=S.sortCol||"pernr", sd=S.sortDir||"asc";
   rows=rows.slice().sort((a,b)=>{let x=a[sc],y=b[sc];
     if(sc==="pernr"){x=+x;y=+y;}else{x=(x==null?"":String(x)).toLowerCase();y=(y==null?"":String(y)).toLowerCase();}
     return (x<y?-1:x>y?1:0)*(sd==="asc"?1:-1);});
-  const cols=visibleCols();
   const cell=(r,c)=>{
     if(c.mail)return r.email?`<a class="mail" href="mailto:${esc(r.email)}">${esc(r.email)}</a>`:"—";
     if(c.pill)return `<span class="pill ${r.status==='Active'?'good':r.status==='Inactive'?'warn':'neutral'}">${esc(r.status||"—")}</span>`;
@@ -781,14 +786,25 @@ function renderList(){
     <div class="card-head"><h2>Employee list</h2><span class="count">${rows.length}</span></div>
     <div class="tbl-wrap"><table><thead><tr>
       ${cols.map(c=>`<th class="sortable" data-sort="${c.k}" style="cursor:pointer">${esc(c.l)}${sc===c.k?(sd==="asc"?" ▲":" ▼"):""}</th>`).join("")}
+    </tr><tr class="filter-row">
+      ${cols.map(c=>`<th><input class="colf" data-colfilter="${c.k}" value="${esc(S.colFilters[c.k]||"")}" placeholder="🔍 ${esc(c.l)}"></th>`).join("")}
     </tr></thead><tbody>${rows.length?rows.map(r=>`
       <tr class="click" data-open="${r.pernr}">${cols.map(c=>`<td>${cell(r,c)}</td>`).join("")}</tr>`).join("")
       :`<tr><td colspan="${cols.length}"><div class="empty">No employees match your search.</div></td></tr>`}
     </tbody></table></div>
   </div>`;
-  const q=$("#q");q.addEventListener("input",e=>{S.search=e.target.value;renderList();});
-  q.focus();const v=q.value;q.value="";q.value=v;
+  const q=$("#q");q.addEventListener("input",e=>{S.search=e.target.value;S.focusField="q";renderList();});
   $("#kd").addEventListener("change",e=>{S.key=e.target.value;renderList();});
+  // Per-column header filters (re-render on input, preserve focus + caret).
+  app.querySelectorAll(".colf").forEach(inp=>{
+    inp.addEventListener("input",e=>{S.colFilters[e.target.dataset.colfilter]=e.target.value;S.focusField="col:"+e.target.dataset.colfilter;renderList();});
+  });
+  // Restore focus to whichever search field was being typed in.
+  let target=null;
+  if(S.focusField==="q")target=q;
+  else if(S.focusField&&S.focusField.startsWith("col:"))target=app.querySelector('.colf[data-colfilter="'+S.focusField.slice(4)+'"]');
+  else target=q;
+  if(target){target.focus();const val=target.value;target.value="";target.value=val;}
 }
 function colsDialog(){
   modal("Choose columns",`<div class="hint">${I.info}<span>Add or remove columns shown in the employee list.</span></div>
