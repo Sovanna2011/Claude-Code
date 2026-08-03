@@ -722,8 +722,8 @@ function getEmployee(pernr,key){
     banks:db.PA0009.filter(x=>x.pernr===pernr&&x.begda<=key&&x.endda>=key).map(b=>({key:b.bankl,acc:b.bankn,ctry:b.banks})),
     contract:(function(){const c=validOn(db.PA0016,pernr,key);return c&&{type:db.T547T[c.cttyp],prbez:c.prbez,kdgfb:c.kdgfb,kdgf2:c.kdgf2,begda:c.begda,endda:c.endda};})(),
     family:db.PA0021.filter(x=>x.pernr===pernr&&x.begda<=key&&x.endda>=key).map(x=>({_id:rid(x),subty:x.subty,rel:dom("FAMSA",x.subty),firstName:x.favor,lastName:x.fanam,name:x.favor+" "+x.fanam,gender:x.fasex,gesch:x.fasex?dom("GESCH",x.fasex):"",dob:x.fgbdt,begda:x.begda,phone:x.phone,email:x.email,occ:x.occ,depend:x.depend})),
-    education:db.PA0022.filter(x=>x.pernr===pernr).sort((a,b)=>a.begda<b.begda?-1:1).map(x=>({_id:rid(x),subty:x.subty,est:dom("SLART",x.subty),insti:x.insti,cert:x.slabs,major:x.sfach,grade:x.slgra,begda:x.begda,endda:x.endda})),
-    exp:db.PA0023.filter(x=>x.pernr===pernr).sort((a,b)=>a.begda<b.begda?-1:1).map(x=>({_id:rid(x),emp:x.arbgb,task:x.task,placeRaw:x.ort01,country:x.land1,place:(x.ort01||"")+", "+(x.land1||""),begda:x.begda,endda:x.endda})),
+    education:db.PA0022.filter(x=>x.pernr===pernr).sort((a,b)=>a.begda<b.begda?-1:1).map(x=>({_id:rid(x),subty:x.subty,est:dom("SLART",x.subty),insti:x.insti,cert:x.slabs,major:x.sfach,grade:x.slgra,country:x.sland,countryN:t005Name(x.sland)||x.sland,city:x.ort01,note:x.note,begda:x.begda,endda:x.endda})),
+    exp:db.PA0023.filter(x=>x.pernr===pernr).sort((a,b)=>a.begda<b.begda?-1:1).map(x=>({_id:rid(x),emp:x.arbgb,task:x.task,placeRaw:x.ort01,country:x.land1,place:(x.ort01||"")+", "+(x.land1||""),industry:x.branc,emptype:x.emptype,reason:x.reason,begda:x.begda,endda:x.endda})),
     quals:db.PA0024.filter(x=>x.pernr===pernr&&x.begda<=key&&x.endda>=key).map(x=>({_id:rid(x),subty:x.subty,grp:dom("QUALG",x.subty),q:x.quali,lvl:x.auspr})),
     attend:db.PA2002.filter(x=>x.pernr===pernr).sort((a,b)=>a.begda<b.begda?1:-1).map(x=>({t:db.T554S[x.awart],begda:x.begda,endda:x.endda,days:x.abwtg,hours:x.stdaz})),
     dates:db.PA0019.filter(x=>x.pernr===pernr&&x.endda>=key).sort((a,b)=>a.termn<b.termn?-1:1).map(x=>({task:dom("TMART",x.subty),date:x.termn,rem:x.mndat}))
@@ -798,9 +798,9 @@ function editPay(pernr,f){const cur=validOn(db.PA0008,pernr,f.begda)||{};
   delimitInsert(db.PA0008,pernr,f.begda,{trfar:cur.trfar||"01",trfgb:cur.trfgb||"01",trfgr:f.trfgr,bsgrd:f.bsgrd!==""?Number(f.bsgrd):100,waers:f.waers||"EUR",ansal:f.ansal!==""?Number(f.ansal):0,wt:cur.wt||[]},null,f.mode);}
 function editBank(pernr,f){delimitInsert(db.PA0009,pernr,f.begda,{subty:"0",banks:f.banks,bankl:f.bankl,bankn:f.bankn,waers:f.waers||"EUR"},x=>x.subty==="0",f.mode);}
 function editContract(pernr,f){delimitInsert(db.PA0016,pernr,f.begda,{cttyp:f.cttyp,prbez:f.prbez!==""?Number(f.prbez):null,kdgfb:f.kdgfb!==""?Number(f.kdgfb):null,kdgf2:f.kdgf2!==""?Number(f.kdgf2):null},null,f.mode);}
-function addEducation(pernr,f){db.PA0022.push({pernr,subty:f.subType,begda:f.begda,endda:f.endda||HIGH,slabs:f.certificate,insti:f.institute,sland:f.country,sfach:f.major,slgra:f.grade});}
+function addEducation(pernr,f){db.PA0022.push({pernr,subty:f.subType,begda:f.begda,endda:f.endda||HIGH,slabs:f.certificate,insti:f.institute,sland:f.country,ort01:f.city,sfach:f.major,slgra:f.grade,note:f.note});}
 function addQualification(pernr,f){db.PA0024.push({pernr,subty:f.groupKey,begda:f.begda||today(),endda:HIGH,quali:f.qualification,auspr:f.proficiency!==""?Number(f.proficiency):null});}
-function addExperience(pernr,f){db.PA0023.push({pernr,begda:f.begda,endda:f.endda,arbgb:f.employer,ort01:f.place,land1:f.country,task:f.task,branc:f.industry});}
+function addExperience(pernr,f){db.PA0023.push({pernr,begda:f.begda,endda:f.endda,arbgb:f.employer,ort01:f.place,land1:f.country,task:f.task,branc:f.industry,emptype:f.emptype,reason:f.reason});}
 /* Stable per-record ids so individual infotype rows can be edited / deleted. */
 let _recId=1;const rid=r=>{if(r._id==null)r._id=_recId++;return r._id;};
 const findById=(arr,id)=>arr.find(r=>r._id===id);
@@ -808,9 +808,9 @@ function editFamily(id,f){const r=findById(db.PA0021,id);if(!r)return;Object.ass
 function deleteFamily(id){db.PA0021=db.PA0021.filter(r=>r._id!==id);}
 function editCommunication(id,f){const r=findById(db.PA0105,id);if(!r)return;Object.assign(r,{subty:f.subType,usrid:f.value,begda:f.begda||r.begda});}
 function deleteCommunication(id){db.PA0105=db.PA0105.filter(r=>r._id!==id);}
-function editEducation(id,f){const r=findById(db.PA0022,id);if(!r)return;Object.assign(r,{subty:f.subType,insti:f.institute,slabs:f.certificate,sfach:f.major,slgra:f.grade,begda:f.begda,endda:f.endda||HIGH});}
+function editEducation(id,f){const r=findById(db.PA0022,id);if(!r)return;Object.assign(r,{subty:f.subType,insti:f.institute,slabs:f.certificate,sfach:f.major,slgra:f.grade,sland:f.country,ort01:f.city,note:f.note,begda:f.begda,endda:f.endda||HIGH});}
 function deleteEducation(id){db.PA0022=db.PA0022.filter(r=>r._id!==id);}
-function editExperience(id,f){const r=findById(db.PA0023,id);if(!r)return;Object.assign(r,{arbgb:f.employer,task:f.task,ort01:f.place,land1:f.country,begda:f.begda,endda:f.endda});}
+function editExperience(id,f){const r=findById(db.PA0023,id);if(!r)return;Object.assign(r,{arbgb:f.employer,task:f.task,ort01:f.place,land1:f.country,branc:f.industry,emptype:f.emptype,reason:f.reason,begda:f.begda,endda:f.endda});}
 function deleteExperience(id){db.PA0023=db.PA0023.filter(r=>r._id!==id);}
 function editQualification(id,f){const r=findById(db.PA0024,id);if(!r)return;Object.assign(r,{subty:f.groupKey,quali:f.qualification,auspr:f.proficiency!==""?Number(f.proficiency):null});}
 function deleteQualification(id){db.PA0024=db.PA0024.filter(r=>r._id!==id);}
@@ -949,10 +949,10 @@ function dtTable(id,title,cols,rows,opts){opts=opts||{};const st=dtState(id);
     <div class="dt-search"><input data-dtsearch="${id}" placeholder="${esc(t("Search all columns…"))}" value="${esc(st.search)}"></div>
     <button class="btn sm" data-dtexport="${id}" title="Export to Excel (CSV)">⭳ Excel</button>
     <div class="colmenu-wrap"><button class="btn sm" data-dtcols="${id}">${I.doc} ${esc(t("Columns"))} ▾</button>
-      ${st.showCols?`<div class="colmenu">${cols.map(c=>`<label class="colchk"><input type="checkbox" data-dtcol="${id}:${c.k}" ${!st.hidden.includes(c.k)?"checked":""} ${c.always?"disabled":""}> ${esc(t(c.l))}</label>`).join("")}</div>`:""}</div>
+      ${st.showCols?`<div class="colmenu">${cols.filter(c=>c.k!=="act").map(c=>`<label class="colchk"><input type="checkbox" data-dtcol="${id}:${c.k}" ${!st.hidden.includes(c.k)?"checked":""} ${c.always?"disabled":""}> ${esc(t(c.l))}</label>`).join("")}</div>`:""}</div>
     </div>
-    <div class="tbl-wrap"><table><thead><tr>${vis.map(c=>`<th class="sortable" data-dtsort="${id}:${c.k}" style="cursor:pointer">${esc(t(c.l))}${st.sort===c.k?(st.dir==="asc"?" ▲":" ▼"):""}</th>`).join("")}</tr>
-    <tr class="filter-row">${vis.map(c=>`<th><input class="colf" data-dtfilter="${id}:${c.k}" value="${esc(st.filters[c.k]||"")}" placeholder="🔍"></th>`).join("")}</tr></thead>
+    <div class="tbl-wrap"><table><thead><tr>${vis.map(c=>c.k==="act"?`<th class="th-r">${esc(t(c.l))}</th>`:`<th class="sortable" data-dtsort="${id}:${c.k}" style="cursor:pointer">${esc(t(c.l))}${st.sort===c.k?(st.dir==="asc"?" ▲":" ▼"):""}</th>`).join("")}</tr>
+    <tr class="filter-row">${vis.map(c=>c.k==="act"?`<th></th>`:`<th><input class="colf" data-dtfilter="${id}:${c.k}" value="${esc(st.filters[c.k]||"")}" placeholder="🔍"></th>`).join("")}</tr></thead>
     <tbody>${data.length?data.map(r=>`<tr ${opts.rowOpen&&r[opts.rowOpen]!=null?`class="click" data-open="${r[opts.rowOpen]}"`:""}>${vis.map(c=>`<td>${cellHtml(r,c)}</td>`).join("")}</tr>`).join(""):`<tr><td colspan="${vis.length}"><div class="empty">${esc(t("No records."))}</div></td></tr>`}</tbody></table></div></div>`;}
 
 function render(){
@@ -1160,12 +1160,12 @@ function renderDetail(){
       ${allowed("0023","add")?`<button class="btn sm" data-act="exp">${I.doc} Add previous employer</button>`:""}
       ${allowed("0024","add")?`<button class="btn sm" data-act="qual">${I.check} Add qualification</button>`:""}</div>`:""}
     <div class="card"><div class="card-head"><h2>Education · IT0022</h2></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Establishment</th><th>Certificate</th><th>Branch of study</th><th>Grade</th><th>Period</th>${(allowed("0022","update")||allowed("0022","delete"))?`<th class="th-r">Actions</th>`:""}</tr></thead><tbody>
-    ${e.education.map(x=>`<tr><td><b>${esc(x.est)}</b><br><span style="color:var(--muted)">${esc(x.insti)}</span></td><td>${esc(x.cert)}</td><td>${esc(x.major)}</td><td>${esc(x.grade||"—")}</td><td class="num">${fmtDate(x.begda)} – ${fmtDate(x.endda)}</td>${(allowed("0022","update")||allowed("0022","delete"))?`<td class="td-r nowrap">${allowed("0022","update")?`<button class="btn xs" data-eduedit="${x._id}">${I.edit} Edit</button> `:""}${allowed("0022","delete")?`<button class="btn xs ghost" data-edudel="${x._id}">Delete</button>`:""}</td>`:""}</tr>`).join("")||`<tr><td colspan=6><div class="empty">—</div></td></tr>`}
+    <div class="tbl-wrap"><table><thead><tr><th>Establishment</th><th>Certificate</th><th>Branch of study</th><th>Grade</th><th>City / Country</th><th>Notes</th><th>Period</th>${(allowed("0022","update")||allowed("0022","delete"))?`<th class="th-r">Actions</th>`:""}</tr></thead><tbody>
+    ${e.education.map(x=>`<tr><td><b>${esc(x.est)}</b><br><span style="color:var(--muted)">${esc(x.insti)}</span></td><td>${esc(x.cert)}</td><td>${esc(x.major)}</td><td>${esc(x.grade||"—")}</td><td>${esc([x.city,x.countryN].filter(Boolean).join(", "))||"—"}</td><td>${esc(x.note)||"—"}</td><td class="num">${fmtDate(x.begda)} – ${fmtDate(x.endda)}</td>${(allowed("0022","update")||allowed("0022","delete"))?`<td class="td-r nowrap">${allowed("0022","update")?`<button class="btn xs" data-eduedit="${x._id}">${I.edit} Edit</button> `:""}${allowed("0022","delete")?`<button class="btn xs ghost" data-edudel="${x._id}">Delete</button>`:""}</td>`:""}</tr>`).join("")||`<tr><td colspan=8><div class="empty">—</div></td></tr>`}
     </tbody></table></div>
     <div class="card" style="margin-top:14px"><div class="card-head"><h2>Previous employers · IT0023</h2></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Employer</th><th>Role</th><th>Place</th><th>Period</th>${(allowed("0023","update")||allowed("0023","delete"))?`<th class="th-r">Actions</th>`:""}</tr></thead><tbody>
-    ${e.exp.map(x=>`<tr><td><b>${esc(x.emp)}</b></td><td>${esc(x.task)}</td><td>${esc(x.place)}</td><td class="num">${fmtDate(x.begda)} – ${fmtDate(x.endda)}</td>${(allowed("0023","update")||allowed("0023","delete"))?`<td class="td-r nowrap">${allowed("0023","update")?`<button class="btn xs" data-expedit="${x._id}">${I.edit} Edit</button> `:""}${allowed("0023","delete")?`<button class="btn xs ghost" data-expdel="${x._id}">Delete</button>`:""}</td>`:""}</tr>`).join("")||`<tr><td colspan=5><div class="empty">—</div></td></tr>`}
+    <div class="tbl-wrap"><table><thead><tr><th>Employer</th><th>Role</th><th>Industry</th><th>Type</th><th>Place</th><th>Reason for leaving</th><th>Period</th>${(allowed("0023","update")||allowed("0023","delete"))?`<th class="th-r">Actions</th>`:""}</tr></thead><tbody>
+    ${e.exp.map(x=>`<tr><td><b>${esc(x.emp)}</b></td><td>${esc(x.task)}</td><td>${esc(x.industry)||"—"}</td><td>${esc(x.emptype)||"—"}</td><td>${esc(x.place)}</td><td>${esc(x.reason)||"—"}</td><td class="num">${fmtDate(x.begda)} – ${fmtDate(x.endda)}</td>${(allowed("0023","update")||allowed("0023","delete"))?`<td class="td-r nowrap">${allowed("0023","update")?`<button class="btn xs" data-expedit="${x._id}">${I.edit} Edit</button> `:""}${allowed("0023","delete")?`<button class="btn xs ghost" data-expdel="${x._id}">Delete</button>`:""}</td>`:""}</tr>`).join("")||`<tr><td colspan=8><div class="empty">—</div></td></tr>`}
     </tbody></table></div>
     <div class="card" style="margin-top:14px"><div class="card-head"><h2>Qualifications · IT0024</h2></div>
     <div class="tbl-wrap"><table><thead><tr><th>Group</th><th>Qualification</th><th class="th-r">Proficiency</th>${(allowed("0024","update")||allowed("0024","delete"))?`<th class="th-r">Actions</th>`:""}</tr></thead><tbody>
@@ -2043,12 +2043,17 @@ function eduDialog(rec){const e=!!rec;editingRec=e?{type:"edu",id:rec._id}:null;
     </div>
     <div class="two">
       <div class="grp"><label>Branch of study</label><input id="ed_major" value="${e?esc(rec.major):""}"></div>
-      <div class="grp"><label>Grade</label><input id="ed_grade" value="${e?esc(rec.grade):""}"></div>
+      <div class="grp"><label>Grade / score</label><input id="ed_grade" value="${e?esc(rec.grade):""}"></div>
+    </div>
+    <div class="two">
+      <div class="grp"><label>Country</label><select id="ed_ctry">${optBlank(db.T005,e?rec.country:"")}</select></div>
+      <div class="grp"><label>City</label><input id="ed_city" value="${e?esc(rec.city):""}"></div>
     </div>
     <div class="two">
       <div class="grp"><label>From</label><input type="date" id="ed_begda" value="${e&&rec.begda?rec.begda:""}"></div>
       <div class="grp"><label>To</label><input type="date" id="ed_endda" value="${e&&rec.endda&&rec.endda!==HIGH?rec.endda:""}"></div>
-    </div>`,`<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="edu">${e?"Save":"Add"}</button>`);}
+    </div>
+    <div class="grp"><label>Notes</label><input id="ed_note" value="${e?esc(rec.note):""}" placeholder="Honours, thesis, scholarship…"></div>`,`<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="edu">${e?"Save":"Add"}</button>`);}
 function qualDialog(rec){const e=!!rec;editingRec=e?{type:"qual",id:rec._id}:null;
   modal((e?"Edit":"Add")+" qualification · IT0024",`
     <div class="grp"><label>Group</label><select id="q_grp">${opt(db.dom.QUALG,e?rec.subty:"01")}</select></div>
@@ -2066,9 +2071,14 @@ function expDialog(rec){const e=!!rec;editingRec=e?{type:"exp",id:rec._id}:null;
       <div class="grp"><label>Country</label><select id="x_ctry">${optBlank(db.T005,e?rec.country:"")}</select></div>
     </div>
     <div class="two">
+      <div class="grp"><label>Industry</label><input id="x_ind" value="${e?esc(rec.industry):""}" placeholder="e.g. Manufacturing"></div>
+      <div class="grp"><label>Employment type</label><select id="x_emptype">${["","Full-time","Part-time","Contract","Internship"].map(o=>`<option value="${o}" ${e&&rec.emptype===o?"selected":""}>${o||"—"}</option>`).join("")}</select></div>
+    </div>
+    <div class="two">
       <div class="grp"><label>From</label><input type="date" id="x_begda" value="${e&&rec.begda?rec.begda:""}"></div>
       <div class="grp"><label>To</label><input type="date" id="x_endda" value="${e&&rec.endda&&rec.endda!==HIGH?rec.endda:""}"></div>
-    </div>`,`<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="exp">${e?"Save":"Add"}</button>`);}
+    </div>
+    <div class="grp"><label>Reason for leaving</label><input id="x_reason" value="${e?esc(rec.reason):""}"></div>`,`<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="exp">${e?"Save":"Add"}</button>`);}
 function cfgCompanyDialog(){modal("Add company code · T001",`
   <div class="grp"><label>Company code <span class="req">*</span></label><input id="cco_key" maxlength="4" placeholder="e.g. 2000"></div>
   <div class="grp"><label>Name</label><input id="cco_txt"></div>
@@ -2402,7 +2412,7 @@ function doAction(kind){
       if(!f.begda){toast("Enter a valid-from date.","bad");return;}
       editContract(S.pernr,f);closeModal();toast("Contract updated.","good");S.tab="contract";renderDetail();
     }else if(kind==="edu"){
-      const f={subType:val("ed_sub"),institute:val("ed_insti").trim(),certificate:val("ed_cert").trim(),major:val("ed_major").trim(),grade:val("ed_grade").trim(),begda:val("ed_begda"),endda:val("ed_endda")};
+      const f={subType:val("ed_sub"),institute:val("ed_insti").trim(),certificate:val("ed_cert").trim(),major:val("ed_major").trim(),grade:val("ed_grade").trim(),country:val("ed_ctry"),city:val("ed_city").trim(),note:val("ed_note").trim(),begda:val("ed_begda"),endda:val("ed_endda")};
       if(!f.begda){toast("Enter a start date.","bad");return;}
       if(editingRec&&editingRec.type==="edu"){editEducation(editingRec.id,f);toast("Education updated.","good");}
       else{addEducation(S.pernr,f);toast("Education added.","good");}
@@ -2414,7 +2424,7 @@ function doAction(kind){
       else{addQualification(S.pernr,f);toast("Qualification added.","good");}
       editingRec=null;closeModal();S.tab="edu";renderDetail();
     }else if(kind==="exp"){
-      const f={employer:val("x_emp").trim(),task:val("x_task").trim(),place:val("x_place").trim(),country:val("x_ctry").trim(),begda:val("x_begda"),endda:val("x_endda")};
+      const f={employer:val("x_emp").trim(),task:val("x_task").trim(),place:val("x_place").trim(),country:val("x_ctry").trim(),industry:val("x_ind").trim(),emptype:val("x_emptype"),reason:val("x_reason").trim(),begda:val("x_begda"),endda:val("x_endda")};
       if(!f.employer){toast("Enter the employer.","bad");return;}
       if(editingRec&&editingRec.type==="exp"){editExperience(editingRec.id,f);toast("Previous employer updated.","good");}
       else{addExperience(S.pernr,f);toast("Previous employer added.","good");}
