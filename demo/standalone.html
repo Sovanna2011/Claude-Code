@@ -721,7 +721,7 @@ function getEmployee(pernr,key){
     comms:db.PA0105.filter(x=>x.pernr===pernr&&x.begda<=key&&x.endda>=key).map(c=>({_id:rid(c),t:dom("USRTY",c.subty),subty:c.subty,v:c.usrid})),
     banks:db.PA0009.filter(x=>x.pernr===pernr&&x.begda<=key&&x.endda>=key).map(b=>({key:b.bankl,acc:b.bankn,ctry:b.banks})),
     contract:(function(){const c=validOn(db.PA0016,pernr,key);return c&&{type:db.T547T[c.cttyp],prbez:c.prbez,kdgfb:c.kdgfb,kdgf2:c.kdgf2,begda:c.begda,endda:c.endda};})(),
-    family:db.PA0021.filter(x=>x.pernr===pernr&&x.begda<=key&&x.endda>=key).map(x=>({_id:rid(x),subty:x.subty,rel:dom("FAMSA",x.subty),firstName:x.favor,lastName:x.fanam,name:x.favor+" "+x.fanam,gender:x.fasex,gesch:x.fasex?dom("GESCH",x.fasex):"",dob:x.fgbdt,begda:x.begda})),
+    family:db.PA0021.filter(x=>x.pernr===pernr&&x.begda<=key&&x.endda>=key).map(x=>({_id:rid(x),subty:x.subty,rel:dom("FAMSA",x.subty),firstName:x.favor,lastName:x.fanam,name:x.favor+" "+x.fanam,gender:x.fasex,gesch:x.fasex?dom("GESCH",x.fasex):"",dob:x.fgbdt,begda:x.begda,phone:x.phone,email:x.email,occ:x.occ,depend:x.depend})),
     education:db.PA0022.filter(x=>x.pernr===pernr).sort((a,b)=>a.begda<b.begda?-1:1).map(x=>({_id:rid(x),subty:x.subty,est:dom("SLART",x.subty),insti:x.insti,cert:x.slabs,major:x.sfach,grade:x.slgra,begda:x.begda,endda:x.endda})),
     exp:db.PA0023.filter(x=>x.pernr===pernr).sort((a,b)=>a.begda<b.begda?-1:1).map(x=>({_id:rid(x),emp:x.arbgb,task:x.task,placeRaw:x.ort01,country:x.land1,place:(x.ort01||"")+", "+(x.land1||""),begda:x.begda,endda:x.endda})),
     quals:db.PA0024.filter(x=>x.pernr===pernr&&x.begda<=key&&x.endda>=key).map(x=>({_id:rid(x),subty:x.subty,grp:dom("QUALG",x.subty),q:x.quali,lvl:x.auspr})),
@@ -768,7 +768,7 @@ function deleteAddress(id){db.PA0006=db.PA0006.filter(r=>r._id!==id);}
 function addFamily(pernr,f){
   const objs=db.PA0021.filter(x=>x.pernr===pernr&&x.subty===f.relationType).map(x=>parseInt(x.objps,10)||0);
   const next=String((objs.length?Math.max.apply(null,objs):0)+1).padStart(2,"0");
-  db.PA0021.push({pernr,subty:f.relationType,objps:next,begda:f.begda||today(),endda:HIGH,fanam:f.lastName,favor:f.firstName,fgbdt:f.birthDate||null,fasex:f.gender,fgbld:f.birthCountry});
+  db.PA0021.push({pernr,subty:f.relationType,objps:next,begda:f.begda||today(),endda:HIGH,fanam:f.lastName,favor:f.firstName,fgbdt:f.birthDate||null,fasex:f.gender,fgbld:f.birthCountry,phone:f.phone,email:f.email,occ:f.occupation,depend:f.dependent});
 }
 function addCommunication(pernr,f){
   if(!f.value)throw new Error("Enter the communication value.");
@@ -804,7 +804,7 @@ function addExperience(pernr,f){db.PA0023.push({pernr,begda:f.begda,endda:f.endd
 /* Stable per-record ids so individual infotype rows can be edited / deleted. */
 let _recId=1;const rid=r=>{if(r._id==null)r._id=_recId++;return r._id;};
 const findById=(arr,id)=>arr.find(r=>r._id===id);
-function editFamily(id,f){const r=findById(db.PA0021,id);if(!r)return;Object.assign(r,{subty:f.relationType,favor:f.firstName,fanam:f.lastName,fgbdt:f.birthDate||null,fasex:f.gender,begda:f.begda||r.begda});}
+function editFamily(id,f){const r=findById(db.PA0021,id);if(!r)return;Object.assign(r,{subty:f.relationType,favor:f.firstName,fanam:f.lastName,fgbdt:f.birthDate||null,fasex:f.gender,begda:f.begda||r.begda,phone:f.phone,email:f.email,occ:f.occupation,depend:f.dependent});}
 function deleteFamily(id){db.PA0021=db.PA0021.filter(r=>r._id!==id);}
 function editCommunication(id,f){const r=findById(db.PA0105,id);if(!r)return;Object.assign(r,{subty:f.subType,usrid:f.value,begda:f.begda||r.begda});}
 function deleteCommunication(id){db.PA0105=db.PA0105.filter(r=>r._id!==id);}
@@ -1140,8 +1140,8 @@ function renderDetail(){
       <td class="td-r num">${a.days!=null?a.days:"—"}</td><td class="td-r num">${a.hours!=null?a.hours:"—"}</td></tr>`).join("")||`<tr><td colspan=4><div class="empty">No attendances.</div></td></tr>`}
     </tbody></table></div></div>`;}
   else if(S.tab==="family"){const fEdit=allowed("0021","update"),fDel=allowed("0021","delete"),fAct=fEdit||fDel;content=`<div class="card list-card"><div class="card-head"><h2>Family members / dependents · IT0021</h2><span class="count">${e.family.length}</span><div class="spacer"></div>${allowed("0021","add")?`<button class="btn sm primary" data-act="family">${I.people} Add family</button>`:""}</div>
-    <div class="tbl-wrap"><table><thead><tr><th>Relationship</th><th>Name</th><th>Gender</th><th>Date of birth</th>${fAct?`<th class="th-r">Actions</th>`:""}</tr></thead><tbody>
-    ${e.family.map(f=>`<tr><td><span class="pill neutral">${esc(f.rel)}</span></td><td>${esc(f.name)}</td><td>${esc(f.gesch)}</td><td>${fmtDate(f.dob)}</td>${fAct?`<td class="td-r nowrap">${fEdit?`<button class="btn xs" data-famedit="${f._id}">${I.edit} Edit</button> `:""}${fDel?`<button class="btn xs ghost" data-famdel="${f._id}">Delete</button>`:""}</td>`:""}</tr>`).join("")||`<tr><td colspan="${fAct?5:4}"><div class="empty">No family members recorded.</div></td></tr>`}
+    <div class="tbl-wrap"><table><thead><tr><th>Relationship</th><th>Name</th><th>Gender</th><th>Date of birth</th><th>Phone</th><th>E-mail</th><th>Occupation</th><th>Dependent</th>${fAct?`<th class="th-r">Actions</th>`:""}</tr></thead><tbody>
+    ${e.family.map(f=>`<tr><td><span class="pill neutral">${esc(f.rel)}</span></td><td>${esc(f.name)}</td><td>${esc(f.gesch)}</td><td>${fmtDate(f.dob)}</td><td>${esc(f.phone)||"—"}</td><td>${f.email?`<a class="mail" href="mailto:${esc(f.email)}">${esc(f.email)}</a>`:"—"}</td><td>${esc(f.occ)||"—"}</td><td>${f.depend?`<span class="pill good">Yes</span>`:"—"}</td>${fAct?`<td class="td-r nowrap">${fEdit?`<button class="btn xs" data-famedit="${f._id}">${I.edit} Edit</button> `:""}${fDel?`<button class="btn xs ghost" data-famdel="${f._id}">Delete</button>`:""}</td>`:""}</tr>`).join("")||`<tr><td colspan="${fAct?9:8}"><div class="empty">No family members recorded.</div></td></tr>`}
     </tbody></table></div></div>`;}
   else if(S.tab==="edu"){content=`
     ${(allowed("0022","add")||allowed("0023","add")||allowed("0024","add"))?`<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
@@ -1966,6 +1966,14 @@ function familyDialog(rec){const e=!!rec;editingRec=e?{type:"family",id:rec._id}
     <div class="two">
       <div class="grp"><label>Gender</label><select id="fm_gender">${opt(db.dom.GESCH,e?rec.gender:"1")}</select></div>
       <div class="grp"><label>Date of birth</label><input type="date" id="fm_dob" value="${e&&rec.dob?rec.dob:""}"></div>
+    </div>
+    <div class="two">
+      <div class="grp"><label>Phone number</label><input id="fm_phone" value="${e?esc(rec.phone):""}" placeholder="+49 …"></div>
+      <div class="grp"><label>E-mail</label><input id="fm_email" type="email" value="${e?esc(rec.email):""}"></div>
+    </div>
+    <div class="two">
+      <div class="grp"><label>Occupation</label><input id="fm_occ" value="${e?esc(rec.occ):""}"></div>
+      <div class="grp"><label>Dependent</label><select id="fm_dep"><option value="">No</option><option value="1" ${e&&rec.depend?"selected":""}>Yes</option></select></div>
     </div>`,
     `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="family">${e?"Save":"Add"}</button>`);
 }
@@ -2452,7 +2460,7 @@ function doAction(kind){
         addUser({username:val("cu_user").trim(),password:val("cu_pw"),name:val("cu_name").trim(),email:val("cu_email").trim(),roles,pernr:val("cu_pernr")?+val("cu_pernr"):null});
         closeModal();toast("User added.","good");renderConfig();}
     }else if(kind==="family"){
-      const f={relationType:val("fm_rel"),firstName:val("fm_first").trim(),lastName:val("fm_last").trim(),gender:val("fm_gender"),birthDate:val("fm_dob")};
+      const f={relationType:val("fm_rel"),firstName:val("fm_first").trim(),lastName:val("fm_last").trim(),gender:val("fm_gender"),birthDate:val("fm_dob"),phone:val("fm_phone").trim(),email:val("fm_email").trim(),occupation:val("fm_occ").trim(),dependent:val("fm_dep")};
       if(!f.firstName||!f.lastName){toast("Enter first and last name.","bad");return;}
       if(editingRec&&editingRec.type==="family"){editFamily(editingRec.id,f);toast("Family member updated.","good");}
       else{addFamily(S.pernr,f);toast("Family member added.","good");}
