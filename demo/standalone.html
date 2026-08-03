@@ -574,10 +574,11 @@ function seed(){return{
    "CNY":{name:"Chinese Yuan",symbol:"¥",decimals:2},"SGD":{name:"Singapore Dollar",symbol:"S$",decimals:2},
    "VND":{name:"Vietnamese Dong",symbol:"₫",decimals:0},"JPY":{name:"Japanese Yen",symbol:"¥",decimals:0}},
   sysLangs:{"EN":"English","KH":"Khmer (ខ្មែរ)","CN":"Chinese (中文)"},
-  numObjects:{"PERNR":"Employee (PERNR)","PLANS":"Position","REQ":"Requisition"},
+  numObjects:{"PERNR":"Employee (PERNR)","PLANS":"Position","ORGEH":"Organizational unit","REQ":"Requisition"},
   numberRanges:[
    {id:"EE-1000",object:"PERNR",bukrs:"1000",from:1000,to:1999,current:1002},
    {id:"POS-1000",object:"PLANS",bukrs:"1000",from:50000100,to:50000999,current:50000101},
+   {id:"ORG-1000",object:"ORGEH",bukrs:"1000",from:50000001,to:50000099,current:50000034},
    {id:"REQ-1000",object:"REQ",bukrs:"1000",from:50001,to:59999,current:50002}],
   regions:{"Europe":{},"Asia":{},"Americas":{},"Africa":{},"Oceania":{},
    "Berlin":{country:"DE"},"Bavaria":{country:"DE"},"New York":{country:"US"},"England":{country:"GB"},
