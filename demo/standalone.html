@@ -438,15 +438,17 @@ const I = {
 /* ============================ DATA (mirrors DB seed) ============================ */
 const HIGH="9999-12-31";
 function seed(){return{
-  nr:{PERNR:1001},
-  emp:[{pernr:1000,hireDate:"2020-03-01"},{pernr:1001,hireDate:"2021-06-15"}],
-  PA0000:[{pernr:1000,begda:"2020-03-01",endda:HIGH,stat2:"3"},{pernr:1001,begda:"2021-06-15",endda:HIGH,stat2:"3"}],
+  nr:{PERNR:1002},
+  emp:[{pernr:1000,hireDate:"2020-03-01"},{pernr:1001,hireDate:"2021-06-15"},{pernr:1002,hireDate:"2020-01-06"}],
+  PA0000:[{pernr:1000,begda:"2020-03-01",endda:HIGH,stat2:"3"},{pernr:1001,begda:"2021-06-15",endda:HIGH,stat2:"3"},{pernr:1002,begda:"2020-01-06",endda:HIGH,stat2:"3"}],
   PA0001:[
    {pernr:1000,begda:"2020-03-01",endda:HIGH,bukrs:"1000",werks:"1000",btrtl:"0001",persg:"1",persk:"DU",orgeh:50000010,plans:50000100,stell:50000900,kostl:"HR-1000"},
-   {pernr:1001,begda:"2021-06-15",endda:HIGH,bukrs:"1000",werks:"1000",btrtl:"0001",persg:"1",persk:"DU",orgeh:50000010,plans:50000101,stell:50000900,kostl:"HR-1000"}],
+   {pernr:1001,begda:"2021-06-15",endda:HIGH,bukrs:"1000",werks:"1000",btrtl:"0001",persg:"1",persk:"DU",orgeh:50000010,plans:50000101,stell:50000900,kostl:"HR-1000"},
+   {pernr:1002,begda:"2020-01-06",endda:HIGH,bukrs:"1000",werks:"1000",btrtl:"0001",persg:"1",persk:"DU",orgeh:50000010,plans:null,stell:50000900,kostl:"HR-1000"}],
   PA0002:[
    {pernr:1000,begda:"2020-03-01",endda:HIGH,anred:"2",titel:"01",nachn:"Schmidt",vorna:"Andreas",midnm:"Karl",rufnm:"Andy",gbdat:"1982-07-12",gbort:"Berlin",gesch:"1",natio:"DE",sprsl:"DE",famst:"1"},
-   {pernr:1001,begda:"2021-06-15",endda:HIGH,anred:"1",titel:"",nachn:"Nguyen",vorna:"Linda",midnm:"",rufnm:"Lin",gbdat:"1990-11-03",gbort:"New York",gesch:"2",natio:"US",sprsl:"EN",famst:"0"}],
+   {pernr:1001,begda:"2021-06-15",endda:HIGH,anred:"1",titel:"",nachn:"Nguyen",vorna:"Linda",midnm:"",rufnm:"Lin",gbdat:"1990-11-03",gbort:"New York",gesch:"2",natio:"US",sprsl:"EN",famst:"0"},
+   {pernr:1002,begda:"2020-01-06",endda:HIGH,anred:"2",titel:"",nachn:"HANG",vorna:"Sovanna",midnm:"",rufnm:"",gbdat:"1986-12-12",gbort:"Svay Rieng",gesch:"1",natio:"KH",sprsl:"EN",famst:""}],
   PA0006:[
    {pernr:1000,begda:"2020-03-01",endda:HIGH,stras:"Hauptstrasse 12",ort01:"Berlin",pstlz:"10115",land1:"DE"},
    {pernr:1001,begda:"2021-06-15",endda:HIGH,stras:"5th Avenue 200",ort01:"New York",pstlz:"10001",land1:"US"}],
@@ -563,7 +565,7 @@ function seed(){return{
        QUALG:{"01":"Technical","02":"Language","03":"Leadership"},
        ANSSA:{"1":"Permanent residence","2":"Temporary residence","3":"Home address","4":"Mailing address","5":"Emergency address"}},
   users:[
-   {username:"admin",password:"admin123",name:"Alex Admin",roles:["HR_ADMIN"],pernr:null,email:"admin@globalcorp.com"},
+   {username:"admin",password:"admin123",name:"HAANG Sovanna",roles:["HR_ADMIN","EMPLOYEE"],pernr:1002,email:"s.hang@globalcorp.com"},
    {username:"manager",password:"manager123",name:"Andreas Schmidt",roles:["HR_MANAGER","EMPLOYEE"],pernr:1000,email:"a.schmidt@globalcorp.com"},
    {username:"linda",password:"linda123",name:"Linda Nguyen",roles:["EMPLOYEE"],pernr:1001,email:"l.nguyen@globalcorp.com"},
    {username:"payroll",password:"payroll123",name:"Priya Patel",roles:["PAYROLL_CLERK"],pernr:null,email:"p.patel@globalcorp.com"},
