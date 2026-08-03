@@ -1,0 +1,61 @@
+<mvc:View
+    controllerName="hr.module.controller.EmployeeList"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core"
+    height="100%">
+
+    <Page id="employeeListPage" title="{i18n>employeeListTitle}" showNavButton="false">
+        <headerContent>
+            <Button icon="sap-icon://org-chart" text="{i18n>navOrg}" press=".onNavOrg"/>
+            <Button icon="sap-icon://employee-lookup" text="{i18n>navPositions}" press=".onNavPositions"/>
+            <Button type="Emphasized" icon="sap-icon://add-employee" text="{i18n>hireEmployee}" press=".onOpenHire"/>
+        </headerContent>
+
+        <subHeader>
+            <OverflowToolbar>
+                <SearchField width="20rem" search=".onSearch" liveChange=".onSearch"
+                    placeholder="{i18n>searchPlaceholder}"/>
+                <ToolbarSpacer/>
+                <Label text="{i18n>keyDate}" labelFor="keyDatePicker"/>
+                <DatePicker id="keyDatePicker" valueFormat="yyyy-MM-dd" displayFormat="dd.MM.yyyy"
+                    change=".onKeyDateChange" width="10rem"/>
+            </OverflowToolbar>
+        </subHeader>
+
+        <content>
+            <Table id="employeeTable" items="{/employees}" growing="true" growingThreshold="25"
+                mode="SingleSelectMaster" itemPress=".onEmployeePress">
+                <headerToolbar>
+                    <OverflowToolbar>
+                        <Title text="{i18n>employeeCount}" level="H2"/>
+                        <ObjectStatus text="{= ${/employees}.length }" class="sapUiTinyMarginBegin"/>
+                        <ToolbarSpacer/>
+                        <Button icon="sap-icon://refresh" tooltip="{i18n>refresh}" press=".onRefresh"/>
+                    </OverflowToolbar>
+                </headerToolbar>
+                <columns>
+                    <Column width="7rem"><Text text="{i18n>colPernr}"/></Column>
+                    <Column><Text text="{i18n>colName}"/></Column>
+                    <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colOrgUnit}"/></Column>
+                    <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colPosition}"/></Column>
+                    <Column minScreenWidth="Desktop" demandPopin="true"><Text text="{i18n>colEmail}"/></Column>
+                    <Column width="8rem" hAlign="End"><Text text="{i18n>colStatus}"/></Column>
+                </columns>
+                <items>
+                    <ColumnListItem type="Navigation">
+                        <cells>
+                            <ObjectIdentifier title="{pernr}"/>
+                            <Text text="{fullName}"/>
+                            <Text text="{orgUnitName}"/>
+                            <Text text="{positionName}"/>
+                            <Link text="{email}" href="mailto:{email}"/>
+                            <ObjectStatus text="{employmentStatus}"
+                                state="{path: 'employmentStatus', formatter: '.formatter.statusState'}"/>
+                        </cells>
+                    </ColumnListItem>
+                </items>
+            </Table>
+        </content>
+    </Page>
+</mvc:View>

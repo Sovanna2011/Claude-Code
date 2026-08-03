@@ -1,0 +1,16 @@
+/* HR Module - custom styles layered on top of the SAP Horizon theme */
+
+.sapMTextBold {
+    font-weight: bold;
+}
+
+/* Give tree items a little breathing room */
+.sapMTree .sapMLIB {
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+}
+
+/* Object header spacing on the detail page */
+#empHeader {
+    background-color: var(--sapObjectHeader_Background, #fff);
+}

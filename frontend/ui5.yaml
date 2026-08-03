@@ -1,0 +1,13 @@
+specVersion: "3.0"
+metadata:
+  name: hr.module
+type: application
+server:
+  customMiddleware:
+    # Proxies /api requests from the UI5 dev server (port 8080) to the C#
+    # backend so the SPA can call the REST API without CORS during development.
+    - name: ui5-middleware-simpleproxy
+      afterMiddleware: compression
+      mountPath: /api
+      configuration:
+        baseUri: "http://localhost:5000/api"

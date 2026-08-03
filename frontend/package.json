@@ -1,0 +1,19 @@
+{
+  "name": "hr-module-ui5",
+  "version": "1.0.0",
+  "description": "SAPUI5 front end for the HR (HCM) module",
+  "private": true,
+  "scripts": {
+    "start": "ui5 serve --open index.html",
+    "build": "ui5 build --clean-dest"
+  },
+  "devDependencies": {
+    "@ui5/cli": "^3.11.0",
+    "ui5-middleware-simpleproxy": "^3.4.0"
+  },
+  "ui5": {
+    "dependencies": [
+      "ui5-middleware-simpleproxy"
+    ]
+  }
+}

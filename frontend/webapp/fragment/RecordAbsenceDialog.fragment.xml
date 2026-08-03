@@ -1,0 +1,35 @@
+<core:FragmentDefinition
+    xmlns:core="sap.ui.core"
+    xmlns="sap.m"
+    xmlns:f="sap.ui.layout.form">
+
+    <Dialog id="absenceDialog" title="{i18n>recordAbsenceTitle}" contentWidth="30rem" draggable="true">
+        <content>
+            <MessageStrip text="{i18n>absenceHint}" type="Information" showIcon="true" class="sapUiSmallMargin"/>
+            <f:SimpleForm layout="ResponsiveGridLayout" editable="true"
+                labelSpanXL="5" labelSpanL="5" labelSpanM="5" columnsXL="1" columnsL="1">
+                <f:content>
+                    <Label text="{i18n>fldAbsenceType}" required="true"/>
+                    <Select selectedKey="{absence>/absenceType}" items="{absence>/absenceTypes}">
+                        <core:Item key="{absence>key}" text="{absence>key} - {absence>text}"/>
+                    </Select>
+
+                    <Label text="{i18n>fldValidFrom}" required="true"/>
+                    <DatePicker value="{absence>/begda}" valueFormat="yyyy-MM-dd" displayFormat="dd.MM.yyyy"/>
+
+                    <Label text="{i18n>fldValidTo}" required="true"/>
+                    <DatePicker value="{absence>/endda}" valueFormat="yyyy-MM-dd" displayFormat="dd.MM.yyyy"/>
+
+                    <Label text="{i18n>fldDays}"/>
+                    <Input value="{absence>/days}" type="Number" placeholder="{i18n>daysPlaceholder}"/>
+                </f:content>
+            </f:SimpleForm>
+        </content>
+        <beginButton>
+            <Button type="Emphasized" text="{i18n>btnSubmit}" press=".onAbsenceConfirm"/>
+        </beginButton>
+        <endButton>
+            <Button text="{i18n>btnCancel}" press=".onAbsenceCancel"/>
+        </endButton>
+    </Dialog>
+</core:FragmentDefinition>

@@ -1,0 +1,31 @@
+# ---- .NET ----
+bin/
+obj/
+*.user
+*.suo
+[Dd]ebug/
+[Rr]elease/
+project.lock.json
+artifacts/
+.vs/
+
+# ---- Node / UI5 ----
+node_modules/
+dist/
+.ui5/
+npm-debug.log*
+yarn-error.log
+
+# ---- IDE ----
+.idea/
+*.swp
+.vscode/
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+
+# ---- Logs / env ----
+*.log
+appsettings.*.local.json
+.env

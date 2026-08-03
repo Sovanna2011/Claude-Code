@@ -1,0 +1,37 @@
+<core:FragmentDefinition
+    xmlns:core="sap.ui.core"
+    xmlns="sap.m"
+    xmlns:f="sap.ui.layout.form">
+
+    <Dialog id="reassignDialog" title="{i18n>reassignTitle}" contentWidth="32rem" draggable="true">
+        <content>
+            <MessageStrip text="{i18n>reassignHint}" type="Information" showIcon="true" class="sapUiSmallMargin"/>
+            <f:SimpleForm layout="ResponsiveGridLayout" editable="true"
+                labelSpanXL="5" labelSpanL="5" labelSpanM="5" columnsXL="1" columnsL="1">
+                <f:content>
+                    <Label text="{i18n>fldValidFrom}" required="true"/>
+                    <DatePicker value="{reassign>/begda}" valueFormat="yyyy-MM-dd" displayFormat="dd.MM.yyyy"/>
+
+                    <Label text="{i18n>fldOrgUnit}"/>
+                    <Select selectedKey="{reassign>/orgUnit}" items="{reassign>/orgUnits}" forceSelection="false">
+                        <core:Item key="{reassign>orgUnitId}" text="{reassign>orgUnitName}"/>
+                    </Select>
+
+                    <Label text="{i18n>fldPosition}"/>
+                    <Select selectedKey="{reassign>/position}" items="{reassign>/positions}" forceSelection="false">
+                        <core:Item key="{reassign>positionId}" text="{reassign>positionName}"/>
+                    </Select>
+
+                    <Label text="{i18n>fldCostCenter}"/>
+                    <Input value="{reassign>/costCenter}" maxLength="10"/>
+                </f:content>
+            </f:SimpleForm>
+        </content>
+        <beginButton>
+            <Button type="Emphasized" text="{i18n>btnSave}" press=".onReassignConfirm"/>
+        </beginButton>
+        <endButton>
+            <Button text="{i18n>btnCancel}" press=".onReassignCancel"/>
+        </endButton>
+    </Dialog>
+</core:FragmentDefinition>

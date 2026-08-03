@@ -1,0 +1,70 @@
+<core:FragmentDefinition
+    xmlns:core="sap.ui.core"
+    xmlns="sap.m"
+    xmlns:f="sap.ui.layout.form">
+
+    <Dialog id="hireDialog" title="{i18n>hireDialogTitle}" contentWidth="34rem" draggable="true">
+        <content>
+            <f:SimpleForm layout="ResponsiveGridLayout" editable="true"
+                labelSpanXL="4" labelSpanL="4" labelSpanM="4" labelSpanS="12"
+                columnsXL="1" columnsL="1" adjustLabelSpan="false">
+                <f:content>
+                    <core:Title text="{i18n>secPersonal}"/>
+
+                    <Label text="{i18n>fldFirstName}" required="true"/>
+                    <Input value="{hire>/firstName}" maxLength="40"/>
+
+                    <Label text="{i18n>fldLastName}" required="true"/>
+                    <Input value="{hire>/lastName}" maxLength="40"/>
+
+                    <Label text="{i18n>fldGender}"/>
+                    <Select selectedKey="{hire>/gender}" items="{hire>/genders}">
+                        <core:Item key="{hire>key}" text="{hire>text}"/>
+                    </Select>
+
+                    <Label text="{i18n>fldBirthDate}"/>
+                    <DatePicker value="{hire>/birthDate}" valueFormat="yyyy-MM-dd" displayFormat="dd.MM.yyyy"/>
+
+                    <Label text="{i18n>fldEmail}"/>
+                    <Input value="{hire>/email}" type="Email"/>
+
+                    <core:Title text="{i18n>secOrg}"/>
+
+                    <Label text="{i18n>fldHireDate}" required="true"/>
+                    <DatePicker value="{hire>/hireDate}" valueFormat="yyyy-MM-dd" displayFormat="dd.MM.yyyy"/>
+
+                    <Label text="{i18n>fldCompanyCode}"/>
+                    <Select selectedKey="{hire>/companyCode}" items="{hire>/companyCodes}">
+                        <core:Item key="{hire>key}" text="{hire>key} - {hire>text}"/>
+                    </Select>
+
+                    <Label text="{i18n>fldPersonnelArea}"/>
+                    <Select selectedKey="{hire>/personnelArea}" items="{hire>/personnelAreas}">
+                        <core:Item key="{hire>key}" text="{hire>key} - {hire>text}"/>
+                    </Select>
+
+                    <Label text="{i18n>fldEmployeeGroup}"/>
+                    <Select selectedKey="{hire>/employeeGroup}" items="{hire>/employeeGroups}">
+                        <core:Item key="{hire>key}" text="{hire>key} - {hire>text}"/>
+                    </Select>
+
+                    <Label text="{i18n>fldEmployeeSubgroup}"/>
+                    <Select selectedKey="{hire>/employeeSubgroup}" items="{hire>/employeeSubgroups}">
+                        <core:Item key="{hire>key}" text="{hire>key} - {hire>text}"/>
+                    </Select>
+
+                    <Label text="{i18n>fldOrgUnit}"/>
+                    <Select selectedKey="{hire>/orgUnit}" items="{hire>/orgUnits}" forceSelection="false">
+                        <core:Item key="{hire>orgUnitId}" text="{hire>orgUnitName}"/>
+                    </Select>
+                </f:content>
+            </f:SimpleForm>
+        </content>
+        <beginButton>
+            <Button type="Emphasized" text="{i18n>btnHire}" press=".onHireConfirm"/>
+        </beginButton>
+        <endButton>
+            <Button text="{i18n>btnCancel}" press=".onHireCancel"/>
+        </endButton>
+    </Dialog>
+</core:FragmentDefinition>

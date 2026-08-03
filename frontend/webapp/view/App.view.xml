@@ -1,0 +1,10 @@
+<mvc:View
+    controllerName="hr.module.controller.App"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    displayBlock="true"
+    height="100%">
+
+    <App id="app" busy="{device>/isBusy}" />
+
+</mvc:View>

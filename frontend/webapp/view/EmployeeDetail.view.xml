@@ -1,0 +1,194 @@
+<mvc:View
+    controllerName="hr.module.controller.EmployeeDetail"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core"
+    xmlns:f="sap.ui.layout.form"
+    height="100%">
+
+    <Page id="detailPage" title="{i18n>employeeDetailTitle}" showNavButton="true" navButtonPress=".onNavBack">
+        <headerContent>
+            <Button icon="sap-icon://edit" text="{i18n>editPersonal}" press=".onOpenEditPersonal"/>
+            <Button icon="sap-icon://org-chart" text="{i18n>reassign}" press=".onOpenReassign"/>
+            <Button type="Emphasized" icon="sap-icon://calendar" text="{i18n>recordAbsence}" press=".onOpenAbsence"/>
+        </headerContent>
+
+        <content>
+            <ObjectHeader id="empHeader"
+                title="{/personalData/firstName} {/personalData/lastName}"
+                number="{/pernr}"
+                numberUnit="{i18n>pernrUnit}"
+                responsive="true">
+                <attributes>
+                    <ObjectAttribute title="{i18n>colOrgUnit}" text="{/orgAssignment/orgUnitName}"/>
+                    <ObjectAttribute title="{i18n>colPosition}" text="{/orgAssignment/positionName}"/>
+                    <ObjectAttribute title="{i18n>fldCompanyCode}" text="{/orgAssignment/companyName}"/>
+                </attributes>
+                <statuses>
+                    <ObjectStatus title="{i18n>keyDate}"
+                        text="{path: '/keyDate', formatter: '.formatter.date'}"/>
+                </statuses>
+            </ObjectHeader>
+
+            <IconTabBar id="infotypeTabs" expanded="true" select=".onTabSelect">
+                <items>
+                    <!-- IT0002 Personal Data -->
+                    <IconTabFilter icon="sap-icon://person-placeholder" text="{i18n>tabPersonal}" key="personal">
+                        <f:SimpleForm layout="ResponsiveGridLayout" editable="false"
+                            labelSpanXL="4" labelSpanL="4" labelSpanM="4" columnsXL="2" columnsL="2">
+                            <f:content>
+                                <Label text="{i18n>fldFormOfAddress}"/><Text text="{/personalData/formOfAddress}"/>
+                                <Label text="{i18n>fldFirstName}"/><Text text="{/personalData/firstName}"/>
+                                <Label text="{i18n>fldLastName}"/><Text text="{/personalData/lastName}"/>
+                                <Label text="{i18n>fldMiddleName}"/><Text text="{/personalData/middleName}"/>
+                                <Label text="{i18n>fldBirthDate}"/><Text text="{path: '/personalData/birthDate', formatter: '.formatter.date'}"/>
+                                <Label text="{i18n>fldGender}"/><Text text="{/personalData/gender}"/>
+                                <Label text="{i18n>fldNationality}"/><Text text="{/personalData/nationality}"/>
+                                <Label text="{i18n>fldMaritalStatus}"/><Text text="{/personalData/maritalStatus}"/>
+                                <Label text="{i18n>fldValidity}"/>
+                                <Text text="{path: '/personalData/begda', formatter: '.formatter.date'} - {path: '/personalData/endda', formatter: '.formatter.date'}"/>
+                            </f:content>
+                        </f:SimpleForm>
+                    </IconTabFilter>
+
+                    <!-- IT0001 Organizational Assignment -->
+                    <IconTabFilter icon="sap-icon://org-chart" text="{i18n>tabOrg}" key="org">
+                        <f:SimpleForm layout="ResponsiveGridLayout" editable="false"
+                            labelSpanXL="4" labelSpanL="4" labelSpanM="4" columnsXL="2" columnsL="2">
+                            <f:content>
+                                <Label text="{i18n>fldCompanyCode}"/><Text text="{/orgAssignment/companyCode} - {/orgAssignment/companyName}"/>
+                                <Label text="{i18n>fldPersonnelArea}"/><Text text="{/orgAssignment/personnelArea} - {/orgAssignment/personnelAreaName}"/>
+                                <Label text="{i18n>fldEmployeeGroup}"/><Text text="{/orgAssignment/employeeGroup} - {/orgAssignment/employeeGroupName}"/>
+                                <Label text="{i18n>fldEmployeeSubgroup}"/><Text text="{/orgAssignment/employeeSubgroup} - {/orgAssignment/employeeSubgroupName}"/>
+                                <Label text="{i18n>fldOrgUnit}"/><Text text="{/orgAssignment/orgUnitId} {/orgAssignment/orgUnitName}"/>
+                                <Label text="{i18n>fldPosition}"/><Text text="{/orgAssignment/positionId} {/orgAssignment/positionName}"/>
+                                <Label text="{i18n>fldCostCenter}"/><Text text="{/orgAssignment/costCenter}"/>
+                                <Label text="{i18n>fldValidity}"/>
+                                <Text text="{path: '/orgAssignment/begda', formatter: '.formatter.date'} - {path: '/orgAssignment/endda', formatter: '.formatter.date'}"/>
+                            </f:content>
+                        </f:SimpleForm>
+                    </IconTabFilter>
+
+                    <!-- IT0006/0105 Address & Communication -->
+                    <IconTabFilter icon="sap-icon://addresses" text="{i18n>tabContact}" key="contact">
+                        <VBox class="sapUiSmallMargin">
+                            <Title text="{i18n>secAddress}" class="sapUiSmallMarginBottom"/>
+                            <f:SimpleForm layout="ResponsiveGridLayout" editable="false"
+                                labelSpanXL="4" labelSpanL="4" labelSpanM="4" columnsXL="2" columnsL="2">
+                                <f:content>
+                                    <Label text="{i18n>fldStreet}"/><Text text="{/address/street}"/>
+                                    <Label text="{i18n>fldCity}"/><Text text="{/address/postalCode} {/address/city}"/>
+                                    <Label text="{i18n>fldCountry}"/><Text text="{/address/country}"/>
+                                    <Label text="{i18n>fldTelephone}"/><Text text="{/address/telephone}"/>
+                                </f:content>
+                            </f:SimpleForm>
+                            <Title text="{i18n>secCommunication}" class="sapUiSmallMarginTop sapUiSmallMarginBottom"/>
+                            <Table items="{/communications}">
+                                <columns>
+                                    <Column><Text text="{i18n>colType}"/></Column>
+                                    <Column><Text text="{i18n>colValue}"/></Column>
+                                </columns>
+                                <items>
+                                    <ColumnListItem>
+                                        <cells>
+                                            <Text text="{typeText}"/>
+                                            <Text text="{longId}"/>
+                                        </cells>
+                                    </ColumnListItem>
+                                </items>
+                            </Table>
+                        </VBox>
+                    </IconTabFilter>
+
+                    <!-- IT0007/0008/0009 Working time, pay, bank -->
+                    <IconTabFilter icon="sap-icon://money-bills" text="{i18n>tabPay}" key="pay">
+                        <VBox class="sapUiSmallMargin">
+                            <Title text="{i18n>secWorkingTime}" class="sapUiSmallMarginBottom"/>
+                            <f:SimpleForm layout="ResponsiveGridLayout" editable="false"
+                                labelSpanXL="4" labelSpanL="4" labelSpanM="4" columnsXL="2" columnsL="2">
+                                <f:content>
+                                    <Label text="{i18n>fldWorkSchedule}"/><Text text="{/workingTime/workScheduleRule}"/>
+                                    <Label text="{i18n>fldEmploymentPct}"/><Text text="{/workingTime/employmentPercent} %"/>
+                                    <Label text="{i18n>fldWeeklyHours}"/><Text text="{/workingTime/weeklyHours}"/>
+                                </f:content>
+                            </f:SimpleForm>
+                            <Title text="{i18n>secBasicPay}" class="sapUiSmallMarginTop sapUiSmallMarginBottom"/>
+                            <f:SimpleForm layout="ResponsiveGridLayout" editable="false"
+                                labelSpanXL="4" labelSpanL="4" labelSpanM="4" columnsXL="2" columnsL="2">
+                                <f:content>
+                                    <Label text="{i18n>fldPayScaleGroup}"/><Text text="{/basicPay/payScaleGroup}"/>
+                                    <Label text="{i18n>fldCapacity}"/><Text text="{/basicPay/capacityUtilization} %"/>
+                                    <Label text="{i18n>fldAnnualSalary}"/>
+                                    <ObjectNumber number="{path: '/basicPay/annualSalary', formatter: '.formatter.amount'}"
+                                        unit="{/basicPay/currency}"/>
+                                </f:content>
+                            </f:SimpleForm>
+                            <Table items="{/basicPay/wageTypes}" class="sapUiSmallMarginTop">
+                                <headerToolbar>
+                                    <Toolbar><Title text="{i18n>secWageTypes}"/></Toolbar>
+                                </headerToolbar>
+                                <columns>
+                                    <Column><Text text="{i18n>colWageType}"/></Column>
+                                    <Column hAlign="End"><Text text="{i18n>colAmount}"/></Column>
+                                </columns>
+                                <items>
+                                    <ColumnListItem>
+                                        <cells>
+                                            <Text text="{wageType} - {wageTypeText}"/>
+                                            <ObjectNumber number="{path: 'amount', formatter: '.formatter.amount'}" unit="{currency}"/>
+                                        </cells>
+                                    </ColumnListItem>
+                                </items>
+                            </Table>
+                            <Title text="{i18n>secBankDetails}" class="sapUiSmallMarginTop sapUiSmallMarginBottom"/>
+                            <Table items="{/bankDetails}">
+                                <columns>
+                                    <Column><Text text="{i18n>fldBankKey}"/></Column>
+                                    <Column><Text text="{i18n>fldAccount}"/></Column>
+                                    <Column><Text text="{i18n>colCountry}"/></Column>
+                                </columns>
+                                <items>
+                                    <ColumnListItem>
+                                        <cells>
+                                            <Text text="{bankKey}"/>
+                                            <Text text="{accountNumber}"/>
+                                            <Text text="{bankCountry}"/>
+                                        </cells>
+                                    </ColumnListItem>
+                                </items>
+                            </Table>
+                        </VBox>
+                    </IconTabFilter>
+
+                    <!-- IT2006/2001 Time & Leave -->
+                    <IconTabFilter icon="sap-icon://calendar" text="{i18n>tabTime}" key="time">
+                        <Table id="leaveTable" items="{leave>/balances}" class="sapUiSmallMargin">
+                            <headerToolbar>
+                                <Toolbar><Title text="{i18n>secLeaveBalances}"/></Toolbar>
+                            </headerToolbar>
+                            <columns>
+                                <Column><Text text="{i18n>colQuota}"/></Column>
+                                <Column hAlign="End"><Text text="{i18n>colEntitlement}"/></Column>
+                                <Column hAlign="End"><Text text="{i18n>colDeducted}"/></Column>
+                                <Column hAlign="End"><Text text="{i18n>colRemaining}"/></Column>
+                                <Column><Text text="{i18n>fldValidity}"/></Column>
+                            </columns>
+                            <items>
+                                <ColumnListItem>
+                                    <cells>
+                                        <Text text="{leave>quotaText}"/>
+                                        <Text text="{leave>entitlement}"/>
+                                        <Text text="{leave>deducted}"/>
+                                        <ObjectNumber number="{leave>remaining}"
+                                            state="{= ${leave>remaining} > 0 ? 'Success' : 'Warning' }"/>
+                                        <Text text="{path: 'leave>begda', formatter: '.formatter.date'} - {path: 'leave>endda', formatter: '.formatter.date'}"/>
+                                    </cells>
+                                </ColumnListItem>
+                            </items>
+                        </Table>
+                    </IconTabFilter>
+                </items>
+            </IconTabBar>
+        </content>
+    </Page>
+</mvc:View>

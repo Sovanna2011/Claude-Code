@@ -1,0 +1,125 @@
+{
+  "_version": "1.60.0",
+  "sap.app": {
+    "id": "hr.module",
+    "type": "application",
+    "i18n": "i18n/i18n.properties",
+    "title": "{{appTitle}}",
+    "description": "{{appDescription}}",
+    "applicationVersion": {
+      "version": "1.0.0"
+    },
+    "dataSources": {
+      "hrApi": {
+        "uri": "/api/",
+        "type": "JSON"
+      }
+    }
+  },
+  "sap.ui": {
+    "technology": "UI5",
+    "deviceTypes": {
+      "desktop": true,
+      "tablet": true,
+      "phone": true
+    }
+  },
+  "sap.ui5": {
+    "rootView": {
+      "viewName": "hr.module.view.App",
+      "type": "XML",
+      "id": "app",
+      "async": true
+    },
+    "dependencies": {
+      "minUI5Version": "1.120.0",
+      "libs": {
+        "sap.ui.core": {},
+        "sap.m": {},
+        "sap.ui.layout": {},
+        "sap.f": {},
+        "sap.ui.table": {},
+        "sap.suite.ui.commons": {}
+      }
+    },
+    "contentDensities": {
+      "compact": true,
+      "cozy": true
+    },
+    "models": {
+      "i18n": {
+        "type": "sap.ui.model.resource.ResourceModel",
+        "settings": {
+          "bundleName": "hr.module.i18n.i18n"
+        }
+      },
+      "": {
+        "type": "sap.ui.model.json.JSONModel",
+        "settings": {
+          "defaultBindingMode": "TwoWay"
+        }
+      },
+      "config": {
+        "type": "sap.ui.model.json.JSONModel"
+      }
+    },
+    "resources": {
+      "css": [
+        {
+          "uri": "css/style.css"
+        }
+      ]
+    },
+    "routing": {
+      "config": {
+        "routerClass": "sap.m.routing.Router",
+        "viewType": "XML",
+        "viewPath": "hr.module.view",
+        "controlId": "app",
+        "controlAggregation": "pages",
+        "async": true,
+        "transition": "slide"
+      },
+      "routes": [
+        {
+          "name": "employeeList",
+          "pattern": "",
+          "target": "employeeList"
+        },
+        {
+          "name": "employeeDetail",
+          "pattern": "employees/{pernr}",
+          "target": "employeeDetail"
+        },
+        {
+          "name": "orgChart",
+          "pattern": "org",
+          "target": "orgChart"
+        },
+        {
+          "name": "positions",
+          "pattern": "positions",
+          "target": "positions"
+        }
+      ],
+      "targets": {
+        "employeeList": {
+          "viewName": "EmployeeList",
+          "viewLevel": 1
+        },
+        "employeeDetail": {
+          "viewName": "EmployeeDetail",
+          "viewLevel": 2
+        },
+        "orgChart": {
+          "viewName": "OrgChart",
+          "viewLevel": 1
+        },
+        "positions": {
+          "viewName": "Positions",
+          "viewLevel": 1
+        }
+      }
+    }
+  }
+}

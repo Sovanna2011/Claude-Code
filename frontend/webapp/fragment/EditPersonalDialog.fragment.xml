@@ -1,0 +1,48 @@
+<core:FragmentDefinition
+    xmlns:core="sap.ui.core"
+    xmlns="sap.m"
+    xmlns:f="sap.ui.layout.form">
+
+    <Dialog id="editDialog" title="{i18n>editPersonalTitle}" contentWidth="32rem" draggable="true">
+        <content>
+            <f:SimpleForm layout="ResponsiveGridLayout" editable="true"
+                labelSpanXL="5" labelSpanL="5" labelSpanM="5" columnsXL="1" columnsL="1">
+                <f:content>
+                    <Label text="{i18n>fldValidFrom}" required="true"/>
+                    <DatePicker value="{edit>/begda}" valueFormat="yyyy-MM-dd" displayFormat="dd.MM.yyyy"/>
+
+                    <Label text="{i18n>fldFirstName}" required="true"/>
+                    <Input value="{edit>/firstName}" maxLength="40"/>
+
+                    <Label text="{i18n>fldLastName}" required="true"/>
+                    <Input value="{edit>/lastName}" maxLength="40"/>
+
+                    <Label text="{i18n>fldMiddleName}"/>
+                    <Input value="{edit>/middleName}" maxLength="40"/>
+
+                    <Label text="{i18n>fldBirthDate}"/>
+                    <DatePicker value="{edit>/birthDate}" valueFormat="yyyy-MM-dd" displayFormat="dd.MM.yyyy"/>
+
+                    <Label text="{i18n>fldGender}"/>
+                    <Select selectedKey="{edit>/gender}" items="{edit>/genders}" forceSelection="false">
+                        <core:Item key="{edit>key}" text="{edit>text}"/>
+                    </Select>
+
+                    <Label text="{i18n>fldMaritalStatus}"/>
+                    <Select selectedKey="{edit>/maritalStatus}" items="{edit>/maritalStatuses}" forceSelection="false">
+                        <core:Item key="{edit>key}" text="{edit>text}"/>
+                    </Select>
+
+                    <Label text="{i18n>fldNationality}"/>
+                    <Input value="{edit>/nationality}" maxLength="3"/>
+                </f:content>
+            </f:SimpleForm>
+        </content>
+        <beginButton>
+            <Button type="Emphasized" text="{i18n>btnSave}" press=".onEditConfirm"/>
+        </beginButton>
+        <endButton>
+            <Button text="{i18n>btnCancel}" press=".onEditCancel"/>
+        </endButton>
+    </Dialog>
+</core:FragmentDefinition>

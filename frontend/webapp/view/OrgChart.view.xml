@@ -1,0 +1,33 @@
+<mvc:View
+    controllerName="hr.module.controller.OrgChart"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    height="100%">
+
+    <Page id="orgChartPage" title="{i18n>orgChartTitle}" showNavButton="true" navButtonPress=".onNavBack">
+        <headerContent>
+            <Button icon="sap-icon://employee-lookup" text="{i18n>navPositions}" press=".onNavPositions"/>
+            <Button icon="sap-icon://refresh" tooltip="{i18n>refresh}" press=".onRefresh"/>
+        </headerContent>
+        <content>
+            <Tree id="orgTree"
+                items="{path: '/nodes', parameters: {arrayNames: ['children']}}"
+                class="sapUiSmallMargin">
+                <CustomTreeItem>
+                    <HBox alignItems="Center" width="100%">
+                        <core:Icon xmlns:core="sap.ui.core" src="sap-icon://org-chart" class="sapUiTinyMarginEnd"/>
+                        <VBox>
+                            <Text text="{orgUnitName}" class="sapMTextBold"/>
+                            <HBox>
+                                <ObjectStatus text="{i18n>orgId}: {orgUnitId}" class="sapUiTinyMarginEnd"/>
+                                <ObjectStatus text="{i18n>manager}: {managerPositionName}"
+                                    visible="{= !!${managerPositionName} }" class="sapUiTinyMarginEnd"/>
+                                <ObjectStatus icon="sap-icon://employee" text="{headCount}" state="Information"/>
+                            </HBox>
+                        </VBox>
+                    </HBox>
+                </CustomTreeItem>
+            </Tree>
+        </content>
+    </Page>
+</mvc:View>
