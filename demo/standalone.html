@@ -331,6 +331,7 @@ a.mail:hover{text-decoration:underline}
 .modal .grp label .req{color:var(--bad)}
 .modal .grp input,.modal .grp select{width:100%}
 .modal .grp input[type=checkbox]{width:auto;flex:0 0 auto;margin:0}
+.modal .grp label.chk{flex-direction:row;align-items:center;gap:8px;cursor:pointer;margin-top:26px}
 .rolechk{cursor:pointer;justify-content:flex-start;text-align:left}
 .modal .hint{font-size:12.5px;color:var(--muted);background:var(--surface-3);border-radius:var(--radius-sm);
   padding:9px 12px;display:flex;gap:8px;align-items:flex-start}
@@ -491,15 +492,15 @@ function seed(){return{
    {pernr:1000,begda:"2020-03-01",endda:HIGH,stras:"Hauptstrasse 12",ort01:"Berlin",pstlz:"10115",land1:"DE"},
    {pernr:1001,begda:"2021-06-15",endda:HIGH,stras:"5th Avenue 200",ort01:"New York",pstlz:"10001",land1:"US"}],
   PA0007:[
-   {pernr:1000,begda:"2020-03-01",endda:HIGH,schkz:"FLEX",empct:100,wostd:40,beguz:"08:00",enduz:"17:00"},
-   {pernr:1001,begda:"2021-06-15",endda:HIGH,schkz:"FLEX",empct:100,wostd:40,beguz:"09:00",enduz:"18:00"},
-   {pernr:1002,begda:"2019-01-01",endda:HIGH,schkz:"NORM",empct:100,wostd:40,beguz:"08:30",enduz:"17:30"}],
+   {pernr:1000,begda:"2020-03-01",endda:HIGH,schkz:"FLEX",zterf:"1",empct:100,teilk:false,wostd:40,arbst:8,mostd:173.33,jrstd:2080,wkwdy:5,beguz:"08:00",enduz:"17:00",break:60},
+   {pernr:1001,begda:"2021-06-15",endda:HIGH,schkz:"FLEX",zterf:"1",empct:100,teilk:false,wostd:40,arbst:8,mostd:173.33,jrstd:2080,wkwdy:5,beguz:"09:00",enduz:"18:00",break:60},
+   {pernr:1002,begda:"2019-01-01",endda:HIGH,schkz:"NORM",zterf:"0",empct:100,teilk:false,wostd:40,arbst:8,mostd:173.33,jrstd:2080,wkwdy:5,beguz:"08:30",enduz:"17:30",break:60}],
   PA0008:[
    {pernr:1000,begda:"2020-03-01",endda:HIGH,trfgr:"E4",bsgrd:100,waers:"EUR",ansal:96000,wt:[{lgart:"1010",betrg:8000,waers:"EUR"}]},
    {pernr:1001,begda:"2021-06-15",endda:HIGH,trfgr:"E2",bsgrd:100,waers:"EUR",ansal:60000,wt:[{lgart:"1010",betrg:5000,waers:"EUR"}]}],
   PA0009:[
-   {pernr:1000,begda:"2020-03-01",endda:HIGH,banks:"DE",bankl:"10070000",bankn:"DE89370400440532013000",waers:"EUR"},
-   {pernr:1001,begda:"2021-06-15",endda:HIGH,banks:"US",bankl:"021000021",bankn:"US64SVBKUS6S3300958879",waers:"EUR"}],
+   {pernr:1000,begda:"2020-03-01",endda:HIGH,subty:"0",banks:"DE",bankl:"10070000",bankn:"DE89370400440532013000",bkont:"00",banka:"Deutsche Bank",bic:"DEUTDEBBXXX",emftx:"Andreas Schmidt",zlsch:"D",bdpct:100,waers:"EUR",purpose:"Monthly salary"},
+   {pernr:1001,begda:"2021-06-15",endda:HIGH,subty:"0",banks:"US",bankl:"021000021",bankn:"US64SVBKUS6S3300958879",bkont:"01",banka:"JPMorgan Chase",bic:"CHASUS33XXX",emftx:"Linda Nguyen",zlsch:"D",bdpct:100,waers:"EUR",purpose:"Monthly salary"}],
   PA0105:[
    {pernr:1000,subty:"0010",begda:"2020-03-01",endda:HIGH,usrid:"a.schmidt@globalcorp.com"},
    {pernr:1001,subty:"0010",begda:"2021-06-15",endda:HIGH,usrid:"l.nguyen@globalcorp.com"}],
@@ -806,11 +807,11 @@ function getEmployee(pernr,key){
       reportsTo:lineManager(pernr,key),begda:p1.begda,endda:p1.endda},
     addr:p6&&{stras:p6.stras,ort01:p6.ort01,pstlz:p6.pstlz,land1:p6.land1},
     addresses:db.PA0006.filter(x=>x.pernr===pernr&&x.begda<=key&&x.endda>=key).map(x=>({_id:rid(x),subty:x.subty,type:dom("ANSSA",x.subty),stras:x.stras,ort01:x.ort01,pstlz:x.pstlz,land1:x.land1,begda:x.begda})),
-    wt:p7&&{schkz:p7.schkz,empct:p7.empct,wostd:p7.wostd,beguz:p7.beguz,enduz:p7.enduz},
+    wt:p7&&{schkz:p7.schkz,zterf:p7.zterf,empct:p7.empct,teilk:p7.teilk,wostd:p7.wostd,arbst:p7.arbst,mostd:p7.mostd,jrstd:p7.jrstd,wkwdy:p7.wkwdy,beguz:p7.beguz,enduz:p7.enduz,break:p7.break},
     pay:p8&&{trfgr:p8.trfgr,bsgrd:p8.bsgrd,waers:p8.waers,ansal:p8.ansal,
       wt:(p8.wt||[]).map(w=>({lgart:w.lgart,txt:db.T512T[w.lgart],betrg:w.betrg,waers:w.waers}))},
     comms:db.PA0105.filter(x=>x.pernr===pernr&&x.begda<=key&&x.endda>=key).map(c=>({_id:rid(c),t:dom("USRTY",c.subty),subty:c.subty,v:c.usrid})),
-    banks:db.PA0009.filter(x=>x.pernr===pernr&&x.begda<=key&&x.endda>=key).map(b=>({key:b.bankl,acc:b.bankn,ctry:b.banks})),
+    banks:db.PA0009.filter(x=>x.pernr===pernr&&x.begda<=key&&x.endda>=key).map(b=>({type:b.subty,key:b.bankl,acc:b.bankn,ctry:b.banks,ctrl:b.bkont,banka:b.banka,bic:b.bic,payee:b.emftx,zlsch:b.zlsch,pct:b.bdpct,waers:b.waers,purpose:b.purpose})),
     contract:(function(){const c=validOn(db.PA0016,pernr,key);return c&&{type:db.T547T[c.cttyp],prbez:c.prbez,kdgfb:c.kdgfb,kdgf2:c.kdgf2,begda:c.begda,endda:c.endda};})(),
     family:db.PA0021.filter(x=>x.pernr===pernr&&x.begda<=key&&x.endda>=key).map(x=>({_id:rid(x),subty:x.subty,rel:dom("FAMSA",x.subty),firstName:x.favor,lastName:x.fanam,name:x.favor+" "+x.fanam,gender:x.fasex,gesch:x.fasex?dom("GESCH",x.fasex):"",dob:x.fgbdt,begda:x.begda,phone:x.phone,email:x.email,occ:x.occ,depend:x.depend})),
     education:db.PA0022.filter(x=>x.pernr===pernr).sort((a,b)=>a.begda<b.begda?-1:1).map(x=>({_id:rid(x),subty:x.subty,est:dom("SLART",x.subty),insti:x.insti,cert:x.slabs,major:x.sfach,grade:x.slgra,country:x.sland,countryN:t005Name(x.sland)||x.sland,city:x.ort01,note:x.note,begda:x.begda,endda:x.endda})),
@@ -884,12 +885,19 @@ function delimitInsert(arr,pernr,begda,rec,match,mode){
   if(cur)cur.endda=dayBefore(begda);
   arr.push(Object.assign({pernr,begda,endda:HIGH},rec));
 }
-function editWorkingTime(pernr,f){delimitInsert(db.PA0007,pernr,f.begda,{schkz:f.schkz,empct:f.empct!==""?Number(f.empct):null,wostd:f.wostd!==""?Number(f.wostd):null,beguz:f.beguz||"",enduz:f.enduz||""},null,f.mode);}
+const ZTERF={"0":"0 – No time evaluation","1":"1 – Time evaluation of actual times","9":"9 – Time evaluation of planned times"};
+const numOrNull=v=>v!==""&&v!=null?Number(v):null;
+function editWorkingTime(pernr,f){delimitInsert(db.PA0007,pernr,f.begda,{
+  schkz:f.schkz,zterf:f.zterf||"",empct:numOrNull(f.empct),teilk:!!f.teilk,
+  wostd:numOrNull(f.wostd),arbst:numOrNull(f.arbst),mostd:numOrNull(f.mostd),jrstd:numOrNull(f.jrstd),
+  wkwdy:numOrNull(f.wkwdy),beguz:f.beguz||"",enduz:f.enduz||"",break:numOrNull(f.break)},null,f.mode);}
 /* Planned clock in/out for an employee on a date, from IT0007 (fallback 08:00–17:00). */
 function workingTimeDefault(pernr,date){const w=validOn(db.PA0007,pernr,date||today())||{};return{tin:w.beguz||"08:00",tout:w.enduz||"17:00"};}
 function editPay(pernr,f){const cur=validOn(db.PA0008,pernr,f.begda)||{};
   delimitInsert(db.PA0008,pernr,f.begda,{trfar:cur.trfar||"01",trfgb:cur.trfgb||"01",trfgr:f.trfgr,bsgrd:f.bsgrd!==""?Number(f.bsgrd):100,waers:f.waers||"EUR",ansal:f.ansal!==""?Number(f.ansal):0,wt:cur.wt||[]},null,f.mode);}
-function editBank(pernr,f){delimitInsert(db.PA0009,pernr,f.begda,{subty:"0",banks:f.banks,bankl:f.bankl,bankn:f.bankn,waers:f.waers||"EUR"},x=>x.subty==="0",f.mode);}
+const ZLSCH={"D":"D – Bank transfer","C":"C – Cheque","B":"B – Bank collection","U":"U – Transfer (urgent)"};
+const BANKTY={"0":"Main bank","1":"Other bank","2":"Travel expenses"};
+function editBank(pernr,f){const sub=f.subty||"0";delimitInsert(db.PA0009,pernr,f.begda,{subty:sub,banks:f.banks,bankl:f.bankl,bankn:f.bankn,bkont:f.bkont||"",banka:f.banka||"",bic:f.bic||"",emftx:f.emftx||"",zlsch:f.zlsch||"D",bdpct:f.bdpct!==""&&f.bdpct!=null?Number(f.bdpct):null,waers:f.waers||"EUR",purpose:f.purpose||""},x=>x.subty===sub,f.mode);}
 function editContract(pernr,f){delimitInsert(db.PA0016,pernr,f.begda,{cttyp:f.cttyp,prbez:f.prbez!==""?Number(f.prbez):null,kdgfb:f.kdgfb!==""?Number(f.kdgfb):null,kdgf2:f.kdgf2!==""?Number(f.kdgf2):null},null,f.mode);}
 function addEducation(pernr,f){db.PA0022.push({pernr,subty:f.subType,begda:f.begda,endda:f.endda||HIGH,slabs:f.certificate,insti:f.institute,sland:f.country,ort01:f.city,sfach:f.major,slgra:f.grade,note:f.note});}
 function addQualification(pernr,f){db.PA0024.push({pernr,subty:f.groupKey,begda:f.begda||today(),endda:HIGH,quali:f.qualification,auspr:f.proficiency!==""?Number(f.proficiency):null});}
@@ -1255,7 +1263,19 @@ function renderDetail(){
     </tbody></table></div></div>`;}
   else if(S.tab==="pay"){const w=e.wt||{},pay=e.pay||{};content=
     `<div class="card list-card"><div class="card-head"><h2>Planned working time · IT0007</h2><div class="spacer"></div>${allowed("0007","update")?`<button class="btn sm primary" data-act="work">${I.edit} Edit</button>`:""}</div>
-      <div class="subcard">${dl([["Work schedule rule",esc(w.schkz)],["Employment percent",w.empct!=null?w.empct+" %":"—"],["Weekly hours",esc(w.wostd)],["Planned start (clock in)",esc(w.beguz||"—")],["Planned end (clock out)",esc(w.enduz||"—")]])}</div></div>
+      <div class="subcard">${dl([
+        ["Work schedule rule",esc(w.schkz)],
+        ["Time management status",esc(w.zterf?(ZTERF[w.zterf]||w.zterf):"—")],
+        ["Employment percent",w.empct!=null?w.empct+" %":"—"],
+        ["Part-time employee",w.teilk?"Yes":"No"],
+        ["Working hours / day",w.arbst!=null?w.arbst+" h":"—"],
+        ["Working hours / week",w.wostd!=null?w.wostd+" h":"—"],
+        ["Working hours / month",w.mostd!=null?w.mostd+" h":"—"],
+        ["Working hours / year",w.jrstd!=null?w.jrstd+" h":"—"],
+        ["Workdays / week",w.wkwdy!=null?w.wkwdy:"—"],
+        ["Planned start (clock in)",esc(w.beguz||"—")],
+        ["Planned end (clock out)",esc(w.enduz||"—")],
+        ["Break (minutes)",w.break!=null?w.break+" min":"—"]])}</div></div>
     <div style="height:16px"></div>
     <div class="card list-card"><div class="card-head"><h2>Basic pay · IT0008</h2><div class="spacer"></div>${allowed("0008","update")?`<button class="btn sm primary" data-act="pay">${I.edit} Edit</button>`:""}</div>
       <div class="subcard">${dl([["Pay scale group",esc(pay.trfgr)],["Capacity utilization",pay.bsgrd!=null?pay.bsgrd+" %":"—"],["Annual salary",`<b>${fmtAmt(pay.ansal,pay.waers)}</b>`]])}</div></div>
@@ -1266,9 +1286,17 @@ function renderDetail(){
     ],pay.wt||[],{simple:true})
     +`<div style="height:16px"></div>`+
     dtTable("bankT","Bank details · IT0009",[
+      {k:"type",l:"Type",v:r=>BANKTY[r.type]||r.type||"Main bank"},
+      {k:"banka",l:"Bank name"},
       {k:"key",l:"Bank key",always:true},
-      {k:"acc",l:"Account number",always:true},
-      {k:"ctry",l:"Country"}
+      {k:"acc",l:"Account / IBAN",always:true},
+      {k:"bic",l:"SWIFT / BIC"},
+      {k:"ctry",l:"Country"},
+      {k:"payee",l:"Account holder"},
+      {k:"zlsch",l:"Payment method",v:r=>ZLSCH[r.zlsch]||r.zlsch||"—"},
+      {k:"pct",l:"Share %",v:r=>r.pct!=null?r.pct+" %":"—"},
+      {k:"waers",l:"Currency"},
+      {k:"purpose",l:"Purpose"}
     ],e.banks,{simple:true,actions:allowed("0009","update")?`<button class="btn sm primary" data-act="bank">${I.edit} Edit bank details</button>`:""});}
   else if(S.tab==="time"){const bals=leaveBalances(S.pernr);content=
     dtTable("leaveBalT","Leave balances · IT2006",[
@@ -2265,14 +2293,29 @@ function commDialog(rec){const e=!!rec;editingRec=e?{type:"comm",id:rec._id}:nul
 function workDialog(){const w=validOn(db.PA0007,S.pernr,S.key)||{};
   modal("Edit planned working time · IT0007",`
     <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="w_begda" value="${today()}"></div>${editModeSel("w_mode")}
-    <div class="grp"><label>Work schedule rule</label><input id="w_schkz" value="${esc(w.schkz)}"></div>
+    <div class="two">
+      <div class="grp"><label>Work schedule rule</label><input id="w_schkz" value="${esc(w.schkz)}"></div>
+      <div class="grp"><label>Time management status</label><select id="w_zterf">${opt(ZTERF,w.zterf||"0")}</select></div>
+    </div>
     <div class="two">
       <div class="grp"><label>Employment %</label><input id="w_empct" type="number" step="0.01" value="${w.empct!=null?w.empct:""}"></div>
-      <div class="grp"><label>Weekly hours</label><input id="w_wostd" type="number" step="0.5" value="${w.wostd!=null?w.wostd:""}"></div>
+      <div class="grp"><label>Workdays / week</label><input id="w_wkwdy" type="number" step="0.5" value="${w.wkwdy!=null?w.wkwdy:""}"></div>
+    </div>
+    <div class="two">
+      <div class="grp"><label>Hours / day</label><input id="w_arbst" type="number" step="0.1" value="${w.arbst!=null?w.arbst:""}"></div>
+      <div class="grp"><label>Hours / week</label><input id="w_wostd" type="number" step="0.5" value="${w.wostd!=null?w.wostd:""}"></div>
+    </div>
+    <div class="two">
+      <div class="grp"><label>Hours / month</label><input id="w_mostd" type="number" step="0.01" value="${w.mostd!=null?w.mostd:""}"></div>
+      <div class="grp"><label>Hours / year</label><input id="w_jrstd" type="number" step="1" value="${w.jrstd!=null?w.jrstd:""}"></div>
     </div>
     <div class="two">
       <div class="grp"><label>Planned start (clock in)</label><input id="w_beguz" type="time" value="${esc(w.beguz||"")}"></div>
       <div class="grp"><label>Planned end (clock out)</label><input id="w_enduz" type="time" value="${esc(w.enduz||"")}"></div>
+    </div>
+    <div class="two">
+      <div class="grp"><label>Break (minutes)</label><input id="w_break" type="number" step="5" value="${w.break!=null?w.break:""}"></div>
+      <div class="grp"><label class="chk"><input type="checkbox" id="w_teilk" ${w.teilk?"checked":""}> Part-time employee</label></div>
     </div>`,`<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="work">Save</button>`);}
 function payDialog(){const p=validOn(db.PA0008,S.pernr,S.key)||{};
   modal("Edit basic pay / salary · IT0008",`
@@ -2286,13 +2329,31 @@ function payDialog(){const p=validOn(db.PA0008,S.pernr,S.key)||{};
       <div class="grp"><label>Currency</label><select id="p_waers">${opt(db.currencies,p.waers||"EUR")}</select></div>
     </div>`,`<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="pay">Save</button>`);}
 function bankDialog(){const k=S.key||today();const b=(db.PA0009.filter(x=>x.pernr===S.pernr&&x.subty==="0"&&x.begda<=k&&x.endda>=k)[0])||{};
+  const curr=db.currencies||{};
   modal("Edit bank details · IT0009",`
     <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="bk_begda" value="${today()}"></div>${editModeSel("bk_mode")}
     <div class="two">
-      <div class="grp"><label>Bank country</label><input id="bk_banks" value="${esc(b.banks)}" maxlength="3"></div>
-      <div class="grp"><label>Bank key</label><input id="bk_bankl" value="${esc(b.bankl)}"></div>
+      <div class="grp"><label>Bank details type</label><select id="bk_subty">${opt(BANKTY,b.subty||"0")}</select></div>
+      <div class="grp"><label>Payment method</label><select id="bk_zlsch">${opt(ZLSCH,b.zlsch||"D")}</select></div>
     </div>
-    <div class="grp"><label>Account number / IBAN</label><input id="bk_bankn" value="${esc(b.bankn)}"></div>`,
+    <div class="grp"><label>Bank name</label><input id="bk_banka" value="${esc(b.banka)}" placeholder="Deutsche Bank"></div>
+    <div class="two">
+      <div class="grp"><label>Bank country</label><input id="bk_banks" value="${esc(b.banks)}" maxlength="3"></div>
+      <div class="grp"><label>Bank key / routing</label><input id="bk_bankl" value="${esc(b.bankl)}"></div>
+    </div>
+    <div class="two">
+      <div class="grp"><label>Account number / IBAN</label><input id="bk_bankn" value="${esc(b.bankn)}"></div>
+      <div class="grp"><label>Bank control key</label><input id="bk_bkont" value="${esc(b.bkont)}" maxlength="2"></div>
+    </div>
+    <div class="two">
+      <div class="grp"><label>SWIFT / BIC</label><input id="bk_bic" value="${esc(b.bic)}" placeholder="DEUTDEBBXXX"></div>
+      <div class="grp"><label>Account holder / payee</label><input id="bk_emftx" value="${esc(b.emftx)}"></div>
+    </div>
+    <div class="two">
+      <div class="grp"><label>Share of payment (%)</label><input id="bk_bdpct" type="number" step="1" min="0" max="100" value="${b.bdpct!=null?b.bdpct:100}"></div>
+      <div class="grp"><label>Currency</label><select id="bk_waers">${opt(curr,b.waers||"EUR")}</select></div>
+    </div>
+    <div class="grp"><label>Purpose / reference</label><input id="bk_purpose" value="${esc(b.purpose)}" placeholder="Monthly salary"></div>`,
     `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="bank">Save</button>`);}
 function contractDialog(){const c=validOn(db.PA0016,S.pernr,S.key)||{};
   modal("Edit contract elements · IT0016",`
@@ -2674,7 +2735,7 @@ function doAction(kind){
       else{addCommunication(S.pernr,f);toast("Communication added.","good");}
       editingRec=null;closeModal();S.tab="comm";renderDetail();
     }else if(kind==="work"){
-      const f={begda:val("w_begda"),mode:val("w_mode"),schkz:val("w_schkz").trim(),empct:val("w_empct"),wostd:val("w_wostd"),beguz:val("w_beguz"),enduz:val("w_enduz")};
+      const f={begda:val("w_begda"),mode:val("w_mode"),schkz:val("w_schkz").trim(),zterf:val("w_zterf"),empct:val("w_empct"),teilk:$("#w_teilk")&&$("#w_teilk").checked,wostd:val("w_wostd"),arbst:val("w_arbst"),mostd:val("w_mostd"),jrstd:val("w_jrstd"),wkwdy:val("w_wkwdy"),beguz:val("w_beguz"),enduz:val("w_enduz"),break:val("w_break")};
       if(!f.begda){toast("Enter a valid-from date.","bad");return;}
       editWorkingTime(S.pernr,f);closeModal();toast("Working time updated.","good");S.tab="pay";renderDetail();
     }else if(kind==="pay"){
@@ -2682,7 +2743,7 @@ function doAction(kind){
       if(!f.begda||f.ansal===""){toast("Enter valid-from and annual salary.","bad");return;}
       editPay(S.pernr,f);closeModal();toast("Basic pay updated.","good");S.tab="pay";renderDetail();
     }else if(kind==="bank"){
-      const f={begda:val("bk_begda"),mode:val("bk_mode"),banks:val("bk_banks").trim(),bankl:val("bk_bankl").trim(),bankn:val("bk_bankn").trim()};
+      const f={begda:val("bk_begda"),mode:val("bk_mode"),subty:val("bk_subty"),banks:val("bk_banks").trim(),bankl:val("bk_bankl").trim(),bankn:val("bk_bankn").trim(),bkont:val("bk_bkont").trim(),banka:val("bk_banka").trim(),bic:val("bk_bic").trim(),emftx:val("bk_emftx").trim(),zlsch:val("bk_zlsch"),bdpct:val("bk_bdpct"),waers:val("bk_waers"),purpose:val("bk_purpose").trim()};
       if(!f.begda){toast("Enter a valid-from date.","bad");return;}
       editBank(S.pernr,f);closeModal();toast("Bank details updated.","good");S.tab="pay";renderDetail();
     }else if(kind==="contract"){
