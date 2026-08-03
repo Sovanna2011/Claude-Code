@@ -1156,23 +1156,39 @@ function renderDetail(){
     <div class="tbl-wrap"><table><thead><tr><th>Relationship</th><th>Name</th><th>Gender</th><th>Date of birth</th><th>Phone</th><th>E-mail</th><th>Occupation</th><th>Dependent</th>${fAct?`<th class="th-r">Actions</th>`:""}</tr></thead><tbody>
     ${e.family.map(f=>`<tr><td><span class="pill neutral">${esc(f.rel)}</span></td><td>${esc(f.name)}</td><td>${esc(f.gesch)}</td><td>${fmtDate(f.dob)}</td><td>${esc(f.phone)||"—"}</td><td>${f.email?`<a class="mail" href="mailto:${esc(f.email)}">${esc(f.email)}</a>`:"—"}</td><td>${esc(f.occ)||"—"}</td><td>${f.depend?`<span class="pill good">Yes</span>`:"—"}</td>${fAct?`<td class="td-r nowrap">${fEdit?`<button class="btn xs" data-famedit="${f._id}">${I.edit} Edit</button> `:""}${fDel?`<button class="btn xs ghost" data-famdel="${f._id}">Delete</button>`:""}</td>`:""}</tr>`).join("")||`<tr><td colspan="${fAct?9:8}"><div class="empty">No family members recorded.</div></td></tr>`}
     </tbody></table></div></div>`;}
-  else if(S.tab==="edu"){content=`
-    ${(allowed("0022","add")||allowed("0023","add")||allowed("0024","add"))?`<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-      ${allowed("0022","add")?`<button class="btn sm" data-act="edu">${I.education} Add education</button>`:""}
-      ${allowed("0023","add")?`<button class="btn sm" data-act="exp">${I.doc} Add previous employer</button>`:""}
-      ${allowed("0024","add")?`<button class="btn sm" data-act="qual">${I.check} Add qualification</button>`:""}</div>`:""}
-    <div class="card"><div class="card-head"><h2>Education · IT0022</h2></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Establishment</th><th>Certificate</th><th>Branch of study</th><th>Grade</th><th>City / Country</th><th>Notes</th><th>Period</th>${(allowed("0022","update")||allowed("0022","delete"))?`<th class="th-r">Actions</th>`:""}</tr></thead><tbody>
-    ${e.education.map(x=>`<tr><td><b>${esc(x.est)}</b><br><span style="color:var(--muted)">${esc(x.insti)}</span></td><td>${esc(x.cert)}</td><td>${esc(x.major)}</td><td>${esc(x.grade||"—")}</td><td>${esc([x.city,x.countryN].filter(Boolean).join(", "))||"—"}</td><td>${esc(x.note)||"—"}</td><td class="num">${fmtDate(x.begda)} – ${fmtDate(x.endda)}</td>${(allowed("0022","update")||allowed("0022","delete"))?`<td class="td-r nowrap">${allowed("0022","update")?`<button class="btn xs" data-eduedit="${x._id}">${I.edit} Edit</button> `:""}${allowed("0022","delete")?`<button class="btn xs ghost" data-edudel="${x._id}">Delete</button>`:""}</td>`:""}</tr>`).join("")||`<tr><td colspan=8><div class="empty">—</div></td></tr>`}
-    </tbody></table></div>
-    <div class="card" style="margin-top:22px"><div class="card-head"><h2>Previous employers · IT0023</h2></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Employer</th><th>Role</th><th>Industry</th><th>Type</th><th>Place</th><th>Reason for leaving</th><th>Period</th>${(allowed("0023","update")||allowed("0023","delete"))?`<th class="th-r">Actions</th>`:""}</tr></thead><tbody>
-    ${e.exp.map(x=>`<tr><td><b>${esc(x.emp)}</b></td><td>${esc(x.task)}</td><td>${esc(x.industry)||"—"}</td><td>${esc(x.emptype)||"—"}</td><td>${esc(x.place)}</td><td>${esc(x.reason)||"—"}</td><td class="num">${fmtDate(x.begda)} – ${fmtDate(x.endda)}</td>${(allowed("0023","update")||allowed("0023","delete"))?`<td class="td-r nowrap">${allowed("0023","update")?`<button class="btn xs" data-expedit="${x._id}">${I.edit} Edit</button> `:""}${allowed("0023","delete")?`<button class="btn xs ghost" data-expdel="${x._id}">Delete</button>`:""}</td>`:""}</tr>`).join("")||`<tr><td colspan=8><div class="empty">—</div></td></tr>`}
-    </tbody></table></div>
-    <div class="card" style="margin-top:22px"><div class="card-head"><h2>Qualifications · IT0024</h2></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Group</th><th>Qualification</th><th class="th-r">Proficiency</th>${(allowed("0024","update")||allowed("0024","delete"))?`<th class="th-r">Actions</th>`:""}</tr></thead><tbody>
-    ${e.quals.map(x=>`<tr><td>${esc(x.grp)}</td><td>${esc(x.q)}</td><td class="td-r"><span class="pill ${x.lvl>=7?'good':x.lvl>=4?'warn':'neutral'} num">${x.lvl} / 9</span></td>${(allowed("0024","update")||allowed("0024","delete"))?`<td class="td-r nowrap">${allowed("0024","update")?`<button class="btn xs" data-qualedit="${x._id}">${I.edit} Edit</button> `:""}${allowed("0024","delete")?`<button class="btn xs ghost" data-qualdel="${x._id}">Delete</button>`:""}</td>`:""}</tr>`).join("")||`<tr><td colspan=4><div class="empty">—</div></td></tr>`}
-    </tbody></table></div>`;}
+  else if(S.tab==="edu"){
+    const eduAct=allowed("0022","update")||allowed("0022","delete");
+    const expAct=allowed("0023","update")||allowed("0023","delete");
+    const qualAct=allowed("0024","update")||allowed("0024","delete");
+    content=
+    dtTable("eduT","Education · IT0022",[
+      {k:"est",l:"Establishment",always:true,v:x=>x.est+" "+(x.insti||""),html:x=>`<b>${esc(x.est)}</b><br><span style="color:var(--muted)">${esc(x.insti)}</span>`},
+      {k:"cert",l:"Certificate"},
+      {k:"major",l:"Branch of study"},
+      {k:"grade",l:"Grade"},
+      {k:"loc",l:"City / Country",v:x=>[x.city,x.countryN].filter(Boolean).join(", ")},
+      {k:"note",l:"Notes"},
+      {k:"period",l:"Period",v:x=>x.begda,html:x=>`<span class="num">${fmtDate(x.begda)} – ${fmtDate(x.endda)}</span>`},
+      ...(eduAct?[{k:"act",l:"Actions",always:true,html:x=>`${allowed("0022","update")?`<button class="btn xs" data-eduedit="${x._id}">${I.edit} Edit</button> `:""}${allowed("0022","delete")?`<button class="btn xs ghost" data-edudel="${x._id}">Delete</button>`:""}`}]:[])
+    ],e.education,{actions:allowed("0022","add")?`<button class="btn sm primary" data-act="edu">${I.education} Add education</button>`:""})
+    +`<div style="height:16px"></div>`+
+    dtTable("expT","Previous employers · IT0023",[
+      {k:"emp",l:"Employer",always:true,html:x=>`<b>${esc(x.emp)}</b>`},
+      {k:"task",l:"Role"},
+      {k:"industry",l:"Industry"},
+      {k:"emptype",l:"Type"},
+      {k:"place",l:"Place"},
+      {k:"reason",l:"Reason for leaving"},
+      {k:"period",l:"Period",v:x=>x.begda,html:x=>`<span class="num">${fmtDate(x.begda)} – ${fmtDate(x.endda)}</span>`},
+      ...(expAct?[{k:"act",l:"Actions",always:true,html:x=>`${allowed("0023","update")?`<button class="btn xs" data-expedit="${x._id}">${I.edit} Edit</button> `:""}${allowed("0023","delete")?`<button class="btn xs ghost" data-expdel="${x._id}">Delete</button>`:""}`}]:[])
+    ],e.exp,{actions:allowed("0023","add")?`<button class="btn sm primary" data-act="exp">${I.doc} Add previous employer</button>`:""})
+    +`<div style="height:16px"></div>`+
+    dtTable("qualT","Qualifications · IT0024",[
+      {k:"grp",l:"Group",always:true},
+      {k:"q",l:"Qualification",always:true},
+      {k:"lvl",l:"Proficiency",v:x=>x.lvl,html:x=>`<span class="pill ${x.lvl>=7?'good':x.lvl>=4?'warn':'neutral'} num">${x.lvl} / 9</span>`},
+      ...(qualAct?[{k:"act",l:"Actions",always:true,html:x=>`${allowed("0024","update")?`<button class="btn xs" data-qualedit="${x._id}">${I.edit} Edit</button> `:""}${allowed("0024","delete")?`<button class="btn xs ghost" data-qualdel="${x._id}">Delete</button>`:""}`}]:[])
+    ],e.quals,{actions:allowed("0024","add")?`<button class="btn sm primary" data-act="qual">${I.check} Add qualification</button>`:""});}
   else if(S.tab==="contract"){const c=e.contract||{};content=`
     ${allowed("0016","update")?`<div style="margin-bottom:12px"><button class="btn sm" data-act="contract">${I.edit} Edit contract</button></div>`:""}
     <div class="card"><div class="subcard"><div class="section-title">Contract elements · IT0016</div>${dl([
