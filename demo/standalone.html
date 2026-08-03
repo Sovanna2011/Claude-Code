@@ -391,6 +391,19 @@ a.mail:hover{text-decoration:underline}
 .ps-row.tot{border-top:1px solid var(--border);margin-top:4px;font-weight:700}
 .ps-row.net{color:var(--good);font-size:16px}
 @media(prefers-reduced-motion:reduce){*{animation:none!important}}
+/* Print / Save-as-PDF: show only #printArea */
+#printArea{display:none}
+.ps-doc{max-width:640px;margin:0 auto}
+.ps-doc h1{font-size:20px;margin:0 0 12px}
+@media print{
+  html,body{background:#fff!important}
+  body>*{display:none!important}
+  #printArea{display:block!important;position:static}
+  #printArea,.ps-doc,.ps-doc *{color:#111!important}
+  .ps-doc .ps-sec{color:#0a4bb0!important}
+  .ps-doc .ps-row,.ps-doc .ps-row.tot{border-color:#ccc!important}
+  .ps-doc .net{color:#0a7a3d!important}
+}
 </style>
 
 <header class="shell">
@@ -412,6 +425,7 @@ a.mail:hover{text-decoration:underline}
 
 <main id="app"></main>
 <div id="modal-root"></div>
+<div id="printArea"></div>
 <div id="toasts"></div>
 
 <script>
@@ -1831,11 +1845,10 @@ function renderPayroll(){
   $("#payFrom").addEventListener("change",e=>{S.payFrom=e.target.value;renderPayroll();});
   $("#payTo").addEventListener("change",e=>{S.payTo=e.target.value;renderPayroll();});
 }
-function payslipDialog(pernr){
+function payslipContent(pernr){
   const s=payslip(pernr,S.payFrom||"2026-06-01",S.payTo||"2026-06-30");const c=s.currency;
   const row=(l,v,neg)=>`<div class="ps-row"><span>${l}</span><span class="num">${neg?"−":""}${fmtAmt(v,c)}</span></div>`;
-  modal("Payslip · "+esc(s.name),`
-    <div class="ps-head"><div><b>${esc(s.name)}</b> · #${s.pernr}</div><div style="color:var(--muted)">${fmtDate(S.payFrom||"2026-06-01")} – ${fmtDate(S.payTo||"2026-06-30")}</div></div>
+  return `<div class="ps-head"><div><b>${esc(s.name)}</b> · #${s.pernr}</div><div style="color:var(--muted)">${fmtDate(S.payFrom||"2026-06-01")} – ${fmtDate(S.payTo||"2026-06-30")}</div></div>
     <div class="ps-sec">Earnings</div>
     ${row("Base salary",s.base)}
     ${row("Overtime — normal ("+s.ot.normal.toFixed(1)+"h)",s.otPay.normal)}
@@ -1845,8 +1858,18 @@ function payslipDialog(pernr){
     <div class="ps-sec">Deductions</div>
     ${row("Income tax (15%)",s.tax,true)}
     ${row("Social insurance (9%)",s.social,true)}
-    <div class="ps-row tot net"><span>Net pay</span><span class="num">${fmtAmt(s.net,c)}</span></div>`,
-    `<button class="btn primary" data-close>Close</button>`);
+    <div class="ps-row tot net"><span>Net pay</span><span class="num">${fmtAmt(s.net,c)}</span></div>`;
+}
+function payslipDialog(pernr){
+  const s=payslip(pernr,S.payFrom||"2026-06-01",S.payTo||"2026-06-30");
+  modal("Payslip · "+esc(s.name),payslipContent(pernr),
+    `<button class="btn" data-pspdf="${pernr}">⭳ PDF</button><button class="btn primary" data-close>Close</button>`);
+}
+function printPayslip(pernr){
+  const s=payslip(pernr,S.payFrom||"2026-06-01",S.payTo||"2026-06-30");
+  const area=document.getElementById("printArea");
+  area.innerHTML=`<div class="ps-doc"><h1>Payslip · ${esc(s.name)}</h1>${payslipContent(pernr)}</div>`;
+  window.print();
 }
 
 /* ============================ MODALS ============================ */
@@ -2303,6 +2326,7 @@ document.addEventListener("click",ev=>{
   if(t.dataset.book){try{bookCourse(SESSION.pernr,t.dataset.book);toast("Course booked.","good");render();}catch(e){toast(e.message,"bad");}return;}
   if(t.dataset.advance){advanceApplicant(+t.dataset.advance);toast("Applicant advanced to next stage.","good");render();return;}
   if(t.dataset.payslip){payslipDialog(+t.dataset.payslip);return;}
+  if(t.dataset.pspdf){printPayslip(+t.dataset.pspdf);return;}
   if(t.dataset.photo){uploadPhoto(+t.dataset.photo);return;}
   if(t.dataset.cfg){S.cfgTab=t.dataset.cfg;renderConfig();return;}
   if(t.dataset.authrole){S.authRole=t.dataset.authrole;renderConfig();return;}
