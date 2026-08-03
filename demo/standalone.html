@@ -161,6 +161,17 @@ td{padding:11px 16px;border-bottom:1px solid var(--border);vertical-align:middle
   color:var(--text);font-size:13.5px;white-space:nowrap}
 .colchk input{width:auto;flex:0 0 auto;margin:0}
 .colchk:hover{background:var(--surface-2)}
+.combo{position:relative}
+.combo>input{width:100%;padding-right:30px}
+.combo-btn{position:absolute;right:1px;top:1px;bottom:1px;width:28px;background:transparent;border:0;
+  color:var(--muted);cursor:pointer;font-size:12px;border-radius:0 8px 8px 0}
+.combo-btn:hover{color:var(--text);background:var(--surface-2)}
+.combo-list{margin-top:4px;border:1px solid var(--border);border-radius:8px;background:var(--surface);
+  max-height:180px;overflow:auto;display:none}
+.combo-list.open{display:block}
+.combo-opt{padding:8px 12px;cursor:pointer;font-size:13.5px}
+.combo-opt:hover{background:var(--accent-soft)}
+.combo-empty{padding:8px 12px;color:var(--muted);font-size:13px}
 .rolechks{display:flex;flex-direction:column;gap:6px;margin-top:4px}
 .rolechk{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);
   border-radius:8px;background:var(--surface);cursor:pointer;font-size:13.5px}
@@ -1744,15 +1755,28 @@ function absenceDialog(){
     <div class="grp"><label>Days</label><input id="a_days" type="number" step="0.5" placeholder="Leave empty to calculate from dates"></div>`,
     `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="absence">Submit</button>`);
 }
-function cityOptionsFor(ctry){return Object.entries(db.cities)
-  .filter(([k,v])=>!ctry||(v&&v.country)===ctry)
-  .map(([k])=>`<option value="${esc(k)}"></option>`).join("");}
-/* Called from the address dialog when the country changes: refilter the city list. */
-function refreshAddrCities(){const c=document.getElementById("ad_ctry");const dl=document.getElementById("ad_cityList");
-  if(dl&&c)dl.innerHTML=cityOptionsFor(c.value);}
+/* Reusable city search-list (combobox). Filters by an optional country select and
+   the typed text; renders in-flow so it is never clipped by the scrolling modal. */
+function cityMatches(ctry,q){q=(q||"").toLowerCase();
+  return Object.keys(db.cities).filter(n=>(!ctry||(db.cities[n]&&db.cities[n].country)===ctry)&&n.toLowerCase().includes(q));}
+function cityDrop(inputId,dropId,ctryId,q){
+  const inp=document.getElementById(inputId),drop=document.getElementById(dropId);
+  const ctry=ctryId&&document.getElementById(ctryId)?document.getElementById(ctryId).value:"";
+  if(!inp||!drop)return;
+  const list=cityMatches(ctry,q==null?inp.value:q);
+  drop.innerHTML=list.length?list.map(n=>{const r=db.cities[n];
+    return `<div class="combo-opt" data-cityopt="${esc(n)}" data-target="${inputId}">${esc(n)}${r&&r.region?` <span class="muted">· ${esc(r.region)}</span>`:""}${r&&r.postal?` <span class="muted">${esc(r.postal)}</span>`:""}</div>`;}).join("")
+    :`<div class="combo-empty">No matching city — free text allowed</div>`;}
+function openCityDrop(inputId,dropId,ctryId,q){cityDrop(inputId,dropId,ctryId,q);const d=document.getElementById(dropId);if(d)d.classList.add("open");}
+function closeCityDrop(dropId){const d=document.getElementById(dropId);if(d)d.classList.remove("open");}
 /* When a known city is picked, auto-fill its postal code if empty. */
 function onAddrCity(){const name=document.getElementById("ad_city").value;const city=db.cities[name];
   const zip=document.getElementById("ad_zip");if(city&&zip&&!zip.value&&city.postal)zip.value=city.postal;}
+/* Markup for a searchable city field (input + dropdown button + in-flow list). */
+function cityField(inputId,dropId,value,ctryId){return `<div class="combo" data-ctry="${ctryId||""}">
+  <input id="${inputId}" autocomplete="off" value="${esc(value||"")}" placeholder="Type to search…">
+  <button type="button" class="combo-btn" data-citytoggle="1" title="Show cities">▾</button>
+  <div class="combo-list" id="${dropId}"></div></div>`;}
 function addressDialog(){
   const a=getEmployee(S.pernr,S.key).addr||{};
   modal("Maintain address · IT0006",`
@@ -1765,13 +1789,13 @@ function addressDialog(){
     <div class="grp"><label>Street</label><input id="ad_street" value="${esc(a.stras)}"></div>
     <div class="grp"><label>Country</label><select id="ad_ctry">${optBlank(db.T005,a.land1)}</select></div>
     <div class="two">
-      <div class="grp"><label>City</label><input id="ad_city" list="ad_cityList" autocomplete="off" value="${esc(a.ort01)}" placeholder="Type to search…">
-        <datalist id="ad_cityList">${cityOptionsFor(a.land1)}</datalist></div>
+      <div class="grp"><label>City</label>${cityField("ad_city","ad_cityDrop",a.ort01,"ad_ctry")}</div>
       <div class="grp"><label>Postal code</label><input id="ad_zip" value="${esc(a.pstlz)}"></div>
     </div>`,
     `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="address">Save</button>`);
-  const c=$("#ad_ctry");if(c)c.addEventListener("change",refreshAddrCities);
-  const ci=$("#ad_city");if(ci)ci.addEventListener("input",onAddrCity);
+  const ci=$("#ad_city"),c=$("#ad_ctry");
+  if(ci)ci.addEventListener("input",()=>{onAddrCity();openCityDrop("ad_city","ad_cityDrop","ad_ctry");});
+  if(c)c.addEventListener("change",()=>{if($("#ad_cityDrop").classList.contains("open"))cityDrop("ad_city","ad_cityDrop","ad_ctry");});
 }
 function familyDialog(rec){const e=!!rec;editingRec=e?{type:"family",id:rec._id}:null;
   modal((e?"Edit":"Add")+" family member · IT0021",`
@@ -1811,7 +1835,7 @@ function payDialog(){const p=validOn(db.PA0008,S.pernr,S.key)||{};
     </div>
     <div class="two">
       <div class="grp"><label>Annual salary <span class="req">*</span></label><input id="p_ansal" type="number" step="0.01" value="${p.ansal!=null?p.ansal:""}"></div>
-      <div class="grp"><label>Currency</label><input id="p_waers" value="${esc(p.waers||"EUR")}" maxlength="5"></div>
+      <div class="grp"><label>Currency</label><select id="p_waers">${opt(db.currencies,p.waers||"EUR")}</select></div>
     </div>`,`<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="pay">Save</button>`);}
 function bankDialog(){const k=S.key||today();const b=(db.PA0009.filter(x=>x.pernr===S.pernr&&x.subty==="0"&&x.begda<=k&&x.endda>=k)[0])||{};
   modal("Edit bank details · IT0009",`
@@ -1872,7 +1896,7 @@ function cfgCompanyDialog(){modal("Add company code · T001",`
   <div class="grp"><label>Name</label><input id="cco_txt"></div>
   <div class="two">
     <div class="grp"><label>Country</label><select id="cco_ctry">${optBlank(db.T005,"")}</select></div>
-    <div class="grp"><label>Currency</label><input id="cco_cur" maxlength="5" placeholder="EUR"></div>
+    <div class="grp"><label>Currency</label><select id="cco_cur">${opt(db.currencies,"EUR")}</select></div>
   </div>`,
   `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="cfgCompany">Add</button>`);}
 function cfgPareaDialog(){modal("Add personnel area · T500P",`
@@ -1979,6 +2003,15 @@ function toast(msg,kind){
 
 /* ============================ EVENTS ============================ */
 document.addEventListener("click",ev=>{
+  // City search-list (combobox): toggle, select, and outside-click close.
+  if(!ev.target.closest(".combo"))document.querySelectorAll(".combo-list.open").forEach(d=>d.classList.remove("open"));
+  const comboToggle=ev.target.closest("[data-citytoggle]");
+  if(comboToggle){const combo=comboToggle.closest(".combo"),inp=combo.querySelector("input"),list=combo.querySelector(".combo-list");
+    if(list.classList.contains("open"))list.classList.remove("open");else openCityDrop(inp.id,list.id,combo.dataset.ctry||null,"");
+    inp.focus();return;}
+  const comboOpt=ev.target.closest("[data-cityopt]");
+  if(comboOpt){const combo=comboOpt.closest(".combo"),inp=combo.querySelector("input");
+    inp.value=comboOpt.dataset.cityopt;onAddrCity();combo.querySelector(".combo-list").classList.remove("open");return;}
   const t=ev.target.closest("[data-nav],[data-open],[data-act],[data-tab],[data-tog],[data-do],[data-close],[data-fill],[data-approve],[data-reject],[data-book],[data-advance],[data-payslip],[data-cfg],[data-authrole],[data-cfgadd],[data-cfgedit],[data-cfgdel],[data-useredit],[data-userdel],[data-orgedit],[data-orgdel],[data-roleadd],[data-roleedit],[data-roledel],[data-posadd],[data-posedit],[data-posdel],[data-comedit],[data-comdel],[data-famedit],[data-famdel],[data-eduedit],[data-edudel],[data-expedit],[data-expdel],[data-qualedit],[data-qualdel],[data-sort],[data-possort],[data-more],[data-tabmore],[data-photo]");
   if(!t){const mm=$("#moreMenu");if(mm)mm.classList.remove("open");const tm=$("#tabMoreMenu");if(tm)tm.classList.remove("open");return;}
   if(t.hasAttribute("data-more")){const mm=$("#moreMenu");mm.classList.toggle("open");return;}
