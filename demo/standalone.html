@@ -488,8 +488,23 @@ function seed(){return{
   subgroupGroup:{"DU":"1","DW":"1","DT":"1"},
   T002:{"EN":"English","DE":"German","FR":"French","ES":"Spanish","VI":"Vietnamese"},
   currencies:{"EUR":"Euro","USD":"US Dollar","GBP":"Pound Sterling","KHR":"Cambodian Riel","CNY":"Chinese Yuan","SGD":"Singapore Dollar","VND":"Vietnamese Dong","JPY":"Japanese Yen"},
-  cities:{"Berlin":{country:"DE"},"Munich":{country:"DE"},"New York":{country:"US"},"London":{country:"GB"},"Paris":{country:"FR"},"Phnom Penh":{country:"KH"},"Singapore":{country:"SG"},"Hanoi":{country:"VN"}},
-  T005:{"DE":"Germany","US":"United States","FR":"France","GB":"United Kingdom","KH":"Cambodia","SG":"Singapore","VN":"Vietnam"},
+  cities:{
+   "Berlin":{country:"DE",region:"Berlin",postal:"10115"},
+   "Munich":{country:"DE",region:"Bavaria",postal:"80331"},
+   "New York":{country:"US",region:"New York",postal:"10001"},
+   "London":{country:"GB",region:"England",postal:"EC1A"},
+   "Paris":{country:"FR",region:"Île-de-France",postal:"75001"},
+   "Phnom Penh":{country:"KH",region:"Phnom Penh",postal:"12000"},
+   "Singapore":{country:"SG",region:"Singapore",postal:"018956"},
+   "Hanoi":{country:"VN",region:"Hanoi",postal:"100000"}},
+  T005:{
+   "DE":{text:"Germany",iso:"DEU",currency:"EUR",dial:"+49",region:"Europe"},
+   "US":{text:"United States",iso:"USA",currency:"USD",dial:"+1",region:"Americas"},
+   "FR":{text:"France",iso:"FRA",currency:"EUR",dial:"+33",region:"Europe"},
+   "GB":{text:"United Kingdom",iso:"GBR",currency:"GBP",dial:"+44",region:"Europe"},
+   "KH":{text:"Cambodia",iso:"KHM",currency:"KHR",dial:"+855",region:"Asia"},
+   "SG":{text:"Singapore",iso:"SGP",currency:"SGD",dial:"+65",region:"Asia"},
+   "VN":{text:"Vietnam",iso:"VNM",currency:"VND",dial:"+84",region:"Asia"}},
   T501:{"1":"Active employees","2":"Pensioners","9":"External staff"},
   T503K:{"DU":"Salaried staff","DW":"Industrial workers","DT":"Trainees"},
   costCenters:[{id:"HR-1000",name:"Human Resources"},{id:"FIN-2000",name:"Finance"},{id:"EXE-1000",name:"Executive Board"}],
@@ -635,7 +650,7 @@ function getEmployees(search,key){
       positionName:p1&&p1.plans?orgText("S",p1.plans,key):null,
       companyName:p1?t001Name(p1.bukrs):null, personnelArea:p1?t500pName(p1.werks):null,
       costCenter:p1?p1.kostl:null, gender:p2.gesch?dom("GESCH",p2.gesch):null,
-      city:p6?p6.ort01:null, country:p6?(db.T005[p6.land1]||p6.land1):null,
+      city:p6?p6.ort01:null, country:p6?(t005Name(p6.land1)||p6.land1):null,
       email:mail?mail.usrid:null, hireDate:em.hireDate,
       status:p0&&p0.stat2?dom("STAT2",p0.stat2):null};
   }).filter(Boolean);
@@ -652,7 +667,7 @@ function getEmployee(pernr,key){
         p6=validOn(db.PA0006,pernr,key),p7=validOn(db.PA0007,pernr,key),p8=validOn(db.PA0008,pernr,key);
   return{pernr,key,
     personal:p2&&{anred:dom("ANRED",p2.anred),titel:dom("TITEL",p2.titel)||p2.titel,nachn:p2.nachn,vorna:p2.vorna,midnm:p2.midnm,rufnm:p2.rufnm,
-      gbdat:p2.gbdat,gbort:p2.gbort,gesch:dom("GESCH",p2.gesch),natio:db.T005[p2.natio]||p2.natio,sprsl:db.T002[p2.sprsl]||p2.sprsl,famst:dom("FAMST",p2.famst),begda:p2.begda,endda:p2.endda},
+      gbdat:p2.gbdat,gbort:p2.gbort,gesch:dom("GESCH",p2.gesch),natio:t005Name(p2.natio)||p2.natio,sprsl:db.T002[p2.sprsl]||p2.sprsl,famst:dom("FAMST",p2.famst),begda:p2.begda,endda:p2.endda},
     org:p1&&{bukrs:p1.bukrs,company:t001Name(p1.bukrs),werks:p1.werks,werksN:t500pName(p1.werks),
       persg:p1.persg,persgN:db.T501[p1.persg],persk:p1.persk,perskN:db.T503K[p1.persk],
       orgeh:p1.orgeh,orgN:p1.orgeh?orgText("O",p1.orgeh,key):null,
@@ -1347,7 +1362,8 @@ const CFG_SCHEMA={
   company:{h:"Company codes (T001)",store:"omap",path:"T001",keyL:"Company code",
     fields:[{k:"name",l:"Name"},{k:"country",l:"Country",src:"T005"},{k:"currency",l:"Currency",src:"currencies"},{k:"city",l:"City",src:"cities"}]},
   currency:{h:"Currencies",store:"smap",path:"currencies",keyL:"Currency code",fields:[{k:"text",l:"Currency"}]},
-  city:{h:"Cities",store:"omap",path:"cities",keyL:"City",fields:[{k:"country",l:"Country",src:"T005"}]},
+  city:{h:"Cities",store:"omap",path:"cities",keyL:"City",
+    fields:[{k:"country",l:"Country",src:"T005"},{k:"region",l:"Region / State"},{k:"postal",l:"Postal code"}]},
   parea:{h:"Personnel areas (T500P)",store:"omap",path:"T500P",keyL:"Personnel area",
     fields:[{k:"text",l:"Name"},{k:"bukrs",l:"Company code",src:"T001"}]},
   groups:{h:"Employee groups (T501)",store:"smap",path:"T501",keyL:"Group key",fields:[{k:"text",l:"Text"}]},
@@ -1356,7 +1372,8 @@ const CFG_SCHEMA={
   cost:{h:"Cost centers",store:"arr",path:"costCenters",keyF:"id",keyL:"Cost center id",
     fields:[{k:"name",l:"Name"},{k:"bukrs",l:"Company code",src:"T001"}]},
   lang:{h:"Languages (T002)",store:"smap",path:"T002",keyL:"Language key",fields:[{k:"text",l:"Language"}]},
-  nat:{h:"Countries / nationalities (T005)",store:"smap",path:"T005",keyL:"Country key",fields:[{k:"text",l:"Country"}]},
+  nat:{h:"Countries / nationalities (T005)",store:"omap",path:"T005",keyL:"Country key",
+    fields:[{k:"text",l:"Country"},{k:"iso",l:"ISO code"},{k:"currency",l:"Currency",src:"currencies"},{k:"dial",l:"Dialing code"},{k:"region",l:"Region"}]},
   titles:{h:"Titles (Form of address · IT0002)",store:"dom",path:"TITEL",keyL:"Key",autokey:true,fields:[{k:"text",l:"Title"}]}
 };
 function cfgStore(def){return def.store==="dom"?db.dom[def.path]:db[def.path];}
@@ -1444,7 +1461,7 @@ function renderConfig(){
   else if(S.cfgTab==="org")body=cfgOrgTable();
   else if(CFG_SCHEMA[S.cfgTab])body=cfgTable(S.cfgTab);
   app.innerHTML=pageHead(t("Configuration"),t("System configuration"))+
-    `<div class="toolbar" style="gap:6px;flex-wrap:wrap">${T("company","Company codes")}${T("parea","Personnel areas")}${T("groups","Employee groups")}${T("subgroups","Employee subgroups")}${T("cost","Cost centers")}${T("org","Organizational units")}${T("lang","Languages")}${T("nat","Nationalities")}${T("currency","Currencies")}${T("city","Cities")}${T("titles","Titles")}${T("roles","Roles")}${T("users","Users & roles")}${T("auth","Authorizations")}</div>${body}`;
+    `<div class="toolbar" style="gap:6px;flex-wrap:wrap">${T("company","Company codes")}${T("parea","Personnel areas")}${T("groups","Employee groups")}${T("subgroups","Employee subgroups")}${T("cost","Cost centers")}${T("org","Organizational units")}${T("lang","Languages")}${T("nat","Countries")}${T("currency","Currencies")}${T("city","Cities")}${T("titles","Titles")}${T("roles","Roles")}${T("users","Users & roles")}${T("auth","Authorizations")}</div>${body}`;
 }
 
 /* ============================ MODULE VIEWS ============================ */
@@ -1631,6 +1648,7 @@ function payslipDialog(pernr){
 function opt(map,sel){return Object.entries(map).map(([k,v])=>{const t=(v&&typeof v==="object")?(v.name||v.text||""):v;const lbl=t?esc(k)+" – "+esc(t):esc(k);return `<option value="${k}" ${String(sel)===String(k)?'selected':''}>${lbl}</option>`;}).join("");}
 const t001Name=k=>{const v=db.T001[k];return v&&typeof v==="object"?v.name:v;};
 const t500pName=k=>{const v=db.T500P[k];return v&&typeof v==="object"?v.text:v;};
+const t005Name=k=>{const v=db.T005[k];return v&&typeof v==="object"?v.text:v;};
 function optBlank(map,sel){return `<option value="" ${sel?'':'selected'}>—</option>`+opt(map,sel);}
 function optName(arr,sel){return `<option value="">—</option>`+arr.map(o=>`<option value="${o.id}" ${String(sel)===String(o.id)?'selected':''}>${esc(o.name)}</option>`).join("");}
 function modal(title,bodyHtml,footHtml){
