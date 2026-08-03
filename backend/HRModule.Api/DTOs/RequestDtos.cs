@@ -66,6 +66,15 @@ public class UpdateAddressRequest
     public string ChangedBy { get; set; } = "WEBUI";
 }
 
+/// <summary>Payload to add a communication entry (IT0105).</summary>
+public class CommunicationRequest
+{
+    [Required] public string SubType { get; set; } = string.Empty; // USRTY (0010 email, 0020 phone, CELL, FAX, MAIL)
+    [Required] public string Value { get; set; } = string.Empty;   // communication id / value
+    public DateTime? Begda { get; set; }
+    public string ChangedBy { get; set; } = "WEBUI";
+}
+
 /// <summary>Payload to add a family member / dependent (IT0021).</summary>
 public class FamilyMemberRequest
 {

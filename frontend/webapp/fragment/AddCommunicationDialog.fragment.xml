@@ -1,0 +1,28 @@
+<core:FragmentDefinition
+    xmlns:core="sap.ui.core"
+    xmlns="sap.m"
+    xmlns:f="sap.ui.layout.form">
+
+    <Dialog id="commDialog" title="{i18n>addCommTitle}" contentWidth="30rem" draggable="true">
+        <content>
+            <MessageStrip text="{i18n>commHint}" type="Information" showIcon="true" class="sapUiSmallMargin"/>
+            <f:SimpleForm layout="ResponsiveGridLayout" editable="true"
+                labelSpanXL="5" labelSpanL="5" labelSpanM="5" columnsXL="1" columnsL="1">
+                <f:content>
+                    <Label text="{i18n>fldCommType}" required="true"/>
+                    <Select selectedKey="{comm>/subType}" items="{comm>/types}">
+                        <core:Item key="{comm>key}" text="{comm>key} - {comm>text}"/>
+                    </Select>
+
+                    <Label text="{i18n>fldCommValue}" required="true"/>
+                    <Input value="{comm>/value}" placeholder="name@globalcorp.com / +49 …"/>
+
+                    <Label text="{i18n>fldValidFrom}"/>
+                    <DatePicker value="{comm>/begda}" valueFormat="yyyy-MM-dd" displayFormat="dd.MM.yyyy"/>
+                </f:content>
+            </f:SimpleForm>
+        </content>
+        <beginButton><Button type="Emphasized" text="{i18n>btnSave}" press=".onCommConfirm"/></beginButton>
+        <endButton><Button text="{i18n>btnCancel}" press=".onCommCancel"/></endButton>
+    </Dialog>
+</core:FragmentDefinition>

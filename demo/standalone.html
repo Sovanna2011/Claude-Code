@@ -415,7 +415,7 @@ function seed(){return{
        FAMST:{"0":"Single","1":"Married","2":"Widowed","3":"Divorced","4":"Separated"},
        ANRED:{"1":"Mrs.","2":"Mr.","3":"Company"},
        STAT2:{"0":"Withdrawn","1":"Inactive","2":"Retiree","3":"Active"},
-       USRTY:{"0010":"E-Mail","0020":"Telephone","CELL":"Mobile phone"},
+       USRTY:{"0010":"E-Mail","0020":"Telephone","CELL":"Mobile phone","FAX":"Fax","MAIL":"System user"},
        FAMSA:{"1":"Spouse","2":"Child","6":"Emergency contact","11":"Father","12":"Mother"},
        SLART:{"10":"University","20":"Secondary school","30":"Vocational training","40":"Doctorate"},
        TMART:{"01":"Expiry of probation","02":"Work permit expiry","03":"Contract end","04":"Next appraisal"},
@@ -569,6 +569,15 @@ function addFamily(pernr,f){
   const objs=db.PA0021.filter(x=>x.pernr===pernr&&x.subty===f.relationType).map(x=>parseInt(x.objps,10)||0);
   const next=String((objs.length?Math.max.apply(null,objs):0)+1).padStart(2,"0");
   db.PA0021.push({pernr,subty:f.relationType,objps:next,begda:f.begda||today(),endda:HIGH,fanam:f.lastName,favor:f.firstName,fgbdt:f.birthDate||null,fasex:f.gender,fgbld:f.birthCountry});
+}
+function addCommunication(pernr,f){
+  if(!f.value)throw new Error("Enter the communication value.");
+  // Time constraint 3: allow several records; delimit an existing one of the
+  // same type that is open on the begin date, then insert the new value.
+  const begda=f.begda||today();
+  const cur=db.PA0105.filter(x=>x.pernr===pernr&&x.subty===f.subType&&x.endda>=begda&&x.begda<begda).sort((a,b)=>a.begda<b.begda?1:-1)[0];
+  if(cur)cur.endda=dayBefore(begda);
+  db.PA0105.push({pernr,subty:f.subType,begda,endda:HIGH,usrid:f.value});
 }
 function recordAttendance(pernr,f){
   if(f.endda<f.begda)throw new Error("End date must not be before start date.");
@@ -778,6 +787,7 @@ function renderDetail(){
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       ${isAdmin()?`<button class="btn" data-act="edit">${I.edit} Edit personal</button>
       <button class="btn" data-act="address">${I.addr} Edit address</button>
+      <button class="btn" data-act="comm">${I.addr} Add communication</button>
       <button class="btn" data-act="family">${I.people} Add family</button>
       <button class="btn" data-act="reassign">${I.move} Reassign</button>`:""}
       ${can("HR_ADMIN","HR_MANAGER")?`<button class="btn" data-act="attendance">${I.cal} Attendance</button>
@@ -1206,6 +1216,14 @@ function familyDialog(){
     </div>`,
     `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="family">Add</button>`);
 }
+function commDialog(){
+  modal("Add communication · IT0105",`
+    <div class="hint">${I.info}<span>Stores a communication entry (e-mail, phone, mobile…). A new entry delimits any existing one of the same type.</span></div>
+    <div class="grp"><label>Communication type <span class="req">*</span></label><select id="cm_type">${opt(db.dom.USRTY,"0010")}</select></div>
+    <div class="grp"><label>Value <span class="req">*</span></label><input id="cm_value" placeholder="name@globalcorp.com / +49 …"></div>
+    <div class="grp"><label>Valid from</label><input type="date" id="cm_begda" value="${today()}"></div>`,
+    `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="comm">Add</button>`);
+}
 function attendanceDialog(){
   const att={}; Object.keys(db.T554S).forEach(k=>att[k]=db.T554S[k]);
   modal("Record attendance · IT2002",`
@@ -1254,6 +1272,7 @@ document.addEventListener("click",ev=>{
     else if(t.dataset.act==="absence")absenceDialog();
     else if(t.dataset.act==="address")addressDialog();
     else if(t.dataset.act==="family")familyDialog();
+    else if(t.dataset.act==="comm")commDialog();
     else if(t.dataset.act==="attendance")attendanceDialog();
     else if(t.dataset.act==="reqleave")reqLeaveDialog();
     return;
@@ -1297,6 +1316,10 @@ function doAction(kind){
       const f={begda:val("ad_begda"),subType:val("ad_sub"),street:val("ad_street").trim(),city:val("ad_city").trim(),postalCode:val("ad_zip").trim(),country:val("ad_ctry").trim()};
       if(!f.begda){toast("Enter a valid-from date.","bad");return;}
       updateAddress(S.pernr,f);closeModal();toast("Address updated.","good");S.tab="contact";renderDetail();
+    }else if(kind==="comm"){
+      const f={subType:val("cm_type"),value:val("cm_value").trim(),begda:val("cm_begda")};
+      if(!f.value){toast("Enter the communication value.","bad");return;}
+      addCommunication(S.pernr,f);closeModal();toast("Communication added.","good");S.tab="contact";renderDetail();
     }else if(kind==="family"){
       const f={relationType:val("fm_rel"),firstName:val("fm_first").trim(),lastName:val("fm_last").trim(),gender:val("fm_gender"),birthDate:val("fm_dob")};
       if(!f.firstName||!f.lastName){toast("Enter first and last name.","bad");return;}

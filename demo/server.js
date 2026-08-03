@@ -158,7 +158,7 @@ function seed() {
             FAMST: [{ key: "0", text: "Single" }, { key: "1", text: "Married" }, { key: "2", text: "Widowed" }, { key: "3", text: "Divorced" }, { key: "4", text: "Separated" }],
             ANRED: [{ key: "1", text: "Mrs." }, { key: "2", text: "Mr." }, { key: "3", text: "Company" }],
             STAT2: [{ key: "0", text: "Withdrawn" }, { key: "1", text: "Inactive" }, { key: "2", text: "Retiree" }, { key: "3", text: "Active" }],
-            USRTY: [{ key: "0010", text: "E-Mail" }, { key: "0020", text: "Telephone" }, { key: "CELL", text: "Mobile phone" }, { key: "MAIL", text: "System user" }],
+            USRTY: [{ key: "0010", text: "E-Mail" }, { key: "0020", text: "Telephone" }, { key: "CELL", text: "Mobile phone" }, { key: "FAX", text: "Fax" }, { key: "MAIL", text: "System user" }],
             FAMSA: [{ key: "1", text: "Spouse" }, { key: "2", text: "Child" }, { key: "6", text: "Emergency contact" }, { key: "11", text: "Father" }, { key: "12", text: "Mother" }],
             SLART: [{ key: "10", text: "University" }, { key: "20", text: "Secondary school" }, { key: "30", text: "Vocational training" }, { key: "40", text: "Doctorate" }],
             TMART: [{ key: "01", text: "Expiry of probation" }, { key: "02", text: "Work permit expiry" }, { key: "03", text: "Contract end" }, { key: "04", text: "Next appraisal" }],
@@ -370,6 +370,15 @@ function addFamily(pernr, body) {
         fanam: body.lastName, favor: body.firstName, fgbdt: body.birthDate || null, fasex: body.gender, fgbld: body.birthCountry });
     return { _status: 204 };
 }
+function addCommunication(pernr, body) {
+    if (!db.employees.find(e => e.pernr === pernr)) return { _status: 404, message: `Employee ${pernr} not found.` };
+    if (!body.value) return { _status: 400, message: "Enter the communication value." };
+    const begda = body.begda || today();
+    const cur = db.PA0105.filter(x => x.pernr === pernr && x.subty === body.subType && x.endda >= begda && x.begda < begda).sort((a, b) => a.begda < b.begda ? 1 : -1)[0];
+    if (cur) cur.endda = dayBefore(begda);
+    db.PA0105.push({ pernr, subty: body.subType, begda, endda: HIGH, usrid: body.value, usrid_long: body.value });
+    return { _status: 204 };
+}
 function recordAttendance(pernr, body) {
     if (!db.employees.find(e => e.pernr === pernr)) return { _status: 404, message: `Employee ${pernr} not found.` };
     if (body.endda < body.begda) return { _status: 400, message: "End date must not be before start date." };
@@ -533,6 +542,8 @@ function handleApi(req, res, path, q, json, user) {
             return has(user, "HR_ADMIN") ? result(res, updateAddress(+mm[1], json)) : deny();
         if ((mm = path.match(/^\/api\/employees\/(\d+)\/family$/)) && m === "POST")
             return has(user, "HR_ADMIN") ? result(res, addFamily(+mm[1], json)) : deny();
+        if ((mm = path.match(/^\/api\/employees\/(\d+)\/communication$/)) && m === "POST")
+            return has(user, "HR_ADMIN") ? result(res, addCommunication(+mm[1], json)) : deny();
         if ((mm = path.match(/^\/api\/employees\/(\d+)\/attendances$/)) && m === "POST")
             return has(user, "HR_ADMIN", "HR_MANAGER") ? result(res, recordAttendance(+mm[1], json)) : deny();
         if ((mm = path.match(/^\/api\/employees\/(\d+)\/absences$/)) && m === "POST")

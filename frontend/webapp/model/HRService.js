@@ -94,6 +94,10 @@ sap.ui.define([
             return this._request("POST", "/employees/" + iPernr + "/family", oData);
         },
 
+        addCommunication: function (iPernr, oData) {
+            return this._request("POST", "/employees/" + iPernr + "/communication", oData);
+        },
+
         recordAttendance: function (iPernr, oData) {
             return this._request("POST", "/employees/" + iPernr + "/attendances", oData);
         },

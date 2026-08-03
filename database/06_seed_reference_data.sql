@@ -102,7 +102,7 @@ USING (VALUES
     ('STAT2','0','Withdrawn'),('STAT2','1','Inactive'),
     ('STAT2','2','Retiree'),('STAT2','3','Active'),
     ('USRTY','0010','E-Mail'),('USRTY','0020','Telephone'),
-    ('USRTY','CELL','Mobile phone'),('USRTY','MAIL','System user')
+    ('USRTY','CELL','Mobile phone'),('USRTY','FAX','Fax'),('USRTY','MAIL','System user')
 ) AS s(Domain,ValueKey,ValueTxt)
 ON t.Domain=s.Domain AND t.ValueKey=s.ValueKey
 WHEN NOT MATCHED THEN INSERT(Domain,ValueKey,ValueTxt)

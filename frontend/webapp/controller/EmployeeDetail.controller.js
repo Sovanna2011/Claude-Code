@@ -172,6 +172,28 @@ sap.ui.define([
         },
         onFamilyCancel: function () { this.byId("familyDialog").close(); },
 
+        // ---- Add Communication (IT0105) ------------------------------------
+        onOpenAddComm: function () {
+            this._openDialog("_pCommDialog", "AddCommunicationDialog", function (oView) {
+                oView.setModel(new JSONModel({
+                    subType: "0010", value: "",
+                    begda: new Date().toISOString().slice(0, 10), types: []
+                }), "comm");
+                this.getService().getDomain("USRTY").then(function (r) {
+                    oView.getModel("comm").setProperty("/types", r);
+                });
+            });
+        },
+        onCommConfirm: function () {
+            var d = this.getView().getModel("comm").getData(), that = this;
+            if (!d.value) { this.showError(this.i18n("commValidation")); return; }
+            this.getService().addCommunication(this._pernr, {
+                subType: d.subType, value: d.value, begda: d.begda, changedBy: "WEBUI"
+            }).then(function () { that.toast(that.i18n("saveSuccess")); that.byId("commDialog").close(); that._loadEmployee(); })
+              .catch(that.showError.bind(that));
+        },
+        onCommCancel: function () { this.byId("commDialog").close(); },
+
         // ---- Record Attendance (IT2002) ------------------------------------
         onOpenAttendance: function () {
             this._openDialog("_pAttDialog", "RecordAttendanceDialog", function (oView) {

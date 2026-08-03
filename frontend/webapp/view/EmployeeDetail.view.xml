@@ -10,6 +10,7 @@
         <headerContent>
             <Button icon="sap-icon://edit" text="{i18n>editPersonal}" press=".onOpenEditPersonal" visible="{auth>/isAdmin}"/>
             <Button icon="sap-icon://addresses" text="{i18n>editAddress}" press=".onOpenEditAddress" visible="{auth>/isAdmin}"/>
+            <Button icon="sap-icon://iphone" text="{i18n>addComm}" press=".onOpenAddComm" visible="{auth>/isAdmin}"/>
             <Button icon="sap-icon://family-care" text="{i18n>addFamily}" press=".onOpenAddFamily" visible="{auth>/isAdmin}"/>
             <Button icon="sap-icon://org-chart" text="{i18n>reassign}" press=".onOpenReassign" visible="{auth>/isAdmin}"/>
             <Button icon="sap-icon://attachment-time-sheet" text="{i18n>recordAttendance}" press=".onOpenAttendance"

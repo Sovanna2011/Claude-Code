@@ -11,4 +11,5 @@ public interface IEmployeeService
     Task<bool> ReassignAsync(int pernr, ReassignRequest request, CancellationToken ct = default);
     Task<bool> UpdateAddressAsync(int pernr, UpdateAddressRequest request, CancellationToken ct = default);
     Task<bool> AddFamilyMemberAsync(int pernr, FamilyMemberRequest request, CancellationToken ct = default);
+    Task<bool> AddCommunicationAsync(int pernr, CommunicationRequest request, CancellationToken ct = default);
 }

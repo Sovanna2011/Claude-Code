@@ -100,6 +100,16 @@ public class EmployeesController : ControllerBase
         return ok ? NoContent() : NotFound(new { message = $"Employee {pernr} not found." });
     }
 
+    /// <summary>Add a communication entry (IT0105).</summary>
+    [HttpPost("{pernr:int}/communication")]
+    [Authorize(Policy = Policies.AdminOnly)]
+    public async Task<IActionResult> AddCommunication(int pernr, [FromBody] CommunicationRequest request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        var ok = await _service.AddCommunicationAsync(pernr, request, ct);
+        return ok ? NoContent() : NotFound(new { message = $"Employee {pernr} not found." });
+    }
+
     /// <summary>Record an attendance (IT2002).</summary>
     [HttpPost("{pernr:int}/attendances")]
     [Authorize(Policy = Policies.TimeKeepers)]

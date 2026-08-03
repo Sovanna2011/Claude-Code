@@ -304,6 +304,35 @@ public class EmployeeService : IEmployeeService
         return true;
     }
 
+    public async Task<bool> AddCommunicationAsync(int pernr, CommunicationRequest r, CancellationToken ct = default)
+    {
+        if (!await _db.Employees.AnyAsync(e => e.PERNR == pernr, ct)) return false;
+
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
+        var begda = (r.Begda ?? DateTime.Today).Date;
+        // Time constraint 3: delimit an existing entry of the same type open on the begin date.
+        var current = await _db.PA0105
+            .Where(x => x.PERNR == pernr && x.SUBTY == r.SubType && x.ENDDA >= begda && x.BEGDA < begda)
+            .OrderByDescending(x => x.BEGDA).FirstOrDefaultAsync(ct);
+        if (current is not null)
+        {
+            current.ENDDA = begda.AddDays(-1);
+            current.AEDTM = DateTime.Today;
+            current.UNAME = r.ChangedBy;
+        }
+
+        _db.PA0105.Add(new PA0105
+        {
+            PERNR = pernr, SUBTY = r.SubType, BEGDA = begda, ENDDA = HighDate,
+            USRID = r.Value, USRID_LONG = r.Value, AEDTM = DateTime.Today, UNAME = r.ChangedBy
+        });
+
+        await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+        return true;
+    }
+
     public async Task<HireEmployeeResponse> HireAsync(HireEmployeeRequest r, CancellationToken ct = default)
     {
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
