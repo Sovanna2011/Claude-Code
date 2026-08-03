@@ -1,0 +1,748 @@
+<title>HR Module — HCM Demo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+/* ===================================================================
+   HR Module — self-contained demo (SAP Fiori "Horizon"-inspired)
+   All data + business logic run in the browser; nothing is fetched.
+   =================================================================== */
+:root{
+  --accent:#0064d9; --accent-strong:#0a4bb0; --accent-soft:#e5eefc;
+  --bg:#eef1f3; --surface:#ffffff; --surface-2:#f6f8f9; --surface-3:#eef2f4;
+  --border:#d3dbe0; --border-strong:#b9c4cc;
+  --text:#1a2733; --muted:#56646f; --faint:#8592a0;
+  --good:#107e3e; --good-bg:#e6f3ea; --warn:#c25400; --warn-bg:#fcefe3;
+  --bad:#bb0000; --bad-bg:#fbe8e8; --info:#0070f2;
+  --shadow-sm:0 1px 2px rgba(20,40,60,.08);
+  --shadow:0 2px 4px rgba(20,40,60,.08),0 6px 20px rgba(20,40,60,.06);
+  --radius:12px; --radius-sm:8px;
+  --font:"Segoe UI",system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --accent:#4db1ff; --accent-strong:#7cc6ff; --accent-soft:#122a44;
+    --bg:#0f151b; --surface:#1b2531; --surface-2:#202c3a; --surface-3:#25333f;
+    --border:#31404e; --border-strong:#425364;
+    --text:#e7ecf0; --muted:#9fb0bd; --faint:#6f808e;
+    --good:#4bb97a; --good-bg:#12261a; --warn:#f0904a; --warn-bg:#2c1e12;
+    --bad:#ff6b6b; --bad-bg:#2c1414; --info:#4db1ff;
+    --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+    --shadow:0 2px 4px rgba(0,0,0,.35),0 8px 24px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="light"]{
+  --accent:#0064d9; --accent-strong:#0a4bb0; --accent-soft:#e5eefc;
+  --bg:#eef1f3; --surface:#fff; --surface-2:#f6f8f9; --surface-3:#eef2f4;
+  --border:#d3dbe0; --border-strong:#b9c4cc;
+  --text:#1a2733; --muted:#56646f; --faint:#8592a0;
+  --good:#107e3e; --good-bg:#e6f3ea; --warn:#c25400; --warn-bg:#fcefe3;
+  --bad:#bb0000; --bad-bg:#fbe8e8; --info:#0070f2;
+  --shadow-sm:0 1px 2px rgba(20,40,60,.08);
+  --shadow:0 2px 4px rgba(20,40,60,.08),0 6px 20px rgba(20,40,60,.06);
+}
+:root[data-theme="dark"]{
+  --accent:#4db1ff; --accent-strong:#7cc6ff; --accent-soft:#122a44;
+  --bg:#0f151b; --surface:#1b2531; --surface-2:#202c3a; --surface-3:#25333f;
+  --border:#31404e; --border-strong:#425364;
+  --text:#e7ecf0; --muted:#9fb0bd; --faint:#6f808e;
+  --good:#4bb97a; --good-bg:#12261a; --warn:#f0904a; --warn-bg:#2c1e12;
+  --bad:#ff6b6b; --bad-bg:#2c1414; --info:#4db1ff;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+  --shadow:0 2px 4px rgba(0,0,0,.35),0 8px 24px rgba(0,0,0,.3);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);
+  font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.num{font-variant-numeric:tabular-nums}
+button{font-family:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+
+/* ---- ShellBar ---- */
+.shell{position:sticky;top:0;z-index:20;background:var(--accent-strong);
+  color:#fff;display:flex;align-items:center;gap:18px;
+  padding:0 16px;height:52px;box-shadow:var(--shadow-sm)}
+:root[data-theme="dark"] .shell,
+@media (prefers-color-scheme:dark){.shell{background:#0c1620}}
+:root[data-theme="dark"] .shell{background:#0c1620}
+.shell .logo{display:flex;align-items:center;gap:10px;font-weight:700;
+  letter-spacing:.2px;white-space:nowrap}
+.shell .logo .mark{width:26px;height:26px;border-radius:6px;background:#fff;
+  color:var(--accent-strong);display:grid;place-items:center;font-weight:800;font-size:13px}
+.shell .sub{font-weight:400;opacity:.8;font-size:12px;border-left:1px solid rgba(255,255,255,.3);
+  padding-left:12px;margin-left:2px}
+.shell nav{display:flex;gap:2px;margin-left:8px}
+.shell nav button{background:transparent;border:0;color:#fff;opacity:.82;
+  padding:8px 14px;border-radius:7px;cursor:pointer;font-size:13.5px;font-weight:600;
+  display:flex;align-items:center;gap:7px}
+.shell nav button:hover{opacity:1;background:rgba(255,255,255,.12)}
+.shell nav button.active{opacity:1;background:rgba(255,255,255,.18)}
+.shell .spacer{flex:1}
+.shell .util{display:flex;gap:6px;align-items:center}
+.shell .util button{background:rgba(255,255,255,.12);border:0;color:#fff;width:34px;height:34px;
+  border-radius:8px;cursor:pointer;display:grid;place-items:center;font-size:15px}
+.shell .util button:hover{background:rgba(255,255,255,.22)}
+.shell nav svg,.shell .util svg{width:16px;height:16px;fill:currentColor}
+
+/* ---- Layout ---- */
+main{max-width:1200px;margin:0 auto;padding:18px 16px 60px}
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:14px;flex-wrap:wrap}
+.page-head h1{font-size:22px;margin:0;font-weight:700;letter-spacing:-.2px}
+.page-head .crumb{font-size:12px;color:var(--muted);margin-bottom:3px;
+  text-transform:uppercase;letter-spacing:.7px;font-weight:600}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:10px 12px;margin-bottom:14px;box-shadow:var(--shadow-sm)}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:600}
+input,select{font-family:inherit;font-size:14px;color:var(--text);background:var(--surface);
+  border:1px solid var(--border-strong);border-radius:var(--radius-sm);padding:8px 10px}
+input:focus,select:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 2px var(--accent-soft)}
+.search{position:relative;flex:1;min-width:220px}
+.search input{width:100%;padding-left:34px}
+.search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:16px;height:16px;fill:var(--faint)}
+
+/* ---- Buttons ---- */
+.btn{border:1px solid var(--border-strong);background:var(--surface);color:var(--text);
+  padding:8px 14px;border-radius:var(--radius-sm);cursor:pointer;font-size:13.5px;font-weight:600;
+  display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.btn:hover{background:var(--surface-2);border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:var(--accent-strong);border-color:var(--accent-strong)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--accent)}
+.btn.ghost:hover{background:var(--accent-soft)}
+.btn svg{width:15px;height:15px;fill:currentColor}
+.btn.sm{padding:6px 10px;font-size:12.5px}
+
+/* ---- Card / table ---- */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  box-shadow:var(--shadow-sm);overflow:hidden}
+.card-head{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);
+  background:var(--surface-2)}
+.card-head h2{font-size:14px;margin:0;font-weight:700}
+.card-head .count{background:var(--accent-soft);color:var(--accent);font-weight:700;
+  border-radius:20px;padding:2px 10px;font-size:12px}
+.card-head .spacer{flex:1}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);
+  font-weight:700;padding:10px 16px;border-bottom:1px solid var(--border);white-space:nowrap;background:var(--surface-2)}
+td{padding:11px 16px;border-bottom:1px solid var(--border);vertical-align:middle}
+tbody tr{cursor:default}
+tbody tr.click{cursor:pointer}
+tbody tr.click:hover{background:var(--surface-2)}
+tr:last-child td{border-bottom:0}
+.th-r,.td-r{text-align:right}
+.pernr{font-weight:700;color:var(--accent)}
+a.mail{color:var(--accent);text-decoration:none}
+a.mail:hover{text-decoration:underline}
+
+/* ---- Status pill ---- */
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;
+  padding:3px 10px;border-radius:20px;white-space:nowrap}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.pill.good{color:var(--good);background:var(--good-bg)}
+.pill.warn{color:var(--warn);background:var(--warn-bg)}
+.pill.bad{color:var(--bad);background:var(--bad-bg)}
+.pill.neutral{color:var(--muted);background:var(--surface-3)}
+
+/* ---- Object header (detail) ---- */
+.obj-head{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:18px 20px;box-shadow:var(--shadow-sm);margin-bottom:14px;
+  display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
+.avatar{width:56px;height:56px;border-radius:50%;background:var(--accent-soft);color:var(--accent);
+  display:grid;place-items:center;font-weight:800;font-size:20px;flex:0 0 auto}
+.obj-head .id{margin-left:auto;text-align:right}
+.obj-head .id .n{font-size:24px;font-weight:800;color:var(--accent)}
+.obj-head .id .l{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+.obj-head h1{margin:0 0 4px;font-size:22px;letter-spacing:-.3px}
+.obj-head .attrs{display:flex;gap:20px;flex-wrap:wrap;color:var(--muted);font-size:13px}
+.obj-head .attrs b{color:var(--text);font-weight:600}
+
+/* ---- Tabs ---- */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;overflow-x:auto}
+.tabs button{background:transparent;border:0;border-bottom:3px solid transparent;color:var(--muted);
+  padding:10px 14px;cursor:pointer;font-size:13.5px;font-weight:600;white-space:nowrap;
+  display:flex;align-items:center;gap:8px}
+.tabs button:hover{color:var(--text)}
+.tabs button.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tabs button .ico{width:26px;height:26px;border-radius:50%;background:var(--surface-3);color:var(--muted);
+  display:grid;place-items:center}
+.tabs button.active .ico{background:var(--accent);color:#fff}
+.tabs svg{width:14px;height:14px;fill:currentColor}
+
+/* ---- Definition grid ---- */
+.section-title{font-size:12px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);
+  font-weight:700;margin:4px 0 10px}
+.dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 40px}
+@media (max-width:680px){.dl{grid-template-columns:1fr}}
+.dl .row{display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px solid var(--surface-3)}
+.dl .row dt{color:var(--muted)}
+.dl .row dd{margin:0;font-weight:600;text-align:right}
+.subcard{padding:16px 18px}
+.subcard+.subcard{border-top:1px solid var(--border)}
+
+/* ---- Org tree ---- */
+.tree{padding:6px}
+.node{border-radius:var(--radius-sm)}
+.node .bar{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-sm);cursor:pointer}
+.node .bar:hover{background:var(--surface-2)}
+.node .tog{width:18px;height:18px;flex:0 0 auto;display:grid;place-items:center;color:var(--muted);
+  transition:transform .15s}
+.node.open>.bar .tog{transform:rotate(90deg)}
+.node .tog.leaf{visibility:hidden}
+.node .oic{width:30px;height:30px;border-radius:7px;background:var(--accent-soft);color:var(--accent);
+  display:grid;place-items:center;flex:0 0 auto}
+.node .oic svg{width:16px;height:16px;fill:currentColor}
+.node .meta{display:flex;flex-direction:column}
+.node .meta .nm{font-weight:700}
+.node .meta .dt{font-size:12px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap}
+.node .children{margin-left:26px;padding-left:14px;border-left:1px dashed var(--border-strong);display:none}
+.node.open>.children{display:block}
+.hc{display:inline-flex;align-items:center;gap:5px;color:var(--info);font-weight:700}
+.hc svg{width:13px;height:13px;fill:currentColor}
+
+/* ---- Modal ---- */
+.modal-bg{position:fixed;inset:0;background:rgba(15,25,35,.45);backdrop-filter:blur(2px);
+  display:grid;place-items:center;z-index:50;padding:16px;animation:fade .15s ease}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.modal{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);
+  width:min(520px,100%);max-height:90vh;display:flex;flex-direction:column;animation:pop .18s ease}
+@keyframes pop{from{transform:translateY(8px) scale(.98);opacity:0}to{transform:none;opacity:1}}
+.modal h3{margin:0;padding:16px 20px;border-bottom:1px solid var(--border);font-size:16px}
+.modal .body{padding:18px 20px;overflow:auto;display:flex;flex-direction:column;gap:14px}
+.modal .foot{padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;
+  background:var(--surface-2)}
+.modal .grp{display:flex;flex-direction:column;gap:5px}
+.modal .grp label{font-size:12px;color:var(--muted);font-weight:600}
+.modal .grp label .req{color:var(--bad)}
+.modal .grp input,.modal .grp select{width:100%}
+.modal .hint{font-size:12.5px;color:var(--muted);background:var(--surface-3);border-radius:var(--radius-sm);
+  padding:9px 12px;display:flex;gap:8px;align-items:flex-start}
+.modal .hint svg{width:15px;height:15px;fill:var(--info);flex:0 0 auto;margin-top:1px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.modal .grp.sec{margin-top:2px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;
+  color:var(--accent);font-weight:700;border-top:1px solid var(--border);padding-top:12px}
+
+/* ---- Toast ---- */
+#toasts{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:80;
+  display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
+.toast{background:#0c1620;color:#fff;padding:11px 18px;border-radius:24px;font-size:13.5px;font-weight:600;
+  box-shadow:var(--shadow);display:flex;gap:9px;align-items:center;animation:up .2s ease}
+.toast.good{background:var(--good)}.toast.bad{background:var(--bad)}
+.toast svg{width:16px;height:16px;fill:currentColor}
+@keyframes up{from{transform:translateY(10px);opacity:0}to{transform:none;opacity:1}}
+
+.banner{background:var(--accent-soft);color:var(--accent-strong);border:1px solid var(--border);
+  border-radius:var(--radius);padding:10px 14px;font-size:12.5px;margin-bottom:14px;display:flex;gap:9px;align-items:center}
+:root[data-theme="dark"] .banner{color:var(--accent)}
+.banner svg{width:16px;height:16px;fill:currentColor;flex:0 0 auto}
+.empty{padding:40px;text-align:center;color:var(--muted)}
+@media(prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+
+<header class="shell">
+  <div class="logo"><span class="mark">HR</span> HR Module <span class="sub">Human Capital Management</span></div>
+  <nav id="nav"></nav>
+  <div class="spacer"></div>
+  <div class="util">
+    <button id="reset" title="Reset demo data">↻</button>
+    <button id="theme" title="Toggle light / dark">◐</button>
+  </div>
+</header>
+
+<main id="app"></main>
+<div id="modal-root"></div>
+<div id="toasts"></div>
+
+<script>
+"use strict";
+/* ============================ ICONS ============================ */
+const I = {
+  people:'<svg viewBox="0 0 24 24"><path d="M16 11a3 3 0 100-6 3 3 0 000 6zm-8 0a3 3 0 100-6 3 3 0 000 6zm0 2c-2.7 0-8 1.3-8 4v2h9v-2c0-1 .4-1.9 1-2.6C9.4 13.1 8.6 13 8 13zm8 0c-.3 0-.7 0-1.1.1 1 .8 1.6 1.8 1.6 2.9v2H24v-2c0-2.7-5.3-4-8-4z"/></svg>',
+  org:'<svg viewBox="0 0 24 24"><path d="M10 2h4v4h-4zM3 18h4v4H3zm14 0h4v4h-4zM11 8h2v4h6v4h-2v-2h-4v2h-2v-2H7v2H5v-4h6z"/></svg>',
+  pos:'<svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 100-8 4 4 0 000 8zm0 2c-4 0-8 2-8 5v1h16v-1c0-3-4-5-8-5z"/></svg>',
+  search:'<svg viewBox="0 0 24 24"><path d="M15.5 14h-.8l-.3-.3a6.5 6.5 0 10-.7.7l.3.3v.8l5 5 1.5-1.5-5-5zm-6 0a4.5 4.5 0 110-9 4.5 4.5 0 010 9z"/></svg>',
+  person:'<svg viewBox="0 0 24 24"><path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-5 0-9 2.5-9 6v2h18v-2c0-3.5-4-6-9-6z"/></svg>',
+  addr:'<svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 00-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 00-7-7zm0 9.5A2.5 2.5 0 1112 6a2.5 2.5 0 010 5.5z"/></svg>',
+  money:'<svg viewBox="0 0 24 24"><path d="M3 6h18v12H3zM12 9a3 3 0 100 6 3 3 0 000-6zM6 8a2 2 0 01-2 2v4a2 2 0 012 2h12a2 2 0 012-2v-4a2 2 0 01-2-2z"/></svg>',
+  cal:'<svg viewBox="0 0 24 24"><path d="M7 2v2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2h-2V2h-2v2H9V2zm12 8v10H5V10z"/></svg>',
+  chev:'<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>',
+  info:'<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-6h2zm0-8h-2V7h2z"/></svg>',
+  check:'<svg viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>',
+  warn:'<svg viewBox="0 0 24 24"><path d="M1 21h22L12 2zm12-3h-2v-2h2zm0-4h-2v-4h2z"/></svg>',
+  edit:'<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75zM20.7 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75z"/></svg>',
+  move:'<svg viewBox="0 0 24 24"><path d="M13 6v5h5V7l4 5-4 5v-4h-7V6zM11 18v-5H6v4l-4-5 4-5v4h7v7z"/></svg>'
+};
+
+/* ============================ DATA (mirrors DB seed) ============================ */
+const HIGH="9999-12-31";
+function seed(){return{
+  nr:{PERNR:1001},
+  emp:[{pernr:1000,hireDate:"2020-03-01"},{pernr:1001,hireDate:"2021-06-15"}],
+  PA0000:[{pernr:1000,begda:"2020-03-01",endda:HIGH,stat2:"3"},{pernr:1001,begda:"2021-06-15",endda:HIGH,stat2:"3"}],
+  PA0001:[
+   {pernr:1000,begda:"2020-03-01",endda:HIGH,bukrs:"1000",werks:"1000",btrtl:"0001",persg:"1",persk:"DU",orgeh:50000010,plans:50000100,stell:50000900,kostl:"HR-1000"},
+   {pernr:1001,begda:"2021-06-15",endda:HIGH,bukrs:"1000",werks:"1000",btrtl:"0001",persg:"1",persk:"DU",orgeh:50000010,plans:50000101,stell:50000900,kostl:"HR-1000"}],
+  PA0002:[
+   {pernr:1000,begda:"2020-03-01",endda:HIGH,anred:"2",nachn:"Schmidt",vorna:"Andreas",gbdat:"1982-07-12",gesch:"1",natio:"DE",famst:"1"},
+   {pernr:1001,begda:"2021-06-15",endda:HIGH,anred:"1",nachn:"Nguyen",vorna:"Linda",gbdat:"1990-11-03",gesch:"2",natio:"US",famst:"0"}],
+  PA0006:[
+   {pernr:1000,begda:"2020-03-01",endda:HIGH,stras:"Hauptstrasse 12",ort01:"Berlin",pstlz:"10115",land1:"DE"},
+   {pernr:1001,begda:"2021-06-15",endda:HIGH,stras:"5th Avenue 200",ort01:"New York",pstlz:"10001",land1:"US"}],
+  PA0007:[
+   {pernr:1000,begda:"2020-03-01",endda:HIGH,schkz:"FLEX",empct:100,wostd:40},
+   {pernr:1001,begda:"2021-06-15",endda:HIGH,schkz:"FLEX",empct:100,wostd:40}],
+  PA0008:[
+   {pernr:1000,begda:"2020-03-01",endda:HIGH,trfgr:"E4",bsgrd:100,waers:"EUR",ansal:96000,wt:[{lgart:"1010",betrg:8000,waers:"EUR"}]},
+   {pernr:1001,begda:"2021-06-15",endda:HIGH,trfgr:"E2",bsgrd:100,waers:"EUR",ansal:60000,wt:[{lgart:"1010",betrg:5000,waers:"EUR"}]}],
+  PA0009:[
+   {pernr:1000,begda:"2020-03-01",endda:HIGH,banks:"DE",bankl:"10070000",bankn:"DE89370400440532013000",waers:"EUR"},
+   {pernr:1001,begda:"2021-06-15",endda:HIGH,banks:"US",bankl:"021000021",bankn:"US64SVBKUS6S3300958879",waers:"EUR"}],
+  PA0105:[
+   {pernr:1000,subty:"0010",begda:"2020-03-01",endda:HIGH,usrid:"a.schmidt@globalcorp.com"},
+   {pernr:1001,subty:"0010",begda:"2021-06-15",endda:HIGH,usrid:"l.nguyen@globalcorp.com"}],
+  PA2001:[{pernr:1000,begda:"2026-07-01",endda:"2026-07-05",awart:"0100",abwtg:5}],
+  PA2006:[
+   {pernr:1000,begda:"2026-01-01",endda:"2026-12-31",ktart:"0100",anzhl:30,kverb:5},
+   {pernr:1001,begda:"2026-01-01",endda:"2026-12-31",ktart:"0100",anzhl:25,kverb:0}],
+  HRP1000:[
+   {otype:"O",objid:50000001,begda:"2020-01-01",endda:HIGH,short:"EXEC",stext:"Executive Board"},
+   {otype:"O",objid:50000010,begda:"2020-01-01",endda:HIGH,short:"HR",stext:"Human Resources"},
+   {otype:"O",objid:50000020,begda:"2020-01-01",endda:HIGH,short:"FIN",stext:"Finance"},
+   {otype:"C",objid:50000900,begda:"2020-01-01",endda:HIGH,short:"HRSPEC",stext:"HR Specialist (Job)"},
+   {otype:"S",objid:50000100,begda:"2020-01-01",endda:HIGH,short:"HEADHR",stext:"Head of Human Resources"},
+   {otype:"S",objid:50000101,begda:"2020-01-01",endda:HIGH,short:"HRSPEC1",stext:"HR Specialist"}],
+  HRP1001:[
+   {otype:"O",objid:50000010,rsign:"A",relat:"002",sclas:"O",sobid:"50000001",begda:"2020-01-01",endda:HIGH},
+   {otype:"O",objid:50000020,rsign:"A",relat:"002",sclas:"O",sobid:"50000001",begda:"2020-01-01",endda:HIGH},
+   {otype:"S",objid:50000100,rsign:"A",relat:"003",sclas:"O",sobid:"50000010",begda:"2020-01-01",endda:HIGH},
+   {otype:"O",objid:50000010,rsign:"B",relat:"012",sclas:"S",sobid:"50000100",begda:"2020-01-01",endda:HIGH},
+   {otype:"S",objid:50000101,rsign:"A",relat:"003",sclas:"O",sobid:"50000010",begda:"2020-01-01",endda:HIGH},
+   {otype:"S",objid:50000101,rsign:"A",relat:"007",sclas:"C",sobid:"50000900",begda:"2020-01-01",endda:HIGH},
+   {otype:"S",objid:50000101,rsign:"A",relat:"002",sclas:"S",sobid:"50000100",begda:"2020-01-01",endda:HIGH}],
+  T001:{"1000":"Global Corp AG"}, T500P:{"1000":"Head Office","2000":"Branch Office"},
+  T501:{"1":"Active employees","2":"Pensioners","9":"External staff"},
+  T503K:{"DU":"Salaried staff","DW":"Industrial workers","DT":"Trainees"},
+  T512T:{"1010":"Base pay","1000":"Standard salary","2000":"Overtime pay","3000":"Bonus","5000":"Allowance"},
+  T554S:{"0100":"Annual leave","0200":"Sick leave","0300":"Unpaid leave","1000":"Overtime","0400":"Business trip"},
+  dom:{GESCH:{"1":"Male","2":"Female","3":"Undefined"},
+       FAMST:{"0":"Single","1":"Married","2":"Widowed","3":"Divorced","4":"Separated"},
+       ANRED:{"1":"Mrs.","2":"Mr.","3":"Company"},
+       STAT2:{"0":"Withdrawn","1":"Inactive","2":"Retiree","3":"Active"},
+       USRTY:{"0010":"E-Mail","0020":"Telephone","CELL":"Mobile phone"}}
+};}
+let db=seed();
+
+/* ============================ LOGIC (mirrors C# services) ============================ */
+const today=()=>new Date().toISOString().slice(0,10);
+const validOn=(rows,pernr,key)=>rows.filter(r=>r.pernr===pernr&&r.begda<=key&&r.endda>=key)
+  .sort((a,b)=>a.begda<b.begda?1:-1)[0]||null;
+const orgText=(ot,id,key)=>{const o=db.HRP1000.find(x=>x.otype===ot&&x.objid===id&&x.begda<=key&&x.endda>=key);return o?o.stext:null;};
+const dom=(d,k)=>db.dom[d]&&db.dom[d][k]||null;
+const dayBefore=d=>{const x=new Date(d);x.setDate(x.getDate()-1);return x.toISOString().slice(0,10);};
+const daysBetween=(a,b)=>Math.round((new Date(b)-new Date(a))/864e5)+1;
+const fmtDate=s=>!s?"":s.startsWith("9999")?"unlimited":s.split("-").reverse().join(".");
+const fmtAmt=(n,c)=>n==null?"":Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})+(c?" "+c:"");
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function getEmployees(search,key){
+  key=key||today();
+  let list=db.emp.map(em=>{
+    const p2=validOn(db.PA0002,em.pernr,key); if(!p2)return null;
+    const p1=validOn(db.PA0001,em.pernr,key), p0=validOn(db.PA0000,em.pernr,key);
+    const mail=db.PA0105.filter(x=>x.pernr===em.pernr&&x.subty==="0010"&&x.begda<=key&&x.endda>=key)[0];
+    return{pernr:em.pernr,fullName:p2.vorna+" "+p2.nachn,
+      orgUnitName:p1&&p1.orgeh?orgText("O",p1.orgeh,key):null,
+      positionName:p1&&p1.plans?orgText("S",p1.plans,key):null,
+      email:mail?mail.usrid:null, status:p0&&p0.stat2?dom("STAT2",p0.stat2):null};
+  }).filter(Boolean);
+  if(search){const s=search.toLowerCase();
+    list=list.filter(e=>e.fullName.toLowerCase().includes(s)||String(e.pernr).includes(s));}
+  return list.sort((a,b)=>a.pernr-b.pernr);
+}
+function getEmployee(pernr,key){
+  key=key||today();
+  const p2=validOn(db.PA0002,pernr,key),p1=validOn(db.PA0001,pernr,key),
+        p6=validOn(db.PA0006,pernr,key),p7=validOn(db.PA0007,pernr,key),p8=validOn(db.PA0008,pernr,key);
+  return{pernr,key,
+    personal:p2&&{anred:dom("ANRED",p2.anred),nachn:p2.nachn,vorna:p2.vorna,gbdat:p2.gbdat,
+      gesch:dom("GESCH",p2.gesch),natio:p2.natio,famst:dom("FAMST",p2.famst),begda:p2.begda,endda:p2.endda},
+    org:p1&&{bukrs:p1.bukrs,company:db.T001[p1.bukrs],werks:p1.werks,werksN:db.T500P[p1.werks],
+      persg:p1.persg,persgN:db.T501[p1.persg],persk:p1.persk,perskN:db.T503K[p1.persk],
+      orgeh:p1.orgeh,orgN:p1.orgeh?orgText("O",p1.orgeh,key):null,
+      plans:p1.plans,posN:p1.plans?orgText("S",p1.plans,key):null,kostl:p1.kostl,begda:p1.begda,endda:p1.endda},
+    addr:p6&&{stras:p6.stras,ort01:p6.ort01,pstlz:p6.pstlz,land1:p6.land1},
+    wt:p7&&{schkz:p7.schkz,empct:p7.empct,wostd:p7.wostd},
+    pay:p8&&{trfgr:p8.trfgr,bsgrd:p8.bsgrd,waers:p8.waers,ansal:p8.ansal,
+      wt:(p8.wt||[]).map(w=>({lgart:w.lgart,txt:db.T512T[w.lgart],betrg:w.betrg,waers:w.waers}))},
+    comms:db.PA0105.filter(x=>x.pernr===pernr&&x.begda<=key&&x.endda>=key).map(c=>({t:dom("USRTY",c.subty),v:c.usrid})),
+    banks:db.PA0009.filter(x=>x.pernr===pernr&&x.begda<=key&&x.endda>=key).map(b=>({key:b.bankl,acc:b.bankn,ctry:b.banks}))
+  };
+}
+function hire(f){
+  const pernr=++db.nr.PERNR;
+  db.emp.push({pernr,hireDate:f.hireDate});
+  db.PA0000.push({pernr,begda:f.hireDate,endda:HIGH,stat2:"3"});
+  db.PA0001.push({pernr,begda:f.hireDate,endda:HIGH,bukrs:f.companyCode,werks:f.personnelArea,persg:f.employeeGroup,persk:f.employeeSubgroup,orgeh:f.orgUnit||null,plans:null});
+  db.PA0002.push({pernr,begda:f.hireDate,endda:HIGH,nachn:f.lastName,vorna:f.firstName,gbdat:f.birthDate||null,gesch:f.gender});
+  if(f.email)db.PA0105.push({pernr,subty:"0010",begda:f.hireDate,endda:HIGH,usrid:f.email});
+  return pernr;
+}
+function updatePersonal(pernr,f){
+  const cur=db.PA0002.filter(x=>x.pernr===pernr&&x.endda>=f.begda&&x.begda<f.begda).sort((a,b)=>a.begda<b.begda?1:-1)[0];
+  if(cur)cur.endda=dayBefore(f.begda);
+  db.PA0002.push({pernr,begda:f.begda,endda:HIGH,anred:f.anred,nachn:f.lastName,vorna:f.firstName,gbdat:f.birthDate||null,gesch:f.gender,natio:f.nationality,famst:f.maritalStatus});
+}
+function reassign(pernr,f){
+  const cur=db.PA0001.filter(x=>x.pernr===pernr&&x.endda>=f.begda&&x.begda<f.begda).sort((a,b)=>a.begda<b.begda?1:-1)[0];
+  const rec={pernr,begda:f.begda,endda:HIGH,bukrs:cur&&cur.bukrs,werks:cur&&cur.werks,btrtl:cur&&cur.btrtl,
+    persg:cur&&cur.persg,persk:cur&&cur.persk,orgeh:f.orgUnit||(cur&&cur.orgeh),plans:f.position||(cur&&cur.plans),
+    stell:cur&&cur.stell,kostl:f.costCenter||(cur&&cur.kostl)};
+  if(cur)cur.endda=dayBefore(f.begda);
+  db.PA0001.push(rec);
+}
+function leaveBalances(pernr){
+  return db.PA2006.filter(q=>q.pernr===pernr).map(q=>({ktart:q.ktart,txt:db.T554S[q.ktart],
+    begda:q.begda,endda:q.endda,ent:q.anzhl,ded:q.kverb,rem:q.anzhl-q.kverb}));
+}
+function recordAbsence(pernr,f){
+  if(f.endda<f.begda)throw new Error("End date must not be before start date.");
+  const days=f.days!=null&&f.days!==""?Number(f.days):daysBetween(f.begda,f.endda);
+  const q=db.PA2006.filter(x=>x.pernr===pernr&&x.ktart===f.absenceType&&x.begda<=f.begda&&x.endda>=f.begda).sort((a,b)=>a.begda<b.begda?1:-1)[0];
+  if(q){if(q.anzhl-q.kverb<days)throw new Error("Insufficient leave quota for this absence.");q.kverb+=days;}
+  db.PA2001.push({pernr,begda:f.begda,endda:f.endda,awart:f.absenceType,abwtg:days});
+  return days;
+}
+function orgFlat(key){key=key||today();
+  return db.HRP1000.filter(o=>o.otype==="O"&&o.begda<=key&&o.endda>=key).map(o=>{
+    const r=db.HRP1001.find(x=>x.otype==="O"&&x.sclas==="O"&&x.rsign==="A"&&x.relat==="002"&&x.objid===o.objid&&x.begda<=key&&x.endda>=key);
+    return{id:o.objid,name:o.stext,short:o.short,parent:r?+r.sobid:null,children:[]};}).sort((a,b)=>a.id-b.id);
+}
+function orgTree(key){key=key||today();
+  const flat=orgFlat(key),by={};flat.forEach(u=>by[u.id]=u);
+  db.PA0001.filter(a=>a.orgeh&&a.begda<=key&&a.endda>=key).forEach(a=>{if(by[a.orgeh])by[a.orgeh].hc=(by[a.orgeh].hc||0)+1;});
+  db.HRP1001.filter(r=>r.otype==="O"&&r.rsign==="B"&&r.relat==="012"&&r.sclas==="S"&&r.begda<=key&&r.endda>=key)
+    .forEach(r=>{if(by[r.objid])by[r.objid].mgr=orgText("S",+r.sobid,key);});
+  const roots=[];flat.forEach(u=>{if(u.parent&&by[u.parent]&&u.parent!==u.id)by[u.parent].children.push(u);else roots.push(u);});
+  return roots;
+}
+function positions(orgFilter,key){key=key||today();
+  let list=db.HRP1000.filter(p=>p.otype==="S"&&p.begda<=key&&p.endda>=key).map(p=>{
+    const toO=db.HRP1001.find(r=>r.otype==="S"&&r.rsign==="A"&&r.relat==="003"&&r.sclas==="O"&&r.objid===p.objid&&r.begda<=key&&r.endda>=key);
+    const toJ=db.HRP1001.find(r=>r.otype==="S"&&r.rsign==="A"&&r.relat==="007"&&r.sclas==="C"&&r.objid===p.objid&&r.begda<=key&&r.endda>=key);
+    const h=db.PA0001.filter(a=>a.plans===p.objid&&a.begda<=key&&a.endda>=key).map(a=>{const pd=validOn(db.PA0002,a.pernr,key);return pd?{pernr:a.pernr,name:pd.vorna+" "+pd.nachn}:null;}).filter(Boolean)[0];
+    const oid=toO?+toO.sobid:null,jid=toJ?+toJ.sobid:null;
+    return{id:p.objid,name:p.stext,orgId:oid,orgN:oid?orgText("O",oid,key):null,jobN:jid?orgText("C",jid,key):null,
+      holder:h?h.name:null,vacant:!h};
+  });
+  if(orgFilter)list=list.filter(p=>String(p.orgId)===String(orgFilter));
+  return list.sort((a,b)=>a.id-b.id);
+}
+
+/* ============================ STATE + RENDER ============================ */
+const S={view:"list",pernr:null,search:"",key:"",tab:"personal",orgFilter:"",open:new Set([50000001])};
+const $=s=>document.querySelector(s);
+const app=$("#app");
+
+function navBar(){
+  const items=[["list","People","people"],["org","Org Chart","org"],["pos","Positions","pos"]];
+  $("#nav").innerHTML=items.map(([v,l,ic])=>
+    `<button data-nav="${v}" class="${S.view===v||(S.view==="detail"&&v==="list")?'active':''}">${I[ic]}${l}</button>`).join("");
+}
+
+function render(){
+  navBar();
+  if(S.view==="list")renderList();
+  else if(S.view==="detail")renderDetail();
+  else if(S.view==="org")renderOrg();
+  else if(S.view==="pos")renderPositions();
+  window.scrollTo(0,0);
+}
+
+function renderList(){
+  const rows=getEmployees(S.search,S.key);
+  app.innerHTML=`
+  <div class="page-head"><div><div class="crumb">Personnel Administration</div><h1>Employees</h1></div>
+    <button class="btn primary" data-act="hire">${I.person} Hire employee</button></div>
+  <div class="toolbar">
+    <div class="search">${I.search}<input id="q" placeholder="Search by name or personnel number" value="${esc(S.search)}"></div>
+    <div class="field"><label>Key date</label><input type="date" id="kd" value="${S.key}"></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h2>Employee list</h2><span class="count">${rows.length}</span></div>
+    <div class="tbl-wrap"><table><thead><tr>
+      <th>Pers.No.</th><th>Name</th><th>Organizational unit</th><th>Position</th><th>E-mail</th><th>Status</th>
+    </tr></thead><tbody>${rows.length?rows.map(r=>`
+      <tr class="click" data-open="${r.pernr}">
+        <td class="pernr num">${r.pernr}</td><td>${esc(r.fullName)}</td>
+        <td>${esc(r.orgUnitName||"—")}</td><td>${esc(r.positionName||"—")}</td>
+        <td>${r.email?`<a class="mail" href="mailto:${esc(r.email)}">${esc(r.email)}</a>`:"—"}</td>
+        <td><span class="pill ${r.status==='Active'?'good':r.status==='Inactive'?'warn':'neutral'}">${esc(r.status||"—")}</span></td>
+      </tr>`).join(""):`<tr><td colspan="6"><div class="empty">No employees match your search.</div></td></tr>`}
+    </tbody></table></div>
+  </div>`;
+  $("#q").addEventListener("input",e=>{S.search=e.target.value;renderList();});
+  $("#q").focus();const v=$("#q").value;$("#q").value="";$("#q").value=v;
+  $("#kd").addEventListener("change",e=>{S.key=e.target.value;renderList();});
+}
+
+function tab(id,label,ico){return `<button data-tab="${id}" class="${S.tab===id?'active':''}"><span class="ico">${I[ico]}</span>${label}</button>`;}
+function dl(pairs){return `<dl class="dl">${pairs.map(([k,v])=>`<div class="row"><dt>${k}</dt><dd>${v==null||v===""?"—":v}</dd></div>`).join("")}</dl>`;}
+
+function renderDetail(){
+  const e=getEmployee(S.pernr,S.key);
+  if(!e.personal){app.innerHTML=`<div class="empty">Employee not found on this key date.</div>`;return;}
+  const p=e.personal,initials=(p.vorna[0]||"")+(p.nachn[0]||"");
+  let content="";
+  if(S.tab==="personal")content=`<div class="card"><div class="subcard">
+    <div class="section-title">Personal data · IT0002</div>${dl([
+      ["Form of address",esc(p.anred)],["First name",esc(p.vorna)],["Last name",esc(p.nachn)],
+      ["Date of birth",fmtDate(p.gbdat)],["Gender",esc(p.gesch)],["Nationality",esc(p.natio)],
+      ["Marital status",esc(p.famst)],["Validity",fmtDate(p.begda)+" – "+fmtDate(p.endda)]])}</div></div>`;
+  else if(S.tab==="org"){const o=e.org||{};content=`<div class="card"><div class="subcard">
+    <div class="section-title">Organizational assignment · IT0001</div>${dl([
+      ["Company code",esc(o.bukrs)+" – "+esc(o.company)],["Personnel area",esc(o.werks)+" – "+esc(o.werksN)],
+      ["Employee group",esc(o.persg)+" – "+esc(o.persgN)],["Employee subgroup",esc(o.persk)+" – "+esc(o.perskN)],
+      ["Organizational unit",o.orgeh?esc(o.orgeh)+" "+esc(o.orgN):"—"],["Position",o.plans?esc(o.plans)+" "+esc(o.posN):"—"],
+      ["Cost center",esc(o.kostl)],["Validity",fmtDate(o.begda)+" – "+fmtDate(o.endda)]])}</div></div>`;}
+  else if(S.tab==="contact"){const a=e.addr||{};content=`<div class="card"><div class="subcard">
+    <div class="section-title">Address · IT0006</div>${dl([["Street",esc(a.stras)],["City",esc(a.pstlz)+" "+esc(a.ort01)],["Country",esc(a.land1)]])}</div>
+    <div class="subcard"><div class="section-title">Communication · IT0105</div>
+    <div class="tbl-wrap"><table><thead><tr><th>Type</th><th>Value</th></tr></thead><tbody>
+    ${e.comms.map(c=>`<tr><td>${esc(c.t)}</td><td><a class="mail" href="mailto:${esc(c.v)}">${esc(c.v)}</a></td></tr>`).join("")||`<tr><td colspan=2>—</td></tr>`}
+    </tbody></table></div></div></div>`;}
+  else if(S.tab==="pay"){const w=e.wt||{},pay=e.pay||{};content=`<div class="card">
+    <div class="subcard"><div class="section-title">Planned working time · IT0007</div>${dl([
+      ["Work schedule rule",esc(w.schkz)],["Employment percent",w.empct!=null?w.empct+" %":"—"],["Weekly hours",esc(w.wostd)]])}</div>
+    <div class="subcard"><div class="section-title">Basic pay · IT0008</div>${dl([
+      ["Pay scale group",esc(pay.trfgr)],["Capacity utilization",pay.bsgrd!=null?pay.bsgrd+" %":"—"],
+      ["Annual salary",`<b>${fmtAmt(pay.ansal,pay.waers)}</b>`]])}
+      <div class="section-title" style="margin-top:14px">Wage types</div>
+      <div class="tbl-wrap"><table><thead><tr><th>Wage type</th><th class="th-r">Amount</th></tr></thead><tbody>
+      ${(pay.wt||[]).map(x=>`<tr><td>${esc(x.lgart)} – ${esc(x.txt)}</td><td class="td-r num">${fmtAmt(x.betrg,x.waers)}</td></tr>`).join("")||""}
+      </tbody></table></div></div>
+    <div class="subcard"><div class="section-title">Bank details · IT0009</div>
+      <div class="tbl-wrap"><table><thead><tr><th>Bank key</th><th>Account number</th><th>Country</th></tr></thead><tbody>
+      ${e.banks.map(b=>`<tr><td class="num">${esc(b.key)}</td><td class="num">${esc(b.acc)}</td><td>${esc(b.ctry)}</td></tr>`).join("")||`<tr><td colspan=3>—</td></tr>`}
+      </tbody></table></div></div></div>`;}
+  else if(S.tab==="time"){const bals=leaveBalances(S.pernr);content=`<div class="card">
+    <div class="card-head"><h2>Leave balances · IT2006</h2></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Quota type</th><th class="th-r">Entitlement</th><th class="th-r">Deducted</th><th class="th-r">Remaining</th><th>Validity</th></tr></thead><tbody>
+    ${bals.map(b=>`<tr><td>${esc(b.txt)}</td><td class="td-r num">${b.ent}</td><td class="td-r num">${b.ded}</td>
+      <td class="td-r"><span class="pill ${b.rem>0?'good':'warn'} num">${b.rem}</span></td>
+      <td>${fmtDate(b.begda)} – ${fmtDate(b.endda)}</td></tr>`).join("")||`<tr><td colspan=5><div class="empty">No quotas.</div></td></tr>`}
+    </tbody></table></div></div>`;}
+
+  app.innerHTML=`
+  <div class="page-head">
+    <div><div class="crumb"><a href="#" data-nav="list" style="color:inherit;text-decoration:none">← Employees</a> / Master data</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" data-act="edit">${I.edit} Edit personal data</button>
+      <button class="btn" data-act="reassign">${I.move} Reassign</button>
+      <button class="btn primary" data-act="absence">${I.cal} Record absence</button>
+    </div>
+  </div>
+  <div class="obj-head">
+    <div class="avatar">${esc(initials.toUpperCase())}</div>
+    <div><h1>${esc(p.vorna)} ${esc(p.nachn)}</h1>
+      <div class="attrs">
+        <span>Org unit: <b>${esc((e.org&&e.org.orgN)||"—")}</b></span>
+        <span>Position: <b>${esc((e.org&&e.org.posN)||"—")}</b></span>
+        <span>Company: <b>${esc((e.org&&e.org.company)||"—")}</b></span>
+      </div></div>
+    <div class="id"><div class="n num">${e.pernr}</div><div class="l">Personnel no.</div>
+      <div class="l" style="margin-top:6px">Key date ${fmtDate(e.key)}</div></div>
+  </div>
+  <div class="tabs">
+    ${tab("personal","Personal Data","person")}${tab("org","Org Assignment","org")}
+    ${tab("contact","Address & Comm.","addr")}${tab("pay","Working Time & Pay","money")}${tab("time","Time & Leave","cal")}
+  </div>
+  ${content}`;
+}
+
+function renderOrg(){
+  const roots=orgTree(S.key);
+  const nodeHtml=n=>{
+    const open=S.open.has(n.id),leaf=!n.children.length;
+    return `<div class="node ${open?'open':''}" >
+      <div class="bar" data-tog="${n.id}">
+        <span class="tog ${leaf?'leaf':''}">${I.chev}</span>
+        <span class="oic">${I.org}</span>
+        <span class="meta"><span class="nm">${esc(n.name)}</span>
+          <span class="dt"><span>Org ID ${n.id}</span>${n.mgr?`<span>Manager: ${esc(n.mgr)}</span>`:""}
+          ${n.hc?`<span class="hc">${I.people}${n.hc}</span>`:""}</span></span>
+      </div>
+      <div class="children">${n.children.map(nodeHtml).join("")}</div></div>`;
+  };
+  app.innerHTML=`
+  <div class="page-head"><div><div class="crumb">Organizational Management</div><h1>Organizational structure</h1></div>
+    <div class="field"><label>Key date</label><input type="date" id="kd" value="${S.key}"></div></div>
+  <div class="card"><div class="tree">${roots.map(nodeHtml).join("")}</div></div>`;
+  $("#kd").addEventListener("change",e=>{S.key=e.target.value;renderOrg();});
+}
+
+function renderPositions(){
+  const list=positions(S.orgFilter,S.key);
+  const orgs=orgFlat(S.key);
+  app.innerHTML=`
+  <div class="page-head"><div><div class="crumb">Organizational Management</div><h1>Positions</h1></div></div>
+  <div class="toolbar">
+    <div class="field"><label>Organizational unit</label>
+      <select id="of"><option value="">All units</option>
+      ${orgs.map(o=>`<option value="${o.id}" ${String(S.orgFilter)===String(o.id)?'selected':''}>${esc(o.name)}</option>`).join("")}</select></div>
+  </div>
+  <div class="card"><div class="card-head"><h2>Positions</h2><span class="count">${list.length}</span></div>
+    <div class="tbl-wrap"><table><thead><tr>
+      <th>Position ID</th><th>Position</th><th>Organizational unit</th><th>Job</th><th>Holder</th><th>Occupancy</th>
+    </tr></thead><tbody>${list.map(p=>`
+      <tr><td class="pernr num">${p.id}</td><td>${esc(p.name)}</td><td>${esc(p.orgN||"—")}</td>
+        <td>${esc(p.jobN||"—")}</td><td>${esc(p.holder||"—")}</td>
+        <td><span class="pill ${p.vacant?'warn':'good'}">${p.vacant?"Vacant":"Occupied"}</span></td></tr>`).join("")}
+    </tbody></table></div></div>`;
+  $("#of").addEventListener("change",e=>{S.orgFilter=e.target.value;renderPositions();});
+}
+
+/* ============================ MODALS ============================ */
+function opt(map,sel){return Object.entries(map).map(([k,v])=>`<option value="${k}" ${String(sel)===String(k)?'selected':''}>${esc(k)} – ${esc(v)}</option>`).join("");}
+function optName(arr,sel){return `<option value="">—</option>`+arr.map(o=>`<option value="${o.id}" ${String(sel)===String(o.id)?'selected':''}>${esc(o.name)}</option>`).join("");}
+function modal(title,bodyHtml,footHtml){
+  $("#modal-root").innerHTML=`<div class="modal-bg" data-close><div class="modal" role="dialog" aria-modal="true">
+    <h3>${title}</h3><div class="body">${bodyHtml}</div><div class="foot">${footHtml}</div></div></div>`;
+  const first=$("#modal-root input,#modal-root select");if(first)first.focus();
+}
+function closeModal(){$("#modal-root").innerHTML="";}
+function val(id){const el=document.getElementById(id);return el?el.value:"";}
+
+function hireDialog(){
+  const orgs=orgFlat(S.key);
+  modal("Hire employee — personnel action",`
+    <div class="grp sec">Personal data</div>
+    <div class="two">
+      <div class="grp"><label>First name <span class="req">*</span></label><input id="h_first"></div>
+      <div class="grp"><label>Last name <span class="req">*</span></label><input id="h_last"></div>
+    </div>
+    <div class="two">
+      <div class="grp"><label>Gender</label><select id="h_gender">${opt(db.dom.GESCH,"1")}</select></div>
+      <div class="grp"><label>Date of birth</label><input type="date" id="h_dob"></div>
+    </div>
+    <div class="grp"><label>E-mail</label><input id="h_email" type="email" placeholder="name@globalcorp.com"></div>
+    <div class="grp sec">Organizational assignment</div>
+    <div class="two">
+      <div class="grp"><label>Hiring date <span class="req">*</span></label><input type="date" id="h_hire" value="${today()}"></div>
+      <div class="grp"><label>Company code</label><select id="h_cc">${opt(db.T001,"1000")}</select></div>
+    </div>
+    <div class="two">
+      <div class="grp"><label>Personnel area</label><select id="h_pa">${opt(db.T500P,"1000")}</select></div>
+      <div class="grp"><label>Employee group</label><select id="h_eg">${opt(db.T501,"1")}</select></div>
+    </div>
+    <div class="two">
+      <div class="grp"><label>Employee subgroup</label><select id="h_es">${opt(db.T503K,"DU")}</select></div>
+      <div class="grp"><label>Organizational unit</label><select id="h_ou">${optName(orgs,"")}</select></div>
+    </div>`,
+    `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="hire">Hire</button>`);
+}
+function editDialog(){
+  const e=getEmployee(S.pernr,S.key),p=e.personal||{};
+  modal("Change personal data · IT0002",`
+    <div class="hint">${I.info}<span>A new time slice is created from the valid-from date; the previous record is delimited the day before.</span></div>
+    <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="e_begda" value="${today()}"></div>
+    <div class="two">
+      <div class="grp"><label>First name <span class="req">*</span></label><input id="e_first" value="${esc(p.vorna)}"></div>
+      <div class="grp"><label>Last name <span class="req">*</span></label><input id="e_last" value="${esc(p.nachn)}"></div>
+    </div>
+    <div class="two">
+      <div class="grp"><label>Gender</label><select id="e_gender">${opt(db.dom.GESCH,"")}</select></div>
+      <div class="grp"><label>Marital status</label><select id="e_marital"><option value="">—</option>${opt(db.dom.FAMST,"")}</select></div>
+    </div>
+    <div class="grp"><label>Nationality</label><input id="e_natio" value="${esc(p.natio)}" maxlength="3"></div>`,
+    `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="edit">Save</button>`);
+}
+function reassignDialog(){
+  const orgs=orgFlat(S.key),pos=positions("",S.key);
+  modal("Organizational reassignment · IT0001",`
+    <div class="hint">${I.info}<span>Delimits the current assignment and starts a new one. Blank fields are carried forward.</span></div>
+    <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="r_begda" value="${today()}"></div>
+    <div class="grp"><label>Organizational unit</label><select id="r_ou">${optName(orgs,"")}</select></div>
+    <div class="grp"><label>Position</label><select id="r_pos"><option value="">—</option>${pos.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select></div>
+    <div class="grp"><label>Cost center</label><input id="r_cc" placeholder="e.g. FIN-2000"></div>`,
+    `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="reassign">Save</button>`);
+}
+function absenceDialog(){
+  modal("Record absence · IT2001",`
+    <div class="hint">${I.info}<span>The absence is deducted from the matching leave quota. Exceeding the balance is rejected.</span></div>
+    <div class="grp"><label>Absence type <span class="req">*</span></label><select id="a_type">${opt(db.T554S,"0100")}</select></div>
+    <div class="two">
+      <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="a_begda"></div>
+      <div class="grp"><label>Valid to <span class="req">*</span></label><input type="date" id="a_endda"></div>
+    </div>
+    <div class="grp"><label>Days</label><input id="a_days" type="number" step="0.5" placeholder="Leave empty to calculate from dates"></div>`,
+    `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="absence">Submit</button>`);
+}
+
+/* ============================ TOAST ============================ */
+function toast(msg,kind){
+  const t=document.createElement("div");t.className="toast "+(kind||"");
+  t.innerHTML=(kind==="good"?I.check:kind==="bad"?I.warn:I.info)+"<span>"+esc(msg)+"</span>";
+  $("#toasts").appendChild(t);setTimeout(()=>t.remove(),2800);
+}
+
+/* ============================ EVENTS ============================ */
+document.addEventListener("click",ev=>{
+  const t=ev.target.closest("[data-nav],[data-open],[data-act],[data-tab],[data-tog],[data-do],[data-close]");
+  if(!t)return;
+  if(t.dataset.nav){ev.preventDefault();S.view=t.dataset.nav;S.tab="personal";render();return;}
+  if(t.dataset.open){S.view="detail";S.pernr=+t.dataset.open;S.tab="personal";render();return;}
+  if(t.dataset.tab){S.tab=t.dataset.tab;renderDetail();return;}
+  if(t.dataset.tog){const id=+t.dataset.tog;S.open.has(id)?S.open.delete(id):S.open.add(id);renderOrg();return;}
+  if(t.dataset.act){
+    if(t.dataset.act==="hire")hireDialog();
+    else if(t.dataset.act==="edit")editDialog();
+    else if(t.dataset.act==="reassign")reassignDialog();
+    else if(t.dataset.act==="absence")absenceDialog();
+    return;
+  }
+  if(t.hasAttribute("data-close")){if(ev.target.closest(".modal")&&!t.hasAttribute("data-close"))return;closeModal();return;}
+  if(t.dataset.do){doAction(t.dataset.do);return;}
+});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal();});
+
+function doAction(kind){
+  try{
+    if(kind==="hire"){
+      const f={firstName:val("h_first").trim(),lastName:val("h_last").trim(),gender:val("h_gender"),
+        birthDate:val("h_dob"),email:val("h_email").trim(),hireDate:val("h_hire"),
+        companyCode:val("h_cc"),personnelArea:val("h_pa"),employeeGroup:val("h_eg"),
+        employeeSubgroup:val("h_es"),orgUnit:val("h_ou")?+val("h_ou"):null};
+      if(!f.firstName||!f.lastName||!f.hireDate){toast("Enter first name, last name and hiring date.","bad");return;}
+      const pernr=hire(f);closeModal();toast("Employee "+pernr+" hired successfully.","good");
+      S.view="detail";S.pernr=pernr;S.tab="personal";render();
+    }else if(kind==="edit"){
+      const f={begda:val("e_begda"),firstName:val("e_first").trim(),lastName:val("e_last").trim(),
+        gender:val("e_gender"),maritalStatus:val("e_marital"),nationality:val("e_natio").trim()};
+      if(!f.begda||!f.firstName||!f.lastName){toast("Enter valid-from, first and last name.","bad");return;}
+      updatePersonal(S.pernr,f);closeModal();toast("Personal data updated.","good");renderDetail();
+    }else if(kind==="reassign"){
+      const f={begda:val("r_begda"),orgUnit:val("r_ou")?+val("r_ou"):null,position:val("r_pos")?+val("r_pos"):null,costCenter:val("r_cc").trim()};
+      if(!f.begda){toast("Enter a valid-from date.","bad");return;}
+      reassign(S.pernr,f);closeModal();toast("Organizational assignment updated.","good");renderDetail();
+    }else if(kind==="absence"){
+      const f={absenceType:val("a_type"),begda:val("a_begda"),endda:val("a_endda"),days:val("a_days")};
+      if(!f.begda||!f.endda){toast("Enter start and end dates.","bad");return;}
+      const d=recordAbsence(S.pernr,f);closeModal();toast("Absence recorded ("+d+" day(s)) and deducted from quota.","good");
+      S.tab="time";renderDetail();
+    }
+  }catch(err){toast(err.message,"bad");}
+}
+
+/* ---- utility buttons ---- */
+$("#reset").addEventListener("click",()=>{db=seed();S.view="list";S.pernr=null;S.search="";S.open=new Set([50000001]);render();toast("Demo data reset to seed.","good");});
+(function themeInit(){
+  const btn=$("#theme");
+  btn.addEventListener("click",()=>{
+    const cur=document.documentElement.getAttribute("data-theme");
+    const next=cur==="dark"?"light":cur==="light"?"dark":(matchMedia("(prefers-color-scheme:dark)").matches?"light":"dark");
+    document.documentElement.setAttribute("data-theme",next);
+  });
+})();
+
+render();
+</script>

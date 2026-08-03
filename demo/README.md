@@ -1,7 +1,16 @@
 # HR Module — Full Demo System
 
-Run the **entire HR module** (SAPUI5 web app + REST API) with a **single
-command and zero dependencies** — no .NET, no SQL Server, no build step.
+Two ways to try it:
+
+1. **Hosted link (nothing to install)** — a self-contained, single-file
+   interactive demo you can open or share:
+   **https://claude.ai/code/artifact/69dbebaf-47c7-4e77-b38f-818902a1f7e3**
+   Source: [`demo/standalone.html`](standalone.html). It reproduces the same
+   screens, seed data and business logic entirely in the browser (no server,
+   no CDN). It mirrors the app rather than running the SAPUI5 build itself.
+
+2. **Local full run** — the **real SAPUI5 web app** + REST API with a **single
+   command and zero dependencies** (no .NET, no SQL Server, no build step):
 
 ```bash
 node demo/server.js
