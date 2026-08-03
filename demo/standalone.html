@@ -239,7 +239,8 @@ a.mail:hover{text-decoration:underline}
 .obj-head .attrs b{color:var(--text);font-weight:600}
 
 /* ---- Tabs ---- */
-.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;overflow:visible;position:relative}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;overflow:visible;
+  position:sticky;top:var(--shell-h,60px);z-index:15;background:var(--bg);padding-top:6px}
 .tab-more-wrap{position:relative;margin-left:auto;align-self:center}
 .tab-morebtn{background:transparent;border:0;color:var(--muted);padding:10px 12px;cursor:pointer;
   font-size:13.5px;font-weight:600;white-space:nowrap;display:flex;align-items:center;gap:6px;border-bottom:3px solid transparent}
@@ -908,7 +909,9 @@ function fitNav(){
     if(used>avail){b.style.display="none";const c=b.cloneNode(true);c.style.display="";moreMenu.appendChild(c);}}
 }
 let _navResize;
-window.addEventListener("resize",()=>{clearTimeout(_navResize);_navResize=setTimeout(fitNav,120);});
+/* Keep --shell-h in sync so sticky detail tabs sit right below the header. */
+function syncShellH(){const s=document.querySelector(".shell");if(s)document.documentElement.style.setProperty("--shell-h",s.offsetHeight+"px");}
+window.addEventListener("resize",()=>{clearTimeout(_navResize);_navResize=setTimeout(()=>{fitNav();syncShellH();},120);});
 
 /* ===== Reusable data table: global search + per-column filter + sort + column show/hide =====
    cols: [{k,l,v?(row)->text,html?(row)->html,num?,always?}]. State keyed by table id. */
@@ -965,6 +968,7 @@ function render(){
   if(SESSION){$("#whoami").innerHTML=`<img class="whoami-av" src="${empPhoto(SESSION.pernr,SESSION.name)}" ${SESSION.pernr?`data-open="${SESSION.pernr}" title="Open my record"`:'title="No linked employee"'} alt=""><div class="wi-txt"><b>${esc(SESSION.name)}</b><span>${esc(db.roleNames[SESSION.role])}</span></div>`;}
   if(!SESSION){navBar();renderLogin();return;}
   navBar();
+  requestAnimationFrame(syncShellH);
   if(S.view==="list")renderList();
   else if(S.view==="detail")renderDetail();
   else if(S.view==="org")renderOrg();
