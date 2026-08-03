@@ -340,8 +340,8 @@ function seed(){return{
    {pernr:1000,begda:"2020-03-01",endda:HIGH,bukrs:"1000",werks:"1000",btrtl:"0001",persg:"1",persk:"DU",orgeh:50000010,plans:50000100,stell:50000900,kostl:"HR-1000"},
    {pernr:1001,begda:"2021-06-15",endda:HIGH,bukrs:"1000",werks:"1000",btrtl:"0001",persg:"1",persk:"DU",orgeh:50000010,plans:50000101,stell:50000900,kostl:"HR-1000"}],
   PA0002:[
-   {pernr:1000,begda:"2020-03-01",endda:HIGH,anred:"2",nachn:"Schmidt",vorna:"Andreas",gbdat:"1982-07-12",gesch:"1",natio:"DE",famst:"1"},
-   {pernr:1001,begda:"2021-06-15",endda:HIGH,anred:"1",nachn:"Nguyen",vorna:"Linda",gbdat:"1990-11-03",gesch:"2",natio:"US",famst:"0"}],
+   {pernr:1000,begda:"2020-03-01",endda:HIGH,anred:"2",titel:"Dr.",nachn:"Schmidt",vorna:"Andreas",midnm:"Karl",rufnm:"Andy",gbdat:"1982-07-12",gbort:"Berlin",gesch:"1",natio:"DE",sprsl:"DE",famst:"1"},
+   {pernr:1001,begda:"2021-06-15",endda:HIGH,anred:"1",titel:"",nachn:"Nguyen",vorna:"Linda",midnm:"",rufnm:"Lin",gbdat:"1990-11-03",gbort:"New York",gesch:"2",natio:"US",sprsl:"EN",famst:"0"}],
   PA0006:[
    {pernr:1000,begda:"2020-03-01",endda:HIGH,stras:"Hauptstrasse 12",ort01:"Berlin",pstlz:"10115",land1:"DE"},
    {pernr:1001,begda:"2021-06-15",endda:HIGH,stras:"5th Avenue 200",ort01:"New York",pstlz:"10001",land1:"US"}],
@@ -408,6 +408,7 @@ function seed(){return{
   T001:{"1000":"Global Corp AG"}, T500P:{"1000":"Head Office","2000":"Branch Office"},
   T501:{"1":"Active employees","2":"Pensioners","9":"External staff"},
   T503K:{"DU":"Salaried staff","DW":"Industrial workers","DT":"Trainees"},
+  costCenters:[{id:"HR-1000",name:"Human Resources"},{id:"FIN-2000",name:"Finance"},{id:"EXE-1000",name:"Executive Board"}],
   T512T:{"1010":"Base pay","1000":"Standard salary","2000":"Overtime pay","3000":"Bonus","5000":"Allowance"},
   T554S:{"0100":"Annual leave","0200":"Sick leave","0300":"Unpaid leave","1000":"Overtime","0400":"Business trip","0500":"Training","0600":"Conference"},
   T547T:{"01":"Permanent","02":"Fixed-term","03":"Temporary","04":"Internship"},
@@ -503,8 +504,8 @@ function getEmployee(pernr,key){
   const p2=validOn(db.PA0002,pernr,key),p1=validOn(db.PA0001,pernr,key),
         p6=validOn(db.PA0006,pernr,key),p7=validOn(db.PA0007,pernr,key),p8=validOn(db.PA0008,pernr,key);
   return{pernr,key,
-    personal:p2&&{anred:dom("ANRED",p2.anred),nachn:p2.nachn,vorna:p2.vorna,gbdat:p2.gbdat,
-      gesch:dom("GESCH",p2.gesch),natio:p2.natio,famst:dom("FAMST",p2.famst),begda:p2.begda,endda:p2.endda},
+    personal:p2&&{anred:dom("ANRED",p2.anred),titel:p2.titel,nachn:p2.nachn,vorna:p2.vorna,midnm:p2.midnm,rufnm:p2.rufnm,
+      gbdat:p2.gbdat,gbort:p2.gbort,gesch:dom("GESCH",p2.gesch),natio:p2.natio,sprsl:p2.sprsl,famst:dom("FAMST",p2.famst),begda:p2.begda,endda:p2.endda},
     org:p1&&{bukrs:p1.bukrs,company:db.T001[p1.bukrs],werks:p1.werks,werksN:db.T500P[p1.werks],
       persg:p1.persg,persgN:db.T501[p1.persg],persk:p1.persk,perskN:db.T503K[p1.persk],
       orgeh:p1.orgeh,orgN:p1.orgeh?orgText("O",p1.orgeh,key):null,
@@ -537,7 +538,7 @@ function hire(f){
 function updatePersonal(pernr,f){
   const cur=db.PA0002.filter(x=>x.pernr===pernr&&x.endda>=f.begda&&x.begda<f.begda).sort((a,b)=>a.begda<b.begda?1:-1)[0];
   if(cur)cur.endda=dayBefore(f.begda);
-  db.PA0002.push({pernr,begda:f.begda,endda:HIGH,anred:f.anred,nachn:f.lastName,vorna:f.firstName,gbdat:f.birthDate||null,gesch:f.gender,natio:f.nationality,famst:f.maritalStatus});
+  db.PA0002.push({pernr,begda:f.begda,endda:HIGH,anred:f.anred,titel:f.titel,nachn:f.lastName,vorna:f.firstName,midnm:f.middleName,rufnm:f.nickname,gbdat:f.birthDate||null,gbort:f.birthPlace,gesch:f.gender,natio:f.nationality,sprsl:f.language,famst:f.maritalStatus});
 }
 function reassign(pernr,f){
   const cur=db.PA0001.filter(x=>x.pernr===pernr&&x.endda>=f.begda&&x.begda<f.begda).sort((a,b)=>a.begda<b.begda?1:-1)[0];
@@ -579,6 +580,21 @@ function addCommunication(pernr,f){
   if(cur)cur.endda=dayBefore(begda);
   db.PA0105.push({pernr,subty:f.subType,begda,endda:HIGH,usrid:f.value});
 }
+/* Generic time-constraint-1 update: delimit the open matching record, insert new. */
+function delimitInsert(arr,pernr,begda,rec,match){
+  begda=begda||today();
+  const cur=arr.filter(x=>x.pernr===pernr&&(!match||match(x))&&x.endda>=begda&&x.begda<begda).sort((a,b)=>a.begda<b.begda?1:-1)[0];
+  if(cur)cur.endda=dayBefore(begda);
+  arr.push(Object.assign({pernr,begda,endda:HIGH},rec));
+}
+function editWorkingTime(pernr,f){delimitInsert(db.PA0007,pernr,f.begda,{schkz:f.schkz,empct:f.empct!==""?Number(f.empct):null,wostd:f.wostd!==""?Number(f.wostd):null});}
+function editPay(pernr,f){const cur=validOn(db.PA0008,pernr,f.begda)||{};
+  delimitInsert(db.PA0008,pernr,f.begda,{trfar:cur.trfar||"01",trfgb:cur.trfgb||"01",trfgr:f.trfgr,bsgrd:f.bsgrd!==""?Number(f.bsgrd):100,waers:f.waers||"EUR",ansal:f.ansal!==""?Number(f.ansal):0,wt:cur.wt||[]});}
+function editBank(pernr,f){delimitInsert(db.PA0009,pernr,f.begda,{subty:"0",banks:f.banks,bankl:f.bankl,bankn:f.bankn,waers:f.waers||"EUR"},x=>x.subty==="0");}
+function editContract(pernr,f){delimitInsert(db.PA0016,pernr,f.begda,{cttyp:f.cttyp,prbez:f.prbez!==""?Number(f.prbez):null,kdgfb:f.kdgfb!==""?Number(f.kdgfb):null,kdgf2:f.kdgf2!==""?Number(f.kdgf2):null});}
+function addEducation(pernr,f){db.PA0022.push({pernr,subty:f.subType,begda:f.begda,endda:f.endda||HIGH,slabs:f.certificate,insti:f.institute,sland:f.country,sfach:f.major,slgra:f.grade});}
+function addQualification(pernr,f){db.PA0024.push({pernr,subty:f.groupKey,begda:f.begda||today(),endda:HIGH,quali:f.qualification,auspr:f.proficiency!==""?Number(f.proficiency):null});}
+function addExperience(pernr,f){db.PA0023.push({pernr,begda:f.begda,endda:f.endda,arbgb:f.employer,ort01:f.place,land1:f.country,task:f.task,branc:f.industry});}
 function recordAttendance(pernr,f){
   if(f.endda<f.begda)throw new Error("End date must not be before start date.");
   const days=f.days!=null&&f.days!==""?Number(f.days):daysBetween(f.begda,f.endda);
@@ -622,7 +638,7 @@ const isManager=()=>SESSION&&SESSION.role==="HR_MANAGER";
 const isEmployee=()=>SESSION&&SESSION.role==="EMPLOYEE";
 const can=(...roles)=>SESSION&&roles.includes(SESSION.role);
 function navFor(role){
-  if(role==="HR_ADMIN")return [["list","People","people"],["orggraph","Org Chart","org"],["pos","Positions","pos"],["payroll","Payroll","money"],["reports","Reports","doc"],["leave","Leave","cal"],["recruit","Recruitment","person"],["training","Training","education"]];
+  if(role==="HR_ADMIN")return [["list","People","people"],["orggraph","Org Chart","org"],["pos","Positions","pos"],["payroll","Payroll","money"],["reports","Reports","doc"],["leave","Leave","cal"],["recruit","Recruitment","person"],["training","Training","education"],["config","Config","doc"]];
   if(role==="HR_MANAGER")return [["mss","My Team","people"],["leave","Approvals","cal"],["orggraph","Org Chart","org"],["reports","Reports","doc"],["training","Training","education"]];
   return [["ess","My Profile","person"],["myleave","My Leave","cal"],["training","Training","education"]];
 }
@@ -652,6 +668,7 @@ function render(){
   else if(S.view==="payroll")renderPayroll();
   else if(S.view==="orggraph")renderOrgGraph();
   else if(S.view==="repgraph")renderReportGraph();
+  else if(S.view==="config")renderConfig();
   else if(S.view==="mss")renderMss();
   else if(S.view==="ess"){S.pernr=SESSION.pernr;S.view="detail";renderDetail();}
   else renderList();
@@ -712,9 +729,13 @@ function renderDetail(){
   let content="";
   if(S.tab==="personal")content=`<div class="card"><div class="subcard">
     <div class="section-title">Personal data · IT0002</div>${dl([
-      ["Form of address",esc(p.anred)],["First name",esc(p.vorna)],["Last name",esc(p.nachn)],
-      ["Date of birth",fmtDate(p.gbdat)],["Gender",esc(p.gesch)],["Nationality",esc(p.natio)],
-      ["Marital status",esc(p.famst)],["Validity",fmtDate(p.begda)+" – "+fmtDate(p.endda)]])}</div></div>`;
+      ["Form of address",esc(p.anred)],["Title",esc(p.titel)],
+      ["First name",esc(p.vorna)],["Last name",esc(p.nachn)],
+      ["Middle name",esc(p.midnm)],["Known as",esc(p.rufnm)],
+      ["Date of birth",fmtDate(p.gbdat)],["Place of birth",esc(p.gbort)],
+      ["Gender",esc(p.gesch)],["Nationality",esc(p.natio)],
+      ["Language",esc(p.sprsl)],["Marital status",esc(p.famst)],
+      ["Validity",fmtDate(p.begda)+" – "+fmtDate(p.endda)]])}</div></div>`;
   else if(S.tab==="org"){const o=e.org||{};content=`<div class="card"><div class="subcard">
     <div class="section-title">Organizational assignment · IT0001</div>${dl([
       ["Company code",esc(o.bukrs)+" – "+esc(o.company)],["Personnel area",esc(o.werks)+" – "+esc(o.werksN)],
@@ -728,7 +749,12 @@ function renderDetail(){
     <div class="tbl-wrap"><table><thead><tr><th>Type</th><th>Value</th></tr></thead><tbody>
     ${e.comms.map(c=>`<tr><td>${esc(c.t)}</td><td><a class="mail" href="mailto:${esc(c.v)}">${esc(c.v)}</a></td></tr>`).join("")||`<tr><td colspan=2>—</td></tr>`}
     </tbody></table></div></div></div>`;}
-  else if(S.tab==="pay"){const w=e.wt||{},pay=e.pay||{};content=`<div class="card">
+  else if(S.tab==="pay"){const w=e.wt||{},pay=e.pay||{};content=`
+    ${isAdmin()?`<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <button class="btn sm" data-act="work">${I.edit} Edit working time</button>
+      <button class="btn sm" data-act="pay">${I.edit} Edit basic pay</button>
+      <button class="btn sm" data-act="bank">${I.edit} Edit bank details</button></div>`:""}
+    <div class="card">
     <div class="subcard"><div class="section-title">Planned working time · IT0007</div>${dl([
       ["Work schedule rule",esc(w.schkz)],["Employment percent",w.empct!=null?w.empct+" %":"—"],["Weekly hours",esc(w.wostd)]])}</div>
     <div class="subcard"><div class="section-title">Basic pay · IT0008</div>${dl([
@@ -759,6 +785,10 @@ function renderDetail(){
     ${e.family.map(f=>`<tr><td><span class="pill neutral">${esc(f.rel)}</span></td><td>${esc(f.name)}</td><td>${esc(f.gesch)}</td><td>${fmtDate(f.dob)}</td></tr>`).join("")||`<tr><td colspan=4><div class="empty">No family members recorded.</div></td></tr>`}
     </tbody></table></div></div>`;}
   else if(S.tab==="edu"){content=`
+    ${isAdmin()?`<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <button class="btn sm" data-act="edu">${I.education} Add education</button>
+      <button class="btn sm" data-act="exp">${I.doc} Add previous employer</button>
+      <button class="btn sm" data-act="qual">${I.check} Add qualification</button></div>`:""}
     <div class="card"><div class="card-head"><h2>Education · IT0022</h2></div>
     <div class="tbl-wrap"><table><thead><tr><th>Establishment</th><th>Certificate</th><th>Branch of study</th><th>Grade</th><th>Period</th></tr></thead><tbody>
     ${e.education.map(x=>`<tr><td><b>${esc(x.est)}</b><br><span style="color:var(--muted)">${esc(x.insti)}</span></td><td>${esc(x.cert)}</td><td>${esc(x.major)}</td><td>${esc(x.grade||"—")}</td><td class="num">${fmtDate(x.begda)} – ${fmtDate(x.endda)}</td></tr>`).join("")||`<tr><td colspan=5><div class="empty">—</div></td></tr>`}
@@ -772,6 +802,7 @@ function renderDetail(){
     ${e.quals.map(x=>`<tr><td>${esc(x.grp)}</td><td>${esc(x.q)}</td><td class="td-r"><span class="pill ${x.lvl>=7?'good':x.lvl>=4?'warn':'neutral'} num">${x.lvl} / 9</span></td></tr>`).join("")||`<tr><td colspan=3><div class="empty">—</div></td></tr>`}
     </tbody></table></div>`;}
   else if(S.tab==="contract"){const c=e.contract||{};content=`
+    ${isAdmin()?`<div style="margin-bottom:12px"><button class="btn sm" data-act="contract">${I.edit} Edit contract</button></div>`:""}
     <div class="card"><div class="subcard"><div class="section-title">Contract elements · IT0016</div>${dl([
       ["Contract type",esc(c.type)],["Probation period",c.prbez!=null?c.prbez+" months":"—"],
       ["Notice period (employer)",c.kdgfb!=null?c.kdgfb+" months":"—"],["Notice period (employee)",c.kdgf2!=null?c.kdgf2+" months":"—"],
@@ -931,7 +962,48 @@ function payslip(pernr,from,to){
   const net=gross-tax-social;
   return {pernr,name:empName(pernr),currency:p8?p8.waers||"EUR":"EUR",base,hourly,ot,otPay,otTotal,gross,tax,social,net};
 }
-function payrollRun(from,to){return db.emp.map(e=>payslip(e.pernr,from,to)).sort((a,b)=>a.pernr-b.pernr);}
+/* Number of working days in a period (weekdays minus public holidays). */
+function workingDays(from,to){
+  if(!from||!to)return 0;
+  let d=new Date(from+"T00:00:00"),end=new Date(to+"T00:00:00"),n=0;
+  while(d<=end){const iso=d.toISOString().slice(0,10),dow=d.getDay();
+    if(dow!==0&&dow!==6&&!db.publicHolidays.includes(iso))n++;
+    d.setDate(d.getDate()+1);}
+  return n;
+}
+function payrollRun(from,to){const wd=workingDays(from,to);return db.emp.map(e=>Object.assign(payslip(e.pernr,from,to),{workingDays:wd})).sort((a,b)=>a.pernr-b.pernr);}
+
+/* ---- Configuration (customizing + users) ---- */
+function addGroup(k,t){if(!k)throw new Error("Enter a group key.");db.T501[k]=t;}
+function addSubgroup(k,t){if(!k)throw new Error("Enter a subgroup key.");db.T503K[k]=t;}
+function addCostCenter(id,name){if(!id)throw new Error("Enter a cost center id.");if(db.costCenters.find(c=>c.id===id))throw new Error("Cost center already exists.");db.costCenters.push({id,name});}
+function addOrgUnit(name,parent){if(!name)throw new Error("Enter an org unit name.");
+  const maxId=Math.max.apply(null,db.HRP1000.filter(o=>o.otype==="O").map(o=>o.objid));
+  const objid=maxId+1;
+  db.HRP1000.push({otype:"O",objid,begda:"2020-01-01",endda:HIGH,short:name.slice(0,4).toUpperCase(),stext:name});
+  if(parent)db.HRP1001.push({otype:"O",objid,rsign:"A",relat:"002",sclas:"O",sobid:String(parent),begda:"2020-01-01",endda:HIGH});
+  return objid;}
+function addUser(u){if(!u.username||!u.password)throw new Error("Enter username and password.");
+  if(db.users.find(x=>x.username===u.username))throw new Error("Username already exists.");
+  db.users.push({username:u.username,password:u.password,name:u.name||u.username,role:u.role,pernr:u.pernr||null});}
+
+function renderConfig(){
+  if(!S.cfgTab)S.cfgTab="groups";
+  const T=(id,l)=>`<button class="btn sm ${S.cfgTab===id?'primary':''}" data-cfg="${id}">${l}</button>`;
+  let body="";
+  if(S.cfgTab==="groups")body=`<div class="card"><div class="card-head"><h2>Employee groups (T501)</h2><span class="count">${Object.keys(db.T501).length}</span><div class="spacer"></div><button class="btn sm primary" data-act="cfgGroup">+ Add</button></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Key</th><th>Text</th></tr></thead><tbody>${Object.entries(db.T501).map(([k,v])=>`<tr><td class="num">${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</tbody></table></div></div>`;
+  else if(S.cfgTab==="subgroups")body=`<div class="card"><div class="card-head"><h2>Employee subgroups (T503K)</h2><span class="count">${Object.keys(db.T503K).length}</span><div class="spacer"></div><button class="btn sm primary" data-act="cfgSub">+ Add</button></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Key</th><th>Text</th></tr></thead><tbody>${Object.entries(db.T503K).map(([k,v])=>`<tr><td class="num">${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</tbody></table></div></div>`;
+  else if(S.cfgTab==="cost")body=`<div class="card"><div class="card-head"><h2>Cost centers</h2><span class="count">${db.costCenters.length}</span><div class="spacer"></div><button class="btn sm primary" data-act="cfgCost">+ Add</button></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Cost center</th><th>Name</th></tr></thead><tbody>${db.costCenters.map(c=>`<tr><td class="num">${esc(c.id)}</td><td>${esc(c.name)}</td></tr>`).join("")}</tbody></table></div></div>`;
+  else if(S.cfgTab==="org")body=`<div class="card"><div class="card-head"><h2>Organizational units</h2><span class="count">${db.HRP1000.filter(o=>o.otype==="O").length}</span><div class="spacer"></div><button class="btn sm primary" data-act="cfgOrg">+ Add</button></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Org ID</th><th>Name</th><th>Short</th></tr></thead><tbody>${db.HRP1000.filter(o=>o.otype==="O").map(o=>`<tr><td class="num">${o.objid}</td><td>${esc(o.stext)}</td><td>${esc(o.short)}</td></tr>`).join("")}</tbody></table></div></div>`;
+  else if(S.cfgTab==="users")body=`<div class="card"><div class="card-head"><h2>Users & roles</h2><span class="count">${db.users.length}</span><div class="spacer"></div><button class="btn sm primary" data-act="cfgUser">+ Add user</button></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Employee</th></tr></thead><tbody>${db.users.map(u=>`<tr><td><b>${esc(u.username)}</b></td><td>${esc(u.name)}</td><td>${statusPill(db.roleNames[u.role])}</td><td class="num">${u.pernr||"—"}</td></tr>`).join("")}</tbody></table></div></div>`;
+  app.innerHTML=pageHead("Configuration","System configuration")+
+    `<div class="toolbar" style="gap:6px">${T("groups","Employee groups")}${T("subgroups","Employee subgroups")}${T("cost","Cost centers")}${T("org","Organizational units")}${T("users","Users & roles")}</div>${body}`;
+}
 
 /* ============================ MODULE VIEWS ============================ */
 function pageHead(crumb,title,right){return `<div class="page-head"><div><div class="crumb">${crumb}</div><h1>${title}</h1></div>${right||""}</div>`;}
@@ -1079,12 +1151,14 @@ function renderPayroll(){
   </div>
   <div class="stat-row">
     <div class="stat"><div class="v num">${run.length}</div><div class="l">Employees</div></div>
+    <div class="stat"><div class="v num">${workingDays(S.payFrom,S.payTo)}</div><div class="l">Working days in period</div></div>
     <div class="stat"><div class="v num">${fmtC(totGross,"EUR")}</div><div class="l">Total gross</div></div>
     <div class="stat"><div class="v num">${fmtC(totNet,"EUR")}</div><div class="l">Total net</div></div>
   </div>
   <div class="card"><div class="card-head"><h2>Payroll results · ${fmtDate(S.payFrom)} – ${fmtDate(S.payTo)}</h2></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Pers.No.</th><th>Employee</th><th class="th-r">Base</th><th class="th-r">Overtime</th><th class="th-r">Gross</th><th class="th-r">Deductions</th><th class="th-r">Net</th><th></th></tr></thead><tbody>
+    <div class="tbl-wrap"><table><thead><tr><th>Pers.No.</th><th>Employee</th><th class="th-r">Working days</th><th class="th-r">Base</th><th class="th-r">Overtime</th><th class="th-r">Gross</th><th class="th-r">Deductions</th><th class="th-r">Net</th><th></th></tr></thead><tbody>
     ${run.map(r=>`<tr><td class="pernr num">${r.pernr}</td><td>${esc(r.name)}</td>
+      <td class="td-r num">${r.workingDays}</td>
       <td class="td-r num">${fmtC(r.base,r.currency)}</td><td class="td-r num">${fmtC(r.otTotal,r.currency)}</td>
       <td class="td-r num">${fmtC(r.gross,r.currency)}</td><td class="td-r num">${fmtC(r.tax+r.social,r.currency)}</td>
       <td class="td-r"><b class="num">${fmtC(r.net,r.currency)}</b></td>
@@ -1151,19 +1225,34 @@ function hireDialog(){
     `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="hire">Hire</button>`);
 }
 function editDialog(){
-  const e=getEmployee(S.pernr,S.key),p=e.personal||{};
+  const p=validOn(db.PA0002,S.pernr,S.key)||{};
   modal("Change personal data · IT0002",`
     <div class="hint">${I.info}<span>A new time slice is created from the valid-from date; the previous record is delimited the day before.</span></div>
     <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="e_begda" value="${today()}"></div>
+    <div class="two">
+      <div class="grp"><label>Form of address</label><select id="e_anred">${opt(db.dom.ANRED,p.anred||"")}</select></div>
+      <div class="grp"><label>Title</label><input id="e_titel" value="${esc(p.titel)}"></div>
+    </div>
     <div class="two">
       <div class="grp"><label>First name <span class="req">*</span></label><input id="e_first" value="${esc(p.vorna)}"></div>
       <div class="grp"><label>Last name <span class="req">*</span></label><input id="e_last" value="${esc(p.nachn)}"></div>
     </div>
     <div class="two">
-      <div class="grp"><label>Gender</label><select id="e_gender">${opt(db.dom.GESCH,"")}</select></div>
-      <div class="grp"><label>Marital status</label><select id="e_marital"><option value="">—</option>${opt(db.dom.FAMST,"")}</select></div>
+      <div class="grp"><label>Middle name</label><input id="e_mid" value="${esc(p.midnm)}"></div>
+      <div class="grp"><label>Known as</label><input id="e_ruf" value="${esc(p.rufnm)}"></div>
     </div>
-    <div class="grp"><label>Nationality</label><input id="e_natio" value="${esc(p.natio)}" maxlength="3"></div>`,
+    <div class="two">
+      <div class="grp"><label>Date of birth</label><input type="date" id="e_dob" value="${p.gbdat||""}"></div>
+      <div class="grp"><label>Place of birth</label><input id="e_gbort" value="${esc(p.gbort)}"></div>
+    </div>
+    <div class="two">
+      <div class="grp"><label>Gender</label><select id="e_gender">${opt(db.dom.GESCH,p.gesch||"")}</select></div>
+      <div class="grp"><label>Marital status</label><select id="e_marital"><option value="">—</option>${opt(db.dom.FAMST,p.famst||"")}</select></div>
+    </div>
+    <div class="two">
+      <div class="grp"><label>Nationality</label><input id="e_natio" value="${esc(p.natio)}" maxlength="3"></div>
+      <div class="grp"><label>Language</label><input id="e_lang" value="${esc(p.sprsl)}" maxlength="2"></div>
+    </div>`,
     `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="edit">Save</button>`);
 }
 function reassignDialog(){
@@ -1173,7 +1262,7 @@ function reassignDialog(){
     <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="r_begda" value="${today()}"></div>
     <div class="grp"><label>Organizational unit</label><select id="r_ou">${optName(orgs,"")}</select></div>
     <div class="grp"><label>Position</label><select id="r_pos"><option value="">—</option>${pos.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select></div>
-    <div class="grp"><label>Cost center</label><input id="r_cc" placeholder="e.g. FIN-2000"></div>`,
+    <div class="grp"><label>Cost center</label><select id="r_cc"><option value="">— keep current —</option>${db.costCenters.map(c=>`<option value="${c.id}">${esc(c.id)} - ${esc(c.name)}</option>`).join("")}</select></div>`,
     `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="reassign">Save</button>`);
 }
 function absenceDialog(){
@@ -1224,6 +1313,108 @@ function commDialog(){
     <div class="grp"><label>Valid from</label><input type="date" id="cm_begda" value="${today()}"></div>`,
     `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="comm">Add</button>`);
 }
+function workDialog(){const w=validOn(db.PA0007,S.pernr,S.key)||{};
+  modal("Edit planned working time · IT0007",`
+    <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="w_begda" value="${today()}"></div>
+    <div class="grp"><label>Work schedule rule</label><input id="w_schkz" value="${esc(w.schkz)}"></div>
+    <div class="two">
+      <div class="grp"><label>Employment %</label><input id="w_empct" type="number" step="0.01" value="${w.empct!=null?w.empct:""}"></div>
+      <div class="grp"><label>Weekly hours</label><input id="w_wostd" type="number" step="0.5" value="${w.wostd!=null?w.wostd:""}"></div>
+    </div>`,`<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="work">Save</button>`);}
+function payDialog(){const p=validOn(db.PA0008,S.pernr,S.key)||{};
+  modal("Edit basic pay / salary · IT0008",`
+    <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="p_begda" value="${today()}"></div>
+    <div class="two">
+      <div class="grp"><label>Pay scale group</label><input id="p_trfgr" value="${esc(p.trfgr)}"></div>
+      <div class="grp"><label>Capacity util. %</label><input id="p_bsgrd" type="number" step="0.01" value="${p.bsgrd!=null?p.bsgrd:""}"></div>
+    </div>
+    <div class="two">
+      <div class="grp"><label>Annual salary <span class="req">*</span></label><input id="p_ansal" type="number" step="0.01" value="${p.ansal!=null?p.ansal:""}"></div>
+      <div class="grp"><label>Currency</label><input id="p_waers" value="${esc(p.waers||"EUR")}" maxlength="5"></div>
+    </div>`,`<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="pay">Save</button>`);}
+function bankDialog(){const b=(db.PA0009.filter(x=>x.pernr===S.pernr&&x.subty==="0"&&x.begda<=S.key&&x.endda>=S.key)[0])||{};
+  modal("Edit bank details · IT0009",`
+    <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="bk_begda" value="${today()}"></div>
+    <div class="two">
+      <div class="grp"><label>Bank country</label><input id="bk_banks" value="${esc(b.banks)}" maxlength="3"></div>
+      <div class="grp"><label>Bank key</label><input id="bk_bankl" value="${esc(b.bankl)}"></div>
+    </div>
+    <div class="grp"><label>Account number / IBAN</label><input id="bk_bankn" value="${esc(b.bankn)}"></div>`,
+    `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="bank">Save</button>`);}
+function contractDialog(){const c=validOn(db.PA0016,S.pernr,S.key)||{};
+  modal("Edit contract elements · IT0016",`
+    <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="c_begda" value="${today()}"></div>
+    <div class="grp"><label>Contract type</label><select id="c_cttyp">${opt(db.T547T,c.cttyp||"01")}</select></div>
+    <div class="two">
+      <div class="grp"><label>Probation (months)</label><input id="c_prbez" type="number" step="0.5" value="${c.prbez!=null?c.prbez:""}"></div>
+      <div class="grp"><label>Notice employer (months)</label><input id="c_kdgfb" type="number" step="0.5" value="${c.kdgfb!=null?c.kdgfb:""}"></div>
+    </div>
+    <div class="grp"><label>Notice employee (months)</label><input id="c_kdgf2" type="number" step="0.5" value="${c.kdgf2!=null?c.kdgf2:""}"></div>`,
+    `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="contract">Save</button>`);}
+function eduDialog(){
+  modal("Add education · IT0022",`
+    <div class="grp"><label>Establishment type</label><select id="ed_sub">${opt(db.dom.SLART,"10")}</select></div>
+    <div class="two">
+      <div class="grp"><label>Institute</label><input id="ed_insti"></div>
+      <div class="grp"><label>Certificate</label><input id="ed_cert"></div>
+    </div>
+    <div class="two">
+      <div class="grp"><label>Branch of study</label><input id="ed_major"></div>
+      <div class="grp"><label>Grade</label><input id="ed_grade"></div>
+    </div>
+    <div class="two">
+      <div class="grp"><label>From</label><input type="date" id="ed_begda"></div>
+      <div class="grp"><label>To</label><input type="date" id="ed_endda"></div>
+    </div>`,`<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="edu">Add</button>`);}
+function qualDialog(){
+  modal("Add qualification · IT0024",`
+    <div class="grp"><label>Group</label><select id="q_grp">${opt(db.dom.QUALG,"01")}</select></div>
+    <div class="grp"><label>Qualification <span class="req">*</span></label><input id="q_qual"></div>
+    <div class="grp"><label>Proficiency (0-9)</label><input id="q_lvl" type="number" min="0" max="9"></div>`,
+    `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="qual">Add</button>`);}
+function expDialog(){
+  modal("Add previous employer · IT0023",`
+    <div class="two">
+      <div class="grp"><label>Employer <span class="req">*</span></label><input id="x_emp"></div>
+      <div class="grp"><label>Role</label><input id="x_task"></div>
+    </div>
+    <div class="two">
+      <div class="grp"><label>Place</label><input id="x_place"></div>
+      <div class="grp"><label>Country</label><input id="x_ctry" maxlength="3"></div>
+    </div>
+    <div class="two">
+      <div class="grp"><label>From</label><input type="date" id="x_begda"></div>
+      <div class="grp"><label>To</label><input type="date" id="x_endda"></div>
+    </div>`,`<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="exp">Add</button>`);}
+function cfgGroupDialog(){modal("Add employee group · T501",`
+  <div class="grp"><label>Group key <span class="req">*</span></label><input id="cg_key" maxlength="1"></div>
+  <div class="grp"><label>Text</label><input id="cg_txt"></div>`,
+  `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="cfgGroup">Add</button>`);}
+function cfgSubDialog(){modal("Add employee subgroup · T503K",`
+  <div class="grp"><label>Subgroup key <span class="req">*</span></label><input id="cs_key" maxlength="2"></div>
+  <div class="grp"><label>Text</label><input id="cs_txt"></div>`,
+  `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="cfgSub">Add</button>`);}
+function cfgCostDialog(){modal("Add cost center",`
+  <div class="grp"><label>Cost center id <span class="req">*</span></label><input id="cc_id" placeholder="e.g. IT-3000"></div>
+  <div class="grp"><label>Name</label><input id="cc_name"></div>`,
+  `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="cfgCost">Add</button>`);}
+function cfgOrgDialog(){const orgs=orgFlat(S.key);
+  modal("Add organizational unit",`
+  <div class="grp"><label>Name <span class="req">*</span></label><input id="co_name"></div>
+  <div class="grp"><label>Reports to (parent)</label><select id="co_parent"><option value="">— none —</option>${orgs.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join("")}</select></div>`,
+  `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="cfgOrg">Add</button>`);}
+function cfgUserDialog(){
+  const roleOpts=Object.entries(db.roleNames).map(([k,v])=>`<option value="${k}">${esc(v)}</option>`).join("");
+  const empOpts=db.emp.map(e=>{const p=validOn(db.PA0002,e.pernr,today());return `<option value="${e.pernr}">${e.pernr} - ${p?esc(p.vorna+" "+p.nachn):""}</option>`;}).join("");
+  modal("Add user with role",`
+  <div class="two">
+    <div class="grp"><label>Username <span class="req">*</span></label><input id="cu_user"></div>
+    <div class="grp"><label>Password <span class="req">*</span></label><input id="cu_pw"></div>
+  </div>
+  <div class="grp"><label>Display name</label><input id="cu_name"></div>
+  <div class="grp"><label>Role <span class="req">*</span></label><select id="cu_role">${roleOpts}</select></div>
+  <div class="grp"><label>Linked employee (for self-service)</label><select id="cu_pernr"><option value="">— none —</option>${empOpts}</select></div>`,
+  `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="cfgUser">Add user</button>`);}
 function attendanceDialog(){
   const att={}; Object.keys(db.T554S).forEach(k=>att[k]=db.T554S[k]);
   modal("Record attendance · IT2002",`
@@ -1259,7 +1450,7 @@ function toast(msg,kind){
 
 /* ============================ EVENTS ============================ */
 document.addEventListener("click",ev=>{
-  const t=ev.target.closest("[data-nav],[data-open],[data-act],[data-tab],[data-tog],[data-do],[data-close],[data-fill],[data-approve],[data-reject],[data-book],[data-advance],[data-payslip]");
+  const t=ev.target.closest("[data-nav],[data-open],[data-act],[data-tab],[data-tog],[data-do],[data-close],[data-fill],[data-approve],[data-reject],[data-book],[data-advance],[data-payslip],[data-cfg]");
   if(!t)return;
   if(t.dataset.nav){ev.preventDefault();S.view=t.dataset.nav;S.tab="personal";render();return;}
   if(t.dataset.open){S.view="detail";S.pernr=+t.dataset.open;S.tab="personal";render();return;}
@@ -1273,6 +1464,18 @@ document.addEventListener("click",ev=>{
     else if(t.dataset.act==="address")addressDialog();
     else if(t.dataset.act==="family")familyDialog();
     else if(t.dataset.act==="comm")commDialog();
+    else if(t.dataset.act==="work")workDialog();
+    else if(t.dataset.act==="pay")payDialog();
+    else if(t.dataset.act==="bank")bankDialog();
+    else if(t.dataset.act==="contract")contractDialog();
+    else if(t.dataset.act==="edu")eduDialog();
+    else if(t.dataset.act==="qual")qualDialog();
+    else if(t.dataset.act==="exp")expDialog();
+    else if(t.dataset.act==="cfgGroup")cfgGroupDialog();
+    else if(t.dataset.act==="cfgSub")cfgSubDialog();
+    else if(t.dataset.act==="cfgCost")cfgCostDialog();
+    else if(t.dataset.act==="cfgOrg")cfgOrgDialog();
+    else if(t.dataset.act==="cfgUser")cfgUserDialog();
     else if(t.dataset.act==="attendance")attendanceDialog();
     else if(t.dataset.act==="reqleave")reqLeaveDialog();
     return;
@@ -1283,7 +1486,13 @@ document.addEventListener("click",ev=>{
   if(t.dataset.book){try{bookCourse(SESSION.pernr,t.dataset.book);toast("Course booked.","good");render();}catch(e){toast(e.message,"bad");}return;}
   if(t.dataset.advance){advanceApplicant(+t.dataset.advance);toast("Applicant advanced to next stage.","good");render();return;}
   if(t.dataset.payslip){payslipDialog(+t.dataset.payslip);return;}
-  if(t.hasAttribute("data-close")){if(ev.target.closest(".modal")&&!t.hasAttribute("data-close"))return;closeModal();return;}
+  if(t.dataset.cfg){S.cfgTab=t.dataset.cfg;renderConfig();return;}
+  if(t.hasAttribute("data-close")){
+    // Backdrop closes only on a direct click; clicks inside the dialog (e.g. a
+    // dropdown or input) must NOT close it. Close buttons always close.
+    if(t.classList.contains("modal-bg")&&ev.target!==t)return;
+    closeModal();return;
+  }
   if(t.dataset.do){doAction(t.dataset.do);return;}
 });
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal();});
@@ -1299,8 +1508,10 @@ function doAction(kind){
       const pernr=hire(f);closeModal();toast("Employee "+pernr+" hired successfully.","good");
       S.view="detail";S.pernr=pernr;S.tab="personal";render();
     }else if(kind==="edit"){
-      const f={begda:val("e_begda"),firstName:val("e_first").trim(),lastName:val("e_last").trim(),
-        gender:val("e_gender"),maritalStatus:val("e_marital"),nationality:val("e_natio").trim()};
+      const f={begda:val("e_begda"),anred:val("e_anred"),titel:val("e_titel").trim(),
+        firstName:val("e_first").trim(),lastName:val("e_last").trim(),middleName:val("e_mid").trim(),
+        nickname:val("e_ruf").trim(),birthDate:val("e_dob"),birthPlace:val("e_gbort").trim(),
+        gender:val("e_gender"),maritalStatus:val("e_marital"),nationality:val("e_natio").trim(),language:val("e_lang").trim()};
       if(!f.begda||!f.firstName||!f.lastName){toast("Enter valid-from, first and last name.","bad");return;}
       updatePersonal(S.pernr,f);closeModal();toast("Personal data updated.","good");renderDetail();
     }else if(kind==="reassign"){
@@ -1320,6 +1531,45 @@ function doAction(kind){
       const f={subType:val("cm_type"),value:val("cm_value").trim(),begda:val("cm_begda")};
       if(!f.value){toast("Enter the communication value.","bad");return;}
       addCommunication(S.pernr,f);closeModal();toast("Communication added.","good");S.tab="contact";renderDetail();
+    }else if(kind==="work"){
+      const f={begda:val("w_begda"),schkz:val("w_schkz").trim(),empct:val("w_empct"),wostd:val("w_wostd")};
+      if(!f.begda){toast("Enter a valid-from date.","bad");return;}
+      editWorkingTime(S.pernr,f);closeModal();toast("Working time updated.","good");S.tab="pay";renderDetail();
+    }else if(kind==="pay"){
+      const f={begda:val("p_begda"),trfgr:val("p_trfgr").trim(),bsgrd:val("p_bsgrd"),ansal:val("p_ansal"),waers:val("p_waers").trim()};
+      if(!f.begda||f.ansal===""){toast("Enter valid-from and annual salary.","bad");return;}
+      editPay(S.pernr,f);closeModal();toast("Basic pay updated.","good");S.tab="pay";renderDetail();
+    }else if(kind==="bank"){
+      const f={begda:val("bk_begda"),banks:val("bk_banks").trim(),bankl:val("bk_bankl").trim(),bankn:val("bk_bankn").trim()};
+      if(!f.begda){toast("Enter a valid-from date.","bad");return;}
+      editBank(S.pernr,f);closeModal();toast("Bank details updated.","good");S.tab="pay";renderDetail();
+    }else if(kind==="contract"){
+      const f={begda:val("c_begda"),cttyp:val("c_cttyp"),prbez:val("c_prbez"),kdgfb:val("c_kdgfb"),kdgf2:val("c_kdgf2")};
+      if(!f.begda){toast("Enter a valid-from date.","bad");return;}
+      editContract(S.pernr,f);closeModal();toast("Contract updated.","good");S.tab="contract";renderDetail();
+    }else if(kind==="edu"){
+      const f={subType:val("ed_sub"),institute:val("ed_insti").trim(),certificate:val("ed_cert").trim(),major:val("ed_major").trim(),grade:val("ed_grade").trim(),begda:val("ed_begda"),endda:val("ed_endda")};
+      if(!f.begda){toast("Enter a start date.","bad");return;}
+      addEducation(S.pernr,f);closeModal();toast("Education added.","good");S.tab="edu";renderDetail();
+    }else if(kind==="qual"){
+      const f={groupKey:val("q_grp"),qualification:val("q_qual").trim(),proficiency:val("q_lvl")};
+      if(!f.qualification){toast("Enter the qualification.","bad");return;}
+      addQualification(S.pernr,f);closeModal();toast("Qualification added.","good");S.tab="edu";renderDetail();
+    }else if(kind==="exp"){
+      const f={employer:val("x_emp").trim(),task:val("x_task").trim(),place:val("x_place").trim(),country:val("x_ctry").trim(),begda:val("x_begda"),endda:val("x_endda")};
+      if(!f.employer){toast("Enter the employer.","bad");return;}
+      addExperience(S.pernr,f);closeModal();toast("Previous employer added.","good");S.tab="edu";renderDetail();
+    }else if(kind==="cfgGroup"){
+      addGroup(val("cg_key").trim(),val("cg_txt").trim());closeModal();toast("Employee group added.","good");renderConfig();
+    }else if(kind==="cfgSub"){
+      addSubgroup(val("cs_key").trim(),val("cs_txt").trim());closeModal();toast("Employee subgroup added.","good");renderConfig();
+    }else if(kind==="cfgCost"){
+      addCostCenter(val("cc_id").trim(),val("cc_name").trim());closeModal();toast("Cost center added.","good");renderConfig();
+    }else if(kind==="cfgOrg"){
+      const id=addOrgUnit(val("co_name").trim(),val("co_parent")?+val("co_parent"):null);closeModal();toast("Organizational unit "+id+" added.","good");renderConfig();
+    }else if(kind==="cfgUser"){
+      addUser({username:val("cu_user").trim(),password:val("cu_pw"),name:val("cu_name").trim(),role:val("cu_role"),pernr:val("cu_pernr")?+val("cu_pernr"):null});
+      closeModal();toast("User added.","good");renderConfig();
     }else if(kind==="family"){
       const f={relationType:val("fm_rel"),firstName:val("fm_first").trim(),lastName:val("fm_last").trim(),gender:val("fm_gender"),birthDate:val("fm_dob")};
       if(!f.firstName||!f.lastName){toast("Enter first and last name.","bad");return;}
