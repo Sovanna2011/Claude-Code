@@ -128,6 +128,10 @@ input:focus,select:focus{border-color:var(--accent);outline:none;box-shadow:0 0 
 .btn.ghost:hover{background:var(--accent-soft)}
 .btn svg{width:15px;height:15px;fill:currentColor}
 .btn.sm{padding:6px 10px;font-size:12.5px}
+.btn.xs{padding:3px 8px;font-size:11.5px}
+.btn.xs svg{width:12px;height:12px}
+.nowrap{white-space:nowrap}
+.muted{color:var(--muted)}
 
 /* ---- Card / table ---- */
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
@@ -144,6 +148,18 @@ th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.6px;c
   font-weight:700;padding:10px 16px;border-bottom:1px solid var(--border);white-space:nowrap;background:var(--surface-2)}
 td{padding:11px 16px;border-bottom:1px solid var(--border);vertical-align:middle}
 .cols-panel{margin-bottom:14px}
+.colmenu-wrap{position:relative;display:inline-block}
+.colmenu{position:absolute;top:calc(100% + 4px);left:0;z-index:40;background:var(--surface);
+  border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.18);
+  padding:8px;min-width:210px;max-height:340px;overflow:auto;display:flex;flex-direction:column;gap:2px}
+.colchk{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:7px;cursor:pointer;
+  font-size:13.5px;white-space:nowrap}
+.colchk:hover{background:var(--surface-2)}
+.rolechks{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.rolechk{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);
+  border-radius:8px;background:var(--surface);cursor:pointer;font-size:13.5px}
+.th-c,.td-c{text-align:center}
+.td-c input{cursor:pointer;width:16px;height:16px}
 .cols-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;padding:14px 16px}
 .colchip{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);
   border-radius:8px;background:var(--surface);cursor:pointer;font-size:13.5px}
@@ -191,7 +207,18 @@ a.mail:hover{text-decoration:underline}
 .obj-head .attrs b{color:var(--text);font-weight:600}
 
 /* ---- Tabs ---- */
-.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;overflow-x:auto}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;overflow:visible;position:relative}
+.tab-more-wrap{position:relative;margin-left:auto;align-self:center}
+.tab-morebtn{background:transparent;border:0;color:var(--muted);padding:10px 12px;cursor:pointer;
+  font-size:13.5px;font-weight:600;white-space:nowrap;display:flex;align-items:center;gap:6px;border-bottom:3px solid transparent}
+.tab-morebtn:hover{color:var(--text)}
+.tab-morebtn.has-active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-more-menu{position:absolute;top:calc(100% + 2px);right:0;z-index:40;background:var(--surface);
+  border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.18);
+  padding:6px;min-width:210px;display:none;flex-direction:column;gap:2px}
+.tab-more-menu.open{display:flex}
+.tab-more-menu button{border-bottom:0 !important;justify-content:flex-start;border-radius:7px;width:100%}
+.tab-more-menu button:hover{background:var(--surface-2)}
 .tabs button{background:transparent;border:0;border-bottom:3px solid transparent;color:var(--muted);
   padding:10px 14px;cursor:pointer;font-size:13.5px;font-weight:600;white-space:nowrap;
   display:flex;align-items:center;gap:8px}
@@ -375,7 +402,7 @@ function seed(){return{
    {pernr:1000,begda:"2020-03-01",endda:HIGH,bukrs:"1000",werks:"1000",btrtl:"0001",persg:"1",persk:"DU",orgeh:50000010,plans:50000100,stell:50000900,kostl:"HR-1000"},
    {pernr:1001,begda:"2021-06-15",endda:HIGH,bukrs:"1000",werks:"1000",btrtl:"0001",persg:"1",persk:"DU",orgeh:50000010,plans:50000101,stell:50000900,kostl:"HR-1000"}],
   PA0002:[
-   {pernr:1000,begda:"2020-03-01",endda:HIGH,anred:"2",titel:"Dr.",nachn:"Schmidt",vorna:"Andreas",midnm:"Karl",rufnm:"Andy",gbdat:"1982-07-12",gbort:"Berlin",gesch:"1",natio:"DE",sprsl:"DE",famst:"1"},
+   {pernr:1000,begda:"2020-03-01",endda:HIGH,anred:"2",titel:"01",nachn:"Schmidt",vorna:"Andreas",midnm:"Karl",rufnm:"Andy",gbdat:"1982-07-12",gbort:"Berlin",gesch:"1",natio:"DE",sprsl:"DE",famst:"1"},
    {pernr:1001,begda:"2021-06-15",endda:HIGH,anred:"1",titel:"",nachn:"Nguyen",vorna:"Linda",midnm:"",rufnm:"Lin",gbdat:"1990-11-03",gbort:"New York",gesch:"2",natio:"US",sprsl:"EN",famst:"0"}],
   PA0006:[
    {pernr:1000,begda:"2020-03-01",endda:HIGH,stras:"Hauptstrasse 12",ort01:"Berlin",pstlz:"10115",land1:"DE"},
@@ -440,7 +467,9 @@ function seed(){return{
    {otype:"S",objid:50000101,rsign:"A",relat:"003",sclas:"O",sobid:"50000010",begda:"2020-01-01",endda:HIGH},
    {otype:"S",objid:50000101,rsign:"A",relat:"007",sclas:"C",sobid:"50000900",begda:"2020-01-01",endda:HIGH},
    {otype:"S",objid:50000101,rsign:"A",relat:"002",sclas:"S",sobid:"50000100",begda:"2020-01-01",endda:HIGH}],
-  T001:{"1000":{name:"Global Corp AG",country:"DE",currency:"EUR"}}, T500P:{"1000":"Head Office","2000":"Branch Office"},
+  T001:{"1000":{name:"Global Corp AG",country:"DE",currency:"EUR",city:"Berlin"}},
+  T500P:{"1000":{text:"Head Office",bukrs:"1000"},"2000":{text:"Branch Office",bukrs:"1000"}},
+  subgroupGroup:{"DU":"1","DW":"1","DT":"1"},
   T002:{"EN":"English","DE":"German","FR":"French","ES":"Spanish","VI":"Vietnamese"},
   T005:{"DE":"Germany","US":"United States","FR":"France","GB":"United Kingdom","KH":"Cambodia","SG":"Singapore","VN":"Vietnam"},
   T501:{"1":"Active employees","2":"Pensioners","9":"External staff"},
@@ -452,6 +481,7 @@ function seed(){return{
   dom:{GESCH:{"1":"Male","2":"Female","3":"Undefined"},
        FAMST:{"0":"Single","1":"Married","2":"Widowed","3":"Divorced","4":"Separated"},
        ANRED:{"1":"Mrs.","2":"Mr.","3":"Company"},
+       TITEL:{"01":"Dr.","02":"Prof.","03":"Prof. Dr.","04":"B.A.","05":"B.Sc.","06":"M.A.","07":"M.Sc.","08":"MBA","09":"Ph.D.","10":"Eng."},
        STAT2:{"0":"Withdrawn","1":"Inactive","2":"Retiree","3":"Active"},
        USRTY:{"0010":"E-Mail","0020":"Telephone","CELL":"Mobile phone","FAX":"Fax","MAIL":"System user"},
        FAMSA:{"1":"Spouse","2":"Child","6":"Emergency contact","11":"Father","12":"Mother"},
@@ -460,10 +490,28 @@ function seed(){return{
        QUALG:{"01":"Technical","02":"Language","03":"Leadership"},
        ANSSA:{"1":"Permanent residence","2":"Temporary residence","3":"Home address","4":"Mailing address","5":"Emergency address"}},
   users:[
-   {username:"admin",password:"admin123",name:"Alex Admin",role:"HR_ADMIN",pernr:null},
-   {username:"manager",password:"manager123",name:"Andreas Schmidt",role:"HR_MANAGER",pernr:1000},
-   {username:"linda",password:"linda123",name:"Linda Nguyen",role:"EMPLOYEE",pernr:1001}],
+   {username:"admin",password:"admin123",name:"Alex Admin",roles:["HR_ADMIN"],pernr:null,email:"admin@globalcorp.com"},
+   {username:"manager",password:"manager123",name:"Andreas Schmidt",roles:["HR_MANAGER","EMPLOYEE"],pernr:1000,email:"a.schmidt@globalcorp.com"},
+   {username:"linda",password:"linda123",name:"Linda Nguyen",roles:["EMPLOYEE"],pernr:1001,email:"l.nguyen@globalcorp.com"}],
   roleNames:{HR_ADMIN:"HR Administrator",HR_MANAGER:"HR Manager",EMPLOYEE:"Employee (Self-Service)"},
+  /* Infotypes covered by the authorization matrix. */
+  infotypes:[["0000","Actions"],["0001","Org Assignment"],["0002","Personal Data"],["0006","Address"],
+   ["0007","Working Time"],["0008","Basic Pay"],["0009","Bank Details"],["0016","Contract"],
+   ["0021","Family"],["0022","Education"],["0023","Prev. Employers"],["0024","Qualifications"],
+   ["0105","Communication"],["2001","Absences"],["2002","Attendances"]],
+  /* Authorization matrix: role -> infotype -> {display,add,update,delete} (SAP P_ORGIN style). */
+  auth:(function(){
+    const ALL={display:true,add:true,update:true,delete:true};
+    const DISP={display:true,add:false,update:false,delete:false};
+    const TIME={display:true,add:true,update:true,delete:false};
+    const a={HR_ADMIN:{},HR_MANAGER:{},EMPLOYEE:{}};
+    const its=["0000","0001","0002","0006","0007","0008","0009","0016","0021","0022","0023","0024","0105","2001","2002"];
+    its.forEach(it=>{
+      a.HR_ADMIN[it]={...ALL};
+      a.HR_MANAGER[it]=(it==="2001"||it==="2002")?{...TIME}:{...DISP};
+      a.EMPLOYEE[it]=(it==="0002"||it==="0006"||it==="0021"||it==="0022"||it==="0023"||it==="0024"||it==="0105")?{...DISP}:{display:false,add:false,update:false,delete:false};
+    });
+    return a;})(),
   leaveSeq:2,
   leaveRequests:[
    {id:1,pernr:1001,name:"Linda Nguyen",type:"0100",begda:"2026-08-10",endda:"2026-08-14",days:5,status:"Pending",note:"Summer holiday"},
@@ -546,7 +594,7 @@ function getEmployees(search,key){
     return{pernr:em.pernr,fullName:p2.vorna+" "+p2.nachn,
       orgUnitName:p1&&p1.orgeh?orgText("O",p1.orgeh,key):null,
       positionName:p1&&p1.plans?orgText("S",p1.plans,key):null,
-      companyName:p1?t001Name(p1.bukrs):null, personnelArea:p1?db.T500P[p1.werks]:null,
+      companyName:p1?t001Name(p1.bukrs):null, personnelArea:p1?t500pName(p1.werks):null,
       costCenter:p1?p1.kostl:null, gender:p2.gesch?dom("GESCH",p2.gesch):null,
       email:mail?mail.usrid:null, hireDate:em.hireDate,
       status:p0&&p0.stat2?dom("STAT2",p0.stat2):null};
@@ -560,9 +608,9 @@ function getEmployee(pernr,key){
   const p2=validOn(db.PA0002,pernr,key),p1=validOn(db.PA0001,pernr,key),
         p6=validOn(db.PA0006,pernr,key),p7=validOn(db.PA0007,pernr,key),p8=validOn(db.PA0008,pernr,key);
   return{pernr,key,
-    personal:p2&&{anred:dom("ANRED",p2.anred),titel:p2.titel,nachn:p2.nachn,vorna:p2.vorna,midnm:p2.midnm,rufnm:p2.rufnm,
+    personal:p2&&{anred:dom("ANRED",p2.anred),titel:dom("TITEL",p2.titel)||p2.titel,nachn:p2.nachn,vorna:p2.vorna,midnm:p2.midnm,rufnm:p2.rufnm,
       gbdat:p2.gbdat,gbort:p2.gbort,gesch:dom("GESCH",p2.gesch),natio:db.T005[p2.natio]||p2.natio,sprsl:db.T002[p2.sprsl]||p2.sprsl,famst:dom("FAMST",p2.famst),begda:p2.begda,endda:p2.endda},
-    org:p1&&{bukrs:p1.bukrs,company:t001Name(p1.bukrs),werks:p1.werks,werksN:db.T500P[p1.werks],
+    org:p1&&{bukrs:p1.bukrs,company:t001Name(p1.bukrs),werks:p1.werks,werksN:t500pName(p1.werks),
       persg:p1.persg,persgN:db.T501[p1.persg],persk:p1.persk,perskN:db.T503K[p1.persk],
       orgeh:p1.orgeh,orgN:p1.orgeh?orgText("O",p1.orgeh,key):null,
       plans:p1.plans,posN:p1.plans?orgText("S",p1.plans,key):null,kostl:p1.kostl,
@@ -689,10 +737,14 @@ const $=s=>document.querySelector(s);
 const app=$("#app");
 
 /* role helpers */
-const isAdmin=()=>SESSION&&SESSION.role==="HR_ADMIN";
-const isManager=()=>SESSION&&SESSION.role==="HR_MANAGER";
+const hasRole=r=>!!(SESSION&&SESSION.roles&&SESSION.roles.includes(r));
+const isAdmin=()=>hasRole("HR_ADMIN");
+const isManager=()=>SESSION&&SESSION.role==="HR_MANAGER";   // primary role drives nav/landing
 const isEmployee=()=>SESSION&&SESSION.role==="EMPLOYEE";
-const can=(...roles)=>SESSION&&roles.includes(SESSION.role);
+const can=(...roles)=>roles.some(hasRole);
+/* Infotype-level authorization: does any of the user's roles allow the
+   activity (display/add/update/delete) on this infotype? */
+function allowed(it,act){return (SESSION&&SESSION.roles||[]).some(r=>db.auth[r]&&db.auth[r][it]&&db.auth[r][it][act]);}
 function navFor(role){
   if(role==="HR_ADMIN")return [["list","People","people"],["orggraph","Org Chart","org"],["pos","Positions","pos"],["payroll","Payroll","money"],["reports","Reports","doc"],["leave","Leave","cal"],["recruit","Recruitment","person"],["training","Training","education"],["config","Config","doc"]];
   if(role==="HR_MANAGER")return [["mss","My Team","people"],["leave","Approvals","cal"],["orggraph","Org Chart","org"],["reports","Reports","doc"],["training","Training","education"]];
@@ -759,7 +811,7 @@ function renderLogin(){
     <div class="grp"><label>Password</label><input id="lp" type="password" autocomplete="current-password" placeholder="Password"></div>
     <button class="btn primary" data-do="login">Sign in</button>
     <div class="demo-users"><div class="t">Demo accounts — click to fill</div>
-      ${db.users.map(u=>`<div class="u" data-fill="${u.username}"><span><b>${u.username}</b> / ${u.password}</span><span class="r">${db.roleNames[u.role]}</span></div>`).join("")}
+      ${db.users.map(u=>`<div class="u" data-fill="${u.username}"><span><b>${u.username}</b> / ${u.password}</span><span class="r">${(u.roles||[u.role]).map(r=>db.roleNames[r]).join(", ")}</span></div>`).join("")}
     </div>
   </div></div>`;
   const go=()=>doAction("login");
@@ -805,15 +857,16 @@ function renderList(){
   app.innerHTML=`
   <div class="page-head"><div><div class="crumb">Personnel Administration</div><h1>Employees</h1></div>
     <div style="display:flex;gap:8px">
-      <button class="btn" data-act="cols">${I.doc} Columns</button>
+      <div class="colmenu-wrap">
+        <button class="btn" data-act="cols">${I.doc} Columns ▾</button>
+        ${S.showCols?`<div class="colmenu">${EMP_COLS.map(c=>`<label class="colchk">
+          <input type="checkbox" data-col="${c.k}" ${S.empCols.includes(c.k)?"checked":""} ${c.always?"disabled":""}> ${esc(c.l)}</label>`).join("")}</div>`:""}
+      </div>
       ${isAdmin()?`<button class="btn primary" data-act="hire">${I.person} Hire employee</button>`:""}</div></div>
   <div class="toolbar">
     <div class="search">${I.search}<input id="q" placeholder="Search all columns…" value="${esc(S.search)}"></div>
     <div class="field"><label>Key date</label><input type="date" id="kd" value="${S.key}"></div>
   </div>
-  ${S.showCols?`<div class="card cols-panel"><div class="card-head"><h2>Show / hide columns</h2><div class="spacer"></div><button class="btn sm" data-act="cols">Done</button></div>
-    <div class="cols-grid">${EMP_COLS.map(c=>`<label class="colchip ${S.empCols.includes(c.k)?'on':''}">
-      <input type="checkbox" data-col="${c.k}" ${S.empCols.includes(c.k)?"checked":""} ${c.always?"disabled":""}> ${esc(c.l)}</label>`).join("")}</div></div>`:""}
   <div class="card">
     <div class="card-head"><h2>Employee list</h2><span class="count">${rows.length}</span></div>
     <div class="tbl-wrap"><table><thead><tr>
@@ -876,10 +929,10 @@ function renderDetail(){
     ${e.comms.map(c=>`<tr><td>${esc(c.t)}</td><td><a class="mail" href="mailto:${esc(c.v)}">${esc(c.v)}</a></td></tr>`).join("")||`<tr><td colspan=2>—</td></tr>`}
     </tbody></table></div></div></div>`;}
   else if(S.tab==="pay"){const w=e.wt||{},pay=e.pay||{};content=`
-    ${isAdmin()?`<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-      <button class="btn sm" data-act="work">${I.edit} Edit working time</button>
-      <button class="btn sm" data-act="pay">${I.edit} Edit basic pay</button>
-      <button class="btn sm" data-act="bank">${I.edit} Edit bank details</button></div>`:""}
+    ${(allowed("0007","update")||allowed("0008","update")||allowed("0009","update"))?`<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      ${allowed("0007","update")?`<button class="btn sm" data-act="work">${I.edit} Edit working time</button>`:""}
+      ${allowed("0008","update")?`<button class="btn sm" data-act="pay">${I.edit} Edit basic pay</button>`:""}
+      ${allowed("0009","update")?`<button class="btn sm" data-act="bank">${I.edit} Edit bank details</button>`:""}</div>`:""}
     <div class="card">
     <div class="subcard"><div class="section-title">Planned working time · IT0007</div>${dl([
       ["Work schedule rule",esc(w.schkz)],["Employment percent",w.empct!=null?w.empct+" %":"—"],["Weekly hours",esc(w.wostd)]])}</div>
@@ -911,10 +964,10 @@ function renderDetail(){
     ${e.family.map(f=>`<tr><td><span class="pill neutral">${esc(f.rel)}</span></td><td>${esc(f.name)}</td><td>${esc(f.gesch)}</td><td>${fmtDate(f.dob)}</td></tr>`).join("")||`<tr><td colspan=4><div class="empty">No family members recorded.</div></td></tr>`}
     </tbody></table></div></div>`;}
   else if(S.tab==="edu"){content=`
-    ${isAdmin()?`<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-      <button class="btn sm" data-act="edu">${I.education} Add education</button>
-      <button class="btn sm" data-act="exp">${I.doc} Add previous employer</button>
-      <button class="btn sm" data-act="qual">${I.check} Add qualification</button></div>`:""}
+    ${(allowed("0022","add")||allowed("0023","add")||allowed("0024","add"))?`<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      ${allowed("0022","add")?`<button class="btn sm" data-act="edu">${I.education} Add education</button>`:""}
+      ${allowed("0023","add")?`<button class="btn sm" data-act="exp">${I.doc} Add previous employer</button>`:""}
+      ${allowed("0024","add")?`<button class="btn sm" data-act="qual">${I.check} Add qualification</button>`:""}</div>`:""}
     <div class="card"><div class="card-head"><h2>Education · IT0022</h2></div>
     <div class="tbl-wrap"><table><thead><tr><th>Establishment</th><th>Certificate</th><th>Branch of study</th><th>Grade</th><th>Period</th></tr></thead><tbody>
     ${e.education.map(x=>`<tr><td><b>${esc(x.est)}</b><br><span style="color:var(--muted)">${esc(x.insti)}</span></td><td>${esc(x.cert)}</td><td>${esc(x.major)}</td><td>${esc(x.grade||"—")}</td><td class="num">${fmtDate(x.begda)} – ${fmtDate(x.endda)}</td></tr>`).join("")||`<tr><td colspan=5><div class="empty">—</div></td></tr>`}
@@ -928,7 +981,7 @@ function renderDetail(){
     ${e.quals.map(x=>`<tr><td>${esc(x.grp)}</td><td>${esc(x.q)}</td><td class="td-r"><span class="pill ${x.lvl>=7?'good':x.lvl>=4?'warn':'neutral'} num">${x.lvl} / 9</span></td></tr>`).join("")||`<tr><td colspan=3><div class="empty">—</div></td></tr>`}
     </tbody></table></div>`;}
   else if(S.tab==="contract"){const c=e.contract||{};content=`
-    ${isAdmin()?`<div style="margin-bottom:12px"><button class="btn sm" data-act="contract">${I.edit} Edit contract</button></div>`:""}
+    ${allowed("0016","update")?`<div style="margin-bottom:12px"><button class="btn sm" data-act="contract">${I.edit} Edit contract</button></div>`:""}
     <div class="card"><div class="subcard"><div class="section-title">Contract elements · IT0016</div>${dl([
       ["Contract type",esc(c.type)],["Probation period",c.prbez!=null?c.prbez+" months":"—"],
       ["Notice period (employer)",c.kdgfb!=null?c.kdgfb+" months":"—"],["Notice period (employee)",c.kdgf2!=null?c.kdgf2+" months":"—"],
@@ -942,13 +995,13 @@ function renderDetail(){
   <div class="page-head">
     <div><div class="crumb">${isEmployee()?"Employee Self-Service / My profile":`<a href="#" data-nav="${isManager()?'mss':'list'}" style="color:inherit;text-decoration:none">← ${isManager()?'My team':'Employees'}</a> / Master data`}</div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      ${isAdmin()?`<button class="btn" data-act="edit">${I.edit} Edit personal</button>
-      <button class="btn" data-act="address">${I.addr} Edit address</button>
-      <button class="btn" data-act="comm">${I.addr} Add communication</button>
-      <button class="btn" data-act="family">${I.people} Add family</button>
-      <button class="btn" data-act="reassign">${I.move} Reassign</button>`:""}
-      ${can("HR_ADMIN","HR_MANAGER")?`<button class="btn" data-act="attendance">${I.cal} Attendance</button>
-      <button class="btn primary" data-act="absence">${I.cal} Absence</button>`:""}
+      ${allowed("0002","update")?`<button class="btn" data-act="edit">${I.edit} Edit personal</button>`:""}
+      ${allowed("0006","update")?`<button class="btn" data-act="address">${I.addr} Edit address</button>`:""}
+      ${allowed("0105","add")?`<button class="btn" data-act="comm">${I.addr} Add communication</button>`:""}
+      ${allowed("0021","add")?`<button class="btn" data-act="family">${I.people} Add family</button>`:""}
+      ${allowed("0001","update")?`<button class="btn" data-act="reassign">${I.move} Reassign</button>`:""}
+      ${allowed("2002","add")?`<button class="btn" data-act="attendance">${I.cal} Attendance</button>`:""}
+      ${allowed("2001","add")?`<button class="btn primary" data-act="absence">${I.cal} Absence</button>`:""}
       ${isEmployee()?`<button class="btn" data-act="mypayslip">${I.money} My payslip</button><button class="btn primary" data-nav="myleave">${I.cal} My leave</button>`:""}
       ${isManager()?`<button class="btn" data-payslip="${e.pernr}">${I.money} Payslip</button>`:""}
     </div>
@@ -965,14 +1018,31 @@ function renderDetail(){
     <div class="id"><div class="n num">${e.pernr}</div><div class="l">Personnel no.</div>
       <div class="l" style="margin-top:6px">Key date ${fmtDate(e.key)}</div></div>
   </div>
-  <div class="tabs">
+  <div class="tabs" id="detailTabs">
     ${tab("personal","Personal Data","person")}${tab("org","Org Assignment","org")}
     ${tab("contact","Address & Comm.","addr")}${tab("family","Family","people")}
     ${tab("edu","Education & Experience","education")}${tab("pay","Working Time & Pay","money")}
     ${tab("contract","Contract","doc")}${tab("time","Time & Leave","cal")}
+    <div class="tab-more-wrap" style="display:none"><button class="tab-morebtn" data-tabmore>${I.doc} More ▾</button><div class="tab-more-menu" id="tabMoreMenu"></div></div>
   </div>
   ${content}`;
+  requestAnimationFrame(fitTabs);
 }
+/* Priority+ detail tabs: overflow tabs collapse into a "More ▾" dropdown. */
+function fitTabs(){
+  const bar=document.getElementById("detailTabs");if(!bar)return;
+  const wrap=bar.querySelector(".tab-more-wrap"),menu=document.getElementById("tabMoreMenu");if(!wrap)return;
+  menu.innerHTML="";wrap.style.display="none";
+  const items=[...bar.querySelectorAll("button[data-tab]")];items.forEach(b=>b.style.display="");
+  if(bar.scrollWidth<=bar.clientWidth+1)return;
+  wrap.style.display="";
+  const avail=bar.clientWidth-wrap.offsetWidth-6;let used=0,anyActive=false;
+  for(const b of items){used+=b.offsetWidth+4;
+    if(used>avail){b.style.display="none";const c=b.cloneNode(true);c.style.display="";if(c.classList.contains("active"))anyActive=true;menu.appendChild(c);}}
+  wrap.querySelector(".tab-morebtn").classList.toggle("has-active",anyActive);
+}
+let _tabResize;
+window.addEventListener("resize",()=>{clearTimeout(_tabResize);_tabResize=setTimeout(fitTabs,120);});
 
 function renderOrg(){
   const roots=orgTree(S.key);
@@ -1109,6 +1179,10 @@ function addPersonnelArea(k,t){if(!k)throw new Error("Enter a personnel area.");
 function addLanguage(k,t){if(!k)throw new Error("Enter a language key.");db.T002[k]=t;}
 function addNationality(k,t){if(!k)throw new Error("Enter a country key.");db.T005[k]=t;}
 function addGroup(k,t){if(!k)throw new Error("Enter a group key.");db.T501[k]=t;}
+function addTitle(t){if(!t)throw new Error("Enter a title.");
+  if(Object.values(db.dom.TITEL).some(v=>v.toLowerCase()===t.toLowerCase()))throw new Error("Title already exists.");
+  const keys=Object.keys(db.dom.TITEL).map(Number);const key=String((keys.length?Math.max.apply(null,keys):0)+1).padStart(2,"0");
+  db.dom.TITEL[key]=t;return key;}
 function addSubgroup(k,t){if(!k)throw new Error("Enter a subgroup key.");db.T503K[k]=t;}
 function addCostCenter(id,name){if(!id)throw new Error("Enter a cost center id.");if(db.costCenters.find(c=>c.id===id))throw new Error("Cost center already exists.");db.costCenters.push({id,name});}
 function addOrgUnit(name,parent){if(!name)throw new Error("Enter an org unit name.");
@@ -1119,32 +1193,111 @@ function addOrgUnit(name,parent){if(!name)throw new Error("Enter an org unit nam
   return objid;}
 function addUser(u){if(!u.username||!u.password)throw new Error("Enter username and password.");
   if(db.users.find(x=>x.username===u.username))throw new Error("Username already exists.");
-  db.users.push({username:u.username,password:u.password,name:u.name||u.username,role:u.role,pernr:u.pernr||null,email:u.email||null});}
+  const roles=(u.roles&&u.roles.length)?u.roles:(u.role?[u.role]:["EMPLOYEE"]);
+  db.users.push({username:u.username,password:u.password,name:u.name||u.username,roles,pernr:u.pernr||null,email:u.email||null});}
 
+function renderAuthMatrix(){
+  const role=S.authRole||"HR_ADMIN";
+  const acts=[["display","Display"],["add","Add"],["update","Update"],["delete","Delete"]];
+  const roleTabs=Object.keys(db.roleNames).map(r=>`<button class="btn sm ${role===r?'primary':''}" data-authrole="${r}">${esc(db.roleNames[r])}</button>`).join("");
+  const rows=db.infotypes.map(([code,name])=>{
+    const rec=(db.auth[role]&&db.auth[role][code])||{};
+    const cells=acts.map(([a])=>`<td class="td-c"><input type="checkbox" class="authchk" data-authit="${code}" data-authact="${a}" ${rec[a]?"checked":""}></td>`).join("");
+    return `<tr><td class="num">${code}</td><td>${esc(name)}</td>${cells}</tr>`;}).join("");
+  return `<div class="card"><div class="card-head"><h2>Authorizations · ${esc(db.roleNames[role])}</h2><div class="spacer"></div></div>
+    <div class="hint">${I.info}<span>P_ORGIN-style matrix: grant each role an activity (Display / Add / Update / Delete) per infotype. Changes apply immediately.</span></div>
+    <div class="toolbar" style="gap:6px;flex-wrap:wrap;margin:8px 0">${roleTabs}</div>
+    <div class="tbl-wrap"><table><thead><tr><th>Infotype</th><th>Name</th>${acts.map(([,l])=>`<th class="th-c">${l}</th>`).join("")}</tr></thead>
+    <tbody>${rows}</tbody></table></div></div>`;
+}
+/* ---- Generic, schema-driven configuration editor (add / edit / delete) ---- */
+const CFG_SCHEMA={
+  company:{h:"Company codes (T001)",store:"omap",path:"T001",keyL:"Company code",
+    fields:[{k:"name",l:"Name"},{k:"country",l:"Country",src:"T005"},{k:"currency",l:"Currency"},{k:"city",l:"City"}]},
+  parea:{h:"Personnel areas (T500P)",store:"omap",path:"T500P",keyL:"Personnel area",
+    fields:[{k:"text",l:"Name"},{k:"bukrs",l:"Company code",src:"T001"}]},
+  groups:{h:"Employee groups (T501)",store:"smap",path:"T501",keyL:"Group key",fields:[{k:"text",l:"Text"}]},
+  subgroups:{h:"Employee subgroups (T503K)",store:"smap",path:"T503K",keyL:"Subgroup key",
+    fields:[{k:"text",l:"Text"}],rel:{k:"group",l:"Employee group",path:"subgroupGroup",src:"T501"}},
+  cost:{h:"Cost centers",store:"arr",path:"costCenters",keyF:"id",keyL:"Cost center id",
+    fields:[{k:"name",l:"Name"},{k:"bukrs",l:"Company code",src:"T001"}]},
+  lang:{h:"Languages (T002)",store:"smap",path:"T002",keyL:"Language key",fields:[{k:"text",l:"Language"}]},
+  nat:{h:"Countries / nationalities (T005)",store:"smap",path:"T005",keyL:"Country key",fields:[{k:"text",l:"Country"}]},
+  titles:{h:"Titles (Form of address · IT0002)",store:"dom",path:"TITEL",keyL:"Key",autokey:true,fields:[{k:"text",l:"Title"}]}
+};
+function cfgStore(def){return def.store==="dom"?db.dom[def.path]:db[def.path];}
+function cfgRows(def){const s=cfgStore(def);
+  if(def.store==="arr")return s.map(o=>Object.assign({key:o[def.keyF]},o));
+  return Object.entries(s).map(([k,v])=>typeof v==="object"?Object.assign({key:k},v):{key:k,text:v});}
+function cfgGet(def,key){const s=cfgStore(def);
+  if(def.store==="arr"){const o=s.find(x=>String(x[def.keyF])===String(key));return o?Object.assign({key},o):null;}
+  const v=s[key];if(v==null)return null;return typeof v==="object"?Object.assign({key},v):{key,text:v};}
+function cfgUpsert(def,oldKey,key,data){const s=cfgStore(def);
+  if(key==null||key===""){ // auto key
+    const keys=Object.keys(s).map(Number).filter(n=>!isNaN(n));
+    key=String((keys.length?Math.max.apply(null,keys):0)+1).padStart(2,"0");}
+  if(def.store==="arr"){
+    if(oldKey!=null){const o=s.find(x=>String(x[def.keyF])===String(oldKey));if(!o)throw new Error("Entry not found.");Object.assign(o,{[def.keyF]:key},data);}
+    else{if(s.find(x=>String(x[def.keyF])===String(key)))throw new Error("Entry already exists.");s.push(Object.assign({[def.keyF]:key},data));}
+    return;}
+  if(oldKey==null&&s[key]!=null)throw new Error("Entry already exists.");
+  if(oldKey!=null&&String(oldKey)!==String(key))delete s[oldKey];
+  const onlyText=def.fields.length===1&&def.fields[0].k==="text";
+  s[key]=onlyText?data.text:Object.assign({},data);
+  if(def.rel){db[def.rel.path]=db[def.rel.path]||{};
+    if(oldKey!=null&&String(oldKey)!==String(key))delete db[def.rel.path][oldKey];
+    db[def.rel.path][key]=data[def.rel.k]||"";}}
+function cfgRemove(def,key){const s=cfgStore(def);
+  if(def.store==="arr"){const i=s.findIndex(x=>String(x[def.keyF])===String(key));if(i>=0)s.splice(i,1);}
+  else delete s[key];
+  if(def.rel&&db[def.rel.path])delete db[def.rel.path][key];}
+function cfgLabel(src,key){if(!key)return "—";const m=db[src]||db.dom[src]||{};const v=m[key];
+  const t=v&&typeof v==="object"?(v.name||v.text||""):v;return esc(key+(t?" – "+t:""));}
+function cfgTable(tab){const def=CFG_SCHEMA[tab];const rows=cfgRows(def);
+  const cols=[{k:"key",l:def.keyL}].concat(def.fields.map(f=>({k:f.k,l:f.l,src:f.src})));
+  if(def.rel)cols.push({k:def.rel.k,l:def.rel.l,rel:true});
+  const head=cols.map(c=>`<th>${esc(c.l)}</th>`).join("")+`<th class="th-r">Actions</th>`;
+  const relMap=def.rel?(db[def.rel.path]||{}):null;
+  const body=rows.map(r=>{
+    const cells=cols.map(c=>{
+      if(c.rel)return `<td>${cfgLabel(def.rel.src,relMap[r.key])}</td>`;
+      if(c.k==="key")return `<td class="num">${esc(r.key)}</td>`;
+      if(c.src)return `<td>${cfgLabel(c.src,r[c.k])}</td>`;
+      return `<td>${esc(r[c.k]!=null&&r[c.k]!==""?r[c.k]:"—")}</td>`;}).join("");
+    return `<tr>${cells}<td class="td-r nowrap"><button class="btn xs" data-cfgedit="${tab}" data-key="${esc(r.key)}">${I.edit} Edit</button> <button class="btn xs ghost" data-cfgdel="${tab}" data-key="${esc(r.key)}">Delete</button></td></tr>`;}).join("");
+  return `<div class="card"><div class="card-head"><h2>${esc(def.h)}</h2><span class="count">${rows.length}</span><div class="spacer"></div><button class="btn sm primary" data-cfgadd="${tab}">+ Add</button></div>
+    <div class="tbl-wrap"><table><thead><tr>${head}</tr></thead><tbody>${body||`<tr><td colspan="${cols.length+1}"><div class="empty">No entries.</div></td></tr>`}</tbody></table></div></div>`;}
+let cfgCtx=null;
+function cfgDialog(tab,key){const def=CFG_SCHEMA[tab];const edit=key!=null;const r=edit?cfgGet(def,key)||{}:{};
+  cfgCtx={tab,key:edit?key:null};
+  const keyInput=(def.autokey&&!edit)?"":`<div class="grp"><label>${esc(def.keyL)} <span class="req">*</span></label><input id="cf_key" value="${edit?esc(key):""}"></div>`;
+  const fields=def.fields.map(f=>f.src
+    ?`<div class="grp"><label>${esc(f.l)}</label><select id="cf_${f.k}"><option value="">—</option>${opt(db[f.src]||db.dom[f.src]||{},r[f.k]||"")}</select></div>`
+    :`<div class="grp"><label>${esc(f.l)}</label><input id="cf_${f.k}" value="${esc(r[f.k]||"")}"></div>`).join("");
+  let relField="";
+  if(def.rel){const cur=edit?((db[def.rel.path]||{})[key]||""):"";
+    relField=`<div class="grp"><label>${esc(def.rel.l)}</label><select id="cf_rel"><option value="">—</option>${opt(db[def.rel.src]||{},cur)}</select></div>`;}
+  modal((edit?"Edit ":"Add ")+def.h,keyInput+fields+relField,
+    `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="cfgSave">Save</button>`);}
+function cfgUsersTable(){return `<div class="card"><div class="card-head"><h2>Users &amp; roles</h2><span class="count">${db.users.length}</span><div class="spacer"></div><button class="btn sm primary" data-act="cfgUser">+ Add user</button></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Username</th><th>Name</th><th>E-mail</th><th>Roles</th><th>Employee</th><th class="th-r">Actions</th></tr></thead><tbody>${db.users.map(u=>`<tr><td><b>${esc(u.username)}</b></td><td>${esc(u.name)}</td><td>${esc(u.email||"—")}</td><td>${(u.roles||[u.role]).map(r=>statusPill(db.roleNames[r])).join(" ")}</td><td class="num">${u.pernr||"—"}</td>
+    <td class="td-r nowrap"><button class="btn xs" data-useredit="${esc(u.username)}">${I.edit} Edit</button> <button class="btn xs ghost" data-userdel="${esc(u.username)}">Delete</button></td></tr>`).join("")}</tbody></table></div></div>`;}
+function cfgOrgTable(){const orgs=db.HRP1000.filter(o=>o.otype==="O");
+  const parentOf=id=>{const rel=db.HRP1001.find(r=>r.otype==="O"&&r.objid===id&&r.relat==="002"&&r.rsign==="A");return rel?+rel.sobid:null;};
+  return `<div class="card"><div class="card-head"><h2>Organizational units</h2><span class="count">${orgs.length}</span><div class="spacer"></div><button class="btn sm primary" data-act="cfgOrg">+ Add</button></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Org ID</th><th>Name</th><th>Short</th><th>Reports to</th><th class="th-r">Actions</th></tr></thead><tbody>${orgs.map(o=>{const p=parentOf(o.objid);const pn=p?(db.HRP1000.find(x=>x.otype==="O"&&x.objid===p)||{}).stext:null;
+    return `<tr><td class="num">${o.objid}</td><td>${esc(o.stext)}</td><td>${esc(o.short)}</td><td>${p?esc(p+" "+(pn||"")):"—"}</td>
+    <td class="td-r nowrap"><button class="btn xs" data-orgedit="${o.objid}">${I.edit} Edit</button> <button class="btn xs ghost" data-orgdel="${o.objid}">Delete</button></td></tr>`;}).join("")}</tbody></table></div></div>`;}
 function renderConfig(){
   if(!S.cfgTab)S.cfgTab="company";
   const T=(id,l)=>`<button class="btn sm ${S.cfgTab===id?'primary':''}" data-cfg="${id}">${l}</button>`;
   let body="";
-  if(S.cfgTab==="company")body=`<div class="card"><div class="card-head"><h2>Company codes (T001)</h2><span class="count">${Object.keys(db.T001).length}</span><div class="spacer"></div><button class="btn sm primary" data-act="cfgCompany">+ Add</button></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Company code</th><th>Name</th><th>Country</th><th>Currency</th></tr></thead><tbody>${Object.entries(db.T001).map(([k,v])=>`<tr><td class="num">${esc(k)}</td><td>${esc(v.name)}</td><td>${esc(v.country)}</td><td>${esc(v.currency)}</td></tr>`).join("")}</tbody></table></div></div>`;
-  else if(S.cfgTab==="parea")body=`<div class="card"><div class="card-head"><h2>Personnel areas (T500P)</h2><span class="count">${Object.keys(db.T500P).length}</span><div class="spacer"></div><button class="btn sm primary" data-act="cfgParea">+ Add</button></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Key</th><th>Name</th></tr></thead><tbody>${Object.entries(db.T500P).map(([k,v])=>`<tr><td class="num">${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</tbody></table></div></div>`;
-  else if(S.cfgTab==="groups")body=`<div class="card"><div class="card-head"><h2>Employee groups (T501)</h2><span class="count">${Object.keys(db.T501).length}</span><div class="spacer"></div><button class="btn sm primary" data-act="cfgGroup">+ Add</button></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Key</th><th>Text</th></tr></thead><tbody>${Object.entries(db.T501).map(([k,v])=>`<tr><td class="num">${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</tbody></table></div></div>`;
-  else if(S.cfgTab==="subgroups")body=`<div class="card"><div class="card-head"><h2>Employee subgroups (T503K)</h2><span class="count">${Object.keys(db.T503K).length}</span><div class="spacer"></div><button class="btn sm primary" data-act="cfgSub">+ Add</button></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Key</th><th>Text</th></tr></thead><tbody>${Object.entries(db.T503K).map(([k,v])=>`<tr><td class="num">${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</tbody></table></div></div>`;
-  else if(S.cfgTab==="cost")body=`<div class="card"><div class="card-head"><h2>Cost centers</h2><span class="count">${db.costCenters.length}</span><div class="spacer"></div><button class="btn sm primary" data-act="cfgCost">+ Add</button></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Cost center</th><th>Name</th></tr></thead><tbody>${db.costCenters.map(c=>`<tr><td class="num">${esc(c.id)}</td><td>${esc(c.name)}</td></tr>`).join("")}</tbody></table></div></div>`;
-  else if(S.cfgTab==="org")body=`<div class="card"><div class="card-head"><h2>Organizational units</h2><span class="count">${db.HRP1000.filter(o=>o.otype==="O").length}</span><div class="spacer"></div><button class="btn sm primary" data-act="cfgOrg">+ Add</button></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Org ID</th><th>Name</th><th>Short</th></tr></thead><tbody>${db.HRP1000.filter(o=>o.otype==="O").map(o=>`<tr><td class="num">${o.objid}</td><td>${esc(o.stext)}</td><td>${esc(o.short)}</td></tr>`).join("")}</tbody></table></div></div>`;
-  else if(S.cfgTab==="lang")body=`<div class="card"><div class="card-head"><h2>Languages (T002)</h2><span class="count">${Object.keys(db.T002).length}</span><div class="spacer"></div><button class="btn sm primary" data-act="cfgLang">+ Add</button></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Key</th><th>Language</th></tr></thead><tbody>${Object.entries(db.T002).map(([k,v])=>`<tr><td class="num">${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</tbody></table></div></div>`;
-  else if(S.cfgTab==="nat")body=`<div class="card"><div class="card-head"><h2>Countries / nationalities (T005)</h2><span class="count">${Object.keys(db.T005).length}</span><div class="spacer"></div><button class="btn sm primary" data-act="cfgNat">+ Add</button></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Key</th><th>Country</th></tr></thead><tbody>${Object.entries(db.T005).map(([k,v])=>`<tr><td class="num">${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</tbody></table></div></div>`;
-  else if(S.cfgTab==="users")body=`<div class="card"><div class="card-head"><h2>Users & roles</h2><span class="count">${db.users.length}</span><div class="spacer"></div><button class="btn sm primary" data-act="cfgUser">+ Add user</button></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Username</th><th>Name</th><th>E-mail</th><th>Role</th><th>Employee</th></tr></thead><tbody>${db.users.map(u=>`<tr><td><b>${esc(u.username)}</b></td><td>${esc(u.name)}</td><td>${esc(u.email||"—")}</td><td>${statusPill(db.roleNames[u.role])}</td><td class="num">${u.pernr||"—"}</td></tr>`).join("")}</tbody></table></div></div>`;
+  if(S.cfgTab==="auth")body=renderAuthMatrix();
+  else if(S.cfgTab==="users")body=cfgUsersTable();
+  else if(S.cfgTab==="org")body=cfgOrgTable();
+  else if(CFG_SCHEMA[S.cfgTab])body=cfgTable(S.cfgTab);
   app.innerHTML=pageHead("Configuration","System configuration")+
-    `<div class="toolbar" style="gap:6px;flex-wrap:wrap">${T("company","Company codes")}${T("parea","Personnel areas")}${T("groups","Employee groups")}${T("subgroups","Employee subgroups")}${T("cost","Cost centers")}${T("org","Organizational units")}${T("lang","Languages")}${T("nat","Nationalities")}${T("users","Users & roles")}</div>${body}`;
+    `<div class="toolbar" style="gap:6px;flex-wrap:wrap">${T("company","Company codes")}${T("parea","Personnel areas")}${T("groups","Employee groups")}${T("subgroups","Employee subgroups")}${T("cost","Cost centers")}${T("org","Organizational units")}${T("lang","Languages")}${T("nat","Nationalities")}${T("titles","Titles")}${T("users","Users & roles")}${T("auth","Authorizations")}</div>${body}`;
 }
 
 /* ============================ MODULE VIEWS ============================ */
@@ -1330,6 +1483,7 @@ function payslipDialog(pernr){
 /* ============================ MODALS ============================ */
 function opt(map,sel){return Object.entries(map).map(([k,v])=>{const t=(v&&typeof v==="object")?(v.name||v.text||""):v;return `<option value="${k}" ${String(sel)===String(k)?'selected':''}>${esc(k)} – ${esc(t)}</option>`;}).join("");}
 const t001Name=k=>{const v=db.T001[k];return v&&typeof v==="object"?v.name:v;};
+const t500pName=k=>{const v=db.T500P[k];return v&&typeof v==="object"?v.text:v;};
 function optBlank(map,sel){return `<option value="" ${sel?'':'selected'}>—</option>`+opt(map,sel);}
 function optName(arr,sel){return `<option value="">—</option>`+arr.map(o=>`<option value="${o.id}" ${String(sel)===String(o.id)?'selected':''}>${esc(o.name)}</option>`).join("");}
 function modal(title,bodyHtml,footHtml){
@@ -1375,7 +1529,7 @@ function editDialog(){
     <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="e_begda" value="${today()}"></div>
     <div class="two">
       <div class="grp"><label>Form of address</label><select id="e_anred">${opt(db.dom.ANRED,p.anred||"")}</select></div>
-      <div class="grp"><label>Title</label><input id="e_titel" value="${esc(p.titel)}"></div>
+      <div class="grp"><label>Title</label><select id="e_titel"><option value="">—</option>${opt(db.dom.TITEL,p.titel||"")}</select></div>
     </div>
     <div class="two">
       <div class="grp"><label>First name <span class="req">*</span></label><input id="e_first" value="${esc(p.vorna)}"></div>
@@ -1567,21 +1721,38 @@ function cfgOrgDialog(){const orgs=orgFlat(S.key);
   <div class="grp"><label>Name <span class="req">*</span></label><input id="co_name"></div>
   <div class="grp"><label>Reports to (parent)</label><select id="co_parent"><option value="">— none —</option>${orgs.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join("")}</select></div>`,
   `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="cfgOrg">Add</button>`);}
-function cfgUserDialog(){
-  const roleOpts=Object.entries(db.roleNames).map(([k,v])=>`<option value="${k}">${esc(v)}</option>`).join("");
-  const empOpts=db.emp.map(e=>{const p=validOn(db.PA0002,e.pernr,today());return `<option value="${e.pernr}">${e.pernr} - ${p?esc(p.vorna+" "+p.nachn):""}</option>`;}).join("");
-  modal("Add user with role",`
+function cfgTitleDialog(){modal("Add title · IT0002",`
+  <div class="grp"><label>Title <span class="req">*</span></label><input id="ct_txt" placeholder="e.g. Dr., Prof., M.Sc."></div>`,
+  `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="cfgTitle">Add</button>`);}
+function cfgUserDialog(username){
+  const edit=username!=null;const u=edit?db.users.find(x=>x.username===username)||{}:{};
+  const uRoles=u.roles||(u.role?[u.role]:[]);
+  cfgCtx={user:edit?username:null};
+  const roleChecks=Object.entries(db.roleNames).map(([k,v])=>`<label class="rolechk"><input type="checkbox" class="cu_role" value="${k}" ${(edit?uRoles.includes(k):k==="EMPLOYEE")?"checked":""}> ${esc(v)}</label>`).join("");
+  const empOpts=db.emp.map(e=>{const p=validOn(db.PA0002,e.pernr,today());return `<option value="${e.pernr}" ${u.pernr===e.pernr?"selected":""}>${e.pernr} - ${p?esc(p.vorna+" "+p.nachn):""}</option>`;}).join("");
+  modal(edit?"Edit user &amp; roles":"Add user with roles",`
   <div class="two">
-    <div class="grp"><label>Username <span class="req">*</span></label><input id="cu_user"></div>
-    <div class="grp"><label>Password <span class="req">*</span></label><input id="cu_pw"></div>
+    <div class="grp"><label>Username <span class="req">*</span></label><input id="cu_user" value="${esc(u.username||"")}"></div>
+    <div class="grp"><label>Password ${edit?"":`<span class="req">*</span>`}</label><input id="cu_pw" type="password" placeholder="${edit?"leave blank to keep":""}"></div>
   </div>
   <div class="two">
-    <div class="grp"><label>Display name</label><input id="cu_name"></div>
-    <div class="grp"><label>E-mail</label><input id="cu_email" type="email"></div>
+    <div class="grp"><label>Display name</label><input id="cu_name" value="${esc(u.name||"")}"></div>
+    <div class="grp"><label>E-mail</label><input id="cu_email" type="email" value="${esc(u.email||"")}"></div>
   </div>
-  <div class="grp"><label>Role <span class="req">*</span></label><select id="cu_role">${roleOpts}</select></div>
+  <div class="grp"><label>Roles <span class="req">*</span> <span class="muted" style="font-weight:400">(a user can hold several)</span></label>
+    <div class="rolechks">${roleChecks}</div></div>
   <div class="grp"><label>Linked employee (for self-service)</label><select id="cu_pernr"><option value="">— none —</option>${empOpts}</select></div>`,
-  `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="cfgUser">Add user</button>`);}
+  `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="cfgUser">${edit?"Save":"Add user"}</button>`);}
+function orgEditDialog(id){const o=db.HRP1000.find(x=>x.otype==="O"&&x.objid===id)||{};
+  const rel=db.HRP1001.find(r=>r.otype==="O"&&r.objid===id&&r.relat==="002"&&r.rsign==="A");
+  const parent=rel?+rel.sobid:null;
+  const orgs=db.HRP1000.filter(x=>x.otype==="O"&&x.objid!==id);
+  cfgCtx={orgid:id};
+  modal("Edit organizational unit",`
+  <div class="grp"><label>Name <span class="req">*</span></label><input id="oe_name" value="${esc(o.stext||"")}"></div>
+  <div class="grp"><label>Short</label><input id="oe_short" value="${esc(o.short||"")}"></div>
+  <div class="grp"><label>Reports to (parent)</label><select id="oe_parent"><option value="">— none —</option>${orgs.map(x=>`<option value="${x.objid}" ${x.objid===parent?"selected":""}>${esc(x.stext)}</option>`).join("")}</select></div>`,
+  `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="orgSave">Save</button>`);}
 function attendanceDialog(){
   const att={}; Object.keys(db.T554S).forEach(k=>att[k]=db.T554S[k]);
   modal("Record attendance · IT2002",`
@@ -1617,9 +1788,10 @@ function toast(msg,kind){
 
 /* ============================ EVENTS ============================ */
 document.addEventListener("click",ev=>{
-  const t=ev.target.closest("[data-nav],[data-open],[data-act],[data-tab],[data-tog],[data-do],[data-close],[data-fill],[data-approve],[data-reject],[data-book],[data-advance],[data-payslip],[data-cfg],[data-sort],[data-more],[data-photo]");
-  if(!t){const mm=$("#moreMenu");if(mm)mm.classList.remove("open");return;}
+  const t=ev.target.closest("[data-nav],[data-open],[data-act],[data-tab],[data-tog],[data-do],[data-close],[data-fill],[data-approve],[data-reject],[data-book],[data-advance],[data-payslip],[data-cfg],[data-authrole],[data-cfgadd],[data-cfgedit],[data-cfgdel],[data-useredit],[data-userdel],[data-orgedit],[data-orgdel],[data-sort],[data-more],[data-tabmore],[data-photo]");
+  if(!t){const mm=$("#moreMenu");if(mm)mm.classList.remove("open");const tm=$("#tabMoreMenu");if(tm)tm.classList.remove("open");return;}
   if(t.hasAttribute("data-more")){const mm=$("#moreMenu");mm.classList.toggle("open");return;}
+  if(t.hasAttribute("data-tabmore")){const tm=$("#tabMoreMenu");tm.classList.toggle("open");return;}
   if(t.dataset.nav){ev.preventDefault();S.view=t.dataset.nav;S.tab="personal";render();return;}
   if(t.dataset.open){S.view="detail";S.pernr=+t.dataset.open;S.tab="personal";render();return;}
   if(t.dataset.tab){S.tab=t.dataset.tab;renderDetail();return;}
@@ -1647,6 +1819,7 @@ document.addEventListener("click",ev=>{
     else if(t.dataset.act==="cfgSub")cfgSubDialog();
     else if(t.dataset.act==="cfgCost")cfgCostDialog();
     else if(t.dataset.act==="cfgOrg")cfgOrgDialog();
+    else if(t.dataset.act==="cfgTitle")cfgTitleDialog();
     else if(t.dataset.act==="cfgUser")cfgUserDialog();
     else if(t.dataset.act==="attendance")attendanceDialog();
     else if(t.dataset.act==="reqleave")reqLeaveDialog();
@@ -1662,6 +1835,14 @@ document.addEventListener("click",ev=>{
   if(t.dataset.payslip){payslipDialog(+t.dataset.payslip);return;}
   if(t.dataset.photo){uploadPhoto(+t.dataset.photo);return;}
   if(t.dataset.cfg){S.cfgTab=t.dataset.cfg;renderConfig();return;}
+  if(t.dataset.authrole){S.authRole=t.dataset.authrole;renderConfig();return;}
+  if(t.dataset.cfgadd){cfgDialog(t.dataset.cfgadd,null);return;}
+  if(t.dataset.cfgedit){cfgDialog(t.dataset.cfgedit,t.dataset.key);return;}
+  if(t.dataset.cfgdel){const def=CFG_SCHEMA[t.dataset.cfgdel];if(confirm("Delete entry "+t.dataset.key+"?")){cfgRemove(def,t.dataset.key);toast("Entry deleted.","good");renderConfig();}return;}
+  if(t.dataset.useredit){cfgUserDialog(t.dataset.useredit);return;}
+  if(t.dataset.userdel){if(confirm("Delete user "+t.dataset.userdel+"?")){db.users=db.users.filter(u=>u.username!==t.dataset.userdel);toast("User deleted.","good");renderConfig();}return;}
+  if(t.dataset.orgedit){orgEditDialog(+t.dataset.orgedit);return;}
+  if(t.dataset.orgdel){const id=+t.dataset.orgdel;if(confirm("Delete organizational unit "+id+"?")){db.HRP1000=db.HRP1000.filter(o=>!(o.otype==="O"&&o.objid===id));db.HRP1001=db.HRP1001.filter(r=>!(r.otype==="O"&&r.objid===id));toast("Org unit deleted.","good");renderConfig();}return;}
   if(t.dataset.sort){const c=t.dataset.sort;if(S.sortCol===c)S.sortDir=S.sortDir==="asc"?"desc":"asc";else{S.sortCol=c;S.sortDir="asc";}renderList();return;}
   if(t.hasAttribute("data-close")){
     // Backdrop closes only on a direct click; clicks inside the dialog (e.g. a
@@ -1673,6 +1854,12 @@ document.addEventListener("click",ev=>{
 });
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal();});
 document.addEventListener("change",ev=>{
+  const a=ev.target.closest(".authchk");
+  if(a){const role=S.authRole||"HR_ADMIN",it=a.dataset.authit,act=a.dataset.authact;
+    db.auth[role]=db.auth[role]||{};db.auth[role][it]=db.auth[role][it]||{display:false,add:false,update:false,delete:false};
+    db.auth[role][it][act]=a.checked;
+    if(act!=="display"&&a.checked)db.auth[role][it].display=true; // any activity implies display
+    return;}
   const c=ev.target.closest("[data-col]");if(!c)return;
   const k=c.dataset.col;
   if(c.checked){if(!S.empCols.includes(k))S.empCols.push(k);}
@@ -1742,25 +1929,33 @@ function doAction(kind){
       const f={employer:val("x_emp").trim(),task:val("x_task").trim(),place:val("x_place").trim(),country:val("x_ctry").trim(),begda:val("x_begda"),endda:val("x_endda")};
       if(!f.employer){toast("Enter the employer.","bad");return;}
       addExperience(S.pernr,f);closeModal();toast("Previous employer added.","good");S.tab="edu";renderDetail();
-    }else if(kind==="cfgCompany"){
-      addCompanyCode(val("cco_key").trim(),val("cco_txt").trim(),val("cco_ctry"),val("cco_cur").trim());closeModal();toast("Company code added.","good");renderConfig();
-    }else if(kind==="cfgParea"){
-      addPersonnelArea(val("cpa_key").trim(),val("cpa_txt").trim());closeModal();toast("Personnel area added.","good");renderConfig();
-    }else if(kind==="cfgLang"){
-      addLanguage(val("cl_key").trim(),val("cl_txt").trim());closeModal();toast("Language added.","good");renderConfig();
-    }else if(kind==="cfgNat"){
-      addNationality(val("cn_key").trim(),val("cn_txt").trim());closeModal();toast("Country added.","good");renderConfig();
-    }else if(kind==="cfgGroup"){
-      addGroup(val("cg_key").trim(),val("cg_txt").trim());closeModal();toast("Employee group added.","good");renderConfig();
-    }else if(kind==="cfgSub"){
-      addSubgroup(val("cs_key").trim(),val("cs_txt").trim());closeModal();toast("Employee subgroup added.","good");renderConfig();
-    }else if(kind==="cfgCost"){
-      addCostCenter(val("cc_id").trim(),val("cc_name").trim());closeModal();toast("Cost center added.","good");renderConfig();
+    }else if(kind==="cfgSave"){
+      const def=CFG_SCHEMA[cfgCtx.tab];
+      const key=(def.autokey&&cfgCtx.key==null)?null:val("cf_key").trim();
+      if(key===""&&!(def.autokey&&cfgCtx.key==null)){toast("Enter the "+def.keyL.toLowerCase()+".","bad");return;}
+      const data={};def.fields.forEach(f=>data[f.k]=(document.getElementById("cf_"+f.k)?val("cf_"+f.k).trim():""));
+      if(def.rel)data[def.rel.k]=val("cf_rel");
+      cfgUpsert(def,cfgCtx.key,key,data);closeModal();toast("Saved.","good");renderConfig();
     }else if(kind==="cfgOrg"){
       const id=addOrgUnit(val("co_name").trim(),val("co_parent")?+val("co_parent"):null);closeModal();toast("Organizational unit "+id+" added.","good");renderConfig();
+    }else if(kind==="orgSave"){
+      const id=cfgCtx.orgid;const o=db.HRP1000.find(x=>x.otype==="O"&&x.objid===id);
+      if(o){o.stext=val("oe_name").trim();o.short=val("oe_short").trim();}
+      const parent=val("oe_parent")?+val("oe_parent"):null;
+      db.HRP1001=db.HRP1001.filter(r=>!(r.otype==="O"&&r.objid===id&&r.relat==="002"&&r.rsign==="A"));
+      if(parent)db.HRP1001.push({otype:"O",objid:id,rsign:"A",relat:"002",sclas:"O",sobid:String(parent),begda:"2020-01-01",endda:HIGH});
+      closeModal();toast("Organizational unit updated.","good");renderConfig();
     }else if(kind==="cfgUser"){
-      addUser({username:val("cu_user").trim(),password:val("cu_pw"),name:val("cu_name").trim(),email:val("cu_email").trim(),role:val("cu_role"),pernr:val("cu_pernr")?+val("cu_pernr"):null});
-      closeModal();toast("User added.","good");renderConfig();
+      const roles=[...document.querySelectorAll(".cu_role:checked")].map(c=>c.value);
+      if(!roles.length){toast("Select at least one role.","bad");return;}
+      const edit=cfgCtx&&cfgCtx.user;
+      if(edit){const u=db.users.find(x=>x.username===edit);
+        u.username=val("cu_user").trim()||u.username;const pw=val("cu_pw");if(pw)u.password=pw;
+        u.name=val("cu_name").trim();u.email=val("cu_email").trim();u.roles=roles;u.pernr=val("cu_pernr")?+val("cu_pernr"):null;
+        closeModal();toast("User updated.","good");renderConfig();
+      }else{
+        addUser({username:val("cu_user").trim(),password:val("cu_pw"),name:val("cu_name").trim(),email:val("cu_email").trim(),roles,pernr:val("cu_pernr")?+val("cu_pernr"):null});
+        closeModal();toast("User added.","good");renderConfig();}
     }else if(kind==="family"){
       const f={relationType:val("fm_rel"),firstName:val("fm_first").trim(),lastName:val("fm_last").trim(),gender:val("fm_gender"),birthDate:val("fm_dob")};
       if(!f.firstName||!f.lastName){toast("Enter first and last name.","bad");return;}
@@ -1773,8 +1968,11 @@ function doAction(kind){
       const u=val("lu").trim(),pw=val("lp");
       const found=db.users.find(x=>x.username===u&&x.password===pw&&pw);
       if(!found){const e=$("#loginErr");e.textContent="Invalid username or password.";e.style.display="block";return;}
-      SESSION={username:found.username,name:found.name,role:found.role,pernr:found.pernr};
-      S.view=found.role==="EMPLOYEE"?"ess":found.role==="HR_MANAGER"?"mss":"list";
+      const roles=found.roles||[found.role];
+      const primary=roles.includes("HR_ADMIN")?"HR_ADMIN":roles.includes("HR_MANAGER")?"HR_MANAGER":roles[0];
+      SESSION={username:found.username,name:found.name,roles:roles,role:primary,pernr:found.pernr,email:found.email};
+      if(found.theme){document.documentElement.setAttribute("data-theme",found.theme);}
+      S.view=primary==="EMPLOYEE"?"ess":primary==="HR_MANAGER"?"mss":"list";
       toast("Welcome, "+found.name+".","good");render();
     }else if(kind==="reqleave"){
       const f={pernr:SESSION.pernr,type:val("rl_type"),begda:val("rl_begda"),endda:val("rl_endda"),note:val("rl_note").trim()};
