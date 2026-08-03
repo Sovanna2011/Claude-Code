@@ -61,7 +61,7 @@ button{font-family:inherit}
   color:#fff;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
   padding:6px 16px;min-height:52px;box-shadow:var(--shadow-sm)}
 .shell .brandtext{white-space:nowrap}
-.shell nav{flex:1 1 auto;overflow-x:auto;scrollbar-width:thin}
+.shell nav{flex:1 1 auto;overflow:visible;min-width:0}
 @media (max-width:760px){
   .shell{gap:8px}
   .shell .logo .sub{display:none}
@@ -143,6 +143,12 @@ table{width:100%;border-collapse:collapse;font-size:13.5px}
 th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);
   font-weight:700;padding:10px 16px;border-bottom:1px solid var(--border);white-space:nowrap;background:var(--surface-2)}
 td{padding:11px 16px;border-bottom:1px solid var(--border);vertical-align:middle}
+.cols-panel{margin-bottom:14px}
+.cols-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;padding:14px 16px}
+.colchip{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);
+  border-radius:8px;background:var(--surface);cursor:pointer;font-size:13.5px}
+.colchip.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:600}
+.colchip input{margin:0}
 .filter-row th{padding:6px 10px;background:var(--surface-2);text-transform:none;letter-spacing:0}
 .colf{width:100%;min-width:90px;padding:5px 8px;font-size:12px;font-weight:400;
   border:1px solid var(--border-strong);border-radius:6px;background:var(--surface);color:var(--text)}
@@ -169,8 +175,14 @@ a.mail:hover{text-decoration:underline}
 .obj-head{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
   padding:18px 20px;box-shadow:var(--shadow-sm);margin-bottom:14px;
   display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
-.avatar{width:56px;height:56px;border-radius:50%;background:var(--accent-soft);color:var(--accent);
-  display:grid;place-items:center;font-weight:800;font-size:20px;flex:0 0 auto}
+.avatar{position:relative;width:64px;height:64px;border-radius:50%;background:var(--accent-soft);color:var(--accent);
+  display:grid;place-items:center;font-weight:800;font-size:20px;flex:0 0 auto;overflow:visible}
+.avatar img{width:64px;height:64px;border-radius:50%;object-fit:cover;display:block}
+.avatar .av-edit{position:absolute;right:-2px;bottom:-2px;width:24px;height:24px;border-radius:50%;
+  border:2px solid var(--surface);background:var(--accent);color:#fff;cursor:pointer;display:grid;place-items:center;padding:0}
+.avatar .av-edit svg{width:12px;height:12px;fill:#fff}
+.whoami-av{width:30px;height:30px;border-radius:50%;object-fit:cover;cursor:pointer;border:1px solid rgba(255,255,255,.4)}
+.whoami-wrap{display:flex;align-items:center;gap:8px;padding-left:12px;border-left:1px solid rgba(255,255,255,.3)}
 .obj-head .id{margin-left:auto;text-align:right}
 .obj-head .id .n{font-size:24px;font-weight:800;color:var(--accent)}
 .obj-head .id .l{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
@@ -257,8 +269,9 @@ a.mail:hover{text-decoration:underline}
 :root[data-theme="dark"] .banner{color:var(--accent)}
 .banner svg{width:16px;height:16px;fill:currentColor;flex:0 0 auto}
 .empty{padding:40px;text-align:center;color:var(--muted)}
-.whoami{display:flex;flex-direction:column;line-height:1.15;text-align:left;
+.whoami{display:flex;flex-direction:row;align-items:center;gap:9px;line-height:1.15;text-align:left;
   padding-left:12px;border-left:1px solid rgba(255,255,255,.3);white-space:nowrap}
+.whoami .wi-txt{display:flex;flex-direction:column}
 .whoami b{font-size:12.5px}.whoami span{font-size:11px;opacity:.8}
 .rolebadge{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;background:var(--accent-soft);color:var(--accent)}
 /* Login */
@@ -427,7 +440,7 @@ function seed(){return{
    {otype:"S",objid:50000101,rsign:"A",relat:"003",sclas:"O",sobid:"50000010",begda:"2020-01-01",endda:HIGH},
    {otype:"S",objid:50000101,rsign:"A",relat:"007",sclas:"C",sobid:"50000900",begda:"2020-01-01",endda:HIGH},
    {otype:"S",objid:50000101,rsign:"A",relat:"002",sclas:"S",sobid:"50000100",begda:"2020-01-01",endda:HIGH}],
-  T001:{"1000":"Global Corp AG"}, T500P:{"1000":"Head Office","2000":"Branch Office"},
+  T001:{"1000":{name:"Global Corp AG",country:"DE",currency:"EUR"}}, T500P:{"1000":"Head Office","2000":"Branch Office"},
   T002:{"EN":"English","DE":"German","FR":"French","ES":"Spanish","VI":"Vietnamese"},
   T005:{"DE":"Germany","US":"United States","FR":"France","GB":"United Kingdom","KH":"Cambodia","SG":"Singapore","VN":"Vietnam"},
   T501:{"1":"Active employees","2":"Pensioners","9":"External staff"},
@@ -481,7 +494,8 @@ function seed(){return{
    {pernr:1001,date:"2026-06-14",hours:3.0},   // Sun - Sunday OT
    {pernr:1001,date:"2026-12-25",hours:2.0}],  // Public holiday OT
   // Payroll: rates & OT multipliers (SAP-style customizing)
-  payroll:{taxRate:0.15,socialRate:0.09,otMult:{normal:1.25,sunday:1.5,holiday:2.0},monthlyFactor:4.33}
+  payroll:{taxRate:0.15,socialRate:0.09,otMult:{normal:1.25,sunday:1.5,holiday:2.0},monthlyFactor:4.33},
+  photos:{}  // pernr -> data URI (uploaded photo); default is a generated avatar
 };}
 let db=seed();
 let SESSION=null; // {username,name,role,pernr}
@@ -507,6 +521,21 @@ const daysBetween=(a,b)=>Math.round((new Date(b)-new Date(a))/864e5)+1;
 const fmtDate=s=>!s?"":s.startsWith("9999")?"unlimited":s.split("-").reverse().join(".");
 const fmtAmt=(n,c)=>n==null?"":Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})+(c?" "+c:"");
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+/* Employee photo: uploaded data URI, else a generated initials avatar (SVG data URI). */
+function avatarSvg(name,seed){
+  const init=((name||"").split(" ").filter(Boolean).map(w=>w[0]).join("").slice(0,2)||"?").toUpperCase();
+  const colors=["#0a6ed1","#107e3e","#c25400","#7d3fbb","#0891b2","#be123c","#2563eb"];
+  const c=colors[Math.abs(seed||0)%colors.length];
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="96" height="96" rx="48" fill="${c}"/><text x="48" y="61" font-family="Segoe UI,Arial,sans-serif" font-size="38" font-weight="700" fill="#fff" text-anchor="middle">${init}</text></svg>`;
+  return "data:image/svg+xml;base64,"+btoa(svg);
+}
+function empPhoto(pernr,name){return (db.photos&&db.photos[pernr])||avatarSvg(name,pernr);}
+function uploadPhoto(pernr){
+  const inp=document.createElement("input");inp.type="file";inp.accept="image/*";
+  inp.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
+    r.onload=()=>{db.photos[pernr]=r.result;toast("Photo updated.","good");render();};r.readAsDataURL(f);};
+  inp.click();
+}
 
 function getEmployees(search,key){
   key=key||today();
@@ -517,7 +546,7 @@ function getEmployees(search,key){
     return{pernr:em.pernr,fullName:p2.vorna+" "+p2.nachn,
       orgUnitName:p1&&p1.orgeh?orgText("O",p1.orgeh,key):null,
       positionName:p1&&p1.plans?orgText("S",p1.plans,key):null,
-      companyName:p1?db.T001[p1.bukrs]:null, personnelArea:p1?db.T500P[p1.werks]:null,
+      companyName:p1?t001Name(p1.bukrs):null, personnelArea:p1?db.T500P[p1.werks]:null,
       costCenter:p1?p1.kostl:null, gender:p2.gesch?dom("GESCH",p2.gesch):null,
       email:mail?mail.usrid:null, hireDate:em.hireDate,
       status:p0&&p0.stat2?dom("STAT2",p0.stat2):null};
@@ -533,7 +562,7 @@ function getEmployee(pernr,key){
   return{pernr,key,
     personal:p2&&{anred:dom("ANRED",p2.anred),titel:p2.titel,nachn:p2.nachn,vorna:p2.vorna,midnm:p2.midnm,rufnm:p2.rufnm,
       gbdat:p2.gbdat,gbort:p2.gbort,gesch:dom("GESCH",p2.gesch),natio:db.T005[p2.natio]||p2.natio,sprsl:db.T002[p2.sprsl]||p2.sprsl,famst:dom("FAMST",p2.famst),begda:p2.begda,endda:p2.endda},
-    org:p1&&{bukrs:p1.bukrs,company:db.T001[p1.bukrs],werks:p1.werks,werksN:db.T500P[p1.werks],
+    org:p1&&{bukrs:p1.bukrs,company:t001Name(p1.bukrs),werks:p1.werks,werksN:db.T500P[p1.werks],
       persg:p1.persg,persgN:db.T501[p1.persg],persk:p1.persk,perskN:db.T503K[p1.persk],
       orgeh:p1.orgeh,orgN:p1.orgeh?orgText("O",p1.orgeh,key):null,
       plans:p1.plans,posN:p1.plans?orgText("S",p1.plans,key):null,kostl:p1.kostl,
@@ -698,7 +727,7 @@ function render(){
   // Auth gate
   $("#whoami").style.display=SESSION?"flex":"none";
   $("#logout").style.display=SESSION?"grid":"none";
-  if(SESSION){$("#whoami").innerHTML=`<b>${esc(SESSION.name)}</b><span>${esc(db.roleNames[SESSION.role])}</span>`;}
+  if(SESSION){$("#whoami").innerHTML=`<img class="whoami-av" src="${empPhoto(SESSION.pernr,SESSION.name)}" ${SESSION.pernr?`data-open="${SESSION.pernr}" title="Open my record"`:'title="No linked employee"'} alt=""><div class="wi-txt"><b>${esc(SESSION.name)}</b><span>${esc(db.roleNames[SESSION.role])}</span></div>`;}
   if(!SESSION){navBar();renderLogin();return;}
   navBar();
   if(S.view==="list")renderList();
@@ -782,6 +811,9 @@ function renderList(){
     <div class="search">${I.search}<input id="q" placeholder="Search all columns…" value="${esc(S.search)}"></div>
     <div class="field"><label>Key date</label><input type="date" id="kd" value="${S.key}"></div>
   </div>
+  ${S.showCols?`<div class="card cols-panel"><div class="card-head"><h2>Show / hide columns</h2><div class="spacer"></div><button class="btn sm" data-act="cols">Done</button></div>
+    <div class="cols-grid">${EMP_COLS.map(c=>`<label class="colchip ${S.empCols.includes(c.k)?'on':''}">
+      <input type="checkbox" data-col="${c.k}" ${S.empCols.includes(c.k)?"checked":""} ${c.always?"disabled":""}> ${esc(c.l)}</label>`).join("")}</div></div>`:""}
   <div class="card">
     <div class="card-head"><h2>Employee list</h2><span class="count">${rows.length}</span></div>
     <div class="tbl-wrap"><table><thead><tr>
@@ -922,7 +954,8 @@ function renderDetail(){
     </div>
   </div>
   <div class="obj-head">
-    <div class="avatar">${esc(initials.toUpperCase())}</div>
+    <div class="avatar"><img src="${empPhoto(e.pernr,p.vorna+" "+p.nachn)}" alt=""/>
+      ${(isAdmin()||(isEmployee()&&SESSION.pernr===e.pernr))?`<button class="av-edit" data-photo="${e.pernr}" title="Upload photo">${I.edit}</button>`:""}</div>
     <div><h1>${esc(p.vorna)} ${esc(p.nachn)}</h1>
       <div class="attrs">
         <span>Org unit: <b>${esc((e.org&&e.org.orgN)||"—")}</b></span>
@@ -1071,7 +1104,8 @@ function workingDays(from,to){
 function payrollRun(from,to){const wd=workingDays(from,to);return db.emp.map(e=>Object.assign(payslip(e.pernr,from,to),{workingDays:wd})).sort((a,b)=>a.pernr-b.pernr);}
 
 /* ---- Configuration (customizing + users) ---- */
-function addCompanyCode(k,t){if(!k)throw new Error("Enter a company code.");db.T001[k]=t;}
+function addCompanyCode(k,name,country,currency){if(!k)throw new Error("Enter a company code.");db.T001[k]={name,country,currency};}
+function addPersonnelArea(k,t){if(!k)throw new Error("Enter a personnel area.");db.T500P[k]=t;}
 function addLanguage(k,t){if(!k)throw new Error("Enter a language key.");db.T002[k]=t;}
 function addNationality(k,t){if(!k)throw new Error("Enter a country key.");db.T005[k]=t;}
 function addGroup(k,t){if(!k)throw new Error("Enter a group key.");db.T501[k]=t;}
@@ -1085,14 +1119,16 @@ function addOrgUnit(name,parent){if(!name)throw new Error("Enter an org unit nam
   return objid;}
 function addUser(u){if(!u.username||!u.password)throw new Error("Enter username and password.");
   if(db.users.find(x=>x.username===u.username))throw new Error("Username already exists.");
-  db.users.push({username:u.username,password:u.password,name:u.name||u.username,role:u.role,pernr:u.pernr||null});}
+  db.users.push({username:u.username,password:u.password,name:u.name||u.username,role:u.role,pernr:u.pernr||null,email:u.email||null});}
 
 function renderConfig(){
   if(!S.cfgTab)S.cfgTab="company";
   const T=(id,l)=>`<button class="btn sm ${S.cfgTab===id?'primary':''}" data-cfg="${id}">${l}</button>`;
   let body="";
   if(S.cfgTab==="company")body=`<div class="card"><div class="card-head"><h2>Company codes (T001)</h2><span class="count">${Object.keys(db.T001).length}</span><div class="spacer"></div><button class="btn sm primary" data-act="cfgCompany">+ Add</button></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Company code</th><th>Name</th></tr></thead><tbody>${Object.entries(db.T001).map(([k,v])=>`<tr><td class="num">${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</tbody></table></div></div>`;
+    <div class="tbl-wrap"><table><thead><tr><th>Company code</th><th>Name</th><th>Country</th><th>Currency</th></tr></thead><tbody>${Object.entries(db.T001).map(([k,v])=>`<tr><td class="num">${esc(k)}</td><td>${esc(v.name)}</td><td>${esc(v.country)}</td><td>${esc(v.currency)}</td></tr>`).join("")}</tbody></table></div></div>`;
+  else if(S.cfgTab==="parea")body=`<div class="card"><div class="card-head"><h2>Personnel areas (T500P)</h2><span class="count">${Object.keys(db.T500P).length}</span><div class="spacer"></div><button class="btn sm primary" data-act="cfgParea">+ Add</button></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Key</th><th>Name</th></tr></thead><tbody>${Object.entries(db.T500P).map(([k,v])=>`<tr><td class="num">${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</tbody></table></div></div>`;
   else if(S.cfgTab==="groups")body=`<div class="card"><div class="card-head"><h2>Employee groups (T501)</h2><span class="count">${Object.keys(db.T501).length}</span><div class="spacer"></div><button class="btn sm primary" data-act="cfgGroup">+ Add</button></div>
     <div class="tbl-wrap"><table><thead><tr><th>Key</th><th>Text</th></tr></thead><tbody>${Object.entries(db.T501).map(([k,v])=>`<tr><td class="num">${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</tbody></table></div></div>`;
   else if(S.cfgTab==="subgroups")body=`<div class="card"><div class="card-head"><h2>Employee subgroups (T503K)</h2><span class="count">${Object.keys(db.T503K).length}</span><div class="spacer"></div><button class="btn sm primary" data-act="cfgSub">+ Add</button></div>
@@ -1106,9 +1142,9 @@ function renderConfig(){
   else if(S.cfgTab==="nat")body=`<div class="card"><div class="card-head"><h2>Countries / nationalities (T005)</h2><span class="count">${Object.keys(db.T005).length}</span><div class="spacer"></div><button class="btn sm primary" data-act="cfgNat">+ Add</button></div>
     <div class="tbl-wrap"><table><thead><tr><th>Key</th><th>Country</th></tr></thead><tbody>${Object.entries(db.T005).map(([k,v])=>`<tr><td class="num">${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</tbody></table></div></div>`;
   else if(S.cfgTab==="users")body=`<div class="card"><div class="card-head"><h2>Users & roles</h2><span class="count">${db.users.length}</span><div class="spacer"></div><button class="btn sm primary" data-act="cfgUser">+ Add user</button></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Employee</th></tr></thead><tbody>${db.users.map(u=>`<tr><td><b>${esc(u.username)}</b></td><td>${esc(u.name)}</td><td>${statusPill(db.roleNames[u.role])}</td><td class="num">${u.pernr||"—"}</td></tr>`).join("")}</tbody></table></div></div>`;
+    <div class="tbl-wrap"><table><thead><tr><th>Username</th><th>Name</th><th>E-mail</th><th>Role</th><th>Employee</th></tr></thead><tbody>${db.users.map(u=>`<tr><td><b>${esc(u.username)}</b></td><td>${esc(u.name)}</td><td>${esc(u.email||"—")}</td><td>${statusPill(db.roleNames[u.role])}</td><td class="num">${u.pernr||"—"}</td></tr>`).join("")}</tbody></table></div></div>`;
   app.innerHTML=pageHead("Configuration","System configuration")+
-    `<div class="toolbar" style="gap:6px;flex-wrap:wrap">${T("company","Company codes")}${T("groups","Employee groups")}${T("subgroups","Employee subgroups")}${T("cost","Cost centers")}${T("org","Organizational units")}${T("lang","Languages")}${T("nat","Nationalities")}${T("users","Users & roles")}</div>${body}`;
+    `<div class="toolbar" style="gap:6px;flex-wrap:wrap">${T("company","Company codes")}${T("parea","Personnel areas")}${T("groups","Employee groups")}${T("subgroups","Employee subgroups")}${T("cost","Cost centers")}${T("org","Organizational units")}${T("lang","Languages")}${T("nat","Nationalities")}${T("users","Users & roles")}</div>${body}`;
 }
 
 /* ============================ MODULE VIEWS ============================ */
@@ -1292,7 +1328,8 @@ function payslipDialog(pernr){
 }
 
 /* ============================ MODALS ============================ */
-function opt(map,sel){return Object.entries(map).map(([k,v])=>`<option value="${k}" ${String(sel)===String(k)?'selected':''}>${esc(k)} – ${esc(v)}</option>`).join("");}
+function opt(map,sel){return Object.entries(map).map(([k,v])=>{const t=(v&&typeof v==="object")?(v.name||v.text||""):v;return `<option value="${k}" ${String(sel)===String(k)?'selected':''}>${esc(k)} – ${esc(t)}</option>`;}).join("");}
+const t001Name=k=>{const v=db.T001[k];return v&&typeof v==="object"?v.name:v;};
 function optBlank(map,sel){return `<option value="" ${sel?'':'selected'}>—</option>`+opt(map,sel);}
 function optName(arr,sel){return `<option value="">—</option>`+arr.map(o=>`<option value="${o.id}" ${String(sel)===String(o.id)?'selected':''}>${esc(o.name)}</option>`).join("");}
 function modal(title,bodyHtml,footHtml){
@@ -1495,8 +1532,16 @@ function expDialog(){
     </div>`,`<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="exp">Add</button>`);}
 function cfgCompanyDialog(){modal("Add company code · T001",`
   <div class="grp"><label>Company code <span class="req">*</span></label><input id="cco_key" maxlength="4" placeholder="e.g. 2000"></div>
-  <div class="grp"><label>Name</label><input id="cco_txt"></div>`,
+  <div class="grp"><label>Name</label><input id="cco_txt"></div>
+  <div class="two">
+    <div class="grp"><label>Country</label><select id="cco_ctry">${optBlank(db.T005,"")}</select></div>
+    <div class="grp"><label>Currency</label><input id="cco_cur" maxlength="5" placeholder="EUR"></div>
+  </div>`,
   `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="cfgCompany">Add</button>`);}
+function cfgPareaDialog(){modal("Add personnel area · T500P",`
+  <div class="grp"><label>Personnel area <span class="req">*</span></label><input id="cpa_key" maxlength="4" placeholder="e.g. 3000"></div>
+  <div class="grp"><label>Name</label><input id="cpa_txt"></div>`,
+  `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="cfgParea">Add</button>`);}
 function cfgLangDialog(){modal("Add language · T002",`
   <div class="grp"><label>Language key <span class="req">*</span></label><input id="cl_key" maxlength="2" placeholder="e.g. FR"></div>
   <div class="grp"><label>Name</label><input id="cl_txt"></div>`,
@@ -1530,7 +1575,10 @@ function cfgUserDialog(){
     <div class="grp"><label>Username <span class="req">*</span></label><input id="cu_user"></div>
     <div class="grp"><label>Password <span class="req">*</span></label><input id="cu_pw"></div>
   </div>
-  <div class="grp"><label>Display name</label><input id="cu_name"></div>
+  <div class="two">
+    <div class="grp"><label>Display name</label><input id="cu_name"></div>
+    <div class="grp"><label>E-mail</label><input id="cu_email" type="email"></div>
+  </div>
   <div class="grp"><label>Role <span class="req">*</span></label><select id="cu_role">${roleOpts}</select></div>
   <div class="grp"><label>Linked employee (for self-service)</label><select id="cu_pernr"><option value="">— none —</option>${empOpts}</select></div>`,
   `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="cfgUser">Add user</button>`);}
@@ -1569,7 +1617,7 @@ function toast(msg,kind){
 
 /* ============================ EVENTS ============================ */
 document.addEventListener("click",ev=>{
-  const t=ev.target.closest("[data-nav],[data-open],[data-act],[data-tab],[data-tog],[data-do],[data-close],[data-fill],[data-approve],[data-reject],[data-book],[data-advance],[data-payslip],[data-cfg],[data-sort],[data-more]");
+  const t=ev.target.closest("[data-nav],[data-open],[data-act],[data-tab],[data-tog],[data-do],[data-close],[data-fill],[data-approve],[data-reject],[data-book],[data-advance],[data-payslip],[data-cfg],[data-sort],[data-more],[data-photo]");
   if(!t){const mm=$("#moreMenu");if(mm)mm.classList.remove("open");return;}
   if(t.hasAttribute("data-more")){const mm=$("#moreMenu");mm.classList.toggle("open");return;}
   if(t.dataset.nav){ev.preventDefault();S.view=t.dataset.nav;S.tab="personal";render();return;}
@@ -1592,6 +1640,7 @@ document.addEventListener("click",ev=>{
     else if(t.dataset.act==="qual")qualDialog();
     else if(t.dataset.act==="exp")expDialog();
     else if(t.dataset.act==="cfgCompany")cfgCompanyDialog();
+    else if(t.dataset.act==="cfgParea")cfgPareaDialog();
     else if(t.dataset.act==="cfgLang")cfgLangDialog();
     else if(t.dataset.act==="cfgNat")cfgNatDialog();
     else if(t.dataset.act==="cfgGroup")cfgGroupDialog();
@@ -1601,7 +1650,7 @@ document.addEventListener("click",ev=>{
     else if(t.dataset.act==="cfgUser")cfgUserDialog();
     else if(t.dataset.act==="attendance")attendanceDialog();
     else if(t.dataset.act==="reqleave")reqLeaveDialog();
-    else if(t.dataset.act==="cols")colsDialog();
+    else if(t.dataset.act==="cols"){S.showCols=!S.showCols;renderList();}
     else if(t.dataset.act==="mypayslip")payslipDialog(SESSION.pernr);
     return;
   }
@@ -1611,6 +1660,7 @@ document.addEventListener("click",ev=>{
   if(t.dataset.book){try{bookCourse(SESSION.pernr,t.dataset.book);toast("Course booked.","good");render();}catch(e){toast(e.message,"bad");}return;}
   if(t.dataset.advance){advanceApplicant(+t.dataset.advance);toast("Applicant advanced to next stage.","good");render();return;}
   if(t.dataset.payslip){payslipDialog(+t.dataset.payslip);return;}
+  if(t.dataset.photo){uploadPhoto(+t.dataset.photo);return;}
   if(t.dataset.cfg){S.cfgTab=t.dataset.cfg;renderConfig();return;}
   if(t.dataset.sort){const c=t.dataset.sort;if(S.sortCol===c)S.sortDir=S.sortDir==="asc"?"desc":"asc";else{S.sortCol=c;S.sortDir="asc";}renderList();return;}
   if(t.hasAttribute("data-close")){
@@ -1693,7 +1743,9 @@ function doAction(kind){
       if(!f.employer){toast("Enter the employer.","bad");return;}
       addExperience(S.pernr,f);closeModal();toast("Previous employer added.","good");S.tab="edu";renderDetail();
     }else if(kind==="cfgCompany"){
-      addCompanyCode(val("cco_key").trim(),val("cco_txt").trim());closeModal();toast("Company code added.","good");renderConfig();
+      addCompanyCode(val("cco_key").trim(),val("cco_txt").trim(),val("cco_ctry"),val("cco_cur").trim());closeModal();toast("Company code added.","good");renderConfig();
+    }else if(kind==="cfgParea"){
+      addPersonnelArea(val("cpa_key").trim(),val("cpa_txt").trim());closeModal();toast("Personnel area added.","good");renderConfig();
     }else if(kind==="cfgLang"){
       addLanguage(val("cl_key").trim(),val("cl_txt").trim());closeModal();toast("Language added.","good");renderConfig();
     }else if(kind==="cfgNat"){
@@ -1707,7 +1759,7 @@ function doAction(kind){
     }else if(kind==="cfgOrg"){
       const id=addOrgUnit(val("co_name").trim(),val("co_parent")?+val("co_parent"):null);closeModal();toast("Organizational unit "+id+" added.","good");renderConfig();
     }else if(kind==="cfgUser"){
-      addUser({username:val("cu_user").trim(),password:val("cu_pw"),name:val("cu_name").trim(),role:val("cu_role"),pernr:val("cu_pernr")?+val("cu_pernr"):null});
+      addUser({username:val("cu_user").trim(),password:val("cu_pw"),name:val("cu_name").trim(),email:val("cu_email").trim(),role:val("cu_role"),pernr:val("cu_pernr")?+val("cu_pernr"):null});
       closeModal();toast("User added.","good");renderConfig();
     }else if(kind==="family"){
       const f={relationType:val("fm_rel"),firstName:val("fm_first").trim(),lastName:val("fm_last").trim(),gender:val("fm_gender"),birthDate:val("fm_dob")};
