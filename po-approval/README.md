@@ -53,6 +53,26 @@ po-approval/
 | .NET SDK | 8.0 | backend build/run |
 | Node.js | 18+ | UI5 dev server / build |
 
+## Quick start with Docker (SQL Server + API)
+
+The fastest way to get the backend running is the bundled Compose stack, which
+starts **SQL Server 2022**, installs the database (`run_all.sql`) and builds &
+runs the **API** — no local .NET SDK or SQL Server required:
+
+```bash
+cd po-approval
+docker compose up --build
+```
+
+- `sqlserver` comes up first; `db-init` waits for the engine and seeds the DB;
+  `api` starts once seeding completes.
+- API on **http://localhost:5000** (Swagger at `/swagger`, health at `/health`).
+- Override secrets via env: `SA_PASSWORD` and `AUTH_SIGNING_KEY` (defaults are
+  for local use only — change them for anything shared).
+
+Then start the SAPUI5 front end (§3); its dev server proxies `/api` to
+`localhost:5000`. To run the pieces by hand instead, follow §1–§3 below.
+
 ## 1. Database
 
 Run the scripts in order (idempotent). With **sqlcmd**:
