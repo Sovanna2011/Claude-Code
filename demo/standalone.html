@@ -1505,6 +1505,7 @@ const CFG_SCHEMA={
   nat:{h:"Countries / nationalities (T005)",store:"omap",path:"T005",keyL:"Country key",
     fields:[{k:"text",l:"Country"},{k:"iso",l:"ISO code"},{k:"currency",l:"Currency",src:"currencies"},{k:"dial",l:"Dialing code"},{k:"region",l:"Region",src:"regions"}]},
   titles:{h:"Titles (Form of address · IT0002)",store:"dom",path:"TITEL",keyL:"Key",autokey:true,fields:[{k:"text",l:"Title"}]},
+  anred:{h:"Forms of address (ANRED)",store:"dom",path:"ANRED",keyL:"Key",fields:[{k:"text",l:"Form of address"}]},
   addrtype:{h:"Address types (ANSSA)",store:"dom",path:"ANSSA",keyL:"Key",fields:[{k:"text",l:"Address type"}]},
   commtype:{h:"Communication types (USRTY)",store:"dom",path:"USRTY",keyL:"Key",fields:[{k:"text",l:"Communication type"}]},
   famtype:{h:"Family / relationship types (FAMSA)",store:"dom",path:"FAMSA",keyL:"Key",fields:[{k:"text",l:"Relationship"}]}
@@ -1592,7 +1593,7 @@ function renderConfig(){
   else if(S.cfgTab==="org")body=cfgOrgTable();
   else if(CFG_SCHEMA[S.cfgTab])body=cfgTable(S.cfgTab);
   app.innerHTML=pageHead(t("Configuration"),t("System configuration"))+
-    `<div class="toolbar" style="gap:6px;flex-wrap:wrap">${T("company","Company codes")}${T("parea","Personnel areas")}${T("groups","Employee groups")}${T("subgroups","Employee subgroups")}${T("cost","Cost centers")}${T("org","Organizational units")}${T("lang","Languages")}${T("nat","Countries")}${T("currency","Currencies")}${T("region","Regions")}${T("city","Cities")}${T("titles","Titles")}${T("addrtype","Address types")}${T("commtype","Comm. types")}${T("famtype","Family types")}${T("syslang","System languages")}${T("numrange","Number ranges")}${T("roles","Roles")}${T("users","Users & roles")}${T("auth","Authorizations")}</div>${body}`;
+    `<div class="toolbar" style="gap:6px;flex-wrap:wrap">${T("company","Company codes")}${T("parea","Personnel areas")}${T("groups","Employee groups")}${T("subgroups","Employee subgroups")}${T("cost","Cost centers")}${T("org","Organizational units")}${T("lang","Languages")}${T("nat","Countries")}${T("currency","Currencies")}${T("region","Regions")}${T("city","Cities")}${T("anred","Forms of address")}${T("titles","Titles")}${T("addrtype","Address types")}${T("commtype","Comm. types")}${T("famtype","Family types")}${T("syslang","System languages")}${T("numrange","Number ranges")}${T("roles","Roles")}${T("users","Users & roles")}${T("auth","Authorizations")}</div>${body}`;
 }
 
 /* ============================ MODULE VIEWS ============================ */
