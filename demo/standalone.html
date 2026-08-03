@@ -147,6 +147,13 @@ input:focus,select:focus{border-color:var(--accent);outline:none;box-shadow:0 0 
 .card-head .spacer{flex:1}
 .tbl-wrap{overflow-x:auto}
 .list-card{overflow:visible}
+/* Grid mode: scroll the rows, freeze the header (and filter row) */
+.dt-grid{max-height:60vh;overflow:auto}
+.dt-grid table{border-collapse:separate;border-spacing:0}
+.dt-grid thead th{position:sticky;z-index:3;background:var(--surface-2);box-shadow:inset 0 -1px 0 var(--border)}
+.dt-grid thead tr:first-child th{top:0}
+.dt-grid.dt-grid-2 thead tr.filter-row th{top:36px;background:var(--surface);z-index:2}
+.dt-grid td{border-bottom:1px solid var(--border)}
 .dt-search input{border:1px solid var(--border);background:var(--surface);color:var(--text);
   border-radius:8px;padding:6px 10px;font-size:13px;min-width:180px}
 .card-head .dt-search{margin-right:6px}
@@ -1002,7 +1009,7 @@ function dtTable(id,title,cols,rows,opts){opts=opts||{};const st=dtState(id);
     <div class="colmenu-wrap"><button class="btn sm" data-dtcols="${id}">${I.doc} ${esc(t("Columns"))} ▾</button>
       ${st.showCols?`<div class="colmenu">${cols.filter(c=>c.k!=="act").map(c=>`<label class="colchk"><input type="checkbox" data-dtcol="${id}:${c.k}" ${!st.hidden.includes(c.k)?"checked":""} ${c.always?"disabled":""}> ${esc(t(c.l))}</label>`).join("")}</div>`:""}</div>`}
     </div>
-    <div class="tbl-wrap"><table><thead><tr>${vis.map(c=>(simple||c.k==="act")?`<th class="${c.k==="act"?"th-r":""}">${esc(t(c.l))}</th>`:`<th class="sortable" data-dtsort="${id}:${c.k}" style="cursor:pointer">${esc(t(c.l))}${st.sort===c.k?(st.dir==="asc"?" ▲":" ▼"):""}</th>`).join("")}</tr>
+    <div class="tbl-wrap dt-grid ${simple?"dt-grid-1":"dt-grid-2"}"><table><thead><tr>${vis.map(c=>(simple||c.k==="act")?`<th class="${c.k==="act"?"th-r":""}">${esc(t(c.l))}</th>`:`<th class="sortable" data-dtsort="${id}:${c.k}" style="cursor:pointer">${esc(t(c.l))}${st.sort===c.k?(st.dir==="asc"?" ▲":" ▼"):""}</th>`).join("")}</tr>
     ${simple?"":`<tr class="filter-row">${vis.map(c=>c.k==="act"?`<th></th>`:`<th><input class="colf" data-dtfilter="${id}:${c.k}" value="${esc(st.filters[c.k]||"")}" placeholder="🔍"></th>`).join("")}</tr>`}</thead>
     <tbody>${data.length?data.map(r=>`<tr ${opts.rowOpen&&r[opts.rowOpen]!=null?`class="click" data-open="${r[opts.rowOpen]}"`:""}>${vis.map(c=>`<td>${cellHtml(r,c)}</td>`).join("")}</tr>`).join(""):`<tr><td colspan="${vis.length}"><div class="empty">${esc(t("No records."))}</div></td></tr>`}</tbody></table></div></div>`;}
 
