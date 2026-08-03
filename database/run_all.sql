@@ -12,6 +12,8 @@
 :r 06_seed_reference_data.sql
 :r 07_stored_procedures.sql
 :r 08_views.sql
+:r 09_schema_hr_extended.sql
+:r 10_seed_hr_extended.sql
 GO
 PRINT 'HR Module database installation complete.';
 GO

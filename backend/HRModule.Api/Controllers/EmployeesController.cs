@@ -62,6 +62,33 @@ public class EmployeesController : ControllerBase
         return ok ? NoContent() : NotFound(new { message = $"Employee {pernr} not found." });
     }
 
+    /// <summary>Maintain an address (IT0006) - creates a new time slice.</summary>
+    [HttpPut("{pernr:int}/address")]
+    public async Task<IActionResult> UpdateAddress(int pernr, [FromBody] UpdateAddressRequest request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        var ok = await _service.UpdateAddressAsync(pernr, request, ct);
+        return ok ? NoContent() : NotFound(new { message = $"Employee {pernr} not found." });
+    }
+
+    /// <summary>Add a family member / dependent (IT0021).</summary>
+    [HttpPost("{pernr:int}/family")]
+    public async Task<IActionResult> AddFamilyMember(int pernr, [FromBody] FamilyMemberRequest request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        var ok = await _service.AddFamilyMemberAsync(pernr, request, ct);
+        return ok ? NoContent() : NotFound(new { message = $"Employee {pernr} not found." });
+    }
+
+    /// <summary>Record an attendance (IT2002).</summary>
+    [HttpPost("{pernr:int}/attendances")]
+    public async Task<IActionResult> RecordAttendance(int pernr, [FromBody] AttendanceRequest request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        var ok = await _time.RecordAttendanceAsync(pernr, request, ct);
+        return ok ? NoContent() : NotFound(new { message = $"Employee {pernr} not found." });
+    }
+
     /// <summary>Leave balances (IT2006) for the employee.</summary>
     [HttpGet("{pernr:int}/leave-balances")]
     public async Task<ActionResult<IReadOnlyList<LeaveBalanceDto>>> LeaveBalances(int pernr, CancellationToken ct)

@@ -126,7 +126,10 @@ This is exactly how the demo screenshots in the project were produced.
 | `PUT /api/employees/{pernr}/personaldata` | Change personal data |
 | `PUT /api/employees/{pernr}/reassign` | Organizational reassignment |
 | `GET /api/employees/{pernr}/leave-balances` | Leave balances |
-| `POST /api/employees/{pernr}/absences` | Record absence |
+| `POST /api/employees/{pernr}/absences` | Record absence (IT2001) |
+| `PUT /api/employees/{pernr}/address` | Maintain address (IT0006) |
+| `POST /api/employees/{pernr}/family` | Add family member (IT0021) |
+| `POST /api/employees/{pernr}/attendances` | Record attendance (IT2002) |
 | `GET /api/orgunits?keyDate=` | Flat org unit list |
 | `GET /api/orgunits/{root}/structure?keyDate=` | Nested org hierarchy |
 | `GET /api/orgunits/positions?orgUnitId=` | Positions with holder/vacancy |

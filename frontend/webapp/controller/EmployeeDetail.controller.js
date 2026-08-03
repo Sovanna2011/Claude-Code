@@ -120,6 +120,79 @@ sap.ui.define([
 
         onReassignCancel: function () { this.byId("reassignDialog").close(); },
 
+        // ---- Edit Address (IT0006) -----------------------------------------
+        onOpenEditAddress: function () {
+            var oData = this.getView().getModel().getData();
+            var a = oData.address || {};
+            this._openDialog("_pAddrDialog", "EditAddressDialog", function (oView) {
+                oView.setModel(new JSONModel({
+                    begda: new Date().toISOString().slice(0, 10), subType: "1",
+                    street: a.street, city: a.city, postalCode: a.postalCode,
+                    country: a.country, telephone: a.telephone, addressTypes: []
+                }), "addr");
+                this.getService().getDomain("ANSSA").then(function (aRes) {
+                    oView.getModel("addr").setProperty("/addressTypes", aRes);
+                });
+            });
+        },
+        onAddrConfirm: function () {
+            var d = this.getView().getModel("addr").getData(), that = this;
+            if (!d.begda) { this.showError(this.i18n("fldValidFrom")); return; }
+            this.getService().updateAddress(this._pernr, {
+                begda: d.begda, subType: d.subType, street: d.street, city: d.city,
+                postalCode: d.postalCode, country: d.country, telephone: d.telephone, changedBy: "WEBUI"
+            }).then(function () { that.toast(that.i18n("saveSuccess")); that.byId("addrDialog").close(); that._loadEmployee(); })
+              .catch(that.showError.bind(that));
+        },
+        onAddrCancel: function () { this.byId("addrDialog").close(); },
+
+        // ---- Add Family Member (IT0021) ------------------------------------
+        onOpenAddFamily: function () {
+            this._openDialog("_pFamilyDialog", "AddFamilyDialog", function (oView) {
+                oView.setModel(new JSONModel({
+                    relationType: "2", firstName: "", lastName: "", birthDate: null,
+                    gender: "1", relations: [], genders: []
+                }), "fam");
+                var oSvc = this.getService();
+                Promise.all([oSvc.getDomain("FAMSA"), oSvc.getDomain("GESCH")]).then(function (r) {
+                    oView.getModel("fam").setProperty("/relations", r[0]);
+                    oView.getModel("fam").setProperty("/genders", r[1]);
+                });
+            });
+        },
+        onFamilyConfirm: function () {
+            var d = this.getView().getModel("fam").getData(), that = this;
+            if (!d.firstName || !d.lastName) { this.showError(this.i18n("hireValidation")); return; }
+            this.getService().addFamilyMember(this._pernr, {
+                relationType: d.relationType, firstName: d.firstName, lastName: d.lastName,
+                birthDate: d.birthDate || null, gender: d.gender, changedBy: "WEBUI"
+            }).then(function () { that.toast(that.i18n("saveSuccess")); that.byId("familyDialog").close(); that._loadEmployee(); })
+              .catch(that.showError.bind(that));
+        },
+        onFamilyCancel: function () { this.byId("familyDialog").close(); },
+
+        // ---- Record Attendance (IT2002) ------------------------------------
+        onOpenAttendance: function () {
+            this._openDialog("_pAttDialog", "RecordAttendanceDialog", function (oView) {
+                oView.setModel(new JSONModel({
+                    attendanceType: "0500", begda: null, endda: null, hours: null, attendanceTypes: []
+                }), "att");
+                this.getService().getValueHelp("absence-types").then(function (r) {
+                    oView.getModel("att").setProperty("/attendanceTypes", r);
+                });
+            });
+        },
+        onAttConfirm: function () {
+            var d = this.getView().getModel("att").getData(), that = this;
+            if (!d.begda || !d.endda) { this.showError(this.i18n("absenceValidation")); return; }
+            this.getService().recordAttendance(this._pernr, {
+                attendanceType: d.attendanceType, begda: d.begda, endda: d.endda,
+                hours: d.hours ? parseFloat(d.hours) : null, changedBy: "WEBUI"
+            }).then(function () { that.toast(that.i18n("saveSuccess")); that.byId("attDialog").close(); that.byId("infotypeTabs").setSelectedKey("time"); that._loadEmployee(); })
+              .catch(that.showError.bind(that));
+        },
+        onAttCancel: function () { this.byId("attDialog").close(); },
+
         // ---- Record Absence (IT2001) ---------------------------------------
         onOpenAbsence: function () {
             this._openDialog("_pAbsenceDialog", "RecordAbsenceDialog", function (oView) {

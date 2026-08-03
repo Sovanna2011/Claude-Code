@@ -69,4 +69,20 @@ public class TimeService : ITimeService
         await tx.CommitAsync(ct);
         return true;
     }
+
+    public async Task<bool> RecordAttendanceAsync(int pernr, AttendanceRequest r, CancellationToken ct = default)
+    {
+        if (!await _db.Employees.AnyAsync(e => e.PERNR == pernr, ct)) return false;
+        if (r.Endda < r.Begda) throw new ArgumentException("End date must not be before start date.");
+
+        var days = r.Days ?? (decimal)((r.Endda - r.Begda).Days + 1);
+        _db.PA2002.Add(new PA2002
+        {
+            PERNR = pernr, SUBTY = r.AttendanceType, AWART = r.AttendanceType,
+            BEGDA = r.Begda, ENDDA = r.Endda, ABWTG = days, STDAZ = r.Hours,
+            AEDTM = DateTime.Today, UNAME = r.ChangedBy
+        });
+        await _db.SaveChangesAsync(ct);
+        return true;
+    }
 }

@@ -174,7 +174,134 @@ public class EmployeeService : IEmployeeService
             })
             .ToListAsync(ct);
 
+        await PopulateExtendedAsync(dto, pernr, key, ct);
         return dto;
+    }
+
+    /// <summary>Populates the extended infotypes (IT0016/0019/0021/0022/0023/0024/2002).</summary>
+    private async Task PopulateExtendedAsync(EmployeeDetailDto dto, int pernr, DateTime key, CancellationToken ct)
+    {
+        var famTexts = await LoadDomainDictAsync("FAMSA", ct);
+        var eduTexts = await LoadDomainDictAsync("SLART", ct);
+        var qualTexts = await LoadDomainDictAsync("QUALG", ct);
+        var taskTexts = await LoadDomainDictAsync("TMART", ct);
+        var genderTexts = await LoadDomainDictAsync("GESCH", ct);
+
+        var c16 = await ValidOn(_db.PA0016, pernr, key, ct);
+        if (c16 is not null)
+            dto.Contract = new ContractDto
+            {
+                ContractTypeKey = c16.CTTYP,
+                ContractType = await _db.T547T.Where(t => t.CTTYP == c16.CTTYP).Select(t => t.CTTXT).FirstOrDefaultAsync(ct),
+                ProbationMonths = c16.PRBEZ, NoticeEmployer = c16.KDGFB, NoticeEmployee = c16.KDGF2,
+                Begda = c16.BEGDA, Endda = c16.ENDDA
+            };
+
+        dto.Family = (await _db.PA0021.AsNoTracking()
+            .Where(x => x.PERNR == pernr && x.BEGDA <= key && x.ENDDA >= key).ToListAsync(ct))
+            .Select(x => new FamilyMemberDto
+            {
+                RelationKey = x.SUBTY, Relation = famTexts.GetValueOrDefault(x.SUBTY),
+                FirstName = x.FAVOR, LastName = x.FANAM, BirthDate = x.FGBDT,
+                GenderKey = x.FASEX, Gender = x.FASEX is null ? null : genderTexts.GetValueOrDefault(x.FASEX),
+                BirthCountry = x.FGBLD
+            }).ToList();
+
+        dto.Education = (await _db.PA0022.AsNoTracking()
+            .Where(x => x.PERNR == pernr).OrderBy(x => x.BEGDA).ToListAsync(ct))
+            .Select(x => new EducationDto
+            {
+                EstablishmentKey = x.SUBTY, Establishment = eduTexts.GetValueOrDefault(x.SUBTY),
+                Certificate = x.SLABS, Institute = x.INSTI, Country = x.SLAND,
+                Major = x.SFACH, Grade = x.SLGRA, Begda = x.BEGDA, Endda = x.ENDDA
+            }).ToList();
+
+        dto.WorkExperience = await _db.PA0023.AsNoTracking()
+            .Where(x => x.PERNR == pernr).OrderBy(x => x.BEGDA)
+            .Select(x => new WorkExperienceDto
+            {
+                Employer = x.ARBGB, Place = x.ORT01, Country = x.LAND1,
+                Task = x.TASK, Industry = x.BRANC, Begda = x.BEGDA, Endda = x.ENDDA
+            }).ToListAsync(ct);
+
+        dto.Qualifications = (await _db.PA0024.AsNoTracking()
+            .Where(x => x.PERNR == pernr && x.BEGDA <= key && x.ENDDA >= key).ToListAsync(ct))
+            .Select(x => new QualificationDto
+            {
+                GroupKey = x.SUBTY, Group = qualTexts.GetValueOrDefault(x.SUBTY),
+                Qualification = x.QUALI, Proficiency = x.AUSPR
+            }).ToList();
+
+        var attTexts = await _db.T554S.AsNoTracking().ToDictionaryAsync(t => t.AWART, t => t.ATEXT, ct);
+        dto.Attendances = (await _db.PA2002.AsNoTracking()
+            .Where(x => x.PERNR == pernr).OrderByDescending(x => x.BEGDA).ToListAsync(ct))
+            .Select(x => new AttendanceDto
+            {
+                TypeKey = x.AWART, Type = attTexts.GetValueOrDefault(x.AWART),
+                Begda = x.BEGDA, Endda = x.ENDDA, Days = x.ABWTG, Hours = x.STDAZ
+            }).ToList();
+
+        dto.MonitoringDates = (await _db.PA0019.AsNoTracking()
+            .Where(x => x.PERNR == pernr && x.ENDDA >= key).OrderBy(x => x.TERMN).ToListAsync(ct))
+            .Select(x => new MonitoringDateDto
+            {
+                TaskKey = x.SUBTY, Task = taskTexts.GetValueOrDefault(x.SUBTY),
+                Date = x.TERMN, Reminder = x.MNDAT
+            }).ToList();
+    }
+
+    public async Task<bool> UpdateAddressAsync(int pernr, UpdateAddressRequest r, CancellationToken ct = default)
+    {
+        if (!await _db.Employees.AnyAsync(e => e.PERNR == pernr, ct)) return false;
+
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
+        var sub = string.IsNullOrEmpty(r.SubType) ? "1" : r.SubType;
+        var current = await _db.PA0006
+            .Where(x => x.PERNR == pernr && x.SUBTY == sub && x.ENDDA >= r.Begda && x.BEGDA < r.Begda)
+            .OrderByDescending(x => x.BEGDA).FirstOrDefaultAsync(ct);
+        if (current is not null)
+        {
+            current.ENDDA = r.Begda.AddDays(-1);
+            current.AEDTM = DateTime.Today;
+            current.UNAME = r.ChangedBy;
+        }
+
+        _db.PA0006.Add(new PA0006
+        {
+            PERNR = pernr, SUBTY = sub, BEGDA = r.Begda, ENDDA = HighDate,
+            STRAS = r.Street, ORT01 = r.City, PSTLZ = r.PostalCode,
+            LAND1 = r.Country, STATE = r.State, TELNR = r.Telephone,
+            AEDTM = DateTime.Today, UNAME = r.ChangedBy
+        });
+
+        await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+        return true;
+    }
+
+    public async Task<bool> AddFamilyMemberAsync(int pernr, FamilyMemberRequest r, CancellationToken ct = default)
+    {
+        if (!await _db.Employees.AnyAsync(e => e.PERNR == pernr, ct)) return false;
+
+        // Next object identification (OBJPS) within the relation subtype.
+        var maxObjps = await _db.PA0021
+            .Where(x => x.PERNR == pernr && x.SUBTY == r.RelationType)
+            .Select(x => x.OBJPS).ToListAsync(ct);
+        var next = (maxObjps.Select(o => int.TryParse(o, out var n) ? n : 0).DefaultIfEmpty(0).Max() + 1)
+            .ToString("D2");
+
+        _db.PA0021.Add(new PA0021
+        {
+            PERNR = pernr, SUBTY = r.RelationType, OBJPS = next,
+            BEGDA = r.Begda ?? DateTime.Today, ENDDA = HighDate,
+            FANAM = r.LastName, FAVOR = r.FirstName, FGBDT = r.BirthDate,
+            FASEX = r.Gender, FGBLD = r.BirthCountry,
+            AEDTM = DateTime.Today, UNAME = r.ChangedBy
+        });
+
+        await _db.SaveChangesAsync(ct);
+        return true;
     }
 
     public async Task<HireEmployeeResponse> HireAsync(HireEmployeeRequest r, CancellationToken ct = default)

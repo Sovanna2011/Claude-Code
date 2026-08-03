@@ -1,0 +1,40 @@
+<core:FragmentDefinition
+    xmlns:core="sap.ui.core"
+    xmlns="sap.m"
+    xmlns:f="sap.ui.layout.form">
+
+    <Dialog id="addrDialog" title="{i18n>editAddressTitle}" contentWidth="32rem" draggable="true">
+        <content>
+            <MessageStrip text="{i18n>reassignHint}" type="Information" showIcon="true" class="sapUiSmallMargin"/>
+            <f:SimpleForm layout="ResponsiveGridLayout" editable="true"
+                labelSpanXL="5" labelSpanL="5" labelSpanM="5" columnsXL="1" columnsL="1">
+                <f:content>
+                    <Label text="{i18n>fldValidFrom}" required="true"/>
+                    <DatePicker value="{addr>/begda}" valueFormat="yyyy-MM-dd" displayFormat="dd.MM.yyyy"/>
+
+                    <Label text="{i18n>fldAddressType}"/>
+                    <Select selectedKey="{addr>/subType}" items="{addr>/addressTypes}">
+                        <core:Item key="{addr>key}" text="{addr>text}"/>
+                    </Select>
+
+                    <Label text="{i18n>fldStreet}"/>
+                    <Input value="{addr>/street}" maxLength="60"/>
+
+                    <Label text="{i18n>fldCity}"/>
+                    <Input value="{addr>/city}" maxLength="40"/>
+
+                    <Label text="{i18n>fldPostalCode}"/>
+                    <Input value="{addr>/postalCode}" maxLength="10"/>
+
+                    <Label text="{i18n>fldCountry}"/>
+                    <Input value="{addr>/country}" maxLength="3"/>
+
+                    <Label text="{i18n>fldTelephone}"/>
+                    <Input value="{addr>/telephone}" maxLength="20"/>
+                </f:content>
+            </f:SimpleForm>
+        </content>
+        <beginButton><Button type="Emphasized" text="{i18n>btnSave}" press=".onAddrConfirm"/></beginButton>
+        <endButton><Button text="{i18n>btnCancel}" press=".onAddrCancel"/></endButton>
+    </Dialog>
+</core:FragmentDefinition>

@@ -24,6 +24,95 @@ public class EmployeeDetailDto
     public BasicPayDto? BasicPay { get; set; }
     public List<CommunicationDto> Communications { get; set; } = new();
     public List<BankDetailDto> BankDetails { get; set; } = new();
+
+    // Extended infotypes
+    public ContractDto? Contract { get; set; }                       // IT0016
+    public List<FamilyMemberDto> Family { get; set; } = new();        // IT0021
+    public List<EducationDto> Education { get; set; } = new();        // IT0022
+    public List<WorkExperienceDto> WorkExperience { get; set; } = new(); // IT0023
+    public List<QualificationDto> Qualifications { get; set; } = new();  // IT0024
+    public List<AttendanceDto> Attendances { get; set; } = new();       // IT2002
+    public List<MonitoringDateDto> MonitoringDates { get; set; } = new();// IT0019
+}
+
+/// <summary>IT0016 - Contract Elements.</summary>
+public class ContractDto
+{
+    public string? ContractTypeKey { get; set; }  // CTTYP
+    public string? ContractType { get; set; }     // resolved text
+    public decimal? ProbationMonths { get; set; } // PRBEZ
+    public decimal? NoticeEmployer { get; set; }  // KDGFB
+    public decimal? NoticeEmployee { get; set; }  // KDGF2
+    public DateTime Begda { get; set; }
+    public DateTime Endda { get; set; }
+}
+
+/// <summary>IT0021 - Family Member / Dependent.</summary>
+public class FamilyMemberDto
+{
+    public string RelationKey { get; set; } = string.Empty; // SUBTY
+    public string? Relation { get; set; }                   // resolved text
+    public string? FirstName { get; set; }                  // FAVOR
+    public string? LastName { get; set; }                   // FANAM
+    public DateTime? BirthDate { get; set; }                // FGBDT
+    public string? GenderKey { get; set; }                  // FASEX
+    public string? Gender { get; set; }
+    public string? BirthCountry { get; set; }               // FGBLD
+}
+
+/// <summary>IT0022 - Education.</summary>
+public class EducationDto
+{
+    public string EstablishmentKey { get; set; } = string.Empty; // SUBTY
+    public string? Establishment { get; set; }                   // resolved text
+    public string? Certificate { get; set; }   // SLABS
+    public string? Institute { get; set; }     // INSTI
+    public string? Country { get; set; }       // SLAND
+    public string? Major { get; set; }         // SFACH
+    public string? Grade { get; set; }         // SLGRA
+    public DateTime Begda { get; set; }
+    public DateTime Endda { get; set; }
+}
+
+/// <summary>IT0023 - Previous Employer (work experience).</summary>
+public class WorkExperienceDto
+{
+    public string? Employer { get; set; }   // ARBGB
+    public string? Place { get; set; }      // ORT01
+    public string? Country { get; set; }    // LAND1
+    public string? Task { get; set; }       // TASK
+    public string? Industry { get; set; }   // BRANC
+    public DateTime Begda { get; set; }
+    public DateTime Endda { get; set; }
+}
+
+/// <summary>IT0024 - Qualification / Skill.</summary>
+public class QualificationDto
+{
+    public string GroupKey { get; set; } = string.Empty; // SUBTY
+    public string? Group { get; set; }                   // resolved text
+    public string Qualification { get; set; } = string.Empty; // QUALI
+    public int? Proficiency { get; set; }                // AUSPR (0-9)
+}
+
+/// <summary>IT2002 - Attendance.</summary>
+public class AttendanceDto
+{
+    public string TypeKey { get; set; } = string.Empty; // AWART
+    public string? Type { get; set; }                   // resolved text
+    public DateTime Begda { get; set; }
+    public DateTime Endda { get; set; }
+    public decimal? Days { get; set; }   // ABWTG
+    public decimal? Hours { get; set; }  // STDAZ
+}
+
+/// <summary>IT0019 - Monitoring of Dates.</summary>
+public class MonitoringDateDto
+{
+    public string TaskKey { get; set; } = string.Empty; // SUBTY
+    public string? Task { get; set; }                   // resolved text
+    public DateTime Date { get; set; }                  // TERMN
+    public DateTime? Reminder { get; set; }             // MNDAT
 }
 
 public class PersonalDataDto

@@ -92,6 +92,42 @@ function seed() {
             { pernr: 1000, subty: "0100", begda: "2026-01-01", endda: "2026-12-31", seqnr: 1, ktart: "0100", anzhl: 30.0, kverb: 5.0 },
             { pernr: 1001, subty: "0100", begda: "2026-01-01", endda: "2026-12-31", seqnr: 1, ktart: "0100", anzhl: 25.0, kverb: 0.0 }
         ],
+        PA0016: [
+            { pernr: 1000, begda: "2020-03-01", endda: HIGH, cttyp: "01", prbez: 6, kdgfb: 3, kdgf2: 3 },
+            { pernr: 1001, begda: "2021-06-15", endda: HIGH, cttyp: "02", prbez: 3, kdgfb: 1, kdgf2: 1 }
+        ],
+        PA0019: [
+            { pernr: 1001, subty: "01", begda: "2021-06-15", endda: HIGH, termn: "2021-09-15", mndat: "2021-09-01" },
+            { pernr: 1001, subty: "04", begda: "2021-06-15", endda: HIGH, termn: "2026-06-15", mndat: "2026-06-01" },
+            { pernr: 1000, subty: "04", begda: "2020-03-01", endda: HIGH, termn: "2026-03-01", mndat: "2026-02-15" }
+        ],
+        PA0021: [
+            { pernr: 1000, subty: "1", objps: "01", begda: "2010-06-20", endda: HIGH, fanam: "Schmidt", favor: "Julia", fgbdt: "1984-02-18", fasex: "2", fgbld: "DE" },
+            { pernr: 1000, subty: "2", objps: "01", begda: "2012-04-11", endda: HIGH, fanam: "Schmidt", favor: "Max", fgbdt: "2012-04-11", fasex: "1", fgbld: "DE" },
+            { pernr: 1000, subty: "2", objps: "02", begda: "2015-09-30", endda: HIGH, fanam: "Schmidt", favor: "Emma", fgbdt: "2015-09-30", fasex: "2", fgbld: "DE" },
+            { pernr: 1001, subty: "6", objps: "01", begda: "2021-06-15", endda: HIGH, fanam: "Nguyen", favor: "Peter", fgbdt: "1988-01-05", fasex: "1", fgbld: "US" }
+        ],
+        PA0022: [
+            { pernr: 1000, subty: "10", begda: "2001-10-01", endda: "2006-07-31", slabs: "Diplom (Master)", insti: "TU Berlin", sland: "DE", sfach: "Business Administration", slgra: "1.7" },
+            { pernr: 1001, subty: "10", begda: "2009-09-01", endda: "2013-05-31", slabs: "B.Sc.", insti: "NYU", sland: "US", sfach: "Human Resources Mgmt", slgra: "3.8 GPA" },
+            { pernr: 1001, subty: "40", begda: "2013-09-01", endda: "2017-06-30", slabs: "Ph.D.", insti: "Columbia University", sland: "US", sfach: "Organizational Psychology", slgra: "" }
+        ],
+        PA0023: [
+            { pernr: 1000, begda: "2006-08-01", endda: "2020-02-29", arbgb: "Muster GmbH", ort01: "Munich", land1: "DE", task: "HR Business Partner", branc: "Manufacturing" },
+            { pernr: 1001, begda: "2017-07-01", endda: "2021-05-31", arbgb: "Acme Corp", ort01: "Boston", land1: "US", task: "HR Analyst", branc: "Technology" }
+        ],
+        PA0024: [
+            { pernr: 1000, subty: "03", begda: "2020-03-01", endda: HIGH, quali: "People leadership", auspr: 8 },
+            { pernr: 1000, subty: "02", begda: "2020-03-01", endda: HIGH, quali: "English (fluent)", auspr: 7 },
+            { pernr: 1000, subty: "01", begda: "2020-03-01", endda: HIGH, quali: "SAP SuccessFactors", auspr: 6 },
+            { pernr: 1001, subty: "01", begda: "2021-06-15", endda: HIGH, quali: "HR Analytics", auspr: 8 },
+            { pernr: 1001, subty: "02", begda: "2021-06-15", endda: HIGH, quali: "Spanish (intermediate)", auspr: 5 }
+        ],
+        PA2002: [
+            { pernr: 1000, begda: "2026-05-04", endda: "2026-05-06", awart: "0500", abwtg: 3, stdaz: 24 },
+            { pernr: 1001, begda: "2026-03-10", endda: "2026-03-12", awart: "0400", abwtg: 3, stdaz: 24 },
+            { pernr: 1001, begda: "2026-04-15", endda: "2026-04-15", awart: "1000", abwtg: null, stdaz: 3.5 }
+        ],
         HRP1000: [
             { otype: "O", objid: 50000001, begda: "2020-01-01", endda: HIGH, short: "EXEC", stext: "Executive Board" },
             { otype: "O", objid: 50000010, begda: "2020-01-01", endda: HIGH, short: "HR", stext: "Human Resources" },
@@ -114,13 +150,19 @@ function seed() {
         T501: [{ persg: "1", ptext: "Active employees" }, { persg: "2", ptext: "Pensioners" }, { persg: "9", ptext: "External staff" }],
         T503K: [{ persk: "DU", ptext: "Salaried staff" }, { persk: "DW", ptext: "Industrial workers" }, { persk: "DT", ptext: "Trainees" }],
         T512T: { "1010": "Base pay", "1000": "Standard salary", "2000": "Overtime pay", "3000": "Bonus", "5000": "Allowance" },
-        T554S: [{ awart: "0100", atext: "Annual leave" }, { awart: "0200", atext: "Sick leave" }, { awart: "0300", atext: "Unpaid leave" }, { awart: "1000", atext: "Overtime" }, { awart: "0400", atext: "Business trip" }],
+        T554S: [{ awart: "0100", atext: "Annual leave" }, { awart: "0200", atext: "Sick leave" }, { awart: "0300", atext: "Unpaid leave" }, { awart: "1000", atext: "Overtime" }, { awart: "0400", atext: "Business trip" }, { awart: "0500", atext: "Training" }, { awart: "0600", atext: "Conference" }],
+        T547T: { "01": "Permanent", "02": "Fixed-term", "03": "Temporary", "04": "Internship" },
         DomainValue: {
             GESCH: [{ key: "1", text: "Male" }, { key: "2", text: "Female" }, { key: "3", text: "Undefined" }],
             FAMST: [{ key: "0", text: "Single" }, { key: "1", text: "Married" }, { key: "2", text: "Widowed" }, { key: "3", text: "Divorced" }, { key: "4", text: "Separated" }],
             ANRED: [{ key: "1", text: "Mrs." }, { key: "2", text: "Mr." }, { key: "3", text: "Company" }],
             STAT2: [{ key: "0", text: "Withdrawn" }, { key: "1", text: "Inactive" }, { key: "2", text: "Retiree" }, { key: "3", text: "Active" }],
-            USRTY: [{ key: "0010", text: "E-Mail" }, { key: "0020", text: "Telephone" }, { key: "CELL", text: "Mobile phone" }, { key: "MAIL", text: "System user" }]
+            USRTY: [{ key: "0010", text: "E-Mail" }, { key: "0020", text: "Telephone" }, { key: "CELL", text: "Mobile phone" }, { key: "MAIL", text: "System user" }],
+            FAMSA: [{ key: "1", text: "Spouse" }, { key: "2", text: "Child" }, { key: "6", text: "Emergency contact" }, { key: "11", text: "Father" }, { key: "12", text: "Mother" }],
+            SLART: [{ key: "10", text: "University" }, { key: "20", text: "Secondary school" }, { key: "30", text: "Vocational training" }, { key: "40", text: "Doctorate" }],
+            TMART: [{ key: "01", text: "Expiry of probation" }, { key: "02", text: "Work permit expiry" }, { key: "03", text: "Contract end" }, { key: "04", text: "Next appraisal" }],
+            QUALG: [{ key: "01", text: "Technical" }, { key: "02", text: "Language" }, { key: "03", text: "Leadership" }],
+            ANSSA: [{ key: "1", text: "Permanent residence" }, { key: "2", text: "Temporary residence" }, { key: "3", text: "Home address" }, { key: "4", text: "Mailing address" }, { key: "5", text: "Emergency address" }]
         }
     };
 }
@@ -206,6 +248,25 @@ function getEmployee(pernr, q) {
         .map(c => ({ typeKey: c.subty, typeText: domText("USRTY", c.subty), id: c.usrid, longId: c.usrid_long }));
     dto.bankDetails = db.PA0009.filter(x => x.pernr === pernr && x.begda <= key && x.endda >= key)
         .map(b => ({ bankDetailsType: b.subty, bankCountry: b.banks, bankKey: b.bankl, accountNumber: b.bankn, currency: b.waers }));
+
+    // ---- Extended infotypes ----
+    const c16 = validOn(db.PA0016, pernr, key);
+    if (c16) dto.contract = { contractTypeKey: c16.cttyp, contractType: db.T547T[c16.cttyp],
+        probationMonths: c16.prbez, noticeEmployer: c16.kdgfb, noticeEmployee: c16.kdgf2, begda: c16.begda, endda: c16.endda };
+    dto.family = db.PA0021.filter(x => x.pernr === pernr && x.begda <= key && x.endda >= key)
+        .map(x => ({ relationKey: x.subty, relation: domText("FAMSA", x.subty), firstName: x.favor, lastName: x.fanam,
+            birthDate: x.fgbdt, genderKey: x.fasex, gender: x.fasex ? domText("GESCH", x.fasex) : null, birthCountry: x.fgbld }));
+    dto.education = db.PA0022.filter(x => x.pernr === pernr).sort((a, b) => a.begda < b.begda ? -1 : 1)
+        .map(x => ({ establishmentKey: x.subty, establishment: domText("SLART", x.subty), certificate: x.slabs,
+            institute: x.insti, country: x.sland, major: x.sfach, grade: x.slgra, begda: x.begda, endda: x.endda }));
+    dto.workExperience = db.PA0023.filter(x => x.pernr === pernr).sort((a, b) => a.begda < b.begda ? -1 : 1)
+        .map(x => ({ employer: x.arbgb, place: x.ort01, country: x.land1, task: x.task, industry: x.branc, begda: x.begda, endda: x.endda }));
+    dto.qualifications = db.PA0024.filter(x => x.pernr === pernr && x.begda <= key && x.endda >= key)
+        .map(x => ({ groupKey: x.subty, group: domText("QUALG", x.subty), qualification: x.quali, proficiency: x.auspr }));
+    dto.attendances = db.PA2002.filter(x => x.pernr === pernr).sort((a, b) => a.begda < b.begda ? 1 : -1)
+        .map(x => ({ typeKey: x.awart, type: (db.T554S.find(t => t.awart === x.awart) || {}).atext, begda: x.begda, endda: x.endda, days: x.abwtg, hours: x.stdaz }));
+    dto.monitoringDates = db.PA0019.filter(x => x.pernr === pernr && x.endda >= key).sort((a, b) => a.termn < b.termn ? -1 : 1)
+        .map(x => ({ taskKey: x.subty, task: domText("TMART", x.subty), date: x.termn, reminder: x.mndat }));
     return dto;
 }
 
@@ -241,6 +302,30 @@ function reassign(pernr, body) {
     return { _status: 204 };
 }
 
+function updateAddress(pernr, body) {
+    if (!db.employees.find(e => e.pernr === pernr)) return { _status: 404, message: `Employee ${pernr} not found.` };
+    const sub = body.subType || "1";
+    const cur = db.PA0006.filter(x => x.pernr === pernr && x.subty === sub && x.endda >= body.begda && x.begda < body.begda).sort((a, b) => a.begda < b.begda ? 1 : -1)[0];
+    if (cur) cur.endda = dayBefore(body.begda);
+    db.PA0006.push({ pernr, subty: sub, begda: body.begda, endda: HIGH, seqnr: 1,
+        stras: body.street, ort01: body.city, pstlz: body.postalCode, land1: body.country, state: body.state, telnr: body.telephone });
+    return { _status: 204 };
+}
+function addFamily(pernr, body) {
+    if (!db.employees.find(e => e.pernr === pernr)) return { _status: 404, message: `Employee ${pernr} not found.` };
+    const objs = db.PA0021.filter(x => x.pernr === pernr && x.subty === body.relationType).map(x => parseInt(x.objps, 10) || 0);
+    const next = String((objs.length ? Math.max.apply(null, objs) : 0) + 1).padStart(2, "0");
+    db.PA0021.push({ pernr, subty: body.relationType, objps: next, begda: body.begda || today(), endda: HIGH,
+        fanam: body.lastName, favor: body.firstName, fgbdt: body.birthDate || null, fasex: body.gender, fgbld: body.birthCountry });
+    return { _status: 204 };
+}
+function recordAttendance(pernr, body) {
+    if (!db.employees.find(e => e.pernr === pernr)) return { _status: 404, message: `Employee ${pernr} not found.` };
+    if (body.endda < body.begda) return { _status: 400, message: "End date must not be before start date." };
+    const days = body.days != null ? body.days : daysBetween(body.begda, body.endda);
+    db.PA2002.push({ pernr, awart: body.attendanceType, begda: body.begda, endda: body.endda, abwtg: days, stdaz: body.hours || null });
+    return { _status: 204 };
+}
 function leaveBalances(pernr) {
     return db.PA2006.filter(q => q.pernr === pernr).map(q => ({
         pernr, quotaType: q.ktart, quotaText: (db.T554S.find(t => t.awart === q.ktart) || {}).atext,
@@ -324,6 +409,9 @@ function handleApi(req, res, path, q, json) {
         if ((mm = path.match(/^\/api\/employees\/(\d+)\/reassign$/)) && m === "PUT") return result(res, reassign(+mm[1], json));
         if ((mm = path.match(/^\/api\/employees\/(\d+)\/leave-balances$/)) && m === "GET") return result(res, leaveBalances(+mm[1]));
         if ((mm = path.match(/^\/api\/employees\/(\d+)\/absences$/)) && m === "POST") return result(res, recordAbsence(+mm[1], json));
+        if ((mm = path.match(/^\/api\/employees\/(\d+)\/address$/)) && m === "PUT") return result(res, updateAddress(+mm[1], json));
+        if ((mm = path.match(/^\/api\/employees\/(\d+)\/family$/)) && m === "POST") return result(res, addFamily(+mm[1], json));
+        if ((mm = path.match(/^\/api\/employees\/(\d+)\/attendances$/)) && m === "POST") return result(res, recordAttendance(+mm[1], json));
         if (path === "/api/orgunits" && m === "GET") return result(res, orgUnitsFlat(q.keyDate || today()));
         if ((mm = path.match(/^\/api\/orgunits\/(\d+)\/structure$/)) && m === "GET") return result(res, orgStructure(+mm[1], q.keyDate || today()));
         if (path === "/api/orgunits/positions" && m === "GET") return result(res, positions(q.orgUnitId ? +q.orgUnitId : null, q.keyDate || today()));

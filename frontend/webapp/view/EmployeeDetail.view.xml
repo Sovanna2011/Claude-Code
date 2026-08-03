@@ -9,7 +9,10 @@
     <Page id="detailPage" title="{i18n>employeeDetailTitle}" showNavButton="true" navButtonPress=".onNavBack">
         <headerContent>
             <Button icon="sap-icon://edit" text="{i18n>editPersonal}" press=".onOpenEditPersonal"/>
+            <Button icon="sap-icon://addresses" text="{i18n>editAddress}" press=".onOpenEditAddress"/>
+            <Button icon="sap-icon://family-care" text="{i18n>addFamily}" press=".onOpenAddFamily"/>
             <Button icon="sap-icon://org-chart" text="{i18n>reassign}" press=".onOpenReassign"/>
+            <Button icon="sap-icon://attachment-time-sheet" text="{i18n>recordAttendance}" press=".onOpenAttendance"/>
             <Button type="Emphasized" icon="sap-icon://calendar" text="{i18n>recordAbsence}" press=".onOpenAbsence"/>
         </headerContent>
 
@@ -160,7 +163,124 @@
                         </VBox>
                     </IconTabFilter>
 
-                    <!-- IT2006/2001 Time & Leave -->
+                    <!-- IT0021 Family -->
+                    <IconTabFilter icon="sap-icon://family-care" text="{i18n>tabFamily}" key="family">
+                        <Table items="{/family}" class="sapUiSmallMargin">
+                            <headerToolbar><Toolbar><Title text="{i18n>secFamily}"/></Toolbar></headerToolbar>
+                            <columns>
+                                <Column><Text text="{i18n>colRelation}"/></Column>
+                                <Column><Text text="{i18n>colName}"/></Column>
+                                <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>fldGender}"/></Column>
+                                <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>fldBirthDate}"/></Column>
+                            </columns>
+                            <items>
+                                <ColumnListItem>
+                                    <cells>
+                                        <ObjectStatus text="{relation}" state="Information"/>
+                                        <Text text="{firstName} {lastName}"/>
+                                        <Text text="{gender}"/>
+                                        <Text text="{path: 'birthDate', formatter: '.formatter.date'}"/>
+                                    </cells>
+                                </ColumnListItem>
+                            </items>
+                        </Table>
+                    </IconTabFilter>
+
+                    <!-- IT0022/0023/0024 Education, Experience, Qualifications -->
+                    <IconTabFilter icon="sap-icon://education" text="{i18n>tabEducation}" key="edu">
+                        <VBox class="sapUiSmallMargin">
+                            <Title text="{i18n>secEducation}" class="sapUiSmallMarginBottom"/>
+                            <Table items="{/education}">
+                                <columns>
+                                    <Column><Text text="{i18n>colEstablishment}"/></Column>
+                                    <Column><Text text="{i18n>colCertificate}"/></Column>
+                                    <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colMajor}"/></Column>
+                                    <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>fldValidity}"/></Column>
+                                </columns>
+                                <items>
+                                    <ColumnListItem>
+                                        <cells>
+                                            <Text text="{establishment} · {institute}"/>
+                                            <Text text="{certificate}"/>
+                                            <Text text="{major}"/>
+                                            <Text text="{path: 'begda', formatter: '.formatter.date'} – {path: 'endda', formatter: '.formatter.date'}"/>
+                                        </cells>
+                                    </ColumnListItem>
+                                </items>
+                            </Table>
+                            <Title text="{i18n>secExperience}" class="sapUiSmallMarginTop sapUiSmallMarginBottom"/>
+                            <Table items="{/workExperience}">
+                                <columns>
+                                    <Column><Text text="{i18n>colEmployer}"/></Column>
+                                    <Column><Text text="{i18n>colRole}"/></Column>
+                                    <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colPlace}"/></Column>
+                                    <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>fldValidity}"/></Column>
+                                </columns>
+                                <items>
+                                    <ColumnListItem>
+                                        <cells>
+                                            <Text text="{employer}"/>
+                                            <Text text="{task}"/>
+                                            <Text text="{place}, {country}"/>
+                                            <Text text="{path: 'begda', formatter: '.formatter.date'} – {path: 'endda', formatter: '.formatter.date'}"/>
+                                        </cells>
+                                    </ColumnListItem>
+                                </items>
+                            </Table>
+                            <Title text="{i18n>secQualifications}" class="sapUiSmallMarginTop sapUiSmallMarginBottom"/>
+                            <Table items="{/qualifications}">
+                                <columns>
+                                    <Column><Text text="{i18n>colGroup}"/></Column>
+                                    <Column><Text text="{i18n>colQualification}"/></Column>
+                                    <Column hAlign="End"><Text text="{i18n>colProficiency}"/></Column>
+                                </columns>
+                                <items>
+                                    <ColumnListItem>
+                                        <cells>
+                                            <Text text="{group}"/>
+                                            <Text text="{qualification}"/>
+                                            <ObjectNumber number="{proficiency}" unit="/ 9"/>
+                                        </cells>
+                                    </ColumnListItem>
+                                </items>
+                            </Table>
+                        </VBox>
+                    </IconTabFilter>
+
+                    <!-- IT0016/0019 Contract & Dates -->
+                    <IconTabFilter icon="sap-icon://document-text" text="{i18n>tabContract}" key="contract">
+                        <VBox class="sapUiSmallMargin">
+                            <f:SimpleForm layout="ResponsiveGridLayout" editable="false"
+                                labelSpanXL="4" labelSpanL="4" labelSpanM="4" columnsXL="2" columnsL="2">
+                                <f:content>
+                                    <core:Title text="{i18n>secContract}"/>
+                                    <Label text="{i18n>fldContractType}"/><Text text="{/contract/contractType}"/>
+                                    <Label text="{i18n>fldProbation}"/><Text text="{/contract/probationMonths} {i18n>months}"/>
+                                    <Label text="{i18n>fldNoticeEmployer}"/><Text text="{/contract/noticeEmployer} {i18n>months}"/>
+                                    <Label text="{i18n>fldNoticeEmployee}"/><Text text="{/contract/noticeEmployee} {i18n>months}"/>
+                                </f:content>
+                            </f:SimpleForm>
+                            <Title text="{i18n>secDates}" class="sapUiSmallMarginTop sapUiSmallMarginBottom"/>
+                            <Table items="{/monitoringDates}">
+                                <columns>
+                                    <Column><Text text="{i18n>colTask}"/></Column>
+                                    <Column><Text text="{i18n>colDate}"/></Column>
+                                    <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colReminder}"/></Column>
+                                </columns>
+                                <items>
+                                    <ColumnListItem>
+                                        <cells>
+                                            <Text text="{task}"/>
+                                            <Text text="{path: 'date', formatter: '.formatter.date'}"/>
+                                            <Text text="{path: 'reminder', formatter: '.formatter.date'}"/>
+                                        </cells>
+                                    </ColumnListItem>
+                                </items>
+                            </Table>
+                        </VBox>
+                    </IconTabFilter>
+
+                    <!-- IT2006/2001/2002 Time & Leave -->
                     <IconTabFilter icon="sap-icon://calendar" text="{i18n>tabTime}" key="time">
                         <Table id="leaveTable" items="{leave>/balances}" class="sapUiSmallMargin">
                             <headerToolbar>
@@ -182,6 +302,25 @@
                                         <ObjectNumber number="{leave>remaining}"
                                             state="{= ${leave>remaining} > 0 ? 'Success' : 'Warning' }"/>
                                         <Text text="{path: 'leave>begda', formatter: '.formatter.date'} - {path: 'leave>endda', formatter: '.formatter.date'}"/>
+                                    </cells>
+                                </ColumnListItem>
+                            </items>
+                        </Table>
+                        <Table items="{/attendances}" class="sapUiSmallMargin">
+                            <headerToolbar><Toolbar><Title text="{i18n>secAttendances}"/></Toolbar></headerToolbar>
+                            <columns>
+                                <Column><Text text="{i18n>colType}"/></Column>
+                                <Column><Text text="{i18n>fldValidity}"/></Column>
+                                <Column hAlign="End"><Text text="{i18n>colDays}"/></Column>
+                                <Column hAlign="End"><Text text="{i18n>colHours}"/></Column>
+                            </columns>
+                            <items>
+                                <ColumnListItem>
+                                    <cells>
+                                        <Text text="{type}"/>
+                                        <Text text="{path: 'begda', formatter: '.formatter.date'} – {path: 'endda', formatter: '.formatter.date'}"/>
+                                        <Text text="{days}"/>
+                                        <Text text="{hours}"/>
                                     </cells>
                                 </ColumnListItem>
                             </items>

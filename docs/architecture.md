@@ -37,7 +37,14 @@ fields `AEDTM`/`UNAME`. Implemented:
 | PA0008 | 0008 | Basic Pay (+ wage type lines) |
 | PA0009 | 0009 | Bank Details |
 | PA0105 | 0105 | Communication |
+| PA0016 | 0016 | Contract Elements |
+| PA0019 | 0019 | Monitoring of Dates (deadlines) |
+| PA0021 | 0021 | Family Members / Dependents |
+| PA0022 | 0022 | Education |
+| PA0023 | 0023 | Other/Previous Employers (work experience) |
+| PA0024 | 0024 | Qualifications (skills) |
 | PA2001 | 2001 | Absences |
+| PA2002 | 2002 | Attendances |
 | PA2006 | 2006 | Absence Quotas |
 
 ### Time-dependency & time constraints

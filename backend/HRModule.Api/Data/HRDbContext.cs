@@ -28,6 +28,13 @@ public class HRDbContext : DbContext
     public DbSet<PA0105> PA0105 => Set<PA0105>();
     public DbSet<PA2001> PA2001 => Set<PA2001>();
     public DbSet<PA2006> PA2006 => Set<PA2006>();
+    public DbSet<PA0016> PA0016 => Set<PA0016>();
+    public DbSet<PA0019> PA0019 => Set<PA0019>();
+    public DbSet<PA0021> PA0021 => Set<PA0021>();
+    public DbSet<PA0022> PA0022 => Set<PA0022>();
+    public DbSet<PA0023> PA0023 => Set<PA0023>();
+    public DbSet<PA0024> PA0024 => Set<PA0024>();
+    public DbSet<PA2002> PA2002 => Set<PA2002>();
 
     // Organizational Management
     public DbSet<HRP1000> HRP1000 => Set<HRP1000>();
@@ -45,6 +52,7 @@ public class HRDbContext : DbContext
     public DbSet<T554S> T554S => Set<T554S>();
     public DbSet<T005> T005 => Set<T005>();
     public DbSet<T512T> T512T => Set<T512T>();
+    public DbSet<T547T> T547T => Set<T547T>();
     public DbSet<DomainValue> DomainValues => Set<DomainValue>();
     public DbSet<NumberRange> NumberRanges => Set<NumberRange>();
 
@@ -69,6 +77,20 @@ public class HRDbContext : DbContext
         ConfigureInfotype<PA0105>(mb, "PA0105");
         ConfigureInfotype<PA2001>(mb, "PA2001");
         ConfigureInfotype<PA2006>(mb, "PA2006");
+        ConfigureInfotype<PA0016>(mb, "PA0016");
+        ConfigureInfotype<PA0019>(mb, "PA0019");
+        ConfigureInfotype<PA0021>(mb, "PA0021");
+        ConfigureInfotype<PA0022>(mb, "PA0022");
+        ConfigureInfotype<PA0023>(mb, "PA0023");
+        ConfigureInfotype<PA0024>(mb, "PA0024");
+
+        // PA2002 (Attendances): BEGDA is part of the key (time segments).
+        mb.Entity<PA2002>(e =>
+        {
+            e.ToTable("PA2002", "HR");
+            e.HasKey(x => new { x.PERNR, x.SUBTY, x.OBJPS, x.SPRPS, x.ENDDA, x.BEGDA, x.SEQNR });
+            e.Property(x => x.PERNR).ValueGeneratedNever();
+        });
 
         mb.Entity<PA0008WageType>(e =>
         {
@@ -108,6 +130,7 @@ public class HRDbContext : DbContext
         mb.Entity<T554S>(e => { e.ToTable("T554S", "HR"); e.HasKey(x => new { x.MOABW, x.AWART }); });
         mb.Entity<T005>(e => { e.ToTable("T005", "HR"); e.HasKey(x => x.LAND1); });
         mb.Entity<T512T>(e => { e.ToTable("T512T", "HR"); e.HasKey(x => x.LGART); });
+        mb.Entity<T547T>(e => { e.ToTable("T547T", "HR"); e.HasKey(x => x.CTTYP); });
         mb.Entity<DomainValue>(e => { e.ToTable("DomainValue", "HR"); e.HasKey(x => new { x.Domain, x.ValueKey }); });
         mb.Entity<NumberRange>(e => { e.ToTable("NumberRange", "HR"); e.HasKey(x => x.RangeObject); });
 

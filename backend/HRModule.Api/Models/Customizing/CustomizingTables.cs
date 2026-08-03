@@ -86,6 +86,13 @@ public class T512T
     public string? LGTXT { get; set; }
 }
 
+/// <summary>T547T - Contract type texts.</summary>
+public class T547T
+{
+    public string CTTYP { get; set; } = string.Empty;
+    public string? CTTXT { get; set; }
+}
+
 /// <summary>Generic domain fixed-value table (GESCH, FAMST, ANRED, USRTY, STAT2).</summary>
 public class DomainValue
 {

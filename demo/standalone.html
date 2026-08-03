@@ -270,7 +270,9 @@ const I = {
   check:'<svg viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>',
   warn:'<svg viewBox="0 0 24 24"><path d="M1 21h22L12 2zm12-3h-2v-2h2zm0-4h-2v-4h2z"/></svg>',
   edit:'<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75zM20.7 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75z"/></svg>',
-  move:'<svg viewBox="0 0 24 24"><path d="M13 6v5h5V7l4 5-4 5v-4h-7V6zM11 18v-5H6v4l-4-5 4-5v4h7v7z"/></svg>'
+  move:'<svg viewBox="0 0 24 24"><path d="M13 6v5h5V7l4 5-4 5v-4h-7V6zM11 18v-5H6v4l-4-5 4-5v4h7v7z"/></svg>',
+  education:'<svg viewBox="0 0 24 24"><path d="M12 3L1 9l11 6 9-4.9V17h2V9zM5 13.2V17c0 1.7 3.1 3 7 3s7-1.3 7-3v-3.8l-7 3.8z"/></svg>',
+  doc:'<svg viewBox="0 0 24 24"><path d="M6 2h9l5 5v15H6zm8 1.5V8h4.5zM8 12h8v2H8zm0 4h8v2H8z"/></svg>'
 };
 
 /* ============================ DATA (mirrors DB seed) ============================ */
@@ -304,6 +306,35 @@ function seed(){return{
   PA2006:[
    {pernr:1000,begda:"2026-01-01",endda:"2026-12-31",ktart:"0100",anzhl:30,kverb:5},
    {pernr:1001,begda:"2026-01-01",endda:"2026-12-31",ktart:"0100",anzhl:25,kverb:0}],
+  PA0016:[
+   {pernr:1000,begda:"2020-03-01",endda:HIGH,cttyp:"01",prbez:6,kdgfb:3,kdgf2:3},
+   {pernr:1001,begda:"2021-06-15",endda:HIGH,cttyp:"02",prbez:3,kdgfb:1,kdgf2:1}],
+  PA0019:[
+   {pernr:1001,subty:"01",begda:"2021-06-15",endda:HIGH,termn:"2021-09-15",mndat:"2021-09-01"},
+   {pernr:1001,subty:"04",begda:"2021-06-15",endda:HIGH,termn:"2026-06-15",mndat:"2026-06-01"},
+   {pernr:1000,subty:"04",begda:"2020-03-01",endda:HIGH,termn:"2026-03-01",mndat:"2026-02-15"}],
+  PA0021:[
+   {pernr:1000,subty:"1",objps:"01",begda:"2010-06-20",endda:HIGH,fanam:"Schmidt",favor:"Julia",fgbdt:"1984-02-18",fasex:"2",fgbld:"DE"},
+   {pernr:1000,subty:"2",objps:"01",begda:"2012-04-11",endda:HIGH,fanam:"Schmidt",favor:"Max",fgbdt:"2012-04-11",fasex:"1",fgbld:"DE"},
+   {pernr:1000,subty:"2",objps:"02",begda:"2015-09-30",endda:HIGH,fanam:"Schmidt",favor:"Emma",fgbdt:"2015-09-30",fasex:"2",fgbld:"DE"},
+   {pernr:1001,subty:"6",objps:"01",begda:"2021-06-15",endda:HIGH,fanam:"Nguyen",favor:"Peter",fgbdt:"1988-01-05",fasex:"1",fgbld:"US"}],
+  PA0022:[
+   {pernr:1000,subty:"10",begda:"2001-10-01",endda:"2006-07-31",slabs:"Diplom (Master)",insti:"TU Berlin",sland:"DE",sfach:"Business Administration",slgra:"1.7"},
+   {pernr:1001,subty:"10",begda:"2009-09-01",endda:"2013-05-31",slabs:"B.Sc.",insti:"NYU",sland:"US",sfach:"Human Resources Mgmt",slgra:"3.8 GPA"},
+   {pernr:1001,subty:"40",begda:"2013-09-01",endda:"2017-06-30",slabs:"Ph.D.",insti:"Columbia University",sland:"US",sfach:"Organizational Psychology",slgra:""}],
+  PA0023:[
+   {pernr:1000,begda:"2006-08-01",endda:"2020-02-29",arbgb:"Muster GmbH",ort01:"Munich",land1:"DE",task:"HR Business Partner",branc:"Manufacturing"},
+   {pernr:1001,begda:"2017-07-01",endda:"2021-05-31",arbgb:"Acme Corp",ort01:"Boston",land1:"US",task:"HR Analyst",branc:"Technology"}],
+  PA0024:[
+   {pernr:1000,subty:"03",begda:"2020-03-01",endda:HIGH,quali:"People leadership",auspr:8},
+   {pernr:1000,subty:"02",begda:"2020-03-01",endda:HIGH,quali:"English (fluent)",auspr:7},
+   {pernr:1000,subty:"01",begda:"2020-03-01",endda:HIGH,quali:"SAP SuccessFactors",auspr:6},
+   {pernr:1001,subty:"01",begda:"2021-06-15",endda:HIGH,quali:"HR Analytics",auspr:8},
+   {pernr:1001,subty:"02",begda:"2021-06-15",endda:HIGH,quali:"Spanish (intermediate)",auspr:5}],
+  PA2002:[
+   {pernr:1000,begda:"2026-05-04",endda:"2026-05-06",awart:"0500",abwtg:3,stdaz:24},
+   {pernr:1001,begda:"2026-03-10",endda:"2026-03-12",awart:"0400",abwtg:3,stdaz:24},
+   {pernr:1001,begda:"2026-04-15",endda:"2026-04-15",awart:"1000",abwtg:null,stdaz:3.5}],
   HRP1000:[
    {otype:"O",objid:50000001,begda:"2020-01-01",endda:HIGH,short:"EXEC",stext:"Executive Board"},
    {otype:"O",objid:50000010,begda:"2020-01-01",endda:HIGH,short:"HR",stext:"Human Resources"},
@@ -323,12 +354,18 @@ function seed(){return{
   T501:{"1":"Active employees","2":"Pensioners","9":"External staff"},
   T503K:{"DU":"Salaried staff","DW":"Industrial workers","DT":"Trainees"},
   T512T:{"1010":"Base pay","1000":"Standard salary","2000":"Overtime pay","3000":"Bonus","5000":"Allowance"},
-  T554S:{"0100":"Annual leave","0200":"Sick leave","0300":"Unpaid leave","1000":"Overtime","0400":"Business trip"},
+  T554S:{"0100":"Annual leave","0200":"Sick leave","0300":"Unpaid leave","1000":"Overtime","0400":"Business trip","0500":"Training","0600":"Conference"},
+  T547T:{"01":"Permanent","02":"Fixed-term","03":"Temporary","04":"Internship"},
   dom:{GESCH:{"1":"Male","2":"Female","3":"Undefined"},
        FAMST:{"0":"Single","1":"Married","2":"Widowed","3":"Divorced","4":"Separated"},
        ANRED:{"1":"Mrs.","2":"Mr.","3":"Company"},
        STAT2:{"0":"Withdrawn","1":"Inactive","2":"Retiree","3":"Active"},
-       USRTY:{"0010":"E-Mail","0020":"Telephone","CELL":"Mobile phone"}}
+       USRTY:{"0010":"E-Mail","0020":"Telephone","CELL":"Mobile phone"},
+       FAMSA:{"1":"Spouse","2":"Child","6":"Emergency contact","11":"Father","12":"Mother"},
+       SLART:{"10":"University","20":"Secondary school","30":"Vocational training","40":"Doctorate"},
+       TMART:{"01":"Expiry of probation","02":"Work permit expiry","03":"Contract end","04":"Next appraisal"},
+       QUALG:{"01":"Technical","02":"Language","03":"Leadership"},
+       ANSSA:{"1":"Permanent residence","2":"Temporary residence","3":"Home address","4":"Mailing address","5":"Emergency address"}}
 };}
 let db=seed();
 
@@ -375,7 +412,14 @@ function getEmployee(pernr,key){
     pay:p8&&{trfgr:p8.trfgr,bsgrd:p8.bsgrd,waers:p8.waers,ansal:p8.ansal,
       wt:(p8.wt||[]).map(w=>({lgart:w.lgart,txt:db.T512T[w.lgart],betrg:w.betrg,waers:w.waers}))},
     comms:db.PA0105.filter(x=>x.pernr===pernr&&x.begda<=key&&x.endda>=key).map(c=>({t:dom("USRTY",c.subty),v:c.usrid})),
-    banks:db.PA0009.filter(x=>x.pernr===pernr&&x.begda<=key&&x.endda>=key).map(b=>({key:b.bankl,acc:b.bankn,ctry:b.banks}))
+    banks:db.PA0009.filter(x=>x.pernr===pernr&&x.begda<=key&&x.endda>=key).map(b=>({key:b.bankl,acc:b.bankn,ctry:b.banks})),
+    contract:(function(){const c=validOn(db.PA0016,pernr,key);return c&&{type:db.T547T[c.cttyp],prbez:c.prbez,kdgfb:c.kdgfb,kdgf2:c.kdgf2,begda:c.begda,endda:c.endda};})(),
+    family:db.PA0021.filter(x=>x.pernr===pernr&&x.begda<=key&&x.endda>=key).map(x=>({rel:dom("FAMSA",x.subty),name:x.favor+" "+x.fanam,gesch:x.fasex?dom("GESCH",x.fasex):"",dob:x.fgbdt})),
+    education:db.PA0022.filter(x=>x.pernr===pernr).sort((a,b)=>a.begda<b.begda?-1:1).map(x=>({est:dom("SLART",x.subty),insti:x.insti,cert:x.slabs,major:x.sfach,grade:x.slgra,begda:x.begda,endda:x.endda})),
+    exp:db.PA0023.filter(x=>x.pernr===pernr).sort((a,b)=>a.begda<b.begda?-1:1).map(x=>({emp:x.arbgb,task:x.task,place:(x.ort01||"")+", "+(x.land1||""),begda:x.begda,endda:x.endda})),
+    quals:db.PA0024.filter(x=>x.pernr===pernr&&x.begda<=key&&x.endda>=key).map(x=>({grp:dom("QUALG",x.subty),q:x.quali,lvl:x.auspr})),
+    attend:db.PA2002.filter(x=>x.pernr===pernr).sort((a,b)=>a.begda<b.begda?1:-1).map(x=>({t:db.T554S[x.awart],begda:x.begda,endda:x.endda,days:x.abwtg,hours:x.stdaz})),
+    dates:db.PA0019.filter(x=>x.pernr===pernr&&x.endda>=key).sort((a,b)=>a.termn<b.termn?-1:1).map(x=>({task:dom("TMART",x.subty),date:x.termn,rem:x.mndat}))
   };
 }
 function hire(f){
@@ -410,6 +454,23 @@ function recordAbsence(pernr,f){
   const q=db.PA2006.filter(x=>x.pernr===pernr&&x.ktart===f.absenceType&&x.begda<=f.begda&&x.endda>=f.begda).sort((a,b)=>a.begda<b.begda?1:-1)[0];
   if(q){if(q.anzhl-q.kverb<days)throw new Error("Insufficient leave quota for this absence.");q.kverb+=days;}
   db.PA2001.push({pernr,begda:f.begda,endda:f.endda,awart:f.absenceType,abwtg:days});
+  return days;
+}
+function updateAddress(pernr,f){
+  const sub=f.subType||"1";
+  const cur=db.PA0006.filter(x=>x.pernr===pernr&&x.subty===sub&&x.endda>=f.begda&&x.begda<f.begda).sort((a,b)=>a.begda<b.begda?1:-1)[0];
+  if(cur)cur.endda=dayBefore(f.begda);
+  db.PA0006.push({pernr,subty:sub,begda:f.begda,endda:HIGH,stras:f.street,ort01:f.city,pstlz:f.postalCode,land1:f.country,telnr:f.telephone});
+}
+function addFamily(pernr,f){
+  const objs=db.PA0021.filter(x=>x.pernr===pernr&&x.subty===f.relationType).map(x=>parseInt(x.objps,10)||0);
+  const next=String((objs.length?Math.max.apply(null,objs):0)+1).padStart(2,"0");
+  db.PA0021.push({pernr,subty:f.relationType,objps:next,begda:f.begda||today(),endda:HIGH,fanam:f.lastName,favor:f.firstName,fgbdt:f.birthDate||null,fasex:f.gender,fgbld:f.birthCountry});
+}
+function recordAttendance(pernr,f){
+  if(f.endda<f.begda)throw new Error("End date must not be before start date.");
+  const days=f.days!=null&&f.days!==""?Number(f.days):daysBetween(f.begda,f.endda);
+  db.PA2002.push({pernr,awart:f.attendanceType,begda:f.begda,endda:f.endda,abwtg:days,stdaz:f.hours?Number(f.hours):null});
   return days;
 }
 function orgFlat(key){key=key||today();
@@ -530,15 +591,49 @@ function renderDetail(){
     ${bals.map(b=>`<tr><td>${esc(b.txt)}</td><td class="td-r num">${b.ent}</td><td class="td-r num">${b.ded}</td>
       <td class="td-r"><span class="pill ${b.rem>0?'good':'warn'} num">${b.rem}</span></td>
       <td>${fmtDate(b.begda)} – ${fmtDate(b.endda)}</td></tr>`).join("")||`<tr><td colspan=5><div class="empty">No quotas.</div></td></tr>`}
+    </tbody></table>
+    <div class="card-head" style="border-top:1px solid var(--border)"><h2>Attendances · IT2002</h2></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Type</th><th>Validity</th><th class="th-r">Days</th><th class="th-r">Hours</th></tr></thead><tbody>
+    ${e.attend.map(a=>`<tr><td>${esc(a.t)}</td><td>${fmtDate(a.begda)} – ${fmtDate(a.endda)}</td>
+      <td class="td-r num">${a.days!=null?a.days:"—"}</td><td class="td-r num">${a.hours!=null?a.hours:"—"}</td></tr>`).join("")||`<tr><td colspan=4><div class="empty">No attendances.</div></td></tr>`}
     </tbody></table></div></div>`;}
+  else if(S.tab==="family"){content=`<div class="card"><div class="card-head"><h2>Family members / dependents · IT0021</h2><span class="count">${e.family.length}</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Relationship</th><th>Name</th><th>Gender</th><th>Date of birth</th></tr></thead><tbody>
+    ${e.family.map(f=>`<tr><td><span class="pill neutral">${esc(f.rel)}</span></td><td>${esc(f.name)}</td><td>${esc(f.gesch)}</td><td>${fmtDate(f.dob)}</td></tr>`).join("")||`<tr><td colspan=4><div class="empty">No family members recorded.</div></td></tr>`}
+    </tbody></table></div></div>`;}
+  else if(S.tab==="edu"){content=`
+    <div class="card"><div class="card-head"><h2>Education · IT0022</h2></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Establishment</th><th>Certificate</th><th>Branch of study</th><th>Grade</th><th>Period</th></tr></thead><tbody>
+    ${e.education.map(x=>`<tr><td><b>${esc(x.est)}</b><br><span style="color:var(--muted)">${esc(x.insti)}</span></td><td>${esc(x.cert)}</td><td>${esc(x.major)}</td><td>${esc(x.grade||"—")}</td><td class="num">${fmtDate(x.begda)} – ${fmtDate(x.endda)}</td></tr>`).join("")||`<tr><td colspan=5><div class="empty">—</div></td></tr>`}
+    </tbody></table></div>
+    <div class="card" style="margin-top:14px"><div class="card-head"><h2>Previous employers · IT0023</h2></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Employer</th><th>Role</th><th>Place</th><th>Period</th></tr></thead><tbody>
+    ${e.exp.map(x=>`<tr><td><b>${esc(x.emp)}</b></td><td>${esc(x.task)}</td><td>${esc(x.place)}</td><td class="num">${fmtDate(x.begda)} – ${fmtDate(x.endda)}</td></tr>`).join("")||`<tr><td colspan=4><div class="empty">—</div></td></tr>`}
+    </tbody></table></div>
+    <div class="card" style="margin-top:14px"><div class="card-head"><h2>Qualifications · IT0024</h2></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Group</th><th>Qualification</th><th class="th-r">Proficiency</th></tr></thead><tbody>
+    ${e.quals.map(x=>`<tr><td>${esc(x.grp)}</td><td>${esc(x.q)}</td><td class="td-r"><span class="pill ${x.lvl>=7?'good':x.lvl>=4?'warn':'neutral'} num">${x.lvl} / 9</span></td></tr>`).join("")||`<tr><td colspan=3><div class="empty">—</div></td></tr>`}
+    </tbody></table></div>`;}
+  else if(S.tab==="contract"){const c=e.contract||{};content=`
+    <div class="card"><div class="subcard"><div class="section-title">Contract elements · IT0016</div>${dl([
+      ["Contract type",esc(c.type)],["Probation period",c.prbez!=null?c.prbez+" months":"—"],
+      ["Notice period (employer)",c.kdgfb!=null?c.kdgfb+" months":"—"],["Notice period (employee)",c.kdgf2!=null?c.kdgf2+" months":"—"],
+      ["Validity",c.begda?fmtDate(c.begda)+" – "+fmtDate(c.endda):"—"]])}</div></div>
+    <div class="card" style="margin-top:14px"><div class="card-head"><h2>Monitoring of dates · IT0019</h2></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Task</th><th>Date</th><th>Reminder</th></tr></thead><tbody>
+    ${e.dates.map(d=>`<tr><td>${esc(d.task)}</td><td class="num">${fmtDate(d.date)}</td><td class="num">${fmtDate(d.rem)}</td></tr>`).join("")||`<tr><td colspan=3><div class="empty">No monitored dates.</div></td></tr>`}
+    </tbody></table></div>`;}
 
   app.innerHTML=`
   <div class="page-head">
     <div><div class="crumb"><a href="#" data-nav="list" style="color:inherit;text-decoration:none">← Employees</a> / Master data</div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn" data-act="edit">${I.edit} Edit personal data</button>
+      <button class="btn" data-act="edit">${I.edit} Edit personal</button>
+      <button class="btn" data-act="address">${I.addr} Edit address</button>
+      <button class="btn" data-act="family">${I.people} Add family</button>
       <button class="btn" data-act="reassign">${I.move} Reassign</button>
-      <button class="btn primary" data-act="absence">${I.cal} Record absence</button>
+      <button class="btn" data-act="attendance">${I.cal} Attendance</button>
+      <button class="btn primary" data-act="absence">${I.cal} Absence</button>
     </div>
   </div>
   <div class="obj-head">
@@ -554,7 +649,9 @@ function renderDetail(){
   </div>
   <div class="tabs">
     ${tab("personal","Personal Data","person")}${tab("org","Org Assignment","org")}
-    ${tab("contact","Address & Comm.","addr")}${tab("pay","Working Time & Pay","money")}${tab("time","Time & Leave","cal")}
+    ${tab("contact","Address & Comm.","addr")}${tab("family","Family","people")}
+    ${tab("edu","Education & Experience","education")}${tab("pay","Working Time & Pay","money")}
+    ${tab("contract","Contract","doc")}${tab("time","Time & Leave","cal")}
   </div>
   ${content}`;
 }
@@ -677,6 +774,47 @@ function absenceDialog(){
     <div class="grp"><label>Days</label><input id="a_days" type="number" step="0.5" placeholder="Leave empty to calculate from dates"></div>`,
     `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="absence">Submit</button>`);
 }
+function addressDialog(){
+  const a=getEmployee(S.pernr,S.key).addr||{};
+  modal("Maintain address · IT0006",`
+    <div class="hint">${I.info}<span>A new time slice is created; the previous address is delimited the day before.</span></div>
+    <div class="two">
+      <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="ad_begda" value="${today()}"></div>
+      <div class="grp"><label>Address type</label><select id="ad_sub">${opt(db.dom.ANSSA,"1")}</select></div>
+    </div>
+    <div class="grp"><label>Street</label><input id="ad_street" value="${esc(a.stras)}"></div>
+    <div class="two">
+      <div class="grp"><label>City</label><input id="ad_city" value="${esc(a.ort01)}"></div>
+      <div class="grp"><label>Postal code</label><input id="ad_zip" value="${esc(a.pstlz)}"></div>
+    </div>
+    <div class="grp"><label>Country</label><input id="ad_ctry" maxlength="3" value="${esc(a.land1)}"></div>`,
+    `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="address">Save</button>`);
+}
+function familyDialog(){
+  modal("Add family member · IT0021",`
+    <div class="grp"><label>Relationship <span class="req">*</span></label><select id="fm_rel">${opt(db.dom.FAMSA,"2")}</select></div>
+    <div class="two">
+      <div class="grp"><label>First name <span class="req">*</span></label><input id="fm_first"></div>
+      <div class="grp"><label>Last name <span class="req">*</span></label><input id="fm_last"></div>
+    </div>
+    <div class="two">
+      <div class="grp"><label>Gender</label><select id="fm_gender">${opt(db.dom.GESCH,"1")}</select></div>
+      <div class="grp"><label>Date of birth</label><input type="date" id="fm_dob"></div>
+    </div>`,
+    `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="family">Add</button>`);
+}
+function attendanceDialog(){
+  const att={}; Object.keys(db.T554S).forEach(k=>att[k]=db.T554S[k]);
+  modal("Record attendance · IT2002",`
+    <div class="hint">${I.info}<span>Recorded in infotype 2002 (e.g. training, business trip, overtime).</span></div>
+    <div class="grp"><label>Attendance type <span class="req">*</span></label><select id="at_type">${opt(att,"0500")}</select></div>
+    <div class="two">
+      <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="at_begda"></div>
+      <div class="grp"><label>Valid to <span class="req">*</span></label><input type="date" id="at_endda"></div>
+    </div>
+    <div class="grp"><label>Hours</label><input id="at_hours" type="number" step="0.5"></div>`,
+    `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="attendance">Submit</button>`);
+}
 
 /* ============================ TOAST ============================ */
 function toast(msg,kind){
@@ -698,6 +836,9 @@ document.addEventListener("click",ev=>{
     else if(t.dataset.act==="edit")editDialog();
     else if(t.dataset.act==="reassign")reassignDialog();
     else if(t.dataset.act==="absence")absenceDialog();
+    else if(t.dataset.act==="address")addressDialog();
+    else if(t.dataset.act==="family")familyDialog();
+    else if(t.dataset.act==="attendance")attendanceDialog();
     return;
   }
   if(t.hasAttribute("data-close")){if(ev.target.closest(".modal")&&!t.hasAttribute("data-close"))return;closeModal();return;}
@@ -729,6 +870,18 @@ function doAction(kind){
       if(!f.begda||!f.endda){toast("Enter start and end dates.","bad");return;}
       const d=recordAbsence(S.pernr,f);closeModal();toast("Absence recorded ("+d+" day(s)) and deducted from quota.","good");
       S.tab="time";renderDetail();
+    }else if(kind==="address"){
+      const f={begda:val("ad_begda"),subType:val("ad_sub"),street:val("ad_street").trim(),city:val("ad_city").trim(),postalCode:val("ad_zip").trim(),country:val("ad_ctry").trim()};
+      if(!f.begda){toast("Enter a valid-from date.","bad");return;}
+      updateAddress(S.pernr,f);closeModal();toast("Address updated.","good");S.tab="contact";renderDetail();
+    }else if(kind==="family"){
+      const f={relationType:val("fm_rel"),firstName:val("fm_first").trim(),lastName:val("fm_last").trim(),gender:val("fm_gender"),birthDate:val("fm_dob")};
+      if(!f.firstName||!f.lastName){toast("Enter first and last name.","bad");return;}
+      addFamily(S.pernr,f);closeModal();toast("Family member added.","good");S.tab="family";renderDetail();
+    }else if(kind==="attendance"){
+      const f={attendanceType:val("at_type"),begda:val("at_begda"),endda:val("at_endda"),hours:val("at_hours")};
+      if(!f.begda||!f.endda){toast("Enter start and end dates.","bad");return;}
+      const d=recordAttendance(S.pernr,f);closeModal();toast("Attendance recorded ("+d+" day(s)).","good");S.tab="time";renderDetail();
     }
   }catch(err){toast(err.message,"bad");}
 }

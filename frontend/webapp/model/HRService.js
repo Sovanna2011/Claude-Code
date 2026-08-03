@@ -68,6 +68,18 @@ sap.ui.define([
             return this._request("PUT", "/employees/" + iPernr + "/reassign", oData);
         },
 
+        updateAddress: function (iPernr, oData) {
+            return this._request("PUT", "/employees/" + iPernr + "/address", oData);
+        },
+
+        addFamilyMember: function (iPernr, oData) {
+            return this._request("POST", "/employees/" + iPernr + "/family", oData);
+        },
+
+        recordAttendance: function (iPernr, oData) {
+            return this._request("POST", "/employees/" + iPernr + "/attendances", oData);
+        },
+
         getLeaveBalances: function (iPernr) {
             return this._request("GET", "/employees/" + iPernr + "/leave-balances");
         },

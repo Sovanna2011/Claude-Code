@@ -1,0 +1,35 @@
+<core:FragmentDefinition
+    xmlns:core="sap.ui.core"
+    xmlns="sap.m"
+    xmlns:f="sap.ui.layout.form">
+
+    <Dialog id="familyDialog" title="{i18n>addFamilyTitle}" contentWidth="30rem" draggable="true">
+        <content>
+            <f:SimpleForm layout="ResponsiveGridLayout" editable="true"
+                labelSpanXL="5" labelSpanL="5" labelSpanM="5" columnsXL="1" columnsL="1">
+                <f:content>
+                    <Label text="{i18n>fldRelationType}" required="true"/>
+                    <Select selectedKey="{fam>/relationType}" items="{fam>/relations}">
+                        <core:Item key="{fam>key}" text="{fam>text}"/>
+                    </Select>
+
+                    <Label text="{i18n>fldFirstName}" required="true"/>
+                    <Input value="{fam>/firstName}" maxLength="40"/>
+
+                    <Label text="{i18n>fldLastName}" required="true"/>
+                    <Input value="{fam>/lastName}" maxLength="40"/>
+
+                    <Label text="{i18n>fldGender}"/>
+                    <Select selectedKey="{fam>/gender}" items="{fam>/genders}" forceSelection="false">
+                        <core:Item key="{fam>key}" text="{fam>text}"/>
+                    </Select>
+
+                    <Label text="{i18n>fldBirthDate}"/>
+                    <DatePicker value="{fam>/birthDate}" valueFormat="yyyy-MM-dd" displayFormat="dd.MM.yyyy"/>
+                </f:content>
+            </f:SimpleForm>
+        </content>
+        <beginButton><Button type="Emphasized" text="{i18n>btnSave}" press=".onFamilyConfirm"/></beginButton>
+        <endButton><Button text="{i18n>btnCancel}" press=".onFamilyCancel"/></endButton>
+    </Dialog>
+</core:FragmentDefinition>
