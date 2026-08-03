@@ -949,10 +949,10 @@ function dtTable(id,title,cols,rows,opts){opts=opts||{};const st=dtState(id);
   const simple=opts.simple;
   return `<div class="card list-card"><div class="card-head"><h2>${esc(title)}</h2><span class="count">${data.length}</span><div class="spacer"></div>
     ${opts.actions||""}
-    ${simple?"":`<div class="dt-search"><input data-dtsearch="${id}" placeholder="${esc(t("Search all columns…"))}" value="${esc(st.search)}"></div>`}
+    ${simple?"":`<div class="dt-search"><input data-dtsearch="${id}" placeholder="${esc(t("Search all columns…"))}" value="${esc(st.search)}"></div>
     <button class="btn sm" data-dtexport="${id}" title="Export to Excel (CSV)">⭳ Excel</button>
     <div class="colmenu-wrap"><button class="btn sm" data-dtcols="${id}">${I.doc} ${esc(t("Columns"))} ▾</button>
-      ${st.showCols?`<div class="colmenu">${cols.filter(c=>c.k!=="act").map(c=>`<label class="colchk"><input type="checkbox" data-dtcol="${id}:${c.k}" ${!st.hidden.includes(c.k)?"checked":""} ${c.always?"disabled":""}> ${esc(t(c.l))}</label>`).join("")}</div>`:""}</div>
+      ${st.showCols?`<div class="colmenu">${cols.filter(c=>c.k!=="act").map(c=>`<label class="colchk"><input type="checkbox" data-dtcol="${id}:${c.k}" ${!st.hidden.includes(c.k)?"checked":""} ${c.always?"disabled":""}> ${esc(t(c.l))}</label>`).join("")}</div>`:""}</div>`}
     </div>
     <div class="tbl-wrap"><table><thead><tr>${vis.map(c=>(simple||c.k==="act")?`<th class="${c.k==="act"?"th-r":""}">${esc(t(c.l))}</th>`:`<th class="sortable" data-dtsort="${id}:${c.k}" style="cursor:pointer">${esc(t(c.l))}${st.sort===c.k?(st.dir==="asc"?" ▲":" ▼"):""}</th>`).join("")}</tr>
     ${simple?"":`<tr class="filter-row">${vis.map(c=>c.k==="act"?`<th></th>`:`<th><input class="colf" data-dtfilter="${id}:${c.k}" value="${esc(st.filters[c.k]||"")}" placeholder="🔍"></th>`).join("")}</tr>`}</thead>
