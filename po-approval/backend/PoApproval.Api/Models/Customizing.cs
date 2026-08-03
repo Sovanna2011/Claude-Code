@@ -33,6 +33,20 @@ public class T161
     public string? BATXT { get; set; }
 }
 
+/// <summary>T023T - Material group descriptions.</summary>
+public class T023T
+{
+    public string MATKL { get; set; } = default!;
+    public string? WGBEZ { get; set; }
+}
+
+/// <summary>T001W - Plants / branches.</summary>
+public class T001W
+{
+    public string WERKS { get; set; } = default!;
+    public string? NAME1 { get; set; }
+}
+
 /// <summary>Generic domain fixed value / short text.</summary>
 public class DomainValue
 {

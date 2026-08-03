@@ -47,6 +47,10 @@ public class Ekpo
     public decimal NETPR { get; set; }               // Net price
     public decimal PEINH { get; set; } = 1;          // Price unit
     public decimal NETWR { get; set; }               // Net value
+    public decimal? BRTWR { get; set; }              // Gross value (incl. tax)
+    public string? MWSKZ { get; set; }               // Tax code
+    public string? LGORT { get; set; }               // Storage location
+    public DateTime? EINDT { get; set; }             // Item delivery date
     public string LOEKZ { get; set; } = " ";         // Deletion indicator
 }
 

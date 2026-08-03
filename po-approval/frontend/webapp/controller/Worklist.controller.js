@@ -7,9 +7,9 @@ sap.ui.define([
     return BaseController.extend("po.approval.controller.Worklist", {
 
         onInit: function () {
-            this.getView().setModel(new JSONModel({ pos: [] }));
+            this.getView().setModel(new JSONModel({ pos: [], groups: [] }));
+            this.getView().setModel(new JSONModel({ mode: "list", onlyPending: true, assignedToMe: false }), "view");
             this._sSearch = "";
-            this._bOnlyPending = true;
             this.getRouter().getRoute("worklist").attachPatternMatched(this._onRouteMatched, this);
         },
 
@@ -21,13 +21,28 @@ sap.ui.define([
 
         _load: function () {
             var oView = this.getView();
+            var oV = oView.getModel("view").getData();
             oView.setBusy(true);
-            this.getService().getWorklist(this._sSearch, this._bOnlyPending)
-                .then(function (aData) {
-                    oView.getModel().setProperty("/pos", aData);
-                })
-                .catch(this.showError.bind(this))
+            var pLoad = oV.mode === "strategy"
+                ? this.getService().getPendingByStrategy(oV.assignedToMe)
+                    .then(function (aGroups) {
+                        aGroups.forEach(function (g) {
+                            g.codesText = (g.codes || []).map(function (c) { return c.code; }).join(" → ");
+                        });
+                        oView.getModel().setProperty("/groups", aGroups);
+                    })
+                : this.getService().getWorklist(this._sSearch, oV.onlyPending)
+                    .then(function (aData) {
+                        oView.getModel().setProperty("/pos", aData);
+                    });
+
+            pLoad.catch(this.showError.bind(this))
                 .finally(function () { oView.setBusy(false); });
+        },
+
+        onModeChange: function (oEvent) {
+            this.getView().getModel("view").setProperty("/mode", oEvent.getParameter("item").getKey());
+            this._load();
         },
 
         onSearch: function (oEvent) {
@@ -38,7 +53,12 @@ sap.ui.define([
         },
 
         onPendingChange: function (oEvent) {
-            this._bOnlyPending = oEvent.getParameter("state");
+            this.getView().getModel("view").setProperty("/onlyPending", oEvent.getParameter("selected"));
+            this._load();
+        },
+
+        onAssignedChange: function (oEvent) {
+            this.getView().getModel("view").setProperty("/assignedToMe", oEvent.getParameter("selected"));
             this._load();
         },
 

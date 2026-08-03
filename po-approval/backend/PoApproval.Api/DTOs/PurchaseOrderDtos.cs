@@ -74,13 +74,38 @@ public class PoItemDto
     public string ShortText { get; set; } = default!;
     public string? Material { get; set; }
     public string? MaterialGroup { get; set; }
+    public string? MaterialGroupText { get; set; }
     public string? Plant { get; set; }
+    public string? PlantName { get; set; }
+    public string? StorageLocation { get; set; }
     public decimal Quantity { get; set; }
     public string Unit { get; set; } = default!;
     public decimal NetPrice { get; set; }
     public decimal PriceUnit { get; set; }
     public decimal NetValue { get; set; }
+    public decimal? GrossValue { get; set; }
+    public string? TaxCode { get; set; }
+    public DateTime? DeliveryDate { get; set; }
     public bool Deleted { get; set; }
+}
+
+/// <summary>
+/// A release strategy together with the purchasing documents currently pending
+/// under it (SAP ME28-style "release by strategy" worklist).
+/// </summary>
+public class PendingStrategyGroupDto
+{
+    public string ReleaseGroup { get; set; } = default!;
+    public string? ReleaseGroupText { get; set; }
+    public string Strategy { get; set; } = default!;
+    public string? StrategyText { get; set; }
+    public decimal ValueFrom { get; set; }
+    public decimal ValueTo { get; set; }
+    public List<ReleaseCodeDto> Codes { get; set; } = new();
+    public int Count { get; set; }
+    public decimal TotalNetValue { get; set; }
+    public string Currency { get; set; } = "EUR";
+    public List<PoSummaryDto> PurchaseOrders { get; set; } = new();
 }
 
 public class ReleaseStepDto

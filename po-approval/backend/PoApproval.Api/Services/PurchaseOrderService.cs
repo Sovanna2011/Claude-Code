@@ -29,7 +29,60 @@ public class PurchaseOrderService : IPurchaseOrderService
         PoQueryFilter filter, CurrentUser user, CancellationToken ct = default)
     {
         var headers = await _ecc.GetHeadersAsync(filter, ct);
+        return await BuildSummariesAsync(headers, user, ct);
+    }
 
+    public async Task<IReadOnlyList<PendingStrategyGroupDto>> GetPendingByStrategyAsync(
+        bool assignedToMe, CurrentUser user, CancellationToken ct = default)
+    {
+        var headers = await _ecc.GetHeadersAsync(new PoQueryFilter { OnlyPending = true }, ct);
+        var summaries = await BuildSummariesAsync(headers, user, ct);
+        var headerByEbeln = headers.ToDictionary(h => h.EBELN);
+
+        var strategies = await _db.T16FS.AsNoTracking().ToListAsync(ct);
+        var groupTexts = await _db.T16FG.AsNoTracking().ToDictionaryAsync(g => g.FRGGR, g => g.FRGGT, ct);
+        var steps = await LoadStepsAsync(ct);
+        var codeTexts = await CodeTextsAsync(ct);
+
+        var result = new List<PendingStrategyGroupDto>();
+        foreach (var strat in strategies.OrderBy(s => s.FRGGR).ThenBy(s => s.FRGSX))
+        {
+            var pos = summaries
+                .Where(s => headerByEbeln[s.Ebeln].FRGGR == strat.FRGGR
+                         && headerByEbeln[s.Ebeln].FRGSX == strat.FRGSX)
+                .ToList();
+            if (assignedToMe) pos = pos.Where(p => p.CanCurrentUserRelease).ToList();
+            if (pos.Count == 0) continue;
+
+            var codes = steps.GetValueOrDefault((strat.FRGGR, strat.FRGSX), new())
+                .Select(st => new ReleaseCodeDto
+                {
+                    Group = strat.FRGGR,
+                    Code = st.FRGCO,
+                    Text = codeTexts.GetValueOrDefault((strat.FRGGR, st.FRGCO))
+                }).ToList();
+
+            result.Add(new PendingStrategyGroupDto
+            {
+                ReleaseGroup = strat.FRGGR,
+                ReleaseGroupText = groupTexts.GetValueOrDefault(strat.FRGGR),
+                Strategy = strat.FRGSX,
+                StrategyText = strat.FRGST,
+                ValueFrom = strat.ValFrom,
+                ValueTo = strat.ValTo,
+                Codes = codes,
+                Count = pos.Count,
+                TotalNetValue = pos.Sum(p => p.NetValue),
+                Currency = pos[0].Currency,
+                PurchaseOrders = pos
+            });
+        }
+        return result;
+    }
+
+    private async Task<List<PoSummaryDto>> BuildSummariesAsync(
+        IReadOnlyList<Ekko> headers, CurrentUser user, CancellationToken ct)
+    {
         var steps = await LoadStepsAsync(ct);
         var codeTexts = await CodeTextsAsync(ct);
         var strategyTexts = await _db.T16FS.AsNoTracking()
@@ -76,6 +129,8 @@ public class PurchaseOrderService : IPurchaseOrderService
         var codeTexts = await CodeTextsAsync(ct);
         var indicatorTexts = await IndicatorTextsAsync(ct);
         var userCodes = await UserCodesAsync(user.UserId, ct);
+        var matGroupTexts = await _db.T023T.AsNoTracking().ToDictionaryAsync(m => m.MATKL, m => m.WGBEZ, ct);
+        var plantNames = await _db.T001W.AsNoTracking().ToDictionaryAsync(p => p.WERKS, p => p.NAME1, ct);
 
         var groupName = await _db.T024.Where(g => g.EKGRP == k.EKGRP).Select(g => g.EKNAM).FirstOrDefaultAsync(ct);
         var orgName = await _db.T024E.Where(o => o.EKORG == k.EKORG).Select(o => o.EKOTX).FirstOrDefaultAsync(ct);
@@ -142,12 +197,18 @@ public class PurchaseOrderService : IPurchaseOrderService
                 ShortText = i.TXZ01,
                 Material = i.MATNR,
                 MaterialGroup = i.MATKL,
+                MaterialGroupText = i.MATKL is not null ? matGroupTexts.GetValueOrDefault(i.MATKL) : null,
                 Plant = i.WERKS,
+                PlantName = i.WERKS is not null ? plantNames.GetValueOrDefault(i.WERKS) : null,
+                StorageLocation = i.LGORT,
                 Quantity = i.MENGE,
                 Unit = i.MEINS,
                 NetPrice = i.NETPR,
                 PriceUnit = i.PEINH,
                 NetValue = i.NETWR,
+                GrossValue = i.BRTWR,
+                TaxCode = i.MWSKZ,
+                DeliveryDate = i.EINDT,
                 Deleted = i.LOEKZ == "X"
             }).ToList(),
             ReleaseGroup = k.FRGGR,

@@ -50,6 +50,7 @@ repository and follows the same layering and SAP-faithful naming conventions.
 | `T16FC` | Release codes | approver roles (01/02/03) |
 | `T16FS_Code` | Strategy steps | ordered codes per strategy (SAP FRGC1..8) |
 | `T001/T024/T024E/T161` | Customizing | company code, purchasing groups/orgs, doc types |
+| `T023T/T001W` | Customizing | material-group and plant texts (item detail) |
 | `ReleaseLog` | *(application)* | audit trail of release/reject/reset |
 | `AppUser` / `AppUserReleaseCode` | *(application, ≈ M_EINK_FRG)* | login accounts + granted release codes |
 
@@ -106,7 +107,8 @@ authoritative at runtime) and in T-SQL (`usp_ReleasePO` / `usp_RejectRelease` /
 | `POST /api/auth/login` | anon | authenticate, return token + profile |
 | `GET  /api/auth/me` | user | current profile & release codes |
 | `GET  /api/purchase-orders` | user | worklist (`search`, `onlyPending`, `purchasingGroup`) |
-| `GET  /api/purchase-orders/{ebeln}` | user | header, items, strategy steps, log |
+| `GET  /api/purchase-orders/pending-by-strategy` | user | pending POs grouped by release strategy (`assignedToMe`) |
+| `GET  /api/purchase-orders/{ebeln}` | user | header, items (with material group / plant / delivery / tax / gross), strategy steps, log |
 | `POST /api/purchase-orders/{ebeln}/release` | user | release the next pending step |
 | `POST /api/purchase-orders/{ebeln}/reject` | user | reject/cancel, reset strategy |
 | `GET  /api/valuehelp/{name}` | user | reference-data F4 lists |

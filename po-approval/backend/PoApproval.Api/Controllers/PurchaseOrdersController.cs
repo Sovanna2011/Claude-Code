@@ -38,6 +38,16 @@ public class PurchaseOrdersController : ControllerBase
         return Ok(await _po.GetWorklistAsync(filter, CurrentUser.From(User), ct));
     }
 
+    /// <summary>
+    /// Purchase orders pending release, grouped by release strategy (ME28-style).
+    /// Set <c>assignedToMe=true</c> to see only the POs awaiting the signed-in
+    /// user's release code.
+    /// </summary>
+    [HttpGet("pending-by-strategy")]
+    public async Task<ActionResult<IReadOnlyList<PendingStrategyGroupDto>>> PendingByStrategy(
+        [FromQuery] bool assignedToMe, CancellationToken ct)
+        => Ok(await _po.GetPendingByStrategyAsync(assignedToMe, CurrentUser.From(User), ct));
+
     /// <summary>Full detail of one PO, including the release strategy state.</summary>
     [HttpGet("{ebeln}")]
     public async Task<ActionResult<PoDetailDto>> Get(string ebeln, CancellationToken ct)

@@ -84,11 +84,22 @@ BEGIN
         NETPR   DECIMAL(15,2) NOT NULL,          -- Net price
         PEINH   DECIMAL(9,0)  NOT NULL CONSTRAINT DF_EKPO_PEINH DEFAULT (1),    -- Price unit
         NETWR   DECIMAL(15,2) NOT NULL,          -- Net value (MENGE/PEINH * NETPR)
+        BRTWR   DECIMAL(15,2) NULL,              -- Gross value (incl. tax)
+        MWSKZ   VARCHAR(2)    NULL,              -- Tax code (T007A)
+        LGORT   VARCHAR(4)    NULL,              -- Storage location
+        EINDT   DATE          NULL,              -- Item delivery date
         LOEKZ   CHAR(1)       NOT NULL CONSTRAINT DF_EKPO_LOEKZ DEFAULT (' '),  -- Deletion indicator
         CONSTRAINT PK_EKPO PRIMARY KEY (EBELN, EBELP),
         CONSTRAINT FK_EKPO_EKKO FOREIGN KEY (EBELN) REFERENCES PO.EKKO(EBELN) ON DELETE CASCADE
     );
 END
+GO
+
+/* Add the extended item-detail columns to a pre-existing EKPO (idempotent). */
+IF COL_LENGTH('PO.EKPO','BRTWR') IS NULL ALTER TABLE PO.EKPO ADD BRTWR DECIMAL(15,2) NULL;
+IF COL_LENGTH('PO.EKPO','MWSKZ') IS NULL ALTER TABLE PO.EKPO ADD MWSKZ VARCHAR(2)   NULL;
+IF COL_LENGTH('PO.EKPO','LGORT') IS NULL ALTER TABLE PO.EKPO ADD LGORT VARCHAR(4)   NULL;
+IF COL_LENGTH('PO.EKPO','EINDT') IS NULL ALTER TABLE PO.EKPO ADD EINDT DATE         NULL;
 GO
 
 /* Indexes to accelerate worklist queries. */

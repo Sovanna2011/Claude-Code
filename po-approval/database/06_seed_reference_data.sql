@@ -62,6 +62,17 @@ USING (VALUES ('F','NB','Standard PO'),('F','FO','Framework order'),
               ('F','UB','Stock transport order'))
     AS s(BSTYP,BSART,BATXT) ON t.BSTYP=s.BSTYP AND t.BSART=s.BSART
 WHEN NOT MATCHED THEN INSERT(BSTYP,BSART,BATXT) VALUES(s.BSTYP,s.BSART,s.BATXT);
+
+MERGE PO.T023T AS t
+USING (VALUES ('0010','Computers & Notebooks'),('0011','Server Hardware'),
+              ('0080','Office Supplies'),('0090','Software & Licenses'))
+    AS s(MATKL,WGBEZ) ON t.MATKL=s.MATKL
+WHEN NOT MATCHED THEN INSERT(MATKL,WGBEZ) VALUES(s.MATKL,s.WGBEZ);
+
+MERGE PO.T001W AS t
+USING (VALUES ('1000','Central Plant / Head Office'))
+    AS s(WERKS,NAME1) ON t.WERKS=s.WERKS
+WHEN NOT MATCHED THEN INSERT(WERKS,NAME1) VALUES(s.WERKS,s.NAME1);
 GO
 
 /* ============================================================================
@@ -132,17 +143,18 @@ IF NOT EXISTS (SELECT 1 FROM PO.EKKO WHERE EBELN IN
 BEGIN
     INSERT INTO PO.EKKO (EBELN,BSTYP,BSART,LIFNR,EKORG,EKGRP,BUKRS,WAERS,BEDAT,RLWRT,FRGGR,FRGSX,FRGZU,FRGKE,FRGRL,ERNAM,AEDAT)
     VALUES
-      ('4500000001','F','NB','100000','1000','001','1000','EUR','2026-07-20', 3200.00,'01','S1','',  'B','X','rbuyer','2026-07-20'),
+      ('4500000001','F','NB','100000','1000','001','1000','EUR','2026-07-20', 4160.00,'01','S1','',  'B','X','rbuyer','2026-07-20'),
       ('4500000002','F','NB','100001','1000','002','1000','EUR','2026-07-22',12500.00,'01','S2','01','B','X','rbuyer','2026-07-22'),
       ('4500000003','F','NB','100002','1000','001','1000','EUR','2026-07-25',48000.00,'01','S3','',  'B','X','rbuyer','2026-07-25'),
       ('4500000004','F','NB','100003','1000','003','1000','EUR','2026-07-28',  850.00,'01','S1','01','R',' ','rbuyer','2026-07-28');
 
-    INSERT INTO PO.EKPO (EBELN,EBELP,TXZ01,MATNR,MATKL,WERKS,MENGE,MEINS,NETPR,PEINH,NETWR,LOEKZ)
+    INSERT INTO PO.EKPO (EBELN,EBELP,TXZ01,MATNR,MATKL,WERKS,MENGE,MEINS,NETPR,PEINH,NETWR,BRTWR,MWSKZ,LGORT,EINDT,LOEKZ)
     VALUES
-      ('4500000001',10,'Notebook Latitude 5540','MAT-NB-5540','0010','1000', 8.000,'EA', 400.00,1, 3200.00,' '),
-      ('4500000002',10,'Rack server RX2540',    'MAT-SRV-2540','0011','1000', 5.000,'EA',2500.00,1,12500.00,' '),
-      ('4500000003',10,'SAP S/4HANA user license','MAT-LIC-S4','0090','1000', 1.000,'EA',48000.00,1,48000.00,' '),
-      ('4500000004',10,'Copy paper A4 (box)',    'MAT-OFF-A4','0080','1000',10.000,'EA',  85.00,1,  850.00,' ');
+      ('4500000001',10,'Notebook Latitude 5540','MAT-NB-5540','0010','1000', 8.000,'EA', 400.00,1, 3200.00, 3808.00,'V1','0001','2026-08-15',' '),
+      ('4500000001',20,'USB-C docking station', 'MAT-NB-DOCK','0010','1000', 8.000,'EA', 120.00,1,  960.00, 1142.40,'V1','0001','2026-08-15',' '),
+      ('4500000002',10,'Rack server RX2540',    'MAT-SRV-2540','0011','1000', 5.000,'EA',2500.00,1,12500.00,14875.00,'V1','0002','2026-09-01',' '),
+      ('4500000003',10,'SAP S/4HANA user license','MAT-LIC-S4','0090','1000',100.000,'EA', 480.00,1,48000.00,57120.00,'V1','0001','2026-08-31',' '),
+      ('4500000004',10,'Copy paper A4 (box)',    'MAT-OFF-A4','0080','1000',10.000,'EA',  85.00,1,  850.00, 1011.50,'V1','0001','2026-08-05',' ');
 
     /* Audit log for releases that have already occurred */
     INSERT INTO PO.ReleaseLog (EBELN,FRGCO,ActionTyp,UNAME,ActedOn,Note)

@@ -59,24 +59,41 @@
                     <!-- Items -->
                     <IconTabFilter icon="sap-icon://product" text="{i18n>tabItems}"
                         count="{= ${/items}.length }">
-                        <Table items="{/items}" class="sapUiSmallMargin">
+                        <Table items="{/items}" class="sapUiSmallMargin" fixedLayout="false">
                             <columns>
-                                <Column width="5rem"><Text text="{i18n>colItem}"/></Column>
+                                <Column width="4rem"><Text text="{i18n>colItem}"/></Column>
                                 <Column><Text text="{i18n>colText}"/></Column>
-                                <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colMaterial}"/></Column>
+                                <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colMatGroup}"/></Column>
+                                <Column minScreenWidth="Desktop" demandPopin="true"><Text text="{i18n>colPlant}"/></Column>
+                                <Column minScreenWidth="Tablet" demandPopin="true" hAlign="End"><Text text="{i18n>colDelivery}"/></Column>
                                 <Column hAlign="End"><Text text="{i18n>colQty}"/></Column>
-                                <Column hAlign="End"><Text text="{i18n>colPrice}"/></Column>
+                                <Column minScreenWidth="Desktop" demandPopin="true" hAlign="End"><Text text="{i18n>colPrice}"/></Column>
                                 <Column hAlign="End"><Text text="{i18n>colNet}"/></Column>
+                                <Column minScreenWidth="Desktop" demandPopin="true" hAlign="End"><Text text="{i18n>colGross}"/></Column>
+                                <Column minScreenWidth="Desktop" demandPopin="true" hAlign="Center"><Text text="{i18n>colTax}"/></Column>
                             </columns>
                             <items>
                                 <ColumnListItem>
                                     <cells>
                                         <Text text="{itemNo}"/>
-                                        <Text text="{shortText}"/>
-                                        <Text text="{material}"/>
+                                        <VBox>
+                                            <Text text="{shortText}"/>
+                                            <Text text="{material}" class="sapUiTinyText"/>
+                                        </VBox>
+                                        <VBox>
+                                            <Text text="{materialGroupText}"/>
+                                            <Text text="{materialGroup}" class="sapUiTinyText"/>
+                                        </VBox>
+                                        <VBox>
+                                            <Text text="{plantName}"/>
+                                            <Text text="{= ${i18n>plantShort} + ' ' + ${plant} + ' · ' + ${i18n>slocShort} + ' ' + ${storageLocation} }" class="sapUiTinyText"/>
+                                        </VBox>
+                                        <Text text="{path: 'deliveryDate', type: 'sap.ui.model.type.Date', formatOptions: {style: 'medium'}}"/>
                                         <ObjectNumber number="{path: 'quantity', formatter: '.formatter.amount'}" unit="{unit}"/>
                                         <ObjectNumber number="{path: 'netPrice', formatter: '.formatter.amount'}" unit="{/currency}" emphasized="false"/>
-                                        <ObjectNumber number="{path: 'netValue', formatter: '.formatter.amount'}" unit="{/currency}" emphasized="false"/>
+                                        <ObjectNumber number="{path: 'netValue', formatter: '.formatter.amount'}" unit="{/currency}"/>
+                                        <ObjectNumber number="{path: 'grossValue', formatter: '.formatter.amount'}" unit="{/currency}" emphasized="false"/>
+                                        <Text text="{taxCode}"/>
                                     </cells>
                                 </ColumnListItem>
                             </items>

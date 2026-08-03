@@ -76,6 +76,11 @@ sap.ui.define([], function () {
             return this._request("GET", "/purchase-orders" + sQuery);
         },
 
+        getPendingByStrategy: function (bAssignedToMe) {
+            var sQuery = bAssignedToMe ? "?assignedToMe=true" : "";
+            return this._request("GET", "/purchase-orders/pending-by-strategy" + sQuery);
+        },
+
         getPurchaseOrder: function (sEbeln) {
             return this._request("GET", "/purchase-orders/" + sEbeln);
         },

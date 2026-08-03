@@ -59,5 +59,27 @@ BEGIN
 END
 GO
 
-PRINT 'Customizing tables (T001, T024, T024E, T161) created.';
+IF OBJECT_ID(N'PO.T023T', N'U') IS NULL
+BEGIN
+    CREATE TABLE PO.T023T
+    (
+        MATKL   VARCHAR(9)    NOT NULL,          -- Material group
+        WGBEZ   NVARCHAR(40)  NULL,              -- Material group description
+        CONSTRAINT PK_T023T PRIMARY KEY (MATKL)
+    );
+END
+GO
+
+IF OBJECT_ID(N'PO.T001W', N'U') IS NULL
+BEGIN
+    CREATE TABLE PO.T001W
+    (
+        WERKS   VARCHAR(4)    NOT NULL,          -- Plant
+        NAME1   NVARCHAR(30)  NULL,              -- Plant name
+        CONSTRAINT PK_T001W PRIMARY KEY (WERKS)
+    );
+END
+GO
+
+PRINT 'Customizing tables (T001, T024, T024E, T161, T023T, T001W) created.';
 GO

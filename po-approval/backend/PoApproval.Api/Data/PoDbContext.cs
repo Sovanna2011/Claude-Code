@@ -29,6 +29,8 @@ public class PoDbContext : DbContext
     public DbSet<T024> T024 => Set<T024>();
     public DbSet<T024E> T024E => Set<T024E>();
     public DbSet<T161> T161 => Set<T161>();
+    public DbSet<T023T> T023T => Set<T023T>();
+    public DbSet<T001W> T001W => Set<T001W>();
     public DbSet<DomainValue> DomainValues => Set<DomainValue>();
     public DbSet<NumberRange> NumberRanges => Set<NumberRange>();
 
@@ -70,6 +72,8 @@ public class PoDbContext : DbContext
         mb.Entity<T024>(e => { e.ToTable("T024", "PO"); e.HasKey(x => x.EKGRP); });
         mb.Entity<T024E>(e => { e.ToTable("T024E", "PO"); e.HasKey(x => x.EKORG); });
         mb.Entity<T161>(e => { e.ToTable("T161", "PO"); e.HasKey(x => new { x.BSTYP, x.BSART }); });
+        mb.Entity<T023T>(e => { e.ToTable("T023T", "PO"); e.HasKey(x => x.MATKL); });
+        mb.Entity<T001W>(e => { e.ToTable("T001W", "PO"); e.HasKey(x => x.WERKS); });
         mb.Entity<DomainValue>(e => { e.ToTable("DomainValue", "PO"); e.HasKey(x => new { x.Domain, x.ValueKey }); });
         mb.Entity<NumberRange>(e => { e.ToTable("NumberRange", "PO"); e.HasKey(x => x.RangeObject); });
 
