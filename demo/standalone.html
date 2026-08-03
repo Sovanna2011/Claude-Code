@@ -698,17 +698,14 @@ function hire(f){
   return pernr;
 }
 function updatePersonal(pernr,f){
-  const cur=db.PA0002.filter(x=>x.pernr===pernr&&x.endda>=f.begda&&x.begda<f.begda).sort((a,b)=>a.begda<b.begda?1:-1)[0];
-  if(cur)cur.endda=dayBefore(f.begda);
-  db.PA0002.push({pernr,begda:f.begda,endda:HIGH,anred:f.anred,titel:f.titel,nachn:f.lastName,vorna:f.firstName,midnm:f.middleName,rufnm:f.nickname,gbdat:f.birthDate||null,gbort:f.birthPlace,gesch:f.gender,natio:f.nationality,sprsl:f.language,famst:f.maritalStatus});
+  delimitInsert(db.PA0002,pernr,f.begda,{anred:f.anred,titel:f.titel,nachn:f.lastName,vorna:f.firstName,midnm:f.middleName,rufnm:f.nickname,gbdat:f.birthDate||null,gbort:f.birthPlace,gesch:f.gender,natio:f.nationality,sprsl:f.language,famst:f.maritalStatus},null,f.mode);
 }
 function reassign(pernr,f){
-  const cur=db.PA0001.filter(x=>x.pernr===pernr&&x.endda>=f.begda&&x.begda<f.begda).sort((a,b)=>a.begda<b.begda?1:-1)[0];
-  const rec={pernr,begda:f.begda,endda:HIGH,bukrs:cur&&cur.bukrs,werks:cur&&cur.werks,btrtl:cur&&cur.btrtl,
-    persg:cur&&cur.persg,persk:cur&&cur.persk,orgeh:f.orgUnit||(cur&&cur.orgeh),plans:f.position||(cur&&cur.plans),
-    stell:cur&&cur.stell,kostl:f.costCenter||(cur&&cur.kostl)};
-  if(cur)cur.endda=dayBefore(f.begda);
-  db.PA0001.push(rec);
+  const cur=validOn(db.PA0001,pernr,f.begda)||{};
+  const rec={bukrs:cur.bukrs,werks:cur.werks,btrtl:cur.btrtl,
+    persg:cur.persg,persk:cur.persk,orgeh:f.orgUnit||cur.orgeh,plans:f.position||cur.plans,
+    stell:cur.stell,kostl:f.costCenter||cur.kostl};
+  delimitInsert(db.PA0001,pernr,f.begda,rec,null,f.mode);
 }
 function leaveBalances(pernr){
   return db.PA2006.filter(q=>q.pernr===pernr).map(q=>({ktart:q.ktart,txt:db.T554S[q.ktart],
@@ -724,9 +721,7 @@ function recordAbsence(pernr,f){
 }
 function updateAddress(pernr,f){
   const sub=f.subType||"1";
-  const cur=db.PA0006.filter(x=>x.pernr===pernr&&x.subty===sub&&x.endda>=f.begda&&x.begda<f.begda).sort((a,b)=>a.begda<b.begda?1:-1)[0];
-  if(cur)cur.endda=dayBefore(f.begda);
-  db.PA0006.push({pernr,subty:sub,begda:f.begda,endda:HIGH,stras:f.street,ort01:f.city,pstlz:f.postalCode,land1:f.country,telnr:f.telephone});
+  delimitInsert(db.PA0006,pernr,f.begda,{subty:sub,stras:f.street,ort01:f.city,pstlz:f.postalCode,land1:f.country,telnr:f.telephone},x=>x.subty===sub,f.mode);
 }
 function addFamily(pernr,f){
   const objs=db.PA0021.filter(x=>x.pernr===pernr&&x.subty===f.relationType).map(x=>parseInt(x.objps,10)||0);
@@ -742,18 +737,25 @@ function addCommunication(pernr,f){
   if(cur)cur.endda=dayBefore(begda);
   db.PA0105.push({pernr,subty:f.subType,begda,endda:HIGH,usrid:f.value});
 }
-/* Generic time-constraint-1 update: delimit the open matching record, insert new. */
-function delimitInsert(arr,pernr,begda,rec,match){
+/* Generic infotype update.
+   mode "correct" (no time dependency): overwrite the record valid on begda in
+   place, keeping its validity. Otherwise (time-dependent): delimit the open
+   record the day before begda and insert a new time slice. */
+function delimitInsert(arr,pernr,begda,rec,match,mode){
   begda=begda||today();
+  if(mode==="correct"){
+    const c=arr.filter(x=>x.pernr===pernr&&(!match||match(x))&&x.begda<=begda&&x.endda>=begda).sort((a,b)=>a.begda<b.begda?1:-1)[0];
+    if(c){Object.assign(c,rec);return;}
+  }
   const cur=arr.filter(x=>x.pernr===pernr&&(!match||match(x))&&x.endda>=begda&&x.begda<begda).sort((a,b)=>a.begda<b.begda?1:-1)[0];
   if(cur)cur.endda=dayBefore(begda);
   arr.push(Object.assign({pernr,begda,endda:HIGH},rec));
 }
-function editWorkingTime(pernr,f){delimitInsert(db.PA0007,pernr,f.begda,{schkz:f.schkz,empct:f.empct!==""?Number(f.empct):null,wostd:f.wostd!==""?Number(f.wostd):null});}
+function editWorkingTime(pernr,f){delimitInsert(db.PA0007,pernr,f.begda,{schkz:f.schkz,empct:f.empct!==""?Number(f.empct):null,wostd:f.wostd!==""?Number(f.wostd):null},null,f.mode);}
 function editPay(pernr,f){const cur=validOn(db.PA0008,pernr,f.begda)||{};
-  delimitInsert(db.PA0008,pernr,f.begda,{trfar:cur.trfar||"01",trfgb:cur.trfgb||"01",trfgr:f.trfgr,bsgrd:f.bsgrd!==""?Number(f.bsgrd):100,waers:f.waers||"EUR",ansal:f.ansal!==""?Number(f.ansal):0,wt:cur.wt||[]});}
-function editBank(pernr,f){delimitInsert(db.PA0009,pernr,f.begda,{subty:"0",banks:f.banks,bankl:f.bankl,bankn:f.bankn,waers:f.waers||"EUR"},x=>x.subty==="0");}
-function editContract(pernr,f){delimitInsert(db.PA0016,pernr,f.begda,{cttyp:f.cttyp,prbez:f.prbez!==""?Number(f.prbez):null,kdgfb:f.kdgfb!==""?Number(f.kdgfb):null,kdgf2:f.kdgf2!==""?Number(f.kdgf2):null});}
+  delimitInsert(db.PA0008,pernr,f.begda,{trfar:cur.trfar||"01",trfgb:cur.trfgb||"01",trfgr:f.trfgr,bsgrd:f.bsgrd!==""?Number(f.bsgrd):100,waers:f.waers||"EUR",ansal:f.ansal!==""?Number(f.ansal):0,wt:cur.wt||[]},null,f.mode);}
+function editBank(pernr,f){delimitInsert(db.PA0009,pernr,f.begda,{subty:"0",banks:f.banks,bankl:f.bankl,bankn:f.bankn,waers:f.waers||"EUR"},x=>x.subty==="0",f.mode);}
+function editContract(pernr,f){delimitInsert(db.PA0016,pernr,f.begda,{cttyp:f.cttyp,prbez:f.prbez!==""?Number(f.prbez):null,kdgfb:f.kdgfb!==""?Number(f.kdgfb):null,kdgf2:f.kdgf2!==""?Number(f.kdgf2):null},null,f.mode);}
 function addEducation(pernr,f){db.PA0022.push({pernr,subty:f.subType,begda:f.begda,endda:f.endda||HIGH,slabs:f.certificate,insti:f.institute,sland:f.country,sfach:f.major,slgra:f.grade});}
 function addQualification(pernr,f){db.PA0024.push({pernr,subty:f.groupKey,begda:f.begda||today(),endda:HIGH,quali:f.qualification,auspr:f.proficiency!==""?Number(f.proficiency):null});}
 function addExperience(pernr,f){db.PA0023.push({pernr,begda:f.begda,endda:f.endda,arbgb:f.employer,ort01:f.place,land1:f.country,task:f.task,branc:f.industry});}
@@ -1649,6 +1651,10 @@ const t001Name=k=>{const v=db.T001[k];return v&&typeof v==="object"?v.name:v;};
 const t500pName=k=>{const v=db.T500P[k];return v&&typeof v==="object"?v.text:v;};
 const t005Name=k=>{const v=db.T005[k];return v&&typeof v==="object"?v.text:v;};
 function optBlank(map,sel){return `<option value="" ${sel?'':'selected'}>—</option>`+opt(map,sel);}
+/* Edit-mode selector: time-dependent (new validity slice) vs correction (overwrite current). */
+function editModeSel(id){return `<div class="grp"><label>Edit mode</label><select id="${id}">
+  <option value="slice">Time-dependent — create a new validity slice</option>
+  <option value="correct">Correction — overwrite the current record (no new slice)</option></select></div>`;}
 function optName(arr,sel){return `<option value="">—</option>`+arr.map(o=>`<option value="${o.id}" ${String(sel)===String(o.id)?'selected':''}>${esc(o.name)}</option>`).join("");}
 function modal(title,bodyHtml,footHtml){
   $("#modal-root").innerHTML=`<div class="modal-bg" data-close><div class="modal" role="dialog" aria-modal="true">
@@ -1690,7 +1696,7 @@ function editDialog(){
   const p=validOn(db.PA0002,S.pernr,S.key)||{};
   modal("Change personal data · IT0002",`
     <div class="hint">${I.info}<span>A new time slice is created from the valid-from date; the previous record is delimited the day before.</span></div>
-    <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="e_begda" value="${today()}"></div>
+    <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="e_begda" value="${today()}"></div>${editModeSel("e_mode")}
     <div class="two">
       <div class="grp"><label>Form of address</label><select id="e_anred">${opt(db.dom.ANRED,p.anred||"")}</select></div>
       <div class="grp"><label>Title</label><select id="e_titel"><option value="">—</option>${opt(db.dom.TITEL,p.titel||"")}</select></div>
@@ -1721,7 +1727,7 @@ function reassignDialog(){
   const orgs=orgFlat(S.key),pos=positions("",S.key);
   modal("Organizational reassignment · IT0001",`
     <div class="hint">${I.info}<span>Delimits the current assignment and starts a new one. Blank fields are carried forward.</span></div>
-    <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="r_begda" value="${today()}"></div>
+    <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="r_begda" value="${today()}"></div>${editModeSel("r_mode")}
     <div class="grp"><label>Organizational unit</label><select id="r_ou">${optName(orgs,"")}</select></div>
     <div class="grp"><label>Position</label><select id="r_pos"><option value="">—</option>${pos.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select></div>
     <div class="grp"><label>Cost center</label><select id="r_cc"><option value="">— keep current —</option>${db.costCenters.map(c=>`<option value="${c.id}">${esc(c.id)} - ${esc(c.name)}</option>`).join("")}</select></div>`,
@@ -1755,6 +1761,7 @@ function addressDialog(){
       <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="ad_begda" value="${today()}"></div>
       <div class="grp"><label>Address type</label><select id="ad_sub">${opt(db.dom.ANSSA,"1")}</select></div>
     </div>
+    ${editModeSel("ad_mode")}
     <div class="grp"><label>Street</label><input id="ad_street" value="${esc(a.stras)}"></div>
     <div class="grp"><label>Country</label><select id="ad_ctry">${optBlank(db.T005,a.land1)}</select></div>
     <div class="two">
@@ -1789,7 +1796,7 @@ function commDialog(rec){const e=!!rec;editingRec=e?{type:"comm",id:rec._id}:nul
 }
 function workDialog(){const w=validOn(db.PA0007,S.pernr,S.key)||{};
   modal("Edit planned working time · IT0007",`
-    <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="w_begda" value="${today()}"></div>
+    <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="w_begda" value="${today()}"></div>${editModeSel("w_mode")}
     <div class="grp"><label>Work schedule rule</label><input id="w_schkz" value="${esc(w.schkz)}"></div>
     <div class="two">
       <div class="grp"><label>Employment %</label><input id="w_empct" type="number" step="0.01" value="${w.empct!=null?w.empct:""}"></div>
@@ -1797,7 +1804,7 @@ function workDialog(){const w=validOn(db.PA0007,S.pernr,S.key)||{};
     </div>`,`<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="work">Save</button>`);}
 function payDialog(){const p=validOn(db.PA0008,S.pernr,S.key)||{};
   modal("Edit basic pay / salary · IT0008",`
-    <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="p_begda" value="${today()}"></div>
+    <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="p_begda" value="${today()}"></div>${editModeSel("p_mode")}
     <div class="two">
       <div class="grp"><label>Pay scale group</label><input id="p_trfgr" value="${esc(p.trfgr)}"></div>
       <div class="grp"><label>Capacity util. %</label><input id="p_bsgrd" type="number" step="0.01" value="${p.bsgrd!=null?p.bsgrd:""}"></div>
@@ -1808,7 +1815,7 @@ function payDialog(){const p=validOn(db.PA0008,S.pernr,S.key)||{};
     </div>`,`<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="pay">Save</button>`);}
 function bankDialog(){const k=S.key||today();const b=(db.PA0009.filter(x=>x.pernr===S.pernr&&x.subty==="0"&&x.begda<=k&&x.endda>=k)[0])||{};
   modal("Edit bank details · IT0009",`
-    <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="bk_begda" value="${today()}"></div>
+    <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="bk_begda" value="${today()}"></div>${editModeSel("bk_mode")}
     <div class="two">
       <div class="grp"><label>Bank country</label><input id="bk_banks" value="${esc(b.banks)}" maxlength="3"></div>
       <div class="grp"><label>Bank key</label><input id="bk_bankl" value="${esc(b.bankl)}"></div>
@@ -1817,7 +1824,7 @@ function bankDialog(){const k=S.key||today();const b=(db.PA0009.filter(x=>x.pern
     `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="bank">Save</button>`);}
 function contractDialog(){const c=validOn(db.PA0016,S.pernr,S.key)||{};
   modal("Edit contract elements · IT0016",`
-    <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="c_begda" value="${today()}"></div>
+    <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="c_begda" value="${today()}"></div>${editModeSel("c_mode")}
     <div class="grp"><label>Contract type</label><select id="c_cttyp">${opt(db.T547T,c.cttyp||"01")}</select></div>
     <div class="two">
       <div class="grp"><label>Probation (months)</label><input id="c_prbez" type="number" step="0.5" value="${c.prbez!=null?c.prbez:""}"></div>
@@ -2079,14 +2086,14 @@ function doAction(kind){
       const pernr=hire(f);closeModal();toast("Employee "+pernr+" hired successfully.","good");
       S.view="detail";S.pernr=pernr;S.tab="personal";render();
     }else if(kind==="edit"){
-      const f={begda:val("e_begda"),anred:val("e_anred"),titel:val("e_titel").trim(),
+      const f={begda:val("e_begda"),mode:val("e_mode"),anred:val("e_anred"),titel:val("e_titel").trim(),
         firstName:val("e_first").trim(),lastName:val("e_last").trim(),middleName:val("e_mid").trim(),
         nickname:val("e_ruf").trim(),birthDate:val("e_dob"),birthPlace:val("e_gbort").trim(),
         gender:val("e_gender"),maritalStatus:val("e_marital"),nationality:val("e_natio").trim(),language:val("e_lang").trim()};
       if(!f.begda||!f.firstName||!f.lastName){toast("Enter valid-from, first and last name.","bad");return;}
       updatePersonal(S.pernr,f);closeModal();toast("Personal data updated.","good");renderDetail();
     }else if(kind==="reassign"){
-      const f={begda:val("r_begda"),orgUnit:val("r_ou")?+val("r_ou"):null,position:val("r_pos")?+val("r_pos"):null,costCenter:val("r_cc").trim()};
+      const f={begda:val("r_begda"),mode:val("r_mode"),orgUnit:val("r_ou")?+val("r_ou"):null,position:val("r_pos")?+val("r_pos"):null,costCenter:val("r_cc").trim()};
       if(!f.begda){toast("Enter a valid-from date.","bad");return;}
       reassign(S.pernr,f);closeModal();toast("Organizational assignment updated.","good");renderDetail();
     }else if(kind==="absence"){
@@ -2095,7 +2102,7 @@ function doAction(kind){
       const d=recordAbsence(S.pernr,f);closeModal();toast("Absence recorded ("+d+" day(s)) and deducted from quota.","good");
       S.tab="time";renderDetail();
     }else if(kind==="address"){
-      const f={begda:val("ad_begda"),subType:val("ad_sub"),street:val("ad_street").trim(),city:val("ad_city").trim(),postalCode:val("ad_zip").trim(),country:val("ad_ctry").trim()};
+      const f={begda:val("ad_begda"),mode:val("ad_mode"),subType:val("ad_sub"),street:val("ad_street").trim(),city:val("ad_city").trim(),postalCode:val("ad_zip").trim(),country:val("ad_ctry").trim()};
       if(!f.begda){toast("Enter a valid-from date.","bad");return;}
       updateAddress(S.pernr,f);closeModal();toast("Address updated.","good");S.tab="address";renderDetail();
     }else if(kind==="comm"){
@@ -2105,19 +2112,19 @@ function doAction(kind){
       else{addCommunication(S.pernr,f);toast("Communication added.","good");}
       editingRec=null;closeModal();S.tab="comm";renderDetail();
     }else if(kind==="work"){
-      const f={begda:val("w_begda"),schkz:val("w_schkz").trim(),empct:val("w_empct"),wostd:val("w_wostd")};
+      const f={begda:val("w_begda"),mode:val("w_mode"),schkz:val("w_schkz").trim(),empct:val("w_empct"),wostd:val("w_wostd")};
       if(!f.begda){toast("Enter a valid-from date.","bad");return;}
       editWorkingTime(S.pernr,f);closeModal();toast("Working time updated.","good");S.tab="pay";renderDetail();
     }else if(kind==="pay"){
-      const f={begda:val("p_begda"),trfgr:val("p_trfgr").trim(),bsgrd:val("p_bsgrd"),ansal:val("p_ansal"),waers:val("p_waers").trim()};
+      const f={begda:val("p_begda"),mode:val("p_mode"),trfgr:val("p_trfgr").trim(),bsgrd:val("p_bsgrd"),ansal:val("p_ansal"),waers:val("p_waers").trim()};
       if(!f.begda||f.ansal===""){toast("Enter valid-from and annual salary.","bad");return;}
       editPay(S.pernr,f);closeModal();toast("Basic pay updated.","good");S.tab="pay";renderDetail();
     }else if(kind==="bank"){
-      const f={begda:val("bk_begda"),banks:val("bk_banks").trim(),bankl:val("bk_bankl").trim(),bankn:val("bk_bankn").trim()};
+      const f={begda:val("bk_begda"),mode:val("bk_mode"),banks:val("bk_banks").trim(),bankl:val("bk_bankl").trim(),bankn:val("bk_bankn").trim()};
       if(!f.begda){toast("Enter a valid-from date.","bad");return;}
       editBank(S.pernr,f);closeModal();toast("Bank details updated.","good");S.tab="pay";renderDetail();
     }else if(kind==="contract"){
-      const f={begda:val("c_begda"),cttyp:val("c_cttyp"),prbez:val("c_prbez"),kdgfb:val("c_kdgfb"),kdgf2:val("c_kdgf2")};
+      const f={begda:val("c_begda"),mode:val("c_mode"),cttyp:val("c_cttyp"),prbez:val("c_prbez"),kdgfb:val("c_kdgfb"),kdgf2:val("c_kdgf2")};
       if(!f.begda){toast("Enter a valid-from date.","bad");return;}
       editContract(S.pernr,f);closeModal();toast("Contract updated.","good");S.tab="contract";renderDetail();
     }else if(kind==="edu"){
