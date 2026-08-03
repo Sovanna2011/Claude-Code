@@ -169,6 +169,7 @@ td{padding:11px 16px;border-bottom:1px solid var(--border);vertical-align:middle
 .combo-btn{position:absolute;right:1px;top:1px;bottom:1px;width:28px;background:transparent;border:0;
   color:var(--muted);cursor:pointer;font-size:12px;border-radius:0 8px 8px 0}
 .combo-btn:hover{color:var(--text);background:var(--surface-2)}
+.combo-btn svg{width:14px;height:14px;fill:currentColor}
 .combo-list{margin-top:4px;border:1px solid var(--border);border-radius:8px;background:var(--surface);
   max-height:180px;overflow:auto;display:none}
 .combo-list.open{display:block}
@@ -359,7 +360,8 @@ a.mail:hover{text-decoration:underline}
 .orgtree li::before,.orgtree li::after{content:"";position:absolute;top:0;height:26px;width:50%;border-top:2px solid var(--border-strong)}
 .orgtree li::before{right:50%;border-right:2px solid var(--border-strong)}
 .orgtree li::after{left:50%}
-.orgtree li:only-child::before,.orgtree li:only-child::after{display:none}
+.orgtree li:only-child::before{display:none}
+.orgtree li:only-child::after{left:50%;width:0;border-top:0;border-left:2px solid var(--border-strong)}
 .orgtree li:first-child::before,.orgtree li:last-child::after{border:0}
 .orgtree li:last-child::before{border-right:2px solid var(--border-strong)}
 .orgtree>li{padding-top:0}.orgtree>li::before,.orgtree>li::after{display:none}
@@ -501,7 +503,11 @@ function seed(){return{
   T500P:{"1000":{text:"Head Office",bukrs:"1000"},"2000":{text:"Branch Office",bukrs:"1000"}},
   subgroupGroup:{"DU":"1","DW":"1","DT":"1"},
   T002:{"EN":"English","DE":"German","FR":"French","ES":"Spanish","VI":"Vietnamese"},
-  currencies:{"EUR":"Euro","USD":"US Dollar","GBP":"Pound Sterling","KHR":"Cambodian Riel","CNY":"Chinese Yuan","SGD":"Singapore Dollar","VND":"Vietnamese Dong","JPY":"Japanese Yen"},
+  currencies:{
+   "EUR":{name:"Euro",symbol:"€",decimals:2},"USD":{name:"US Dollar",symbol:"$",decimals:2},
+   "GBP":{name:"Pound Sterling",symbol:"£",decimals:2},"KHR":{name:"Cambodian Riel",symbol:"៛",decimals:0},
+   "CNY":{name:"Chinese Yuan",symbol:"¥",decimals:2},"SGD":{name:"Singapore Dollar",symbol:"S$",decimals:2},
+   "VND":{name:"Vietnamese Dong",symbol:"₫",decimals:0},"JPY":{name:"Japanese Yen",symbol:"¥",decimals:0}},
   regions:{"Europe":{},"Asia":{},"Americas":{},"Africa":{},"Oceania":{},
    "Berlin":{country:"DE"},"Bavaria":{country:"DE"},"New York":{country:"US"},"England":{country:"GB"},
    "Île-de-France":{country:"FR"},"Phnom Penh":{country:"KH"},"Singapore":{country:"SG"},"Hanoi":{country:"VN"}},
@@ -691,6 +697,7 @@ function getEmployee(pernr,key){
       plans:p1.plans,posN:p1.plans?orgText("S",p1.plans,key):null,kostl:p1.kostl,
       reportsTo:lineManager(pernr,key),begda:p1.begda,endda:p1.endda},
     addr:p6&&{stras:p6.stras,ort01:p6.ort01,pstlz:p6.pstlz,land1:p6.land1},
+    addresses:db.PA0006.filter(x=>x.pernr===pernr&&x.begda<=key&&x.endda>=key).map(x=>({_id:rid(x),subty:x.subty,type:dom("ANSSA",x.subty),stras:x.stras,ort01:x.ort01,pstlz:x.pstlz,land1:x.land1,begda:x.begda})),
     wt:p7&&{schkz:p7.schkz,empct:p7.empct,wostd:p7.wostd},
     pay:p8&&{trfgr:p8.trfgr,bsgrd:p8.bsgrd,waers:p8.waers,ansal:p8.ansal,
       wt:(p8.wt||[]).map(w=>({lgart:w.lgart,txt:db.T512T[w.lgart],betrg:w.betrg,waers:w.waers}))},
@@ -740,6 +747,7 @@ function updateAddress(pernr,f){
   const sub=f.subType||"1";
   delimitInsert(db.PA0006,pernr,f.begda,{subty:sub,stras:f.street,ort01:f.city,pstlz:f.postalCode,land1:f.country,telnr:f.telephone},x=>x.subty===sub,f.mode);
 }
+function deleteAddress(id){db.PA0006=db.PA0006.filter(r=>r._id!==id);}
 function addFamily(pernr,f){
   const objs=db.PA0021.filter(x=>x.pernr===pernr&&x.subty===f.relationType).map(x=>parseInt(x.objps,10)||0);
   const next=String((objs.length?Math.max.apply(null,objs):0)+1).padStart(2,"0");
@@ -1071,10 +1079,11 @@ function renderDetail(){
       ["Organizational unit",o.orgeh?esc(o.orgeh)+" "+esc(o.orgN):"—"],["Position",o.plans?esc(o.plans)+" "+esc(o.posN):"—"],
       ["Reports to",o.reportsTo?`<b>${esc(o.reportsTo.name)}</b> · ${esc(o.reportsTo.pos)}`:"—"],
       ["Cost center",esc(o.kostl)],["Validity",fmtDate(o.begda)+" – "+fmtDate(o.endda)]])}</div></div>`;}
-  else if(S.tab==="address"){const a=e.addr||{};content=`
-    ${allowed("0006","update")?`<div style="margin-bottom:12px"><button class="btn sm" data-act="address">${I.addr} Edit address</button></div>`:""}
-    <div class="card"><div class="subcard">
-    <div class="section-title">Address · IT0006</div>${dl([["Street",esc(a.stras)],["City",esc(a.pstlz)+" "+esc(a.ort01)],["Country",esc(t005Name(a.land1)||a.land1)]])}</div></div>`;}
+  else if(S.tab==="address"){const aEdit=allowed("0006","update"),aDel=allowed("0006","delete"),aAct=aEdit||aDel;content=`
+    <div class="card list-card"><div class="card-head"><h2>Addresses · IT0006</h2><span class="count">${e.addresses.length}</span><div class="spacer"></div>${allowed("0006","add")||aEdit?`<button class="btn sm primary" data-act="address">${I.addr} Add address</button>`:""}</div>
+    <div class="tbl-wrap"><table><thead><tr><th>Type</th><th>Street</th><th>City</th><th>Country</th>${aAct?`<th class="th-r">Actions</th>`:""}</tr></thead><tbody>
+    ${e.addresses.map(a=>`<tr><td><span class="pill neutral">${esc(a.type||a.subty)}</span></td><td>${esc(a.stras)||"—"}</td><td>${esc(a.pstlz)} ${esc(a.ort01)}</td><td>${esc(t005Name(a.land1)||a.land1)||"—"}</td>${aAct?`<td class="td-r nowrap">${aEdit?`<button class="btn xs" data-addredit="${a._id}">${I.edit} Edit</button> `:""}${aDel?`<button class="btn xs ghost" data-addrdel="${a._id}">Delete</button>`:""}</td>`:""}</tr>`).join("")||`<tr><td colspan="${aAct?5:4}"><div class="empty">No addresses recorded.</div></td></tr>`}
+    </tbody></table></div></div>`;}
   else if(S.tab==="comm"){const cEdit=allowed("0105","update"),cDel=allowed("0105","delete"),cAct=cEdit||cDel;content=`
     <div class="card list-card"><div class="card-head"><h2>Communication · IT0105</h2><span class="count">${e.comms.length}</span><div class="spacer"></div>${allowed("0105","add")?`<button class="btn sm primary" data-act="comm">${I.addr} Add communication</button>`:""}</div>
     <div class="tbl-wrap"><table><thead><tr><th>Type</th><th>Value</th>${cAct?`<th class="th-r">Actions</th>`:""}</tr></thead><tbody>
@@ -1198,6 +1207,8 @@ window.addEventListener("resize",()=>{clearTimeout(_tabResize);_tabResize=setTim
 
 function renderOrg(){
   const roots=orgTree(S.key);
+  // Expand the whole tree on first visit so no branch/information is hidden.
+  if(!S._orgInit){(function addAll(ns){ns.forEach(n=>{S.open.add(n.id);addAll(n.children);});})(roots);S._orgInit=true;}
   const nodeHtml=n=>{
     const open=S.open.has(n.id),leaf=!n.children.length;
     return `<div class="node ${open?'open':''}" >
@@ -1205,8 +1216,8 @@ function renderOrg(){
         <span class="tog ${leaf?'leaf':''}">${I.chev}</span>
         <span class="oic">${I.org}</span>
         <span class="meta"><span class="nm">${esc(n.name)}</span>
-          <span class="dt"><span>Org ID ${n.id}</span>${n.mgr?`<span>Manager: ${esc(n.mgr)}</span>`:""}
-          ${n.hc?`<span class="hc">${I.people}${n.hc}</span>`:""}</span></span>
+          <span class="dt"><span>Org ID ${n.id}</span><span>Manager: ${n.mgr?esc(n.mgr):"—"}</span>
+          <span class="hc">${I.people}${n.hc||0}</span>${n.children.length?`<span>${n.children.length} sub-unit(s)</span>`:""}</span></span>
       </div>
       <div class="children">${n.children.map(nodeHtml).join("")}</div></div>`;
   };
@@ -1435,7 +1446,8 @@ function renderAuthMatrix(){
 const CFG_SCHEMA={
   company:{h:"Company codes (T001)",store:"omap",path:"T001",keyL:"Company code",
     fields:[{k:"name",l:"Name"},{k:"country",l:"Country",src:"T005"},{k:"currency",l:"Currency",src:"currencies"},{k:"city",l:"City",src:"cities"}]},
-  currency:{h:"Currencies",store:"smap",path:"currencies",keyL:"Currency code",fields:[{k:"text",l:"Currency"}]},
+  currency:{h:"Currencies",store:"omap",path:"currencies",keyL:"Currency code",
+    fields:[{k:"name",l:"Name"},{k:"symbol",l:"Symbol"},{k:"decimals",l:"Decimals"}]},
   city:{h:"Cities",store:"omap",path:"cities",keyL:"City",
     fields:[{k:"country",l:"Country",src:"T005"},{k:"region",l:"Region / State",src:"regions"},{k:"postal",l:"Postal code"}]},
   region:{h:"Regions",store:"omap",path:"regions",keyL:"Region",fields:[{k:"country",l:"Country",src:"T005"}]},
@@ -1864,15 +1876,15 @@ function onAddrCity(){const name=document.getElementById("ad_city").value;const 
 /* Markup for a searchable city field (input + dropdown button + in-flow list). */
 function cityField(inputId,dropId,value,ctryId){return `<div class="combo" data-ctry="${ctryId||""}">
   <input id="${inputId}" autocomplete="off" value="${esc(value||"")}" placeholder="Type to search…">
-  <button type="button" class="combo-btn" data-citytoggle="1" title="Show cities">▾</button>
+  <button type="button" class="combo-btn" data-citytoggle="1" title="Search cities">${I.search}</button>
   <div class="combo-list" id="${dropId}"></div></div>`;}
-function addressDialog(){
-  const a=getEmployee(S.pernr,S.key).addr||{};
-  modal("Maintain address · IT0006",`
-    <div class="hint">${I.info}<span>A new time slice is created; the previous address is delimited the day before.</span></div>
+function addressDialog(rec){
+  const a=rec||{};const edit=!!rec;
+  modal((edit?"Edit":"Add")+" address · IT0006",`
+    <div class="hint">${I.info}<span>An employee can hold several addresses (one per address type). A new time slice is created; the previous record of the same type is delimited the day before.</span></div>
     <div class="two">
       <div class="grp"><label>Valid from <span class="req">*</span></label><input type="date" id="ad_begda" value="${today()}"></div>
-      <div class="grp"><label>Address type</label><select id="ad_sub">${opt(db.dom.ANSSA,"1")}</select></div>
+      <div class="grp"><label>Address type</label><select id="ad_sub">${opt(db.dom.ANSSA,edit?a.subty:"1")}</select></div>
     </div>
     ${editModeSel("ad_mode")}
     <div class="grp"><label>Street</label><input id="ad_street" value="${esc(a.stras)}"></div>
@@ -2136,7 +2148,7 @@ document.addEventListener("click",ev=>{
   const comboOpt=ev.target.closest("[data-cityopt]");
   if(comboOpt){const combo=comboOpt.closest(".combo"),inp=combo.querySelector("input");
     inp.value=comboOpt.dataset.cityopt;onAddrCity();combo.querySelector(".combo-list").classList.remove("open");return;}
-  const t=ev.target.closest("[data-nav],[data-open],[data-act],[data-tab],[data-tog],[data-do],[data-close],[data-fill],[data-approve],[data-reject],[data-book],[data-advance],[data-payslip],[data-cfg],[data-authrole],[data-cfgadd],[data-cfgedit],[data-cfgdel],[data-useredit],[data-userdel],[data-orgedit],[data-orgdel],[data-roleadd],[data-roleedit],[data-roledel],[data-posadd],[data-posedit],[data-posdel],[data-comedit],[data-comdel],[data-famedit],[data-famdel],[data-eduedit],[data-edudel],[data-expedit],[data-expdel],[data-qualedit],[data-qualdel],[data-sort],[data-possort],[data-dtsort],[data-dtcols],[data-dtexport],[data-reqadd],[data-reqedit],[data-reqdel],[data-appladd],[data-appledit],[data-appldel],[data-crsadd],[data-crsedit],[data-crsdel],[data-more],[data-tabmore],[data-photo]");
+  const t=ev.target.closest("[data-nav],[data-open],[data-act],[data-tab],[data-tog],[data-do],[data-close],[data-fill],[data-approve],[data-reject],[data-book],[data-advance],[data-payslip],[data-cfg],[data-authrole],[data-cfgadd],[data-cfgedit],[data-cfgdel],[data-useredit],[data-userdel],[data-orgedit],[data-orgdel],[data-roleadd],[data-roleedit],[data-roledel],[data-posadd],[data-posedit],[data-posdel],[data-addredit],[data-addrdel],[data-comedit],[data-comdel],[data-famedit],[data-famdel],[data-eduedit],[data-edudel],[data-expedit],[data-expdel],[data-qualedit],[data-qualdel],[data-sort],[data-possort],[data-dtsort],[data-dtcols],[data-dtexport],[data-reqadd],[data-reqedit],[data-reqdel],[data-appladd],[data-appledit],[data-appldel],[data-crsadd],[data-crsedit],[data-crsdel],[data-more],[data-tabmore],[data-photo]");
   if(!t){const mm=$("#moreMenu");if(mm)mm.classList.remove("open");const tm=$("#tabMoreMenu");if(tm)tm.classList.remove("open");return;}
   if(t.hasAttribute("data-more")){const mm=$("#moreMenu");mm.classList.toggle("open");return;}
   if(t.hasAttribute("data-tabmore")){const tm=$("#tabMoreMenu");tm.classList.toggle("open");return;}
@@ -2197,6 +2209,8 @@ document.addEventListener("click",ev=>{
   if(t.hasAttribute("data-posadd")){posDialog(null);return;}
   if(t.dataset.posedit){posDialog(+t.dataset.posedit);return;}
   if(t.dataset.posdel){const id=+t.dataset.posdel;if(confirm("Delete position "+id+"?")){removePosition(id);toast("Position deleted.","good");renderPositions();}return;}
+  if(t.dataset.addredit){const a=getEmployee(S.pernr,S.key).addresses.find(x=>x._id===+t.dataset.addredit);addressDialog(a);return;}
+  if(t.dataset.addrdel){if(confirm("Delete this address?")){deleteAddress(+t.dataset.addrdel);toast("Address deleted.","good");renderDetail();}return;}
   if(t.dataset.comedit){commDialog(recFor("comm",+t.dataset.comedit));return;}
   if(t.dataset.comdel){if(confirm("Delete this communication?")){deleteCommunication(+t.dataset.comdel);toast("Communication deleted.","good");renderDetail();}return;}
   if(t.dataset.famedit){familyDialog(recFor("family",+t.dataset.famedit));return;}
