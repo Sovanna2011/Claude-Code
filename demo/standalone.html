@@ -150,6 +150,17 @@ input:focus,select:focus{border-color:var(--accent);outline:none;box-shadow:0 0 
 .dt-search input{border:1px solid var(--border);background:var(--surface);color:var(--text);
   border-radius:8px;padding:6px 10px;font-size:13px;min-width:180px}
 .card-head .dt-search{margin-right:6px}
+.mtx-legend{display:flex;gap:8px;flex-wrap:wrap;padding:10px 16px}
+table.mtx th,table.mtx td{text-align:center;padding:4px 6px;font-size:12px}
+.mtx-emp{text-align:left !important;white-space:nowrap;position:sticky;left:0;background:var(--surface);z-index:1}
+.mtx thead .mtx-emp{background:var(--surface-2)}
+.mtx-day{min-width:30px;line-height:1.1}.mtx-day.we{color:var(--accent)}
+.mtx-cell{font-weight:700}
+.m-pre{background:rgba(34,160,90,.16);color:#1c9e57}
+.m-abs{background:rgba(214,69,69,.16);color:#d64545}
+.m-att{background:rgba(11,75,176,.16);color:var(--accent)}
+.m-hol{background:rgba(180,120,20,.18);color:#b47814}
+.m-off{background:var(--surface-2);color:var(--muted)}
 .list-card .card-head{border-radius:var(--radius) var(--radius) 0 0}
 table{width:100%;border-collapse:collapse;font-size:13.5px}
 th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);
@@ -1368,6 +1379,26 @@ function attendanceReport(from,to){
     pernr:a.pernr,name:empName(a.pernr),type:db.T554S[a.awart]||a.awart,begda:a.begda,endda:a.endda,days:a.abwtg,hours:a.stdaz
   })).sort((a,b)=>a.begda<b.begda?1:-1);
 }
+/* Daily attendance matrix: rows = employees, columns = each day in the range.
+   Cell status per day: absence (IT2001) > attendance (IT2002) > holiday > weekend > present. */
+function attendanceMatrix(from,to){
+  const days=[];let d=new Date(from+"T00:00:00"),end=new Date(to+"T00:00:00");
+  while(d<=end){const iso=d.toISOString().slice(0,10),dow=d.getDay();
+    days.push({iso,dom:iso.slice(8),wd:["Su","Mo","Tu","We","Th","Fr","Sa"][dow],weekend:dow===0||dow===6,holiday:db.publicHolidays.includes(iso)});
+    d.setDate(d.getDate()+1);}
+  const rows=db.emp.map(e=>{
+    const abs=db.PA2001.filter(a=>a.pernr===e.pernr),att=db.PA2002.filter(a=>a.pernr===e.pernr);
+    const cells=days.map(day=>{
+      const a=abs.find(x=>x.begda<=day.iso&&x.endda>=day.iso);
+      if(a)return {code:"A",cls:"m-abs",title:(db.T554S[a.awart]||"Absence")};
+      const t=att.find(x=>x.begda<=day.iso&&x.endda>=day.iso);
+      if(t)return {code:"T",cls:"m-att",title:(db.T554S[t.awart]||"Attendance")};
+      if(day.holiday)return {code:"H",cls:"m-hol",title:"Public holiday"};
+      if(day.weekend)return {code:"·",cls:"m-off",title:"Non-working day"};
+      return {code:"P",cls:"m-pre",title:"Present"};});
+    return {pernr:e.pernr,name:empName(e.pernr),cells};});
+  return {days,rows};
+}
 /* Payslip: gross (base + OT) − deductions (tax + social) = net. */
 function payslip(pernr,from,to){
   const p8=validOn(db.PA0008,pernr,to||today());
@@ -1658,8 +1689,17 @@ function renderTraining(){
 /* ---- Reports (overtime + attendance, date range) ---- */
 function renderReports(){
   if(!S.rFrom)S.rFrom="2026-01-01"; if(!S.rTo)S.rTo="2026-12-31";
+  if(!S.mFrom)S.mFrom="2026-05-01"; if(!S.mTo)S.mTo="2026-05-14";
   const ot=overtimeReport(S.rFrom,S.rTo), att=attendanceReport(S.rFrom,S.rTo);
   const sum=k=>ot.reduce((a,e)=>a+e[k],0);
+  // Daily attendance matrix (capped at 31 columns)
+  let mTo=S.mTo; if(daysBetween(S.mFrom,S.mTo)>31){const d=new Date(S.mFrom+"T00:00:00");d.setDate(d.getDate()+30);mTo=d.toISOString().slice(0,10);}
+  const mtx=attendanceMatrix(S.mFrom,mTo);
+  const matrixHtml=`<div class="card list-card"><div class="card-head"><h2>Daily attendance — all employees · ${fmtDate(S.mFrom)} – ${fmtDate(mTo)}</h2><span class="count">${mtx.rows.length}</span><div class="spacer"></div>
+    <div class="dt-search"><input id="mFrom" type="date" value="${S.mFrom}"></div><div class="dt-search"><input id="mTo" type="date" value="${S.mTo}"></div></div>
+    <div class="mtx-legend"><span class="pill m-pre">P Present</span><span class="pill m-abs">A Absence</span><span class="pill m-att">T Attendance</span><span class="pill m-hol">H Holiday</span><span class="pill m-off">· Non-working</span></div>
+    <div class="tbl-wrap"><table class="mtx"><thead><tr><th class="mtx-emp">Employee</th>${mtx.days.map(d=>`<th class="mtx-day ${d.weekend||d.holiday?'we':''}">${d.dom}<br><span class="muted">${d.wd}</span></th>`).join("")}</tr></thead>
+    <tbody>${mtx.rows.map(r=>`<tr><td class="mtx-emp"><span class="num">${r.pernr}</span> ${esc(r.name)}</td>${r.cells.map(c=>`<td class="mtx-cell ${c.cls}" title="${esc(c.title)}">${c.code}</td>`).join("")}</tr>`).join("")||`<tr><td colspan="${mtx.days.length+1}"><div class="empty">No employees.</div></td></tr>`}</tbody></table></div></div>`;
   app.innerHTML=pageHead("Reports","Working time & overtime")+`
   <div class="toolbar">
     <div class="field"><label>From date</label><input type="date" id="rFrom" value="${S.rFrom}"></div>
@@ -1687,9 +1727,13 @@ function renderReports(){
     {k:"period",l:"From – To",v:a=>a.begda,html:a=>`<span class="num">${fmtDate(a.begda)} – ${fmtDate(a.endda)}</span>`},
     {k:"days",l:"Days",v:a=>a.days!=null?a.days:"",html:a=>`<span class="num">${a.days!=null?a.days:"—"}</span>`},
     {k:"hours",l:"Hours",v:a=>a.hours!=null?a.hours:"",html:a=>`<span class="num">${a.hours!=null?a.hours:"—"}</span>`}
-  ],att)}`;
+  ],att)}
+  <div style="height:14px"></div>
+  ${matrixHtml}`;
   $("#rFrom").addEventListener("change",e=>{S.rFrom=e.target.value;renderReports();});
   $("#rTo").addEventListener("change",e=>{S.rTo=e.target.value;renderReports();});
+  $("#mFrom").addEventListener("change",e=>{S.mFrom=e.target.value;renderReports();});
+  $("#mTo").addEventListener("change",e=>{S.mTo=e.target.value;renderReports();});
 }
 
 /* ---- Graphical org chart (boxed tree) ---- */
