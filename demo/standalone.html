@@ -1571,7 +1571,7 @@ function renderAuthMatrix(){
   return `<div class="card"><div class="card-head"><h2>Authorizations · ${esc(db.roleNames[role])}</h2><div class="spacer"></div></div>
     <div class="hint">${I.info}<span>P_ORGIN-style matrix: grant each role an activity (Display / Add / Update / Delete) per infotype. Changes apply immediately.</span></div>
     <div class="toolbar" style="gap:6px;flex-wrap:wrap;margin:8px 0">${roleTabs}</div>
-    <div class="tbl-wrap"><table><thead><tr><th>Infotype</th><th>Name</th>${acts.map(([,l])=>`<th class="th-c">${l}</th>`).join("")}</tr></thead>
+    <div class="tbl-wrap dt-grid dt-grid-1"><table><thead><tr><th>Infotype</th><th>Name</th>${acts.map(([,l])=>`<th class="th-c">${l}</th>`).join("")}</tr></thead>
     <tbody>${rows}</tbody></table></div></div>`;
 }
 /* ---- Generic, schema-driven configuration editor (add / edit / delete) ---- */
@@ -1656,13 +1656,13 @@ function cfgDialog(tab,key){const def=CFG_SCHEMA[tab];const edit=key!=null;const
   modal((edit?"Edit ":"Add ")+def.h,keyInput+fields+relField,
     `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="cfgSave">Save</button>`);}
 function cfgUsersTable(){return `<div class="card"><div class="card-head"><h2>Users &amp; roles</h2><span class="count">${db.users.length}</span><div class="spacer"></div><button class="btn sm primary" data-act="cfgUser">+ Add user</button></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Username</th><th>Name</th><th>E-mail</th><th>Roles</th><th>Employee</th><th class="th-r">Actions</th></tr></thead><tbody>${db.users.map(u=>`<tr><td><b>${esc(u.username)}</b></td><td>${esc(u.name)}</td><td>${esc(u.email||"—")}</td><td>${(u.roles||[u.role]).map(r=>statusPill(db.roleNames[r])).join(" ")}</td><td class="num">${u.pernr||"—"}</td>
+    <div class="tbl-wrap dt-grid dt-grid-1"><table><thead><tr><th>Username</th><th>Name</th><th>E-mail</th><th>Roles</th><th>Employee</th><th class="th-r">Actions</th></tr></thead><tbody>${db.users.map(u=>`<tr><td><b>${esc(u.username)}</b></td><td>${esc(u.name)}</td><td>${esc(u.email||"—")}</td><td>${(u.roles||[u.role]).map(r=>statusPill(db.roleNames[r])).join(" ")}</td><td class="num">${u.pernr||"—"}</td>
     <td class="td-r nowrap"><button class="btn xs" data-useredit="${esc(u.username)}">${I.edit} Edit</button> <button class="btn xs ghost" data-userdel="${esc(u.username)}">Delete</button></td></tr>`).join("")}</tbody></table></div></div>`;}
 function cfgRolesTable(){const roles=Object.entries(db.roleNames);
   const cnt=k=>db.users.filter(u=>(u.roles||[]).includes(k)).length;
   return `<div class="card"><div class="card-head"><h2>Roles</h2><span class="count">${roles.length}</span><div class="spacer"></div><button class="btn sm primary" data-roleadd>+ Add role</button></div>
     <div class="hint">${I.info}<span>Define any number of roles. Grant each role activities per infotype on the Authorizations tab, then assign roles to users.</span></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Role key</th><th>Name</th><th class="th-r">Users</th><th class="th-r">Actions</th></tr></thead><tbody>${roles.map(([k,v])=>`<tr><td class="num">${esc(k)}</td><td>${esc(v)}</td><td class="td-r num">${cnt(k)}</td>
+    <div class="tbl-wrap dt-grid dt-grid-1"><table><thead><tr><th>Role key</th><th>Name</th><th class="th-r">Users</th><th class="th-r">Actions</th></tr></thead><tbody>${roles.map(([k,v])=>`<tr><td class="num">${esc(k)}</td><td>${esc(v)}</td><td class="td-r num">${cnt(k)}</td>
     <td class="td-r nowrap"><button class="btn xs" data-roleedit="${esc(k)}">${I.edit} Edit</button> <button class="btn xs ghost" data-roledel="${esc(k)}">Delete</button></td></tr>`).join("")}</tbody></table></div></div>`;}
 function roleDialog(key){const edit=key!=null;cfgCtx={role:edit?key:null};
   modal(edit?"Edit role":"Add role",`
@@ -1672,7 +1672,7 @@ function roleDialog(key){const edit=key!=null;cfgCtx={role:edit?key:null};
 function cfgOrgTable(){const orgs=db.HRP1000.filter(o=>o.otype==="O");
   const parentOf=id=>{const rel=db.HRP1001.find(r=>r.otype==="O"&&r.objid===id&&r.relat==="002"&&r.rsign==="A");return rel?+rel.sobid:null;};
   return `<div class="card"><div class="card-head"><h2>Organizational units</h2><span class="count">${orgs.length}</span><div class="spacer"></div><button class="btn sm primary" data-act="cfgOrg">+ Add</button></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Org ID</th><th>Name</th><th>Short</th><th>Reports to</th><th class="th-r">Actions</th></tr></thead><tbody>${orgs.map(o=>{const p=parentOf(o.objid);const pn=p?(db.HRP1000.find(x=>x.otype==="O"&&x.objid===p)||{}).stext:null;
+    <div class="tbl-wrap dt-grid dt-grid-1"><table><thead><tr><th>Org ID</th><th>Name</th><th>Short</th><th>Reports to</th><th class="th-r">Actions</th></tr></thead><tbody>${orgs.map(o=>{const p=parentOf(o.objid);const pn=p?(db.HRP1000.find(x=>x.otype==="O"&&x.objid===p)||{}).stext:null;
     return `<tr><td class="num">${o.objid}</td><td>${esc(o.stext)}</td><td>${esc(o.short)}</td><td>${p?esc(p+" "+(pn||"")):"—"}</td>
     <td class="td-r nowrap"><button class="btn xs" data-orgedit="${o.objid}">${I.edit} Edit</button> <button class="btn xs ghost" data-orgdel="${o.objid}">Delete</button></td></tr>`;}).join("")}</tbody></table></div></div>`;}
 function renderConfig(){
