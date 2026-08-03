@@ -85,6 +85,9 @@ button{font-family:inherit}
 .shell .util button{background:rgba(255,255,255,.12);border:0;color:#fff;width:34px;height:34px;
   border-radius:8px;cursor:pointer;display:grid;place-items:center;font-size:15px}
 .shell .util button:hover{background:rgba(255,255,255,.22)}
+.shell .util select#lang{background:rgba(255,255,255,.12);border:0;color:#fff;height:34px;border-radius:8px;
+  cursor:pointer;font-size:13px;padding:0 6px;font-weight:600}
+.shell .util select#lang option{color:#111}
 .shell nav svg,.shell .util svg{width:16px;height:16px;fill:currentColor}
 .more-wrap{position:relative;flex:0 0 auto}
 .morebtn{background:transparent;border:0;color:#fff;opacity:.9;padding:8px 12px;border-radius:7px;
@@ -368,6 +371,11 @@ a.mail:hover{text-decoration:underline}
   <nav id="nav"></nav>
   <div class="spacer"></div>
   <div class="util">
+    <select id="lang" title="Language">
+      <option value="EN">🇬🇧 EN</option>
+      <option value="KH">🇰🇭 ខ្មែរ</option>
+      <option value="CN">🇨🇳 中文</option>
+    </select>
     <button id="reset" title="Reset demo data">↻</button>
     <button id="theme" title="Toggle light / dark">◐</button>
     <button id="logout" title="Sign out" style="display:none">⎋</button>
@@ -763,6 +771,24 @@ const S={view:"list",pernr:null,search:"",key:"",tab:"personal",orgFilter:"",ope
 const $=s=>document.querySelector(s);
 const app=$("#app");
 
+/* ============================ i18n (EN / KH / CN) ============================ */
+let LANG="EN";
+const I18N={
+ KH:{"People":"បុគ្គលិក","Org Chart":" តារាងអង្គភាព","Positions":"មុខតំណែង","Payroll":"បើកប្រាក់បៀវត្ស","Leave":"ការឈប់សម្រាក","Approvals":"ការអនុម័ត","Recruitment":"ការជ្រើសរើស","Training":"ការបណ្តុះបណ្តាល","Config":"ការកំណត់","Reports":"របាយការណ៍","My Team":"ក្រុមរបស់ខ្ញុំ","My Profile":"ប្រវត្តិរូបរបស់ខ្ញុំ","My Leave":"ការឈប់សម្រាករបស់ខ្ញុំ",
+  "Employees":"បុគ្គលិក","Employee list":"បញ្ជីបុគ្គលិក","Personnel Administration":"រដ្ឋបាលបុគ្គលិក","Hire employee":"ជួលបុគ្គលិក","Columns":"ជួរ","Search all columns…":"ស្វែងរកគ្រប់ជួរ…","Key date":"កាលបរិច្ឆេទគន្លឹះ","Sign in":"ចូល","Sign out":"ចាកចេញ","Username":"ឈ្មោះអ្នកប្រើ","Password":"ពាក្យសម្ងាត់",
+  "Add":"បន្ថែម","Edit":"កែសម្រួល","Delete":"លុប","Save":"រក្សាទុក","Cancel":"បោះបង់","Configuration":"ការកំណត់រចនាសម្ព័ន្ធ","System configuration":"ការកំណត់រចនាសម្ព័ន្ធប្រព័ន្ធ",
+  "Personal Data":"ទិន្នន័យផ្ទាល់ខ្លួន","Org Assignment":"ការចាត់តាំងអង្គភាព","Address & Comm.":"អាសយដ្ឋាន និងទំនាក់ទំនង","Family":"គ្រួសារ","Education & Experience":"ការសិក្សា និងបទពិសោធន៍","Working Time & Pay":"ម៉ោងធ្វើការ និងប្រាក់ខែ","Contract":"កិច្ចសន្យា","Time & Leave":"ម៉ោង និងការឈប់សម្រាក","Master data":"ទិន្នន័យមេ",
+  "Welcome, {0}.":"សូមស្វាគមន៍, {0}។","Please sign in to continue":"សូមចូលដើម្បីបន្ត",
+  "Pers.No.":"លេខបុគ្គលិក","Name":"ឈ្មោះ","Organizational unit":"អង្គភាព","Position":"មុខតំណែង","E-Mail":"អ៊ីមែល","Status":"ស្ថានភាព","Company":"ក្រុមហ៊ុន","Personnel area":"តំបន់បុគ្គលិក","Cost center":"មជ្ឈមណ្ឌលចំណាយ","City":"ទីក្រុង","Country":"ប្រទេស","Gender":"ភេទ","Hire date":"កាលបរិច្ឆេទជួល","More":"បន្ថែម"},
+ CN:{"People":"员工","Org Chart":"组织结构图","Positions":"职位","Payroll":"薪资","Leave":"休假","Approvals":"审批","Recruitment":"招聘","Training":"培训","Config":"配置","Reports":"报表","My Team":"我的团队","My Profile":"我的档案","My Leave":"我的休假",
+  "Employees":"员工","Employee list":"员工列表","Personnel Administration":"人事管理","Hire employee":"聘用员工","Columns":"列","Search all columns…":"搜索所有列…","Key date":"关键日期","Sign in":"登录","Sign out":"退出","Username":"用户名","Password":"密码",
+  "Add":"添加","Edit":"编辑","Delete":"删除","Save":"保存","Cancel":"取消","Configuration":"配置","System configuration":"系统配置",
+  "Personal Data":"个人数据","Org Assignment":"组织分配","Address & Comm.":"地址与通讯","Family":"家庭","Education & Experience":"教育与经历","Working Time & Pay":"工作时间与薪酬","Contract":"合同","Time & Leave":"考勤与休假","Master data":"主数据",
+  "Welcome, {0}.":"欢迎，{0}。","Please sign in to continue":"请登录以继续",
+  "Pers.No.":"工号","Name":"姓名","Organizational unit":"组织单位","Position":"职位","E-Mail":"电子邮件","Status":"状态","Company":"公司","Personnel area":"人事范围","Cost center":"成本中心","City":"城市","Country":"国家","Gender":"性别","Hire date":"入职日期","More":"更多"}
+};
+function t(s){if(LANG==="EN")return s;return (I18N[LANG]&&I18N[LANG][s])||s;}
+
 /* role helpers */
 const hasRole=r=>!!(SESSION&&SESSION.roles&&SESSION.roles.includes(r));
 const isAdmin=()=>hasRole("HR_ADMIN");
@@ -782,8 +808,8 @@ function navBar(){
   const items=navFor(SESSION.role);
   const act=v=>S.view===v||(S.view==="detail"&&v==="list");
   $("#nav").innerHTML=items.map(([v,l,ic])=>
-    `<button data-nav="${v}" class="navitem ${act(v)?'active':''}">${I[ic]}${l}</button>`).join("")
-    +`<div class="more-wrap" style="display:none"><button class="morebtn" data-more>${I.doc} More ▾</button><div class="more-menu" id="moreMenu"></div></div>`;
+    `<button data-nav="${v}" class="navitem ${act(v)?'active':''}">${I[ic]}${esc(t(l))}</button>`).join("")
+    +`<div class="more-wrap" style="display:none"><button class="morebtn" data-more>${I.doc} ${esc(t("More"))} ▾</button><div class="more-menu" id="moreMenu"></div></div>`;
   requestAnimationFrame(fitNav);
 }
 /* Priority+ nav: move items that don't fit into a "More ▾" dropdown. */
@@ -831,12 +857,12 @@ function render(){
 
 function renderLogin(){
   app.innerHTML=`<div class="login-wrap"><div class="login">
-    <div class="brandrow"><span class="mark">HR</span><div><h1>Sign in</h1></div></div>
+    <div class="brandrow"><span class="mark">HR</span><div><h1>${esc(t("Sign in"))}</h1></div></div>
     <div class="tag">HR Module — Human Capital Management</div>
     <div class="err" id="loginErr"></div>
-    <div class="grp"><label>Username</label><input id="lu" autocomplete="username" placeholder="e.g. admin"></div>
-    <div class="grp"><label>Password</label><input id="lp" type="password" autocomplete="current-password" placeholder="Password"></div>
-    <button class="btn primary" data-do="login">Sign in</button>
+    <div class="grp"><label>${esc(t("Username"))}</label><input id="lu" autocomplete="username" placeholder="e.g. admin"></div>
+    <div class="grp"><label>${esc(t("Password"))}</label><input id="lp" type="password" autocomplete="current-password" placeholder="${esc(t("Password"))}"></div>
+    <button class="btn primary" data-do="login">${esc(t("Sign in"))}</button>
     <div class="demo-users"><div class="t">Demo accounts — click to fill</div>
       ${db.users.map(u=>`<div class="u" data-fill="${u.username}"><span><b>${u.username}</b> / ${u.password}</span><span class="r">${(u.roles||[u.role]).map(r=>db.roleNames[r]).join(", ")}</span></div>`).join("")}
     </div>
@@ -884,25 +910,25 @@ function renderList(){
     return esc(r[c.k]||"—");
   };
   app.innerHTML=`
-  <div class="page-head"><div><div class="crumb">Personnel Administration</div><h1>Employees</h1></div>
+  <div class="page-head"><div><div class="crumb">${esc(t("Personnel Administration"))}</div><h1>${esc(t("Employees"))}</h1></div>
     <div style="display:flex;gap:8px">
-      ${isAdmin()?`<button class="btn primary" data-act="hire">${I.person} Hire employee</button>`:""}</div></div>
+      ${isAdmin()?`<button class="btn primary" data-act="hire">${I.person} ${esc(t("Hire employee"))}</button>`:""}</div></div>
   <div class="toolbar">
-    <div class="search">${I.search}<input id="q" placeholder="Search all columns…" value="${esc(S.search)}"></div>
-    <div class="field"><label>Key date</label><input type="date" id="kd" value="${S.key}"></div>
+    <div class="search">${I.search}<input id="q" placeholder="${esc(t("Search all columns…"))}" value="${esc(S.search)}"></div>
+    <div class="field"><label>${esc(t("Key date"))}</label><input type="date" id="kd" value="${S.key}"></div>
   </div>
   <div class="card list-card">
-    <div class="card-head"><h2>Employee list</h2><span class="count">${rows.length}</span><div class="spacer"></div>
+    <div class="card-head"><h2>${esc(t("Employee list"))}</h2><span class="count">${rows.length}</span><div class="spacer"></div>
       <div class="colmenu-wrap">
-        <button class="btn sm" data-act="cols">${I.doc} Columns ▾</button>
+        <button class="btn sm" data-act="cols">${I.doc} ${esc(t("Columns"))} ▾</button>
         ${S.showCols?`<div class="colmenu">${EMP_COLS.map(c=>`<label class="colchk">
-          <input type="checkbox" data-col="${c.k}" ${S.empCols.includes(c.k)?"checked":""} ${c.always?"disabled":""}> ${esc(c.l)}</label>`).join("")}</div>`:""}
+          <input type="checkbox" data-col="${c.k}" ${S.empCols.includes(c.k)?"checked":""} ${c.always?"disabled":""}> ${esc(t(c.l))}</label>`).join("")}</div>`:""}
       </div>
     </div>
     <div class="tbl-wrap"><table><thead><tr>
-      ${cols.map(c=>`<th class="sortable" data-sort="${c.k}" style="cursor:pointer">${esc(c.l)}${sc===c.k?(sd==="asc"?" ▲":" ▼"):""}</th>`).join("")}
+      ${cols.map(c=>`<th class="sortable" data-sort="${c.k}" style="cursor:pointer">${esc(t(c.l))}${sc===c.k?(sd==="asc"?" ▲":" ▼"):""}</th>`).join("")}
     </tr><tr class="filter-row">
-      ${cols.map(c=>`<th><input class="colf" data-colfilter="${c.k}" value="${esc(S.colFilters[c.k]||"")}" placeholder="🔍 ${esc(c.l)}"></th>`).join("")}
+      ${cols.map(c=>`<th><input class="colf" data-colfilter="${c.k}" value="${esc(S.colFilters[c.k]||"")}" placeholder="🔍 ${esc(t(c.l))}"></th>`).join("")}
     </tr></thead><tbody>${rows.length?rows.map(r=>`
       <tr class="click" data-open="${r.pernr}">${cols.map(c=>`<td>${cell(r,c)}</td>`).join("")}</tr>`).join("")
       :`<tr><td colspan="${cols.length}"><div class="empty">No employees match your search.</div></td></tr>`}
@@ -928,7 +954,7 @@ function colsDialog(){
     `<button class="btn primary" data-close>Done</button>`);
 }
 
-function tab(id,label,ico){return `<button data-tab="${id}" class="${S.tab===id?'active':''}"><span class="ico">${I[ico]}</span>${label}</button>`;}
+function tab(id,label,ico){return `<button data-tab="${id}" class="${S.tab===id?'active':''}"><span class="ico">${I[ico]}</span>${esc(t(label))}</button>`;}
 function dl(pairs){return `<dl class="dl">${pairs.map(([k,v])=>`<div class="row"><dt>${k}</dt><dd>${v==null||v===""?"—":v}</dd></div>`).join("")}</dl>`;}
 
 function renderDetail(){
@@ -1368,7 +1394,7 @@ function renderConfig(){
   else if(S.cfgTab==="users")body=cfgUsersTable();
   else if(S.cfgTab==="org")body=cfgOrgTable();
   else if(CFG_SCHEMA[S.cfgTab])body=cfgTable(S.cfgTab);
-  app.innerHTML=pageHead("Configuration","System configuration")+
+  app.innerHTML=pageHead(t("Configuration"),t("System configuration"))+
     `<div class="toolbar" style="gap:6px;flex-wrap:wrap">${T("company","Company codes")}${T("parea","Personnel areas")}${T("groups","Employee groups")}${T("subgroups","Employee subgroups")}${T("cost","Cost centers")}${T("org","Organizational units")}${T("lang","Languages")}${T("nat","Nationalities")}${T("currency","Currencies")}${T("titles","Titles")}${T("roles","Roles")}${T("users","Users & roles")}${T("auth","Authorizations")}</div>${body}`;
 }
 
@@ -2110,6 +2136,11 @@ $("#reset").addEventListener("click",()=>{db=seed();S.view=SESSION?(isEmployee()
     const next=cur==="dark"?"light":cur==="light"?"dark":(matchMedia("(prefers-color-scheme:dark)").matches?"light":"dark");
     document.documentElement.setAttribute("data-theme",next);
   });
+})();
+(function langInit(){
+  const sel=$("#lang");if(!sel)return;
+  sel.value=LANG;
+  sel.addEventListener("change",e=>{LANG=e.target.value;render();});
 })();
 
 render();
