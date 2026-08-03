@@ -813,13 +813,13 @@ const I18N={
  KH:{"People":"បុគ្គលិក","Org Chart":" តារាងអង្គភាព","Positions":"មុខតំណែង","Payroll":"បើកប្រាក់បៀវត្ស","Leave":"ការឈប់សម្រាក","Approvals":"ការអនុម័ត","Recruitment":"ការជ្រើសរើស","Training":"ការបណ្តុះបណ្តាល","Config":"ការកំណត់","Reports":"របាយការណ៍","My Team":"ក្រុមរបស់ខ្ញុំ","My Profile":"ប្រវត្តិរូបរបស់ខ្ញុំ","My Leave":"ការឈប់សម្រាករបស់ខ្ញុំ",
   "Employees":"បុគ្គលិក","Employee list":"បញ្ជីបុគ្គលិក","Personnel Administration":"រដ្ឋបាលបុគ្គលិក","Hire employee":"ជួលបុគ្គលិក","Columns":"ជួរ","Search all columns…":"ស្វែងរកគ្រប់ជួរ…","Key date":"កាលបរិច្ឆេទគន្លឹះ","Sign in":"ចូល","Sign out":"ចាកចេញ","Username":"ឈ្មោះអ្នកប្រើ","Password":"ពាក្យសម្ងាត់",
   "Add":"បន្ថែម","Edit":"កែសម្រួល","Delete":"លុប","Save":"រក្សាទុក","Cancel":"បោះបង់","Configuration":"ការកំណត់រចនាសម្ព័ន្ធ","System configuration":"ការកំណត់រចនាសម្ព័ន្ធប្រព័ន្ធ",
-  "Personal Data":"ទិន្នន័យផ្ទាល់ខ្លួន","Org Assignment":"ការចាត់តាំងអង្គភាព","Address & Comm.":"អាសយដ្ឋាន និងទំនាក់ទំនង","Family":"គ្រួសារ","Education & Experience":"ការសិក្សា និងបទពិសោធន៍","Working Time & Pay":"ម៉ោងធ្វើការ និងប្រាក់ខែ","Contract":"កិច្ចសន្យា","Time & Leave":"ម៉ោង និងការឈប់សម្រាក","Master data":"ទិន្នន័យមេ",
+  "Personal Data":"ទិន្នន័យផ្ទាល់ខ្លួន","Org Assignment":"ការចាត់តាំងអង្គភាព","Address":"អាសយដ្ឋាន","Communication":"ទំនាក់ទំនង","Family":"គ្រួសារ","Education & Experience":"ការសិក្សា និងបទពិសោធន៍","Working Time & Pay":"ម៉ោងធ្វើការ និងប្រាក់ខែ","Contract":"កិច្ចសន្យា","Time & Leave":"ម៉ោង និងការឈប់សម្រាក","Master data":"ទិន្នន័យមេ",
   "Welcome, {0}.":"សូមស្វាគមន៍, {0}។","Please sign in to continue":"សូមចូលដើម្បីបន្ត",
   "Pers.No.":"លេខបុគ្គលិក","Name":"ឈ្មោះ","Organizational unit":"អង្គភាព","Position":"មុខតំណែង","E-Mail":"អ៊ីមែល","Status":"ស្ថានភាព","Company":"ក្រុមហ៊ុន","Personnel area":"តំបន់បុគ្គលិក","Cost center":"មជ្ឈមណ្ឌលចំណាយ","City":"ទីក្រុង","Country":"ប្រទេស","Gender":"ភេទ","Hire date":"កាលបរិច្ឆេទជួល","More":"បន្ថែម"},
  CN:{"People":"员工","Org Chart":"组织结构图","Positions":"职位","Payroll":"薪资","Leave":"休假","Approvals":"审批","Recruitment":"招聘","Training":"培训","Config":"配置","Reports":"报表","My Team":"我的团队","My Profile":"我的档案","My Leave":"我的休假",
   "Employees":"员工","Employee list":"员工列表","Personnel Administration":"人事管理","Hire employee":"聘用员工","Columns":"列","Search all columns…":"搜索所有列…","Key date":"关键日期","Sign in":"登录","Sign out":"退出","Username":"用户名","Password":"密码",
   "Add":"添加","Edit":"编辑","Delete":"删除","Save":"保存","Cancel":"取消","Configuration":"配置","System configuration":"系统配置",
-  "Personal Data":"个人数据","Org Assignment":"组织分配","Address & Comm.":"地址与通讯","Family":"家庭","Education & Experience":"教育与经历","Working Time & Pay":"工作时间与薪酬","Contract":"合同","Time & Leave":"考勤与休假","Master data":"主数据",
+  "Personal Data":"个人数据","Org Assignment":"组织分配","Address":"地址","Communication":"通讯","Family":"家庭","Education & Experience":"教育与经历","Working Time & Pay":"工作时间与薪酬","Contract":"合同","Time & Leave":"考勤与休假","Master data":"主数据",
   "Welcome, {0}.":"欢迎，{0}。","Please sign in to continue":"请登录以继续",
   "Pers.No.":"工号","Name":"姓名","Organizational unit":"组织单位","Position":"职位","E-Mail":"电子邮件","Status":"状态","Company":"公司","Personnel area":"人事范围","Cost center":"成本中心","City":"城市","Country":"国家","Gender":"性别","Hire date":"入职日期","More":"更多"}
 };
@@ -1016,15 +1016,14 @@ function renderDetail(){
       ["Organizational unit",o.orgeh?esc(o.orgeh)+" "+esc(o.orgN):"—"],["Position",o.plans?esc(o.plans)+" "+esc(o.posN):"—"],
       ["Reports to",o.reportsTo?`<b>${esc(o.reportsTo.name)}</b> · ${esc(o.reportsTo.pos)}`:"—"],
       ["Cost center",esc(o.kostl)],["Validity",fmtDate(o.begda)+" – "+fmtDate(o.endda)]])}</div></div>`;}
-  else if(S.tab==="contact"){const a=e.addr||{};const cEdit=allowed("0105","update"),cDel=allowed("0105","delete");content=`
-    ${(allowed("0006","update")||allowed("0105","add"))?`<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-      ${allowed("0006","update")?`<button class="btn sm" data-act="address">${I.addr} Edit address</button>`:""}
-      ${allowed("0105","add")?`<button class="btn sm" data-act="comm">${I.addr} Add communication</button>`:""}</div>`:""}
+  else if(S.tab==="address"){const a=e.addr||{};content=`
+    ${allowed("0006","update")?`<div style="margin-bottom:12px"><button class="btn sm" data-act="address">${I.addr} Edit address</button></div>`:""}
     <div class="card"><div class="subcard">
-    <div class="section-title">Address · IT0006</div>${dl([["Street",esc(a.stras)],["City",esc(a.pstlz)+" "+esc(a.ort01)],["Country",esc(a.land1)]])}</div>
-    <div class="subcard"><div class="section-title">Communication · IT0105</div>
-    <div class="tbl-wrap"><table><thead><tr><th>Type</th><th>Value</th>${(cEdit||cDel)?`<th class="th-r">Actions</th>`:""}</tr></thead><tbody>
-    ${e.comms.map(c=>`<tr><td>${esc(c.t)}</td><td><a class="mail" href="mailto:${esc(c.v)}">${esc(c.v)}</a></td>${(cEdit||cDel)?`<td class="td-r nowrap">${cEdit?`<button class="btn xs" data-comedit="${c._id}">${I.edit} Edit</button> `:""}${cDel?`<button class="btn xs ghost" data-comdel="${c._id}">Delete</button>`:""}</td>`:""}</tr>`).join("")||`<tr><td colspan=3>—</td></tr>`}
+    <div class="section-title">Address · IT0006</div>${dl([["Street",esc(a.stras)],["City",esc(a.pstlz)+" "+esc(a.ort01)],["Country",esc(t005Name(a.land1)||a.land1)]])}</div></div>`;}
+  else if(S.tab==="comm"){const cEdit=allowed("0105","update"),cDel=allowed("0105","delete"),cAct=cEdit||cDel;content=`
+    <div class="card list-card"><div class="card-head"><h2>Communication · IT0105</h2><span class="count">${e.comms.length}</span><div class="spacer"></div>${allowed("0105","add")?`<button class="btn sm primary" data-act="comm">${I.addr} Add communication</button>`:""}</div>
+    <div class="tbl-wrap"><table><thead><tr><th>Type</th><th>Value</th>${cAct?`<th class="th-r">Actions</th>`:""}</tr></thead><tbody>
+    ${e.comms.map(c=>`<tr><td>${esc(c.t)}</td><td><a class="mail" href="mailto:${esc(c.v)}">${esc(c.v)}</a></td>${cAct?`<td class="td-r nowrap">${cEdit?`<button class="btn xs" data-comedit="${c._id}">${I.edit} Edit</button> `:""}${cDel?`<button class="btn xs ghost" data-comdel="${c._id}">Delete</button>`:""}</td>`:""}</tr>`).join("")||`<tr><td colspan="${cAct?3:2}"><div class="empty">No communication records.</div></td></tr>`}
     </tbody></table></div></div>`;}
   else if(S.tab==="pay"){const w=e.wt||{},pay=e.pay||{};content=`
     ${(allowed("0007","update")||allowed("0008","update")||allowed("0009","update"))?`<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
@@ -1118,7 +1117,7 @@ function renderDetail(){
   </div>
   <div class="tabs" id="detailTabs">
     ${tab("personal","Personal Data","person")}${tab("org","Org Assignment","org")}
-    ${tab("contact","Address & Comm.","addr")}${tab("family","Family","people")}
+    ${tab("address","Address","addr")}${tab("comm","Communication","addr")}${tab("family","Family","people")}
     ${tab("edu","Education & Experience","education")}${tab("pay","Working Time & Pay","money")}
     ${tab("contract","Contract","doc")}${tab("time","Time & Leave","cal")}
     <div class="tab-more-wrap" style="display:none"><button class="tab-morebtn" data-tabmore>${I.doc} More ▾</button><div class="tab-more-menu" id="tabMoreMenu"></div></div>
@@ -1739,6 +1738,15 @@ function absenceDialog(){
     <div class="grp"><label>Days</label><input id="a_days" type="number" step="0.5" placeholder="Leave empty to calculate from dates"></div>`,
     `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="absence">Submit</button>`);
 }
+function cityOptionsFor(ctry){return Object.entries(db.cities)
+  .filter(([k,v])=>!ctry||(v&&v.country)===ctry)
+  .map(([k])=>`<option value="${esc(k)}"></option>`).join("");}
+/* Called from the address dialog when the country changes: refilter the city list. */
+function refreshAddrCities(){const c=document.getElementById("ad_ctry");const dl=document.getElementById("ad_cityList");
+  if(dl&&c)dl.innerHTML=cityOptionsFor(c.value);}
+/* When a known city is picked, auto-fill its postal code if empty. */
+function onAddrCity(){const name=document.getElementById("ad_city").value;const city=db.cities[name];
+  const zip=document.getElementById("ad_zip");if(city&&zip&&!zip.value&&city.postal)zip.value=city.postal;}
 function addressDialog(){
   const a=getEmployee(S.pernr,S.key).addr||{};
   modal("Maintain address · IT0006",`
@@ -1748,12 +1756,15 @@ function addressDialog(){
       <div class="grp"><label>Address type</label><select id="ad_sub">${opt(db.dom.ANSSA,"1")}</select></div>
     </div>
     <div class="grp"><label>Street</label><input id="ad_street" value="${esc(a.stras)}"></div>
+    <div class="grp"><label>Country</label><select id="ad_ctry">${optBlank(db.T005,a.land1)}</select></div>
     <div class="two">
-      <div class="grp"><label>City</label><input id="ad_city" value="${esc(a.ort01)}"></div>
+      <div class="grp"><label>City</label><input id="ad_city" list="ad_cityList" autocomplete="off" value="${esc(a.ort01)}" placeholder="Type to search…">
+        <datalist id="ad_cityList">${cityOptionsFor(a.land1)}</datalist></div>
       <div class="grp"><label>Postal code</label><input id="ad_zip" value="${esc(a.pstlz)}"></div>
-    </div>
-    <div class="grp"><label>Country</label><select id="ad_ctry">${optBlank(db.T005,a.land1)}</select></div>`,
+    </div>`,
     `<button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-do="address">Save</button>`);
+  const c=$("#ad_ctry");if(c)c.addEventListener("change",refreshAddrCities);
+  const ci=$("#ad_city");if(ci)ci.addEventListener("input",onAddrCity);
 }
 function familyDialog(rec){const e=!!rec;editingRec=e?{type:"family",id:rec._id}:null;
   modal((e?"Edit":"Add")+" family member · IT0021",`
@@ -2086,13 +2097,13 @@ function doAction(kind){
     }else if(kind==="address"){
       const f={begda:val("ad_begda"),subType:val("ad_sub"),street:val("ad_street").trim(),city:val("ad_city").trim(),postalCode:val("ad_zip").trim(),country:val("ad_ctry").trim()};
       if(!f.begda){toast("Enter a valid-from date.","bad");return;}
-      updateAddress(S.pernr,f);closeModal();toast("Address updated.","good");S.tab="contact";renderDetail();
+      updateAddress(S.pernr,f);closeModal();toast("Address updated.","good");S.tab="address";renderDetail();
     }else if(kind==="comm"){
       const f={subType:val("cm_type"),value:val("cm_value").trim(),begda:val("cm_begda")};
       if(!f.value){toast("Enter the communication value.","bad");return;}
       if(editingRec&&editingRec.type==="comm"){editCommunication(editingRec.id,f);toast("Communication updated.","good");}
       else{addCommunication(S.pernr,f);toast("Communication added.","good");}
-      editingRec=null;closeModal();S.tab="contact";renderDetail();
+      editingRec=null;closeModal();S.tab="comm";renderDetail();
     }else if(kind==="work"){
       const f={begda:val("w_begda"),schkz:val("w_schkz").trim(),empct:val("w_empct"),wostd:val("w_wostd")};
       if(!f.begda){toast("Enter a valid-from date.","bad");return;}
