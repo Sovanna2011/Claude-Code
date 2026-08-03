@@ -1170,47 +1170,48 @@ function renderDetail(){
       ["Cost center",esc(o.kostl)],["Validity",fmtDate(o.begda)+" – "+fmtDate(o.endda)]])}</div></div>`;}
   else if(S.tab==="address"){const aEdit=allowed("0006","update"),aDel=allowed("0006","delete"),aAct=aEdit||aDel;content=`
     <div class="card list-card"><div class="card-head"><h2>Addresses · IT0006</h2><span class="count">${e.addresses.length}</span><div class="spacer"></div>${allowed("0006","add")||aEdit?`<button class="btn sm primary" data-act="address">${I.addr} Add address</button>`:""}</div>
-    <div class="tbl-wrap"><table><thead><tr><th>Type</th><th>Street</th><th>City</th><th>Country</th>${aAct?`<th class="th-r">Actions</th>`:""}</tr></thead><tbody>
+    <div class="tbl-wrap dt-grid dt-grid-1"><table><thead><tr><th>Type</th><th>Street</th><th>City</th><th>Country</th>${aAct?`<th class="th-r">Actions</th>`:""}</tr></thead><tbody>
     ${e.addresses.map(a=>`<tr><td><span class="pill neutral">${esc(a.type||a.subty)}</span></td><td>${esc(a.stras)||"—"}</td><td>${esc(a.pstlz)} ${esc(a.ort01)}</td><td>${esc(t005Name(a.land1)||a.land1)||"—"}</td>${aAct?`<td class="td-r nowrap">${aEdit?`<button class="btn xs" data-addredit="${a._id}">${I.edit} Edit</button> `:""}${aDel?`<button class="btn xs ghost" data-addrdel="${a._id}">Delete</button>`:""}</td>`:""}</tr>`).join("")||`<tr><td colspan="${aAct?5:4}"><div class="empty">No addresses recorded.</div></td></tr>`}
     </tbody></table></div></div>`;}
   else if(S.tab==="comm"){const cEdit=allowed("0105","update"),cDel=allowed("0105","delete"),cAct=cEdit||cDel;content=`
     <div class="card list-card"><div class="card-head"><h2>Communication · IT0105</h2><span class="count">${e.comms.length}</span><div class="spacer"></div>${allowed("0105","add")?`<button class="btn sm primary" data-act="comm">${I.addr} Add communication</button>`:""}</div>
-    <div class="tbl-wrap"><table><thead><tr><th>Type</th><th>Value</th>${cAct?`<th class="th-r">Actions</th>`:""}</tr></thead><tbody>
+    <div class="tbl-wrap dt-grid dt-grid-1"><table><thead><tr><th>Type</th><th>Value</th>${cAct?`<th class="th-r">Actions</th>`:""}</tr></thead><tbody>
     ${e.comms.map(c=>`<tr><td>${esc(c.t)}</td><td><a class="mail" href="mailto:${esc(c.v)}">${esc(c.v)}</a></td>${cAct?`<td class="td-r nowrap">${cEdit?`<button class="btn xs" data-comedit="${c._id}">${I.edit} Edit</button> `:""}${cDel?`<button class="btn xs ghost" data-comdel="${c._id}">Delete</button>`:""}</td>`:""}</tr>`).join("")||`<tr><td colspan="${cAct?3:2}"><div class="empty">No communication records.</div></td></tr>`}
     </tbody></table></div></div>`;}
-  else if(S.tab==="pay"){const w=e.wt||{},pay=e.pay||{};content=`
-    ${(allowed("0007","update")||allowed("0008","update")||allowed("0009","update"))?`<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-      ${allowed("0007","update")?`<button class="btn sm" data-act="work">${I.edit} Edit working time</button>`:""}
-      ${allowed("0008","update")?`<button class="btn sm" data-act="pay">${I.edit} Edit basic pay</button>`:""}
-      ${allowed("0009","update")?`<button class="btn sm" data-act="bank">${I.edit} Edit bank details</button>`:""}</div>`:""}
-    <div class="card">
-    <div class="subcard"><div class="section-title">Planned working time · IT0007</div>${dl([
-      ["Work schedule rule",esc(w.schkz)],["Employment percent",w.empct!=null?w.empct+" %":"—"],["Weekly hours",esc(w.wostd)]])}</div>
-    <div class="subcard"><div class="section-title">Basic pay · IT0008</div>${dl([
-      ["Pay scale group",esc(pay.trfgr)],["Capacity utilization",pay.bsgrd!=null?pay.bsgrd+" %":"—"],
-      ["Annual salary",`<b>${fmtAmt(pay.ansal,pay.waers)}</b>`]])}
-      <div class="section-title" style="margin-top:14px">Wage types</div>
-      <div class="tbl-wrap"><table><thead><tr><th>Wage type</th><th class="th-r">Amount</th></tr></thead><tbody>
-      ${(pay.wt||[]).map(x=>`<tr><td>${esc(x.lgart)} – ${esc(x.txt)}</td><td class="td-r num">${fmtAmt(x.betrg,x.waers)}</td></tr>`).join("")||""}
-      </tbody></table></div></div>
-    <div class="subcard"><div class="section-title">Bank details · IT0009</div>
-      <div class="tbl-wrap"><table><thead><tr><th>Bank key</th><th>Account number</th><th>Country</th></tr></thead><tbody>
-      ${e.banks.map(b=>`<tr><td class="num">${esc(b.key)}</td><td class="num">${esc(b.acc)}</td><td>${esc(b.ctry)}</td></tr>`).join("")||`<tr><td colspan=3>—</td></tr>`}
-      </tbody></table></div></div></div>`;}
-  else if(S.tab==="time"){const bals=leaveBalances(S.pernr);content=`<div class="card">
-    <div class="card-head"><h2>Leave balances · IT2006</h2></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Quota type</th><th class="th-r">Entitlement</th><th class="th-r">Deducted</th><th class="th-r">Remaining</th><th>Validity</th></tr></thead><tbody>
-    ${bals.map(b=>`<tr><td>${esc(b.txt)}</td><td class="td-r num">${b.ent}</td><td class="td-r num">${b.ded}</td>
-      <td class="td-r"><span class="pill ${b.rem>0?'good':'warn'} num">${b.rem}</span></td>
-      <td>${fmtDate(b.begda)} – ${fmtDate(b.endda)}</td></tr>`).join("")||`<tr><td colspan=5><div class="empty">No quotas.</div></td></tr>`}
-    </tbody></table>
-    <div class="card-head" style="border-top:1px solid var(--border)"><h2>Attendances · IT2002</h2></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Type</th><th>Validity</th><th class="th-r">Days</th><th class="th-r">Hours</th></tr></thead><tbody>
-    ${e.attend.map(a=>`<tr><td>${esc(a.t)}</td><td>${fmtDate(a.begda)} – ${fmtDate(a.endda)}</td>
-      <td class="td-r num">${a.days!=null?a.days:"—"}</td><td class="td-r num">${a.hours!=null?a.hours:"—"}</td></tr>`).join("")||`<tr><td colspan=4><div class="empty">No attendances.</div></td></tr>`}
-    </tbody></table></div></div>`;}
+  else if(S.tab==="pay"){const w=e.wt||{},pay=e.pay||{};content=
+    `<div class="card list-card"><div class="card-head"><h2>Planned working time · IT0007</h2><div class="spacer"></div>${allowed("0007","update")?`<button class="btn sm primary" data-act="work">${I.edit} Edit</button>`:""}</div>
+      <div class="subcard">${dl([["Work schedule rule",esc(w.schkz)],["Employment percent",w.empct!=null?w.empct+" %":"—"],["Weekly hours",esc(w.wostd)]])}</div></div>
+    <div style="height:16px"></div>
+    <div class="card list-card"><div class="card-head"><h2>Basic pay · IT0008</h2><div class="spacer"></div>${allowed("0008","update")?`<button class="btn sm primary" data-act="pay">${I.edit} Edit</button>`:""}</div>
+      <div class="subcard">${dl([["Pay scale group",esc(pay.trfgr)],["Capacity utilization",pay.bsgrd!=null?pay.bsgrd+" %":"—"],["Annual salary",`<b>${fmtAmt(pay.ansal,pay.waers)}</b>`]])}</div></div>
+    <div style="height:16px"></div>`+
+    dtTable("wtT","Wage types",[
+      {k:"lgart",l:"Wage type",always:true,v:x=>x.lgart+" "+(x.txt||""),html:x=>`${esc(x.lgart)} – ${esc(x.txt)}`},
+      {k:"betrg",l:"Amount",v:x=>x.betrg,html:x=>`<span class="num">${fmtAmt(x.betrg,x.waers)}</span>`}
+    ],pay.wt||[],{simple:true})
+    +`<div style="height:16px"></div>`+
+    dtTable("bankT","Bank details · IT0009",[
+      {k:"key",l:"Bank key",always:true},
+      {k:"acc",l:"Account number",always:true},
+      {k:"ctry",l:"Country"}
+    ],e.banks,{simple:true,actions:allowed("0009","update")?`<button class="btn sm primary" data-act="bank">${I.edit} Edit bank details</button>`:""});}
+  else if(S.tab==="time"){const bals=leaveBalances(S.pernr);content=
+    dtTable("leaveBalT","Leave balances · IT2006",[
+      {k:"txt",l:"Quota type",always:true},
+      {k:"ent",l:"Entitlement",v:x=>x.ent},
+      {k:"ded",l:"Deducted",v:x=>x.ded},
+      {k:"rem",l:"Remaining",v:x=>x.rem,html:x=>`<span class="pill ${x.rem>0?'good':'warn'} num">${x.rem}</span>`},
+      {k:"validity",l:"Validity",v:x=>x.begda,html:x=>`${fmtDate(x.begda)} – ${fmtDate(x.endda)}`}
+    ],bals,{simple:true})
+    +`<div style="height:16px"></div>`+
+    dtTable("attT","Attendances · IT2002",[
+      {k:"t",l:"Type",always:true},
+      {k:"validity",l:"Validity",v:x=>x.begda,html:x=>`${fmtDate(x.begda)} – ${fmtDate(x.endda)}`},
+      {k:"days",l:"Days",v:x=>x.days!=null?x.days:"",html:x=>x.days!=null?x.days:"—"},
+      {k:"hours",l:"Hours",v:x=>x.hours!=null?x.hours:"",html:x=>x.hours!=null?x.hours:"—"}
+    ],e.attend,{simple:true,actions:allowed("2002","add")?`<button class="btn sm primary" data-act="attendance">${I.cal} Record attendance</button>`:""});}
   else if(S.tab==="family"){const fEdit=allowed("0021","update"),fDel=allowed("0021","delete"),fAct=fEdit||fDel;content=`<div class="card list-card"><div class="card-head"><h2>Family members / dependents · IT0021</h2><span class="count">${e.family.length}</span><div class="spacer"></div>${allowed("0021","add")?`<button class="btn sm primary" data-act="family">${I.people} Add family</button>`:""}</div>
-    <div class="tbl-wrap"><table><thead><tr><th>Relationship</th><th>Name</th><th>Gender</th><th>Date of birth</th><th>Phone</th><th>E-mail</th><th>Occupation</th><th>Dependent</th>${fAct?`<th class="th-r">Actions</th>`:""}</tr></thead><tbody>
+    <div class="tbl-wrap dt-grid dt-grid-1"><table><thead><tr><th>Relationship</th><th>Name</th><th>Gender</th><th>Date of birth</th><th>Phone</th><th>E-mail</th><th>Occupation</th><th>Dependent</th>${fAct?`<th class="th-r">Actions</th>`:""}</tr></thead><tbody>
     ${e.family.map(f=>`<tr><td><span class="pill neutral">${esc(f.rel)}</span></td><td>${esc(f.name)}</td><td>${esc(f.gesch)}</td><td>${fmtDate(f.dob)}</td><td>${esc(f.phone)||"—"}</td><td>${f.email?`<a class="mail" href="mailto:${esc(f.email)}">${esc(f.email)}</a>`:"—"}</td><td>${esc(f.occ)||"—"}</td><td>${f.depend?`<span class="pill good">Yes</span>`:"—"}</td>${fAct?`<td class="td-r nowrap">${fEdit?`<button class="btn xs" data-famedit="${f._id}">${I.edit} Edit</button> `:""}${fDel?`<button class="btn xs ghost" data-famdel="${f._id}">Delete</button>`:""}</td>`:""}</tr>`).join("")||`<tr><td colspan="${fAct?9:8}"><div class="empty">No family members recorded.</div></td></tr>`}
     </tbody></table></div></div>`;}
   else if(S.tab==="edu"){
