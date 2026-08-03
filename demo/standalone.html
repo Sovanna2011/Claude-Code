@@ -303,6 +303,17 @@ a.mail:hover{text-decoration:underline}
 .node.open>.children{display:block}
 .hc{display:inline-flex;align-items:center;gap:5px;color:var(--info);font-weight:700}
 .hc svg{width:13px;height:13px;fill:currentColor}
+/* Tree presented as a table with columns (headcount, sub-units) */
+.orow.hidden{display:none}
+.otree-tbl td.otree{cursor:pointer;white-space:nowrap}
+.otree-tbl tr:hover td{background:var(--surface-2)}
+.otree-tbl .otree .tog{display:inline-grid;place-items:center;width:16px;height:16px;color:var(--muted);vertical-align:middle;transition:transform .12s}
+.otree-tbl .otree .tog svg{width:14px;height:14px;fill:currentColor}
+.otree-tbl .otree .tog.open{transform:rotate(90deg)}
+.otree-tbl .otree .tog.leaf{visibility:hidden}
+.otree-tbl .otree .oic{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:6px;background:var(--accent-soft);color:var(--accent);vertical-align:middle;margin:0 8px 0 6px}
+.otree-tbl .otree .oic svg{width:14px;height:14px;fill:currentColor}
+.otree-tbl .otree .nm{font-weight:700;vertical-align:middle}
 
 /* ---- Modal ---- */
 .modal-bg{position:fixed;inset:0;background:rgba(15,25,35,.45);backdrop-filter:blur(2px);
@@ -1381,24 +1392,35 @@ function renderOrg(){
   const roots=orgTree(S.key);
   // Expand the whole tree on first visit so no branch/information is hidden.
   if(!S._orgInit){(function addAll(ns){ns.forEach(n=>{S.open.add(n.id);addAll(n.children);});})(roots);S._orgInit=true;}
-  const nodeHtml=n=>{
+  // Total headcount = employees directly assigned + everyone in the sub-units below.
+  const total=n=>{let s=n.hc||0;n.children.forEach(c=>s+=total(c));return s;};
+  // Flatten the tree to table rows, tracking depth and whether ancestors are all open.
+  const rows=[];
+  (function walk(ns,depth,ancOpen){ns.forEach(n=>{
     const open=S.open.has(n.id),leaf=!n.children.length;
-    return `<div class="node ${open?'open':''}" >
-      <div class="bar" data-tog="${n.id}">
-        <span class="tog ${leaf?'leaf':''}">${I.chev}</span>
-        <span class="oic">${I.org}</span>
-        <span class="meta"><span class="nm">${esc(n.name)}</span>
-          <span class="dt"><span>Org ID ${n.id}</span><span>Manager: ${n.mgr?esc(n.mgr):"—"}</span>
-          <span class="hc">${I.people}${n.hc||0}</span>${n.children.length?`<span>${n.children.length} sub-unit(s)</span>`:""}</span></span>
-      </div>
-      <div class="children">${n.children.map(nodeHtml).join("")}</div></div>`;
-  };
+    rows.push({n,depth,open,leaf,visible:ancOpen});
+    walk(n.children,depth+1,ancOpen&&open);});})(roots,0,true);
+  const grand=roots.reduce((s,n)=>s+total(n),0);
+  const body=rows.map(r=>{const n=r.n;
+    return `<tr class="orow${r.visible?"":" hidden"}">
+      <td class="otree" data-tog="${n.id}" style="padding-left:${10+r.depth*22}px">
+        <span class="tog ${r.leaf?"leaf":""}${r.open?" open":""}">${I.chev}</span>
+        <span class="oic">${I.org}</span><span class="nm">${esc(n.name)}</span></td>
+      <td class="num">${n.id}</td>
+      <td>${n.mgr?esc(n.mgr):"—"}</td>
+      <td class="num"><span class="hc">${I.people}${n.hc||0}</span></td>
+      <td class="num"><b>${total(n)}</b></td>
+      <td class="num">${n.children.length||"—"}</td></tr>`;}).join("");
   app.innerHTML=`
   <div class="page-head"><div><div class="crumb">Organizational Management</div><h1>Organizational structure — tree</h1></div>
     <div style="display:flex;gap:8px;align-items:flex-end">
       <button class="btn" data-nav="orggraph">${I.org} Chart view</button>
       <div class="field"><label>Key date</label><input type="date" id="kd" value="${S.key}"></div></div></div>
-  <div class="card"><div class="tree">${roots.map(nodeHtml).join("")}</div></div>`;
+  <div class="card list-card"><div class="card-head"><h2>Organizational units</h2><span class="count">${rows.length}</span><div class="spacer"></div>
+    <span class="muted" style="font-size:13px">Total employees: <b>${grand}</b></span></div>
+    <div class="tbl-wrap dt-grid dt-grid-1"><table class="dt otree-tbl"><thead><tr>
+      <th>Organizational unit</th><th>Org ID</th><th>Manager</th><th title="Employees assigned directly to this unit">Employees</th><th title="Including all sub-units below">Total (incl. sub-units)</th><th>Sub-units</th>
+    </tr></thead><tbody>${body||`<tr><td colspan="6"><div class="empty">No organizational units.</div></td></tr>`}</tbody></table></div></div>`;
   $("#kd").addEventListener("change",e=>{S.key=e.target.value;renderOrg();});
 }
 
