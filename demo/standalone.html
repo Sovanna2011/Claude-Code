@@ -921,13 +921,24 @@ function dtApply(id,cols,rows){const st=dtState(id);let data=rows.slice();
       return (x<y?-1:x>y?1:0)*(st.dir==="asc"?1:-1);});}
   return data;}
 let _dtReg={};
+let _lastCsv="";
 function exportCsv(id){const reg=_dtReg[id];if(!reg)return;
   const cols=reg.cols.filter(c=>c.k!=="act"&&c.l);
   const q=s=>{s=(s==null?"":String(s));return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
   const csv=[cols.map(c=>q(t(c.l))).join(",")].concat(reg.rows.map(r=>cols.map(c=>q(dtRaw(r,c))).join(","))).join("\r\n");
-  const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8;"});
-  const url=URL.createObjectURL(blob),a=document.createElement("a");
-  a.href=url;a.download=(reg.title||id).replace(/[^\w]+/g,"_")+".csv";document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);}
+  _lastCsv=csv;
+  const fname=(reg.title||id).replace(/[^\w]+/g,"_")+".csv";
+  const dataUrl="data:text/csv;charset=utf-8,"+encodeURIComponent("﻿"+csv);
+  // Attempt a direct download; also open a modal so it works inside sandboxed viewers.
+  try{const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8;"});
+    const url=URL.createObjectURL(blob),a=document.createElement("a");
+    a.href=url;a.download=fname;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}catch(e){}
+  modal("Export to Excel — "+esc(reg.title||id),
+    `<div class="hint">${I.info}<span>The file may download automatically. If not, use the download link or copy the data into Excel/Sheets. ${cols.length} column(s), ${reg.rows.length} row(s).</span></div>
+     <div class="grp"><a class="btn primary" href="${dataUrl}" download="${esc(fname)}" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px">⭳ Download ${esc(fname)}</a></div>
+     <textarea id="csvOut" readonly style="width:100%;height:200px;font-family:ui-monospace,monospace;font-size:12px;white-space:pre;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text);padding:8px">${esc(csv)}</textarea>`,
+    `<button class="btn" data-copycsv>Copy to clipboard</button><button class="btn ghost" data-close>Close</button>`);
+}
 function dtTable(id,title,cols,rows,opts){opts=opts||{};const st=dtState(id);
   const data=dtApply(id,cols,rows);
   const vis=cols.filter(c=>c.always||!st.hidden.includes(c.k));
@@ -2214,7 +2225,7 @@ document.addEventListener("click",ev=>{
   const comboOpt=ev.target.closest("[data-cityopt]");
   if(comboOpt){const combo=comboOpt.closest(".combo"),inp=combo.querySelector("input");
     inp.value=comboOpt.dataset.cityopt;onAddrCity();combo.querySelector(".combo-list").classList.remove("open");return;}
-  const t=ev.target.closest("[data-nav],[data-open],[data-act],[data-tab],[data-tog],[data-do],[data-close],[data-fill],[data-approve],[data-reject],[data-book],[data-advance],[data-payslip],[data-cfg],[data-authrole],[data-cfgadd],[data-cfgedit],[data-cfgdel],[data-useredit],[data-userdel],[data-orgedit],[data-orgdel],[data-roleadd],[data-roleedit],[data-roledel],[data-posadd],[data-posedit],[data-posdel],[data-addredit],[data-addrdel],[data-comedit],[data-comdel],[data-famedit],[data-famdel],[data-eduedit],[data-edudel],[data-expedit],[data-expdel],[data-qualedit],[data-qualdel],[data-sort],[data-possort],[data-dtsort],[data-dtcols],[data-dtexport],[data-reqadd],[data-reqedit],[data-reqdel],[data-appladd],[data-appledit],[data-appldel],[data-crsadd],[data-crsedit],[data-crsdel],[data-more],[data-tabmore],[data-photo]");
+  const t=ev.target.closest("[data-nav],[data-open],[data-act],[data-tab],[data-tog],[data-do],[data-close],[data-fill],[data-approve],[data-reject],[data-book],[data-advance],[data-payslip],[data-cfg],[data-authrole],[data-cfgadd],[data-cfgedit],[data-cfgdel],[data-useredit],[data-userdel],[data-orgedit],[data-orgdel],[data-roleadd],[data-roleedit],[data-roledel],[data-posadd],[data-posedit],[data-posdel],[data-addredit],[data-addrdel],[data-comedit],[data-comdel],[data-famedit],[data-famdel],[data-eduedit],[data-edudel],[data-expedit],[data-expdel],[data-qualedit],[data-qualdel],[data-sort],[data-possort],[data-dtsort],[data-dtcols],[data-dtexport],[data-copycsv],[data-reqadd],[data-reqedit],[data-reqdel],[data-appladd],[data-appledit],[data-appldel],[data-crsadd],[data-crsedit],[data-crsdel],[data-more],[data-tabmore],[data-photo]");
   if(!t){const mm=$("#moreMenu");if(mm)mm.classList.remove("open");const tm=$("#tabMoreMenu");if(tm)tm.classList.remove("open");return;}
   if(t.hasAttribute("data-more")){const mm=$("#moreMenu");mm.classList.toggle("open");return;}
   if(t.hasAttribute("data-tabmore")){const tm=$("#tabMoreMenu");tm.classList.toggle("open");return;}
@@ -2292,6 +2303,7 @@ document.addEventListener("click",ev=>{
   if(t.dataset.dtsort){const [id,k]=t.dataset.dtsort.split(":");const st=dtState(id);if(st.sort===k)st.dir=st.dir==="asc"?"desc":"asc";else{st.sort=k;st.dir="asc";}render();return;}
   if(t.dataset.dtcols){const st=dtState(t.dataset.dtcols);st.showCols=!st.showCols;render();return;}
   if(t.dataset.dtexport){exportCsv(t.dataset.dtexport);return;}
+  if(t.hasAttribute("data-copycsv")){const ta=$("#csvOut");if(ta){ta.select();try{navigator.clipboard.writeText(_lastCsv);}catch(e){try{document.execCommand("copy");}catch(_){}}toast("Copied to clipboard.","good");}return;}
   if(t.hasAttribute("data-reqadd")){reqDialog(null);return;}
   if(t.dataset.reqedit){reqDialog(+t.dataset.reqedit);return;}
   if(t.dataset.reqdel){if(confirm("Delete this requisition?")){deleteRequisition(+t.dataset.reqdel);toast("Requisition deleted.","good");render();}return;}
