@@ -510,8 +510,15 @@ function seed(){return{
   users:[
    {username:"admin",password:"admin123",name:"Alex Admin",roles:["HR_ADMIN"],pernr:null,email:"admin@globalcorp.com"},
    {username:"manager",password:"manager123",name:"Andreas Schmidt",roles:["HR_MANAGER","EMPLOYEE"],pernr:1000,email:"a.schmidt@globalcorp.com"},
-   {username:"linda",password:"linda123",name:"Linda Nguyen",roles:["EMPLOYEE"],pernr:1001,email:"l.nguyen@globalcorp.com"}],
-  roleNames:{HR_ADMIN:"HR Administrator",HR_MANAGER:"HR Manager",EMPLOYEE:"Employee (Self-Service)"},
+   {username:"linda",password:"linda123",name:"Linda Nguyen",roles:["EMPLOYEE"],pernr:1001,email:"l.nguyen@globalcorp.com"},
+   {username:"payroll",password:"payroll123",name:"Priya Patel",roles:["PAYROLL_CLERK"],pernr:null,email:"p.patel@globalcorp.com"},
+   {username:"timekeeper",password:"time123",name:"Tomas Novak",roles:["TIME_ADMIN"],pernr:null,email:"t.novak@globalcorp.com"},
+   {username:"recruiter",password:"recruiter123",name:"Rita Chen",roles:["RECRUITER"],pernr:null,email:"r.chen@globalcorp.com"},
+   {username:"trainer",password:"trainer123",name:"Tara Ok",roles:["TRAINING_COORD"],pernr:null,email:"t.ok@globalcorp.com"},
+   {username:"hrbp",password:"hrbp123",name:"Ben Ahmed",roles:["HR_BP","EMPLOYEE"],pernr:null,email:"b.ahmed@globalcorp.com"}],
+  roleNames:{HR_ADMIN:"HR Administrator",HR_MANAGER:"HR Manager",EMPLOYEE:"Employee (Self-Service)",
+   HR_BP:"HR Business Partner",PAYROLL_CLERK:"Payroll Clerk",TIME_ADMIN:"Time Administrator",
+   RECRUITER:"Recruiter",TRAINING_COORD:"Training Coordinator"},
   /* Infotypes covered by the authorization matrix. */
   infotypes:[["0000","Actions"],["0001","Org Assignment"],["0002","Personal Data"],["0006","Address"],
    ["0007","Working Time"],["0008","Basic Pay"],["0009","Bank Details"],["0016","Contract"],
@@ -522,12 +529,25 @@ function seed(){return{
     const ALL={display:true,add:true,update:true,delete:true};
     const DISP={display:true,add:false,update:false,delete:false};
     const TIME={display:true,add:true,update:true,delete:false};
-    const a={HR_ADMIN:{},HR_MANAGER:{},EMPLOYEE:{}};
+    const UPD={display:true,add:false,update:true,delete:false};
+    const NONE={display:false,add:false,update:false,delete:false};
+    const a={HR_ADMIN:{},HR_MANAGER:{},EMPLOYEE:{},HR_BP:{},PAYROLL_CLERK:{},TIME_ADMIN:{},RECRUITER:{},TRAINING_COORD:{}};
     const its=["0000","0001","0002","0006","0007","0008","0009","0016","0021","0022","0023","0024","0105","2001","2002"];
+    const has=(list,it)=>list.indexOf(it)>=0;
     its.forEach(it=>{
       a.HR_ADMIN[it]={...ALL};
       a.HR_MANAGER[it]=(it==="2001"||it==="2002")?{...TIME}:{...DISP};
-      a.EMPLOYEE[it]=(it==="0002"||it==="0006"||it==="0021"||it==="0022"||it==="0023"||it==="0024"||it==="0105")?{...DISP}:{display:false,add:false,update:false,delete:false};
+      a.EMPLOYEE[it]=has(["0002","0006","0021","0022","0023","0024","0105"],it)?{...DISP}:{...NONE};
+      // HR Business Partner: read everything, maintain core PA infotypes
+      a.HR_BP[it]=has(["0001","0002","0006","0016"],it)?{...UPD}:{...DISP};
+      // Payroll Clerk: read all, maintain pay & bank
+      a.PAYROLL_CLERK[it]=has(["0008","0009"],it)?{...UPD}:{...DISP};
+      // Time Administrator: read all, maintain time infotypes
+      a.TIME_ADMIN[it]=(it==="2001"||it==="2002")?{...TIME}:{...DISP};
+      // Recruiter: read hiring-relevant infotypes only
+      a.RECRUITER[it]=has(["0000","0001","0002"],it)?{...DISP}:{...NONE};
+      // Training Coordinator: read core + maintain qualifications
+      a.TRAINING_COORD[it]=(it==="0024")?{...UPD}:(has(["0001","0002"],it)?{...DISP}:{...NONE});
     });
     return a;})(),
   leaveSeq:2,
