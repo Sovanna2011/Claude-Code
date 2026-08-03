@@ -488,6 +488,7 @@ function seed(){return{
   subgroupGroup:{"DU":"1","DW":"1","DT":"1"},
   T002:{"EN":"English","DE":"German","FR":"French","ES":"Spanish","VI":"Vietnamese"},
   currencies:{"EUR":"Euro","USD":"US Dollar","GBP":"Pound Sterling","KHR":"Cambodian Riel","CNY":"Chinese Yuan","SGD":"Singapore Dollar","VND":"Vietnamese Dong","JPY":"Japanese Yen"},
+  cities:{"Berlin":{country:"DE"},"Munich":{country:"DE"},"New York":{country:"US"},"London":{country:"GB"},"Paris":{country:"FR"},"Phnom Penh":{country:"KH"},"Singapore":{country:"SG"},"Hanoi":{country:"VN"}},
   T005:{"DE":"Germany","US":"United States","FR":"France","GB":"United Kingdom","KH":"Cambodia","SG":"Singapore","VN":"Vietnam"},
   T501:{"1":"Active employees","2":"Pensioners","9":"External staff"},
   T503K:{"DU":"Salaried staff","DW":"Industrial workers","DT":"Trainees"},
@@ -1296,8 +1297,9 @@ function renderAuthMatrix(){
 /* ---- Generic, schema-driven configuration editor (add / edit / delete) ---- */
 const CFG_SCHEMA={
   company:{h:"Company codes (T001)",store:"omap",path:"T001",keyL:"Company code",
-    fields:[{k:"name",l:"Name"},{k:"country",l:"Country",src:"T005"},{k:"currency",l:"Currency",src:"currencies"},{k:"city",l:"City"}]},
+    fields:[{k:"name",l:"Name"},{k:"country",l:"Country",src:"T005"},{k:"currency",l:"Currency",src:"currencies"},{k:"city",l:"City",src:"cities"}]},
   currency:{h:"Currencies",store:"smap",path:"currencies",keyL:"Currency code",fields:[{k:"text",l:"Currency"}]},
+  city:{h:"Cities",store:"omap",path:"cities",keyL:"City",fields:[{k:"country",l:"Country",src:"T005"}]},
   parea:{h:"Personnel areas (T500P)",store:"omap",path:"T500P",keyL:"Personnel area",
     fields:[{k:"text",l:"Name"},{k:"bukrs",l:"Company code",src:"T001"}]},
   groups:{h:"Employee groups (T501)",store:"smap",path:"T501",keyL:"Group key",fields:[{k:"text",l:"Text"}]},
@@ -1394,7 +1396,7 @@ function renderConfig(){
   else if(S.cfgTab==="org")body=cfgOrgTable();
   else if(CFG_SCHEMA[S.cfgTab])body=cfgTable(S.cfgTab);
   app.innerHTML=pageHead(t("Configuration"),t("System configuration"))+
-    `<div class="toolbar" style="gap:6px;flex-wrap:wrap">${T("company","Company codes")}${T("parea","Personnel areas")}${T("groups","Employee groups")}${T("subgroups","Employee subgroups")}${T("cost","Cost centers")}${T("org","Organizational units")}${T("lang","Languages")}${T("nat","Nationalities")}${T("currency","Currencies")}${T("titles","Titles")}${T("roles","Roles")}${T("users","Users & roles")}${T("auth","Authorizations")}</div>${body}`;
+    `<div class="toolbar" style="gap:6px;flex-wrap:wrap">${T("company","Company codes")}${T("parea","Personnel areas")}${T("groups","Employee groups")}${T("subgroups","Employee subgroups")}${T("cost","Cost centers")}${T("org","Organizational units")}${T("lang","Languages")}${T("nat","Nationalities")}${T("currency","Currencies")}${T("city","Cities")}${T("titles","Titles")}${T("roles","Roles")}${T("users","Users & roles")}${T("auth","Authorizations")}</div>${body}`;
 }
 
 /* ============================ MODULE VIEWS ============================ */
@@ -1578,7 +1580,7 @@ function payslipDialog(pernr){
 }
 
 /* ============================ MODALS ============================ */
-function opt(map,sel){return Object.entries(map).map(([k,v])=>{const t=(v&&typeof v==="object")?(v.name||v.text||""):v;return `<option value="${k}" ${String(sel)===String(k)?'selected':''}>${esc(k)} – ${esc(t)}</option>`;}).join("");}
+function opt(map,sel){return Object.entries(map).map(([k,v])=>{const t=(v&&typeof v==="object")?(v.name||v.text||""):v;const lbl=t?esc(k)+" – "+esc(t):esc(k);return `<option value="${k}" ${String(sel)===String(k)?'selected':''}>${lbl}</option>`;}).join("");}
 const t001Name=k=>{const v=db.T001[k];return v&&typeof v==="object"?v.name:v;};
 const t500pName=k=>{const v=db.T500P[k];return v&&typeof v==="object"?v.text:v;};
 function optBlank(map,sel){return `<option value="" ${sel?'':'selected'}>—</option>`+opt(map,sel);}
