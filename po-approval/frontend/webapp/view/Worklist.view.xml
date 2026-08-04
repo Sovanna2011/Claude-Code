@@ -1,0 +1,127 @@
+<mvc:View
+    controllerName="po.approval.controller.Worklist"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core"
+    height="100%">
+
+    <Page id="worklistPage" title="{i18n>worklistTitle}" showNavButton="false">
+        <headerContent>
+            <ObjectStatus icon="sap-icon://employee" text="{auth>/user/displayName}"/>
+            <Button icon="sap-icon://log" tooltip="{i18n>logout}" text="{i18n>logout}" press=".onLogout"/>
+        </headerContent>
+
+        <subHeader>
+            <OverflowToolbar>
+                <SearchField width="18rem" search=".onSearch" liveChange=".onSearch"
+                    placeholder="{i18n>searchPlaceholder}" visible="{= ${view>/mode} === 'list' }"/>
+                <ToolbarSpacer/>
+                <SegmentedButton selectedKey="{view>/mode}" selectionChange=".onModeChange">
+                    <items>
+                        <SegmentedButtonItem key="list" icon="sap-icon://list" text="{i18n>modeList}"/>
+                        <SegmentedButtonItem key="strategy" icon="sap-icon://tree" text="{i18n>modeStrategy}"/>
+                    </items>
+                </SegmentedButton>
+                <CheckBox selected="{view>/onlyPending}" text="{i18n>onlyPending}" select=".onPendingChange"
+                    visible="{= ${view>/mode} === 'list' }"/>
+                <CheckBox selected="{view>/assignedToMe}" text="{i18n>assignedToMe}" select=".onAssignedChange"
+                    visible="{= ${view>/mode} === 'strategy' }"/>
+            </OverflowToolbar>
+        </subHeader>
+
+        <content>
+            <!-- Flat list -->
+            <Table id="poTable" items="{/pos}" growing="true" growingThreshold="30"
+                mode="SingleSelectMaster" itemPress=".onPoPress" visible="{= ${view>/mode} === 'list' }">
+                <headerToolbar>
+                    <OverflowToolbar>
+                        <Title text="{i18n>worklistHeader}" level="H2"/>
+                        <ObjectStatus text="{= ${/pos}.length }" class="sapUiTinyMarginBegin"/>
+                        <ToolbarSpacer/>
+                        <Button icon="sap-icon://refresh" tooltip="{i18n>refresh}" press=".onRefresh"/>
+                    </OverflowToolbar>
+                </headerToolbar>
+                <columns>
+                    <Column width="9rem"><Text text="{i18n>colPo}"/></Column>
+                    <Column><Text text="{i18n>colVendor}"/></Column>
+                    <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colGroup}"/></Column>
+                    <Column hAlign="End" width="11rem"><Text text="{i18n>colValue}"/></Column>
+                    <Column minScreenWidth="Desktop" demandPopin="true" width="9rem"><Text text="{i18n>colStrategy}"/></Column>
+                    <Column width="11rem"><Text text="{i18n>colRelease}"/></Column>
+                    <Column hAlign="Center" width="9rem"><Text text="{i18n>colAction}"/></Column>
+                </columns>
+                <items>
+                    <ColumnListItem type="Navigation">
+                        <cells>
+                            <ObjectIdentifier title="{ebeln}" text="{docType}"/>
+                            <VBox>
+                                <Text text="{vendorName}"/>
+                                <Text text="{vendorId}" class="sapUiTinyText"/>
+                            </VBox>
+                            <Text text="{purchasingGroupName}"/>
+                            <ObjectNumber number="{path: 'netValue', formatter: '.formatter.amount'}"
+                                unit="{currency}" emphasized="false"/>
+                            <Text text="{strategyText}"/>
+                            <ObjectStatus text="{releaseIndicatorText}"
+                                state="{path: 'releaseIndicator', formatter: '.formatter.releaseState'}"
+                                icon="{= ${releaseIndicator} === 'R' ? 'sap-icon://accept' : 'sap-icon://pending' }"/>
+                            <ObjectStatus text="{= ${canCurrentUserRelease} ? ${i18n>actionRelease} : '' }"
+                                state="Information" icon="{= ${canCurrentUserRelease} ? 'sap-icon://request' : '' }"/>
+                        </cells>
+                    </ColumnListItem>
+                </items>
+            </Table>
+
+            <!-- Pending, grouped by release strategy (ME28-style) -->
+            <List items="{/groups}" showSeparators="None" visible="{= ${view>/mode} === 'strategy' }"
+                noDataText="{i18n>noPending}">
+                <CustomListItem>
+                    <Panel expandable="true" expanded="true" class="sapUiSmallMarginBottom">
+                        <headerToolbar>
+                            <OverflowToolbar>
+                                <core:Icon src="sap-icon://tree" class="sapUiTinyMarginEnd"/>
+                                <Title text="{strategy} · {strategyText}" level="H3"/>
+                                <ObjectStatus text="{= ${count} + ' ' + (${count} === 1 ? ${i18n>poOne} : ${i18n>poMany}) }"
+                                    class="sapUiSmallMarginBegin"/>
+                                <Text text="{= ${i18n>codesLabel} + ': ' + ${codesText} }"
+                                    class="sapUiSmallMarginBegin"/>
+                                <ToolbarSpacer/>
+                                <Label text="{i18n>groupTotal}"/>
+                                <ObjectNumber number="{path: 'totalNetValue', formatter: '.formatter.amount'}"
+                                    unit="{currency}" emphasized="true"/>
+                            </OverflowToolbar>
+                        </headerToolbar>
+                        <content>
+                            <Table items="{purchaseOrders}" itemPress=".onPoPress" mode="SingleSelectMaster">
+                                <columns>
+                                    <Column width="9rem"><Text text="{i18n>colPo}"/></Column>
+                                    <Column><Text text="{i18n>colVendor}"/></Column>
+                                    <Column hAlign="End" width="11rem"><Text text="{i18n>colValue}"/></Column>
+                                    <Column width="10rem"><Text text="{i18n>colNextCode}"/></Column>
+                                    <Column hAlign="Center" width="9rem"><Text text="{i18n>colAction}"/></Column>
+                                </columns>
+                                <items>
+                                    <ColumnListItem type="Navigation">
+                                        <cells>
+                                            <ObjectIdentifier title="{ebeln}" text="{docType}"/>
+                                            <VBox>
+                                                <Text text="{vendorName}"/>
+                                                <Text text="{vendorId}" class="sapUiTinyText"/>
+                                            </VBox>
+                                            <ObjectNumber number="{path: 'netValue', formatter: '.formatter.amount'}"
+                                                unit="{currency}" emphasized="false"/>
+                                            <ObjectStatus text="{= ${nextPendingCode} ? (${nextPendingCode} + ' · ' + ${nextPendingCodeText}) : '' }"
+                                                state="Warning" icon="sap-icon://pending"/>
+                                            <ObjectStatus text="{= ${canCurrentUserRelease} ? ${i18n>actionRelease} : '' }"
+                                                state="Information" icon="{= ${canCurrentUserRelease} ? 'sap-icon://request' : '' }"/>
+                                        </cells>
+                                    </ColumnListItem>
+                                </items>
+                            </Table>
+                        </content>
+                    </Panel>
+                </CustomListItem>
+            </List>
+        </content>
+    </Page>
+</mvc:View>

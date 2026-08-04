@@ -1,0 +1,142 @@
+<mvc:View
+    controllerName="po.approval.controller.PoDetail"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core"
+    xmlns:f="sap.ui.layout.form"
+    height="100%">
+
+    <Page id="poDetailPage" title="{i18n>detailTitle}" showNavButton="true" navButtonPress=".onNavBack">
+        <headerContent>
+            <ObjectStatus icon="sap-icon://employee" text="{auth>/user/displayName}"/>
+            <Button icon="sap-icon://log" tooltip="{i18n>logout}" press=".onLogout"/>
+        </headerContent>
+
+        <content>
+            <ObjectHeader
+                title="{ebeln}"
+                number="{path: 'netValue', formatter: '.formatter.amount'}"
+                numberUnit="{currency}"
+                responsive="true"
+                showMarkers="false">
+                <attributes>
+                    <ObjectAttribute title="{i18n>fVendor}" text="{vendor/name} ({vendor/vendorId})"/>
+                    <ObjectAttribute title="{i18n>fDocType}" text="{docType} - {docTypeText}"/>
+                    <ObjectAttribute title="{i18n>fGroup}" text="{purchasingGroup} - {purchasingGroupName}"/>
+                    <ObjectAttribute title="{i18n>fDocDate}" text="{path: 'docDate', type: 'sap.ui.model.type.Date', formatOptions: {style: 'medium'}}"/>
+                </attributes>
+                <statuses>
+                    <ObjectStatus title="{i18n>fRelease}" text="{releaseIndicatorText}"
+                        state="{path: 'releaseIndicator', formatter: '.formatter.releaseState'}"
+                        icon="{= ${releaseIndicator} === 'R' ? 'sap-icon://accept' : 'sap-icon://pending' }"/>
+                    <ObjectStatus title="{i18n>fStrategy}" text="{= ${strategy} ? ${strategy} + ' - ' + ${strategyText} : ${i18n>notSubject} }"/>
+                </statuses>
+            </ObjectHeader>
+
+            <IconTabBar id="detailTabs" expanded="true" class="sapUiResponsiveContentPadding">
+                <items>
+                    <!-- Release strategy -->
+                    <IconTabFilter icon="sap-icon://process" text="{i18n>tabRelease}"
+                        count="{= ${/releaseSteps}.length }">
+                        <VBox class="sapUiSmallMargin">
+                            <MessageStrip class="sapUiSmallMarginBottom"
+                                text="{i18n>releaseGroupInfo} {releaseGroup} - {releaseGroupText}"
+                                type="Information" showIcon="true"
+                                visible="{= !!${releaseGroup} }"/>
+                            <List items="{/releaseSteps}" noDataText="{i18n>notSubject}">
+                                <StandardListItem
+                                    title="{= ${i18n>step} + ' ' + ${stepNo} + ': ' + ${code} + ' - ' + ${codeText} }"
+                                    description="{= ${isReleased} ? (${i18n>releasedBy} + ' ' + ${releasedBy}) : (${isCurrentStep} ? ${i18n>currentStep} : ${i18n>waiting}) }"
+                                    icon="{path: 'isReleased', formatter: '.formatter.stepIcon'}"
+                                    iconInset="false"
+                                    info="{= ${isReleased} ? ${i18n>released} : ${i18n>pending} }"
+                                    infoState="{path: 'isReleased', formatter: '.formatter.stepState'}"
+                                    highlight="{= ${isCurrentStep} ? 'Information' : 'None' }"/>
+                            </List>
+                        </VBox>
+                    </IconTabFilter>
+
+                    <!-- Items -->
+                    <IconTabFilter icon="sap-icon://product" text="{i18n>tabItems}"
+                        count="{= ${/items}.length }">
+                        <Table items="{/items}" class="sapUiSmallMargin" fixedLayout="false">
+                            <columns>
+                                <Column width="4rem"><Text text="{i18n>colItem}"/></Column>
+                                <Column><Text text="{i18n>colText}"/></Column>
+                                <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colMatGroup}"/></Column>
+                                <Column minScreenWidth="Desktop" demandPopin="true"><Text text="{i18n>colPlant}"/></Column>
+                                <Column minScreenWidth="Tablet" demandPopin="true" hAlign="End"><Text text="{i18n>colDelivery}"/></Column>
+                                <Column hAlign="End"><Text text="{i18n>colQty}"/></Column>
+                                <Column minScreenWidth="Desktop" demandPopin="true" hAlign="End"><Text text="{i18n>colPrice}"/></Column>
+                                <Column hAlign="End"><Text text="{i18n>colNet}"/></Column>
+                                <Column minScreenWidth="Desktop" demandPopin="true" hAlign="End"><Text text="{i18n>colGross}"/></Column>
+                                <Column minScreenWidth="Desktop" demandPopin="true" hAlign="Center"><Text text="{i18n>colTax}"/></Column>
+                            </columns>
+                            <items>
+                                <ColumnListItem>
+                                    <cells>
+                                        <Text text="{itemNo}"/>
+                                        <VBox>
+                                            <Text text="{shortText}"/>
+                                            <Text text="{material}" class="sapUiTinyText"/>
+                                        </VBox>
+                                        <VBox>
+                                            <Text text="{materialGroupText}"/>
+                                            <Text text="{materialGroup}" class="sapUiTinyText"/>
+                                        </VBox>
+                                        <VBox>
+                                            <Text text="{plantName}"/>
+                                            <Text text="{= ${i18n>plantShort} + ' ' + ${plant} + ' · ' + ${i18n>slocShort} + ' ' + ${storageLocation} }" class="sapUiTinyText"/>
+                                        </VBox>
+                                        <Text text="{path: 'deliveryDate', type: 'sap.ui.model.type.Date', formatOptions: {style: 'medium'}}"/>
+                                        <ObjectNumber number="{path: 'quantity', formatter: '.formatter.amount'}" unit="{unit}"/>
+                                        <ObjectNumber number="{path: 'netPrice', formatter: '.formatter.amount'}" unit="{/currency}" emphasized="false"/>
+                                        <ObjectNumber number="{path: 'netValue', formatter: '.formatter.amount'}" unit="{/currency}"/>
+                                        <ObjectNumber number="{path: 'grossValue', formatter: '.formatter.amount'}" unit="{/currency}" emphasized="false"/>
+                                        <Text text="{taxCode}"/>
+                                    </cells>
+                                </ColumnListItem>
+                            </items>
+                        </Table>
+                    </IconTabFilter>
+
+                    <!-- Audit log -->
+                    <IconTabFilter icon="sap-icon://history" text="{i18n>tabLog}"
+                        count="{= ${/releaseLog}.length }">
+                        <Table items="{/releaseLog}" class="sapUiSmallMargin" noDataText="{i18n>noLog}">
+                            <columns>
+                                <Column><Text text="{i18n>colAction}"/></Column>
+                                <Column><Text text="{i18n>colCode}"/></Column>
+                                <Column><Text text="{i18n>colUser}"/></Column>
+                                <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colWhen}"/></Column>
+                                <Column minScreenWidth="Desktop" demandPopin="true"><Text text="{i18n>colNote}"/></Column>
+                            </columns>
+                            <items>
+                                <ColumnListItem>
+                                    <cells>
+                                        <ObjectStatus text="{action}"
+                                            state="{= ${action} === 'RELEASE' ? 'Success' : (${action} === 'REJECT' ? 'Error' : 'None') }"/>
+                                        <Text text="{code}"/>
+                                        <Text text="{user}"/>
+                                        <Text text="{path: 'actedOn', type: 'sap.ui.model.type.DateTime', formatOptions: {style: 'medium'}}"/>
+                                        <Text text="{note}"/>
+                                    </cells>
+                                </ColumnListItem>
+                            </items>
+                        </Table>
+                    </IconTabFilter>
+                </items>
+            </IconTabBar>
+        </content>
+
+        <footer>
+            <OverflowToolbar>
+                <ToolbarSpacer/>
+                <Button type="Reject" icon="sap-icon://decline" text="{i18n>btnReject}"
+                    enabled="{canCurrentUserReject}" press=".onReject"/>
+                <Button type="Accept" icon="sap-icon://accept" text="{i18n>btnRelease}"
+                    enabled="{canCurrentUserRelease}" press=".onRelease"/>
+            </OverflowToolbar>
+        </footer>
+    </Page>
+</mvc:View>

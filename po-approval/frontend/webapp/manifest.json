@@ -1,0 +1,104 @@
+{
+  "_version": "1.60.0",
+  "sap.app": {
+    "id": "po.approval",
+    "type": "application",
+    "i18n": "i18n/i18n.properties",
+    "title": "{{appTitle}}",
+    "description": "{{appDescription}}",
+    "applicationVersion": {
+      "version": "1.0.0"
+    },
+    "dataSources": {
+      "poApi": {
+        "uri": "/api/",
+        "type": "JSON"
+      }
+    }
+  },
+  "sap.ui": {
+    "technology": "UI5",
+    "deviceTypes": {
+      "desktop": true,
+      "tablet": true,
+      "phone": true
+    }
+  },
+  "sap.ui5": {
+    "rootView": {
+      "viewName": "po.approval.view.App",
+      "type": "XML",
+      "id": "app",
+      "async": true
+    },
+    "dependencies": {
+      "minUI5Version": "1.120.0",
+      "libs": {
+        "sap.ui.core": {},
+        "sap.m": {},
+        "sap.ui.layout": {}
+      }
+    },
+    "contentDensities": {
+      "compact": true,
+      "cozy": true
+    },
+    "models": {
+      "i18n": {
+        "type": "sap.ui.model.resource.ResourceModel",
+        "settings": {
+          "bundleName": "po.approval.i18n.i18n"
+        }
+      }
+    },
+    "resources": {
+      "css": [
+        {
+          "uri": "css/style.css"
+        }
+      ]
+    },
+    "routing": {
+      "config": {
+        "routerClass": "sap.m.routing.Router",
+        "viewType": "XML",
+        "viewPath": "po.approval.view",
+        "controlId": "app",
+        "controlAggregation": "pages",
+        "async": true,
+        "transition": "slide"
+      },
+      "routes": [
+        {
+          "name": "login",
+          "pattern": "login",
+          "target": "login"
+        },
+        {
+          "name": "worklist",
+          "pattern": "",
+          "target": "worklist"
+        },
+        {
+          "name": "poDetail",
+          "pattern": "po/{ebeln}",
+          "target": "poDetail"
+        }
+      ],
+      "targets": {
+        "login": {
+          "viewName": "Login",
+          "viewLevel": 0
+        },
+        "worklist": {
+          "viewName": "Worklist",
+          "viewLevel": 1
+        },
+        "poDetail": {
+          "viewName": "PoDetail",
+          "viewLevel": 2
+        }
+      }
+    }
+  }
+}

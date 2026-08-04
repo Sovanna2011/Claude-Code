@@ -1,0 +1,80 @@
+# PO Approval - local stack: SQL Server + database install + ASP.NET Core API.
+#
+#   docker compose up --build
+#
+# Order of startup:
+#   1. sqlserver  - SQL Server 2022 (Developer edition)
+#   2. db-init    - waits for the engine, then runs database/run_all.sql
+#   3. api        - builds and runs the Web API once the DB is seeded
+#
+# API:     http://localhost:5000  (Swagger at /swagger, health at /health)
+# The SAPUI5 front end runs separately (cd frontend && npm start); its dev
+# server proxies /api to http://localhost:5000, so no CORS setup is needed.
+name: po-approval
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: po-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${SA_PASSWORD:-Your_strong!Passw0rd}"
+      MSSQL_PID: "Developer"
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql-data:/var/opt/mssql
+    healthcheck:
+      # The server image ships no sqlcmd; probe the listening port instead.
+      test: ["CMD-SHELL", "timeout 1 bash -c '</dev/tcp/localhost/1433' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  db-init:
+    image: mcr.microsoft.com/mssql-tools
+    container_name: po-db-init
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    environment:
+      SA_PASSWORD: "${SA_PASSWORD:-Your_strong!Passw0rd}"
+    volumes:
+      - ./database:/scripts:ro
+    working_dir: /scripts
+    # Wait for a successful login (engine fully up), then run the installer.
+    entrypoint:
+      - /bin/bash
+      - -lc
+      - |
+        set -e
+        for i in $$(seq 1 30); do
+          if /opt/mssql-tools/bin/sqlcmd -S sqlserver -U sa -P "$$SA_PASSWORD" -Q "SELECT 1" >/dev/null 2>&1; then
+            echo "SQL Server is ready."; break
+          fi
+          echo "Waiting for SQL Server ($$i/30)..."; sleep 3
+        done
+        /opt/mssql-tools/bin/sqlcmd -S sqlserver -U sa -P "$$SA_PASSWORD" -b -i run_all.sql
+    restart: "no"
+
+  api:
+    build:
+      context: ./backend/PoApproval.Api
+      dockerfile: Dockerfile
+    container_name: po-api
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_URLS: "http://+:5000"
+      ConnectionStrings__POApproval: "Server=sqlserver;Database=POApproval;User Id=sa;Password=${SA_PASSWORD:-Your_strong!Passw0rd};TrustServerCertificate=True;Encrypt=False;"
+      # CHANGE this for anything beyond a local demo (env var / secret store).
+      Auth__SigningKey: "${AUTH_SIGNING_KEY:-compose-demo-change-me-po-approval-signing-key-rotate-me}"
+      Sap__UseLocalMirror: "true"
+    ports:
+      - "5000:5000"
+
+volumes:
+  mssql-data:

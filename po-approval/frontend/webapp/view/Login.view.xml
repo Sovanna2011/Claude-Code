@@ -1,0 +1,39 @@
+<mvc:View
+    controllerName="po.approval.controller.Login"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    xmlns:f="sap.ui.layout.form"
+    height="100%">
+
+    <Page id="loginPage" showHeader="false" class="poLoginPage">
+        <VBox height="100%" justifyContent="Center" alignItems="Center">
+            <Panel class="poLoginPanel" width="26rem">
+                <VBox class="sapUiMediumMargin" alignItems="Center">
+                    <core:Icon xmlns:core="sap.ui.core" src="sap-icon://cart-approval" size="2.5rem" color="#0a6ed1"/>
+                    <Title text="{i18n>appTitle}" level="H2" class="sapUiSmallMarginTop"/>
+                    <Text text="{i18n>loginSubtitle}" textAlign="Center" class="sapUiTinyMarginTop"/>
+                </VBox>
+
+                <f:SimpleForm layout="ResponsiveGridLayout" editable="true"
+                    labelSpanXL="12" labelSpanL="12" labelSpanM="12" labelSpanS="12"
+                    columnsXL="1" columnsL="1" columnsM="1">
+                    <f:content>
+                        <Label text="{i18n>loginUser}" required="true"/>
+                        <Input id="userInput" value="{login>/username}" placeholder="{i18n>loginUserPh}"/>
+
+                        <Label text="{i18n>loginPassword}" required="true"/>
+                        <Input id="pwdInput" value="{login>/password}" type="Password"
+                            placeholder="{i18n>loginPasswordPh}" submit=".onLogin"/>
+                    </f:content>
+                </f:SimpleForm>
+
+                <VBox class="sapUiSmallMarginBeginEnd sapUiSmallMarginBottom">
+                    <Button type="Emphasized" text="{i18n>loginButton}" width="100%"
+                        press=".onLogin" busy="{login>/busy}"/>
+                    <MessageStrip class="sapUiSmallMarginTop" type="Information" showIcon="true"
+                        text="{i18n>loginHint}"/>
+                </VBox>
+            </Panel>
+        </VBox>
+    </Page>
+</mvc:View>
