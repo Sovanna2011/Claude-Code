@@ -396,17 +396,34 @@ public sealed class DictionaryService(
         sql.AppendLine(string.Join(Environment.NewLine, rendered));
         sql.AppendLine(");");
 
-        foreach (var index in table.Indexes.Where(i => i.Fields.Count > 0))
+        foreach (var index in table.Indexes)
         {
+            // A clustered columnstore index covers the whole table and takes no
+            // column list; every other kind needs one.
+            var isClusteredColumnStore = index.IsColumnStore && index.IsClustered;
+
+            if (index.Fields.Count == 0 && !isClusteredColumnStore)
+            {
+                continue;
+            }
+
             sql.AppendLine();
             sql.Append("CREATE ");
-            sql.Append(index.IsUnique ? "UNIQUE " : string.Empty);
+            sql.Append(index.IsUnique && !index.IsColumnStore ? "UNIQUE " : string.Empty);
             sql.Append(index.IsClustered ? "CLUSTERED " : "NONCLUSTERED ");
+            sql.Append(index.IsColumnStore ? "COLUMNSTORE " : string.Empty);
             sql.Append($"INDEX [{index.IndexName}] ");
-            sql.Append($"ON [{table.SchemaName}].[{table.TableName}] ");
-            sql.Append($"({string.Join(", ", index.Fields.Select(f => $"[{f.FieldName}] {f.SortDirection}"))})");
+            sql.Append($"ON [{table.SchemaName}].[{table.TableName}]");
 
-            if (!string.IsNullOrWhiteSpace(index.IncludedColumns))
+            if (!isClusteredColumnStore)
+            {
+                // A columnstore index lists columns without a sort direction:
+                // it has no order to speak of.
+                sql.Append($" ({string.Join(", ", index.Fields.Select(f =>
+                    index.IsColumnStore ? $"[{f.FieldName}]" : $"[{f.FieldName}] {f.SortDirection}"))})");
+            }
+
+            if (!string.IsNullOrWhiteSpace(index.IncludedColumns) && !index.IsColumnStore)
             {
                 sql.Append($" INCLUDE ({index.IncludedColumns})");
             }

@@ -146,6 +146,8 @@ public static class BrowserErrorCodes
     public const string OperatorUnknown = "SE16N.OPERATOR_UNKNOWN";
     public const string ValueRequired = "SE16N.VALUE_REQUIRED";
     public const string TooManyValues = "SE16N.TOO_MANY_VALUES";
+    public const string ValueInvalid = "SE16N.VALUE_INVALID";
+    public const string PatternOnNonTextField = "SE16N.PATTERN_ON_NON_TEXT_FIELD";
     public const string ExportNotAllowed = "SE16N.EXPORT_NOT_ALLOWED";
     public const string SortFieldUnknown = "SE16N.SORT_FIELD_UNKNOWN";
     public const string CompanyCodeNotApplicable = "SE16N.COMPANY_CODE_NOT_APPLICABLE";

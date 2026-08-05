@@ -313,6 +313,57 @@ public sealed class TableBrowserTests
     }
 
     [Fact]
+    public async Task A_value_reaches_the_server_as_the_type_the_column_holds()
+    {
+        var scenario = DictionaryScenario.Create();
+
+        await scenario.CreateBrowser().QueryAsync(Request() with
+        {
+            Filters =
+            [
+                new BrowserFilter("PostingDate", BrowserOperators.GreaterOrEqual, "2026-03-01"),
+                new BrowserFilter("CompanyCodeId", BrowserOperators.Equals, "42"),
+            ],
+        });
+
+        var parameters = scenario.Context.RawQueries.Single().Parameters;
+
+        // Not "2026-03-01" and "42" as text: a date column compared against an
+        // nvarchar parameter is at the mercy of the session's DATEFORMAT.
+        Assert.Contains(parameters, p => Equals(p.Value, new DateOnly(2026, 3, 1)));
+        Assert.Contains(parameters, p => Equals(p.Value, 42L));
+    }
+
+    [Fact]
+    public async Task A_value_that_is_not_the_columns_type_is_a_violation_not_an_exception()
+    {
+        var scenario = DictionaryScenario.Create();
+
+        var result = await scenario.CreateBrowser().QueryAsync(Request() with
+        {
+            Filters = [new BrowserFilter("PostingDate", BrowserOperators.Equals, "not a date")],
+        });
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(BrowserErrorCodes.ValueInvalid, result.Violations[0].Code);
+        Assert.Empty(scenario.Context.RawQueries);
+    }
+
+    [Fact]
+    public async Task A_pattern_filter_is_refused_on_a_column_that_is_not_text()
+    {
+        var scenario = DictionaryScenario.Create();
+
+        var result = await scenario.CreateBrowser().QueryAsync(Request() with
+        {
+            Filters = [new BrowserFilter("PostingDate", BrowserOperators.Contains, "2026")],
+        });
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(BrowserErrorCodes.PatternOnNonTextField, result.Violations[0].Code);
+    }
+
+    [Fact]
     public async Task Every_broken_rule_is_reported_in_one_pass()
     {
         var scenario = DictionaryScenario.Create();

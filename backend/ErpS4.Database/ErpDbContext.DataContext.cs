@@ -22,27 +22,35 @@ public sealed partial class ErpDbContext : IErpDataContext
         RawQuery query,
         CancellationToken cancellationToken)
     {
-        var connection = Database.GetDbConnection();
+        // EnableRetryOnFailure only covers commands EF itself issues. ADO.NET
+        // run directly would sail past it, so a transient SQL Server or Azure
+        // SQL error would surface as a 500 on a query that is safe to repeat.
+        var strategy = Database.CreateExecutionStrategy();
 
-        // If the context already had the connection open - inside a transaction,
-        // say - it is not this method's to close.
-        var opened = connection.State != System.Data.ConnectionState.Open;
-        if (opened)
+        return await strategy.ExecuteAsync(async token =>
         {
-            await connection.OpenAsync(cancellationToken);
-        }
+            var connection = Database.GetDbConnection();
 
-        try
-        {
-            return await ReadAsync(connection, query, cancellationToken);
-        }
-        finally
-        {
+            // If the context already had the connection open - inside a
+            // transaction, say - it is not this method's to close.
+            var opened = connection.State != System.Data.ConnectionState.Open;
             if (opened)
             {
-                await connection.CloseAsync();
+                await connection.OpenAsync(token);
             }
-        }
+
+            try
+            {
+                return await ReadAsync(connection, query, token);
+            }
+            finally
+            {
+                if (opened)
+                {
+                    await connection.CloseAsync();
+                }
+            }
+        }, cancellationToken);
     }
 
     private static async Task<RawQueryResult> ReadAsync(

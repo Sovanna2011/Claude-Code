@@ -86,6 +86,16 @@ an export. A browser query narrowed to a company code is still checked against
 the caller's organisational access, so the browser cannot hand out what the
 posting endpoints refuse.
 
+## What the stack has to be
+
+| | |
+|---|---|
+| **.NET** | 10.0 — `Microsoft.NET.Sdk.Web`, `net10.0`, `Microsoft.EntityFrameworkCore.SqlServer` 10.0.10, `Microsoft.AspNetCore.Authentication.JwtBearer` 10.0.0 |
+| **SQL Server** | **2012 is the real floor**, 2019+ recommended. The schema uses nothing newer: `datetime2`, `rowversion`, `decimal(19,4)`, `MERGE` and `UPDATE … OUTPUT` are 2008; `OFFSET … FETCH`, `FORMAT`, `DATEFROMPARTS`, `EOMONTH` and `THROW` are 2012. No columnstore, temporal tables, memory-optimised tables, JSON functions or 2025-only syntax anywhere. Azure SQL Database and LocalDB both work. |
+| **Isolation** | `READ_COMMITTED_SNAPSHOT ON`, set by `00_create_database.sql`. That is why nothing in the code uses `NOLOCK` — readers do not block writers, and the browser never shows a half-written document. |
+| **Resilience** | `EnableRetryOnFailure` covers EF's own commands; the transaction helper and the browser's raw query both run *inside* the execution strategy, so a transient error retries rather than surfacing as a 500. |
+| **Connection** | `TrustServerCertificate=True` in the sample string — `Microsoft.Data.SqlClient` 4.0 and later default to `Encrypt=true`, so a local instance without a trusted certificate fails to connect without it. Remove it in production and install a real certificate. |
+
 > Not compiled or run: no .NET SDK is available in this environment
 > (`builds.dotnet.microsoft.com` is blocked by network policy). Run
 > `dotnet build backend/ErpS4.Api` before relying on it.

@@ -245,7 +245,7 @@ public sealed class TableBrowserService(
     {
         var column = $"[{filter.Field.FieldName}]";
 
-        string Parameter(string? value)
+        string Parameter(object? value)
         {
             var name = $"@p{parameters.Count}";
             parameters.Add(new RawParameter(name, value));
@@ -266,8 +266,8 @@ public sealed class TableBrowserService(
             // The wildcards are added to the parameter value, so a percent sign
             // typed by the user is matched literally rather than expanding.
             BrowserOperators.Contains => $"{column} LIKE {Parameter($"%{Escape(filter.Value)}%")} ESCAPE '\\'",
-            BrowserOperators.StartsWith => $"{column} LIKE {Parameter($"{Escape(filter.Value)}%")} ESCAPE '\\'",
-            BrowserOperators.EndsWith => $"{column} LIKE {Parameter($"%{Escape(filter.Value)}")} ESCAPE '\\'",
+            BrowserOperators.StartsWith => $"{column} LIKE {Parameter(Escape(filter.Value) + "%")} ESCAPE '\\'",
+            BrowserOperators.EndsWith => $"{column} LIKE {Parameter("%" + Escape(filter.Value))} ESCAPE '\\'",
             BrowserOperators.IsEmpty => $"{column} IS NULL",
             BrowserOperators.IsNotEmpty => $"{column} IS NOT NULL",
             BrowserOperators.In or BrowserOperators.NotIn =>
@@ -280,8 +280,8 @@ public sealed class TableBrowserService(
     }
 
     /// <summary>Escapes the LIKE wildcards so they match themselves.</summary>
-    private static string Escape(string? value) =>
-        (value ?? string.Empty)
+    private static string Escape(object? value) =>
+        (value as string ?? string.Empty)
             .Replace("\\", "\\\\", StringComparison.Ordinal)
             .Replace("%", "\\%", StringComparison.Ordinal)
             .Replace("_", "\\_", StringComparison.Ordinal)
@@ -398,12 +398,99 @@ public sealed class TableBrowserService(
                 continue;
             }
 
+            var isPattern = filter.Operator
+                is BrowserOperators.Contains
+                or BrowserOperators.StartsWith
+                or BrowserOperators.EndsWith;
+
+            // LIKE against a date or a number would force SQL Server to convert
+            // the column on every row - a scan, and a conversion error on the
+            // first value that will not parse.
+            if (isPattern && !FilterValue.IsText(dictionaryField.SqlType))
+            {
+                violations.Add(new RuleViolation(
+                    BrowserErrorCodes.PatternOnNonTextField,
+                    $"{filter.Field} is {dictionaryField.SqlType}; " +
+                    $"{filter.Operator} only applies to text.",
+                    $"{field}.Operator"));
+                continue;
+            }
+
+            // Values are parsed here rather than left to the server, so a
+            // mistyped date is a violation the user can read instead of a
+            // conversion error raised half way through the statement.
+            if (!TryConvertValues(filter, dictionaryField, isPattern, field, violations,
+                    out var value, out var highValue, out var values))
+            {
+                continue;
+            }
+
             validated.Add(new ValidatedFilter(
-                dictionaryField, filter.Operator, filter.Value, filter.HighValue,
-                filter.Values, filter.Exclude));
+                dictionaryField, filter.Operator, value, highValue, values, filter.Exclude));
         }
 
         return validated;
+    }
+
+    private static bool TryConvertValues(
+        BrowserFilter filter,
+        DictionaryTableField dictionaryField,
+        bool isPattern,
+        string field,
+        List<RuleViolation> violations,
+        out object? value,
+        out object? highValue,
+        out IReadOnlyList<object?> values)
+    {
+        value = null;
+        highValue = null;
+        values = [];
+
+        // A pattern is a string whatever the column is - it has already been
+        // established that the column is text.
+        if (isPattern)
+        {
+            value = filter.Value;
+            return true;
+        }
+
+        var sqlType = dictionaryField.SqlType;
+
+        bool Convert(string? text, string path, out object? converted)
+        {
+            if (FilterValue.TryConvert(sqlType, text, out converted))
+            {
+                return true;
+            }
+
+            violations.Add(new RuleViolation(
+                BrowserErrorCodes.ValueInvalid,
+                $"'{text}' is not a valid {sqlType} value for {filter.Field}.",
+                path));
+
+            return false;
+        }
+
+        if (filter.Operator is BrowserOperators.In or BrowserOperators.NotIn)
+        {
+            var converted = new List<object?>(filter.Values.Count);
+
+            for (var index = 0; index < filter.Values.Count; index++)
+            {
+                if (!Convert(filter.Values[index], $"{field}.Values[{index}]", out var item))
+                {
+                    return false;
+                }
+
+                converted.Add(item);
+            }
+
+            values = converted;
+            return true;
+        }
+
+        return Convert(filter.Value, $"{field}.Value", out value)
+               && Convert(filter.HighValue, $"{field}.HighValue", out highValue);
     }
 
     /// <summary>
@@ -581,12 +668,13 @@ public sealed class TableBrowserService(
             Violations = [new RuleViolation(code, message)],
         };
 
+    /// <param name="Value">Already converted to the column's CLR type.</param>
     private sealed record ValidatedFilter(
         DictionaryTableField Field,
         string Operator,
-        string? Value,
-        string? HighValue,
-        IReadOnlyList<string> Values,
+        object? Value,
+        object? HighValue,
+        IReadOnlyList<object?> Values,
         bool Exclude);
 
     private sealed record SortSpecification(string Field, bool Descending, string TieBreak);

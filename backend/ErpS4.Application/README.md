@@ -40,7 +40,7 @@ ErpS4.Application/
 └── DependencyInjection.cs
 
 ErpS4.Database/               (existing) + IErpDataContext, NumberRangeService
-ErpS4.Tests/                  120 tests, no database required
+ErpS4.Tests/                  123 tests, no database required
 ```
 
 ## What the engine enforces
@@ -109,9 +109,18 @@ so the value never leaves the database, and it cannot be filtered on or sorted
 by either: repeated equality probes and an ordering both recover what the
 display refuses to show.
 
+**Filter values are parsed before they are sent.** `FilterValue.TryConvert`
+turns the text a user typed into the CLR type the column holds, using the
+invariant culture. Left as `nvarchar` parameters they would rely on implicit
+conversion, which fails two ways that matter: an unparseable value raises a
+`SqlException` (message 241) — a 500 for what is really a typing mistake — and
+date parsing follows the session's language and `DATEFORMAT`, so the same
+filter can mean different days on different servers. `LIKE` is refused outright
+on non-text columns, where it would force a per-row conversion and a scan.
+
 ## Tests
 
-120 tests, all running against in-memory lists — no database, no EF provider,
+123 tests, all running against in-memory lists — no database, no EF provider,
 milliseconds to run. They encode the rules section 23 of the design calls
 mandatory:
 
@@ -139,6 +148,9 @@ mandatory:
 * the submitter is never given a task on their own document, and cannot decide
 * only the final approval posts; a rejection leaves the ledger untouched
 * approval after the period closed escalates rather than posting
+* a date filter arrives as a `DateOnly` and a key filter as a `long`, not as
+  text the server has to convert; a value that is not the column's type is a
+  violation, and `LIKE` on a date column is refused
 * a security table is refused by the browser and absent from its table list
 * a filter value carrying `'; DROP TABLE …` travels as a parameter, and a field
   name that is not in the dictionary is refused outright
