@@ -40,7 +40,7 @@ The catalogue drives both physical artefacts, so they cannot drift from it:
 | | |
 |---|---|
 | **[`database/s4hana/`](database/s4hana/)** | SQL Server DDL — 228 tables, 838 foreign keys, 172 indexes, and a seed that loads the catalogue into the SE11 dictionary tables |
-| **[`backend/ErpS4.Database/`](backend/ErpS4.Database/README.md)** | EF Core 8 model — 228 entities and configurations, tenant query filters, audit stamping, append-only enforcement |
+| **[`backend/ErpS4.Database/`](backend/ErpS4.Database/README.md)** | .NET 10 / EF Core 10 model — 228 entities and configurations, tenant query filters, audit stamping, append-only enforcement |
 
 ```bash
 cd database/s4hana && sqlcmd -S localhost -i run_all.sql   # install the schema
@@ -82,7 +82,8 @@ Claude-Code/
 | Tool | Version | Used for |
 |------|---------|----------|
 | SQL Server | 2019+ (or Azure SQL / LocalDB) | database |
-| .NET SDK | 8.0 | backend build/run |
+| .NET SDK | 8.0 | HR module backend build/run |
+| .NET SDK | 10.0 | S/4HANA ERP database project (`backend/ErpS4.Database`) |
 | Node.js | 18+ | UI5 dev server / build |
 
 ## 1. Database

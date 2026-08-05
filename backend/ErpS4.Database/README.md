@@ -93,10 +93,24 @@ name. `tools/generate_ef_core.py` prints the full list.
 
 ## Target framework
 
-Pinned to `net8.0` with EF Core 8, which is what the rest of this repository
-builds against. The design prompt calls for .NET 10 / EF Core 10: change
-`TargetFramework` to `net10.0` and the package version to `10.0.x` — the
-generated source needs no edit.
+`net10.0` with **EF Core 10.0.10** (`Microsoft.EntityFrameworkCore.SqlServer`),
+matching the design prompt. Requires the .NET 10 SDK:
+
+```bash
+dotnet --version          # 10.0.x
+dotnet build backend/ErpS4.Database
+```
+
+The HR module in `backend/HRModule.Api` stays on `net8.0`; the two target
+frameworks coexist in one repository without a shared solution constraint.
+
+Everything this project uses — `HasQueryFilter`, `ApplyConfigurationsFromAssembly`,
+`IsRowVersion`, `HasPrecision`, `EnableRetryOnFailure`, `TimeProvider` — is
+stable API in EF Core 10. Two EF 10 features are worth adopting as the
+application layer grows, though nothing here depends on them: **named query
+filters**, which would let a company-code filter sit alongside the tenant filter
+instead of being `AND`-ed into it, and the **complex types** support that suits
+the repeating amount/currency pairs on the journal line.
 
 > Not compiled in this environment: no .NET SDK is installed on the machine
 > where these files were generated. The C# is generated from a validated model
