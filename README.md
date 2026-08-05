@@ -27,6 +27,13 @@ It covers the core HCM sub-modules plus common HR processes:
 See **[docs/architecture.md](docs/architecture.md)** for the full design, and the
 **[User Manual](docs/USER_MANUAL.md)** for step-by-step end-user instructions.
 
+> **Also in this repository:** a Phase-1 solution blueprint for a separate,
+> full **ERP platform** (ASP.NET Core 10 · SQL Server 2025 · React) covering
+> enterprise structure, Business Partner, Financial Accounting, Controlling,
+> Data Dictionary, Table Browser, workflow, security and reporting —
+> **[docs/erp/README.md](docs/erp/README.md)**. It is a design document set; no
+> ERP code exists yet, and the HR module above is unaffected by it.
+
 ## Try it in one command (demo)
 
 Want to see it running without installing .NET or SQL Server? A self-contained
