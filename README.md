@@ -27,6 +27,16 @@ It covers the core HCM sub-modules plus common HR processes:
 See **[docs/architecture.md](docs/architecture.md)** for the full design, and the
 **[User Manual](docs/USER_MANUAL.md)** for step-by-step end-user instructions.
 
+## S/4HANA-inspired ERP — table catalogue
+
+Separate from the HR module, **[docs/s4hana/](docs/s4hana/README.md)** holds the
+data dictionary for the S/4HANA-inspired finance ERP: **228 tables / 4 393
+fields** with table name, field name and SQL Server data type across the `org`,
+`cfg`, `mdm`, `fin`, `co`, `wf`, `sec`, `audit`, `rpt` and `intg` schemas, plus a
+[mapping to real S/4HANA tables and ABAP types](docs/s4hana/10_sap_reference_mapping.md)
+and a flat CSV export (`docs/s4hana/table_catalogue.csv`, regenerated with
+`python3 tools/generate_table_catalogue.py`).
+
 ## Try it in one command (demo)
 
 Want to see it running without installing .NET or SQL Server? A self-contained
