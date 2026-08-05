@@ -1,0 +1,481 @@
+@page "/scheduling"
+@attribute [Authorize]
+@inject PlanningApi Api
+
+<PageTitle>Resource scheduling</PageTitle>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+        <h1 class="h4 mb-0">Tractor, equipment and operator scheduling</h1>
+        <small class="text-secondary">
+            Every booking is checked for double-booking, maintenance, horsepower, location,
+            dependency and plan-period conflicts before it is saved.
+        </small>
+    </div>
+    <button class="btn btn-success btn-sm" @onclick="StartCreate">New booking</button>
+</div>
+
+<ErrorAlert Message="@error" Code="@errorCode" OnDismiss="() => error = null" />
+<SuccessToast Message="@success" OnDismiss="() => success = null" />
+
+@if (editing is not null)
+{
+    <div class="card shadow-sm mb-3">
+        <div class="card-header bg-white fw-semibold">@(editingId is null ? "New booking" : "Edit booking")</div>
+        <div class="card-body">
+            <EditForm Model="editing" OnValidSubmit="Save">
+                <DataAnnotationsValidator />
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label class="form-label">Activity plan</label>
+                        <InputSelect class="form-select" @bind-Value="editing.ActivityPlanId">
+                            <option value="0">— select —</option>
+                            @foreach (var plan in planOptions)
+                            {
+                                <option value="@plan.Id">@plan.BlockName · @plan.ActivityName (@plan.PlannedStartDate.ToString("MM-dd") → @plan.PlannedEndDate.ToString("MM-dd"))</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-2"><label class="form-label">Date</label><InputDate class="form-control" @bind-Value="editing.ScheduleDate" /></div>
+                    <div class="col-md-2"><label class="form-label">Start</label><InputDate Type="InputDateType.DateTimeLocal" class="form-control" @bind-Value="editing.PlannedStart" /></div>
+                    <div class="col-md-2"><label class="form-label">End</label><InputDate Type="InputDateType.DateTimeLocal" class="form-control" @bind-Value="editing.PlannedEnd" /></div>
+
+                    <div class="col-md-3">
+                        <label class="form-label">Tractor</label>
+                        <InputSelect class="form-select" @bind-Value="editing.TractorId">
+                            <option value="">— none —</option>
+                            @foreach (var tractor in tractors)
+                            {
+                                <option value="@tractor.Id">@tractor.Code (@tractor.Value hp)</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Equipment</label>
+                        <InputSelect class="form-select" @bind-Value="editing.EquipmentId">
+                            <option value="">— none —</option>
+                            @foreach (var item in equipment)
+                            {
+                                <option value="@item.Id">@item.Display (min @item.Value hp)</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Operator</label>
+                        <InputSelect class="form-select" @bind-Value="editing.OperatorId">
+                            <option value="">— none —</option>
+                            @foreach (var op in operators)
+                            {
+                                <option value="@op.Id">@op.Name</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Work team</label>
+                        <InputSelect class="form-select" @bind-Value="editing.WorkTeamId">
+                            <option value="">— none —</option>
+                            @foreach (var team in teams)
+                            {
+                                <option value="@team.Id">@team.Display</option>
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="col-md-3"><label class="form-label">Planned area (ha)</label><InputNumber class="form-control" @bind-Value="editing.PlannedAreaHa" step="0.01" /></div>
+                    <div class="col-md-3"><label class="form-label">Expected hours</label><InputNumber class="form-control" @bind-Value="editing.ExpectedWorkingHours" step="0.25" /></div>
+                    <div class="col-md-3"><label class="form-label">Supervisor</label><InputText class="form-control" @bind-Value="editing.SupervisorName" /></div>
+                    <div class="col-md-3">
+                        <label class="form-label">Status</label>
+                        <InputSelect class="form-select" @bind-Value="editing.Status">
+                            @foreach (var status in Enum.GetValues<ScheduleStatus>())
+                            {
+                                <option value="@status">@status</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col-12"><label class="form-label">Remarks</label><InputText class="form-control" @bind-Value="editing.Remarks" /></div>
+                </div>
+
+                @if (validation is not null && validation.Conflicts.Count > 0)
+                {
+                    <div class="mt-3">
+                        @foreach (var conflict in validation.Conflicts)
+                        {
+                            <div class="alert @(conflict.IsBlocking ? "alert-danger" : "alert-warning") py-2 px-3 mb-2">
+                                <strong>@conflict.Type</strong> — @conflict.Message
+                            </div>
+                        }
+
+                        @if (validation.Conflicts.Any(c => c.Type == ConflictType.ActivityDependency && c.IsBlocking))
+                        {
+                            <div class="border rounded p-3 bg-light">
+                                <div class="form-check">
+                                    <InputCheckbox class="form-check-input" @bind-Value="editing.OverrideDependency" id="overrideDep" />
+                                    <label class="form-check-label" for="overrideDep">
+                                        Manager override of the dependency (recorded in the audit trail)
+                                    </label>
+                                </div>
+                                <InputText class="form-control mt-2" placeholder="Override reason" @bind-Value="editing.DependencyOverrideReason" />
+                            </div>
+                        }
+                    </div>
+                }
+
+                <div class="d-flex gap-2 mt-3">
+                    <button class="btn btn-outline-secondary btn-sm" type="button" @onclick="Validate" disabled="@busy">Check conflicts</button>
+                    <button class="btn btn-success btn-sm" type="submit" disabled="@busy">Save booking</button>
+                    <button class="btn btn-outline-secondary btn-sm" type="button" @onclick="() => { editing = null; validation = null; }">Cancel</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white d-flex flex-wrap gap-2 align-items-center">
+        <span class="fw-semibold me-auto">Schedule board</span>
+        <input type="date" class="form-control form-control-sm" style="width:auto" value="@from.ToString("yyyy-MM-dd")" @onchange="OnFromChanged" aria-label="From" />
+        <input type="date" class="form-control form-control-sm" style="width:auto" value="@to.ToString("yyyy-MM-dd")" @onchange="OnToChanged" aria-label="To" />
+        <select class="form-select form-select-sm" style="width:auto" @onchange="OnGroupChanged" aria-label="Group by">
+            @foreach (var option in GroupOptions)
+            {
+                <option value="@option" selected="@(option == groupBy)">by @option</option>
+            }
+        </select>
+    </div>
+    <div class="card-body">
+        @if (busy && board is null)
+        {
+            <LoadingPanel />
+        }
+        else if (board is null)
+        {
+            <div class="text-secondary small">No bookings in this period.</div>
+        }
+        else if (groupBy == "day")
+        {
+            <div class="calendar-grid">
+                @foreach (var day in board.Days)
+                {
+                    <div class="calendar-day @(day.Date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? "is-weekend" : "")">
+                        <div class="day-number small">@day.Date.ToString("MMM d")</div>
+                        @if (day.BookingCount == 0)
+                        {
+                            <div class="text-secondary small">—</div>
+                        }
+                        else
+                        {
+                            <div class="small">@day.PlannedAreaHa.ToString("N1") ha</div>
+                            <div class="small text-secondary">
+                                @day.TractorsBooked 🚜 · @day.EquipmentBooked ⚙ · @day.OperatorsBooked 👤
+                            </div>
+                            @foreach (var booking in day.Bookings.Take(3))
+                            {
+                                <div class="small text-truncate" title="@booking.BlockName — @booking.ActivityName">
+                                    @booking.ActivityName
+                                </div>
+                            }
+                            @if (day.Bookings.Count > 3)
+                            {
+                                <div class="small text-secondary">+@(day.Bookings.Count - 3) more</div>
+                            }
+                        }
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            @if (board.Rows.Count == 0)
+            {
+                <div class="text-secondary small">No bookings in this period.</div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>@board.GroupBy</th>
+                                <th class="text-end">Bookings</th>
+                                <th class="text-end">Days used</th>
+                                <th class="text-end">Hours</th>
+                                <th class="text-end">Area (ha)</th>
+                                <th style="min-width:150px">Utilization</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in board.Rows)
+                            {
+                                <tr>
+                                    <td>@row.ResourceName</td>
+                                    <td class="text-end">@row.Bookings.Count</td>
+                                    <td class="text-end">@row.UtilizedDays</td>
+                                    <td class="text-end">@row.TotalHours.ToString("N1")</td>
+                                    <td class="text-end">@row.TotalAreaHa.ToString("N2")</td>
+                                    <td><ProgressBarCell Percent="row.UtilizationPercent" /></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+<div class="card shadow-sm mt-3">
+    <div class="card-header bg-white fw-semibold">Bookings</div>
+    <div class="card-body">
+        @if (schedules is null || schedules.Items.Count == 0)
+        {
+            <div class="text-secondary small">No bookings match the selected period.</div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Date</th>
+                            <th>Time</th>
+                            <th>Block</th>
+                            <th>Activity</th>
+                            <th>Tractor</th>
+                            <th>Equipment</th>
+                            <th>Operator</th>
+                            <th class="text-end">Area (ha)</th>
+                            <th class="text-end">Hours</th>
+                            <th>Status</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var booking in schedules.Items)
+                        {
+                            <tr>
+                                <td class="small">@booking.ScheduleDate.ToString("yyyy-MM-dd")</td>
+                                <td class="small">@booking.PlannedStart.ToString("HH:mm")–@booking.PlannedEnd.ToString("HH:mm")</td>
+                                <td class="small">@booking.BlockCode</td>
+                                <td>@booking.ActivityName</td>
+                                <td>@booking.TractorCode</td>
+                                <td>@booking.EquipmentCode</td>
+                                <td>@booking.OperatorName</td>
+                                <td class="text-end">@booking.PlannedAreaHa.ToString("N2")</td>
+                                <td class="text-end">@booking.ExpectedWorkingHours.ToString("N1")</td>
+                                <td>
+                                    <StatusBadge Schedule="booking.Status" />
+                                    @if (booking.DependencyOverrideApproved)
+                                    {
+                                        <span class="badge text-bg-warning" title="@booking.DependencyOverrideReason">override</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-secondary" @onclick="() => StartEdit(booking)">Edit</button>
+                                        <button class="btn btn-outline-danger" @onclick="() => Cancel(booking.Id)">Cancel</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <Pager TItem="ResourceScheduleDto" Result="schedules" OnPageChanged="GoToPage" OnPageSizeChanged="ChangePageSize" />
+        }
+    </div>
+</div>
+
+@code {
+    private static readonly string[] GroupOptions = { "day", "tractor", "equipment", "operator", "farm", "block" };
+
+    private readonly QueryParameters query = new() { PageSize = 25 };
+    private DateOnly from = DateOnly.FromDateTime(DateTime.Today);
+    private DateOnly to = DateOnly.FromDateTime(DateTime.Today).AddDays(13);
+    private string groupBy = "day";
+
+    private ScheduleBoardDto? board;
+    private PagedResult<ResourceScheduleDto>? schedules;
+    private ScheduleValidationResultDto? validation;
+    private ResourceScheduleUpsertDto? editing;
+    private int? editingId;
+
+    private IReadOnlyList<LookupDto> tractors = Array.Empty<LookupDto>();
+    private IReadOnlyList<LookupDto> equipment = Array.Empty<LookupDto>();
+    private IReadOnlyList<LookupDto> operators = Array.Empty<LookupDto>();
+    private IReadOnlyList<LookupDto> teams = Array.Empty<LookupDto>();
+    private IReadOnlyList<ActivityPlanDto> planOptions = Array.Empty<ActivityPlanDto>();
+
+    private string? error;
+    private string? errorCode;
+    private string? success;
+    private bool busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        tractors = await Api.LookupAsync("tractors");
+        equipment = await Api.LookupAsync("equipment");
+        operators = await Api.LookupAsync("operators");
+        teams = await Api.LookupAsync("workteams");
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        try
+        {
+            busy = true;
+            error = null;
+            board = await Api.GetScheduleBoardAsync(from, to, groupBy);
+            schedules = await Api.GetSchedulesAsync(from, to, null, null, null, query);
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            errorCode = ex.Error.Code;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task OnFromChanged(ChangeEventArgs args)
+    {
+        if (DateOnly.TryParse(args.Value?.ToString(), out var value)) from = value;
+        await Load();
+    }
+
+    private async Task OnToChanged(ChangeEventArgs args)
+    {
+        if (DateOnly.TryParse(args.Value?.ToString(), out var value)) to = value;
+        await Load();
+    }
+
+    private async Task OnGroupChanged(ChangeEventArgs args)
+    {
+        groupBy = args.Value?.ToString() ?? "day";
+        await Load();
+    }
+
+    private async Task StartCreate()
+    {
+        editingId = null;
+        validation = null;
+        var start = from.ToDateTime(new TimeOnly(7, 0));
+        editing = new ResourceScheduleUpsertDto
+        {
+            ScheduleDate = from,
+            PlannedStart = start,
+            PlannedEnd = start.AddHours(8),
+            ExpectedWorkingHours = 8m,
+            Status = ScheduleStatus.Planned
+        };
+        planOptions = (await Api.GetActivityPlansAsync(null, null, null, new QueryParameters { PageSize = 200 })).Items;
+    }
+
+    private async Task StartEdit(ResourceScheduleDto booking)
+    {
+        editingId = booking.Id;
+        validation = null;
+        editing = new ResourceScheduleUpsertDto
+        {
+            ActivityPlanId = booking.ActivityPlanId,
+            ScheduleDate = booking.ScheduleDate,
+            PlannedStart = booking.PlannedStart,
+            PlannedEnd = booking.PlannedEnd,
+            TractorId = booking.TractorId,
+            EquipmentId = booking.EquipmentId,
+            OperatorId = booking.OperatorId,
+            WorkTeamId = booking.WorkTeamId,
+            PlannedAreaHa = booking.PlannedAreaHa,
+            ExpectedWorkingHours = booking.ExpectedWorkingHours,
+            SupervisorName = booking.SupervisorName,
+            Status = booking.Status,
+            Remarks = booking.Remarks,
+            RowVersion = booking.RowVersion
+        };
+        if (planOptions.Count == 0)
+            planOptions = (await Api.GetActivityPlansAsync(null, null, null, new QueryParameters { PageSize = 200 })).Items;
+    }
+
+    private async Task Validate()
+    {
+        if (editing is null) return;
+        try
+        {
+            busy = true;
+            error = null;
+            validation = await Api.ValidateScheduleAsync(editing, editingId);
+            if (validation is not null && validation.Conflicts.Count == 0)
+                success = "No conflicts found.";
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            errorCode = ex.Error.Code;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task Save()
+    {
+        if (editing is null) return;
+        try
+        {
+            busy = true;
+            error = null;
+            if (editingId is null) await Api.CreateScheduleAsync(editing);
+            else await Api.UpdateScheduleAsync(editingId.Value, editing);
+            success = "Booking saved.";
+            editing = null;
+            validation = null;
+            await Load();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            errorCode = ex.Error.Code;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task Cancel(int id)
+    {
+        try
+        {
+            busy = true;
+            await Api.CancelScheduleAsync(id);
+            success = "Booking cancelled.";
+            await Load();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            errorCode = ex.Error.Code;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task GoToPage(int page)
+    {
+        query.Page = page;
+        await Load();
+    }
+
+    private async Task ChangePageSize(int size)
+    {
+        query.PageSize = size;
+        query.Page = 1;
+        await Load();
+    }
+}

@@ -1,0 +1,26 @@
+@* Shows the server's error code and message; hidden when there is nothing to report. *@
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    <div class="alert @CssClass alert-dismissible d-flex align-items-start gap-2" role="alert">
+        <div class="flex-grow-1">
+            @if (!string.IsNullOrWhiteSpace(Code))
+            {
+                <strong class="d-block">@Code</strong>
+            }
+            <span>@Message</span>
+        </div>
+        @if (OnDismiss.HasDelegate)
+        {
+            <button type="button" class="btn-close" aria-label="Dismiss" @onclick="() => OnDismiss.InvokeAsync()"></button>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public string? Message { get; set; }
+    [Parameter] public string? Code { get; set; }
+    [Parameter] public bool IsWarning { get; set; }
+    [Parameter] public EventCallback OnDismiss { get; set; }
+
+    private string CssClass => IsWarning ? "alert-warning" : "alert-danger";
+}

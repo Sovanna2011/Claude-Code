@@ -1,0 +1,127 @@
+@page "/blocks"
+@attribute [Authorize]
+@inject PlanningApi Api
+
+<PageTitle>Plantation blocks</PageTitle>
+
+<h1 class="h4 mb-3">Plantation blocks</h1>
+<p class="text-secondary small">
+    The plantable area is the hard cap on every projection line for the block, and the soil type
+    decides which activity material standard applies.
+</p>
+
+<CrudTable TItem="PlantationBlockDto" TUpsert="PlantationBlockUpsertDto"
+           Title="Blocks"
+           Columns="@(new[] { "Code", "Name", "Zone", "Farm", "Total (ha)", "Plantable (ha)", "Soil", "Irrigation", "Crop status", "Active" })"
+           RowTemplate="RenderRow"
+           EditorTemplate="RenderEditor"
+           ToEditModel="ToEditModel"
+           NewModel="@(() => new PlantationBlockUpsertDto { ZoneId = zones.FirstOrDefault()?.Id ?? 0 })"
+           OnLoad="@(q => Api.GetBlocksAsync(null, null, q))"
+           OnCreate="@(dto => Api.CreateBlockAsync(dto))"
+           OnUpdate="@((id, dto) => Api.UpdateBlockAsync(id, dto))"
+           OnDelete="@(id => Api.DeleteBlockAsync(id))"
+           IdSelector="@(b => b.Id)" />
+
+@code {
+    private IReadOnlyList<LookupDto> zones = Array.Empty<LookupDto>();
+
+    protected override async Task OnInitializedAsync() => zones = await Api.LookupAsync("zones");
+
+    private PlantationBlockUpsertDto ToEditModel(PlantationBlockDto b) => new()
+    {
+        ZoneId = b.ZoneId,
+        Code = b.Code,
+        Name = b.Name,
+        TotalAreaHa = b.TotalAreaHa,
+        PlantableAreaHa = b.PlantableAreaHa,
+        Latitude = b.Latitude,
+        Longitude = b.Longitude,
+        MapReference = b.MapReference,
+        SoilType = b.SoilType,
+        LandCondition = b.LandCondition,
+        Irrigation = b.Irrigation,
+        CurrentCropStatus = b.CurrentCropStatus,
+        IsActive = b.IsActive,
+        RowVersion = b.RowVersion
+    };
+
+    private RenderFragment<PlantationBlockDto> RenderRow => block =>
+    @<text>
+        <td>@block.Code</td>
+        <td>@block.Name</td>
+        <td>@block.ZoneName</td>
+        <td>@block.FarmName</td>
+        <td class="text-end">@block.TotalAreaHa.ToString("N2")</td>
+        <td class="text-end fw-semibold">@block.PlantableAreaHa.ToString("N2")</td>
+        <td>@block.SoilType</td>
+        <td>@block.Irrigation</td>
+        <td>@block.CurrentCropStatus</td>
+        <td>@(block.IsActive ? "Yes" : "No")</td>
+    </text>;
+
+    private RenderFragment<PlantationBlockUpsertDto> RenderEditor => model =>
+    @<text>
+        <div class="col-md-4">
+            <label class="form-label">Zone</label>
+            <InputSelect class="form-select" @bind-Value="model.ZoneId">
+                @foreach (var zone in zones)
+                {
+                    <option value="@zone.Id">@zone.Display</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-2"><label class="form-label">Code</label><InputText class="form-control" @bind-Value="model.Code" /></div>
+        <div class="col-md-6"><label class="form-label">Name</label><InputText class="form-control" @bind-Value="model.Name" /></div>
+
+        <div class="col-md-3"><label class="form-label">Total area (ha)</label><InputNumber class="form-control" @bind-Value="model.TotalAreaHa" step="0.01" /></div>
+        <div class="col-md-3"><label class="form-label">Plantable area (ha)</label><InputNumber class="form-control" @bind-Value="model.PlantableAreaHa" step="0.01" /></div>
+        <div class="col-md-3"><label class="form-label">Latitude</label><InputNumber class="form-control" @bind-Value="model.Latitude" step="0.000001" /></div>
+        <div class="col-md-3"><label class="form-label">Longitude</label><InputNumber class="form-control" @bind-Value="model.Longitude" step="0.000001" /></div>
+
+        <div class="col-md-3">
+            <label class="form-label">Soil type</label>
+            <InputSelect class="form-select" @bind-Value="model.SoilType">
+                @foreach (var soil in Enum.GetValues<SoilType>())
+                {
+                    <option value="@soil">@soil</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Land condition</label>
+            <InputSelect class="form-select" @bind-Value="model.LandCondition">
+                @foreach (var condition in Enum.GetValues<LandCondition>())
+                {
+                    <option value="@condition">@condition</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Irrigation</label>
+            <InputSelect class="form-select" @bind-Value="model.Irrigation">
+                @foreach (var irrigation in Enum.GetValues<IrrigationType>())
+                {
+                    <option value="@irrigation">@irrigation</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Crop status</label>
+            <InputSelect class="form-select" @bind-Value="model.CurrentCropStatus">
+                @foreach (var status in Enum.GetValues<CropStatus>())
+                {
+                    <option value="@status">@status</option>
+                }
+            </InputSelect>
+        </div>
+
+        <div class="col-md-4"><label class="form-label">Map reference</label><InputText class="form-control" @bind-Value="model.MapReference" /></div>
+        <div class="col-md-3 d-flex align-items-end">
+            <div class="form-check">
+                <InputCheckbox class="form-check-input" @bind-Value="model.IsActive" id="blockActive" />
+                <label class="form-check-label" for="blockActive">Active</label>
+            </div>
+        </div>
+    </text>;
+}

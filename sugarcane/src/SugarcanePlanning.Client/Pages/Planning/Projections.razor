@@ -1,0 +1,232 @@
+@page "/projections"
+@attribute [Authorize]
+@inject PlanningApi Api
+@inject NavigationManager Navigation
+
+<PageTitle>Planting projections</PageTitle>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+        <h1 class="h4 mb-0">Planting projections</h1>
+        <small class="text-secondary">Header totals are always derived from the lines.</small>
+    </div>
+    <button class="btn btn-success btn-sm" @onclick="StartCreate">New projection</button>
+</div>
+
+<ErrorAlert Message="@error" Code="@errorCode" OnDismiss="() => error = null" />
+<SuccessToast Message="@success" OnDismiss="() => success = null" />
+
+@if (creating is not null)
+{
+    <EditForm Model="creating" OnValidSubmit="Create" class="card shadow-sm mb-3">
+        <DataAnnotationsValidator />
+        <div class="card-header bg-white fw-semibold">New projection</div>
+        <div class="card-body">
+            <div class="row g-2">
+                <div class="col-md-4">
+                    <label class="form-label">Estate</label>
+                    <InputSelect class="form-select" @bind-Value="creating.EstateId">
+                        @foreach (var estate in estates)
+                        {
+                            <option value="@estate.Id">@estate.Display</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Growing season</label>
+                    <InputSelect class="form-select" @bind-Value="creating.GrowingSeasonId">
+                        @foreach (var season in seasons)
+                        {
+                            <option value="@season.Id">@season.Display</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="col-md-4"><label class="form-label">Projection date</label><InputDate class="form-control" @bind-Value="creating.ProjectionDate" /></div>
+                <div class="col-md-4"><label class="form-label">Planning start</label><InputDate class="form-control" @bind-Value="creating.PlanningStartDate" /></div>
+                <div class="col-md-4"><label class="form-label">Planning end</label><InputDate class="form-control" @bind-Value="creating.PlanningEndDate" /></div>
+                <div class="col-12"><label class="form-label">Remarks</label><InputTextArea class="form-control" rows="2" @bind-Value="creating.Remarks" /></div>
+            </div>
+            <div class="d-flex gap-2 mt-3">
+                <button class="btn btn-success btn-sm" type="submit" disabled="@busy">Create draft</button>
+                <button class="btn btn-outline-secondary btn-sm" type="button" @onclick="() => creating = null">Cancel</button>
+            </div>
+        </div>
+    </EditForm>
+}
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white d-flex flex-wrap gap-2 align-items-center">
+        <span class="fw-semibold me-auto">Projections</span>
+        <select class="form-select form-select-sm" style="width:auto" @onchange="OnSeasonChanged" aria-label="Season filter">
+            <option value="">All seasons</option>
+            @foreach (var season in seasons)
+            {
+                <option value="@season.Id">@season.Display</option>
+            }
+        </select>
+        <div class="form-check form-switch d-flex align-items-center gap-1">
+            <input class="form-check-input" type="checkbox" id="allVersions" checked="@query.IncludeInactive" @onchange="OnAllVersionsChanged" />
+            <label class="form-check-label small" for="allVersions">Show all versions</label>
+        </div>
+    </div>
+    <div class="card-body">
+        @if (busy && result is null)
+        {
+            <LoadingPanel />
+        }
+        else if (result is null || result.Items.Count == 0)
+        {
+            <div class="text-secondary small">No projections found.</div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Projection</th>
+                            <th class="text-end">Ver</th>
+                            <th>Estate</th>
+                            <th>Season</th>
+                            <th>Planning period</th>
+                            <th class="text-end">Lines</th>
+                            <th class="text-end">Area (ha)</th>
+                            <th class="text-end">Production (t)</th>
+                            <th>Status</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var projection in result.Items)
+                        {
+                            <tr>
+                                <td class="fw-semibold">@projection.ProjectionNo</td>
+                                <td class="text-end">@projection.Version</td>
+                                <td>@projection.EstateName</td>
+                                <td>@projection.SeasonName</td>
+                                <td class="small">@projection.PlanningStartDate.ToString("yyyy-MM-dd") → @projection.PlanningEndDate.ToString("yyyy-MM-dd")</td>
+                                <td class="text-end">@projection.LineCount</td>
+                                <td class="text-end">@projection.TotalProjectedAreaHa.ToString("N2")</td>
+                                <td class="text-end">@projection.TotalExpectedProductionTons.ToString("N2")</td>
+                                <td>
+                                    <StatusBadge Projection="projection.Status" />
+                                    @if (!projection.IsCurrentVersion)
+                                    {
+                                        <span class="badge text-bg-light border ms-1">history</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <a class="btn btn-outline-secondary btn-sm" href="projections/@projection.Id">Open</a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <Pager TItem="ProjectionSummaryDto" Result="result" OnPageChanged="GoToPage" OnPageSizeChanged="ChangePageSize" />
+        }
+    </div>
+</div>
+
+@code {
+    private readonly QueryParameters query = new();
+    private PagedResult<ProjectionSummaryDto>? result;
+    private IReadOnlyList<LookupDto> estates = Array.Empty<LookupDto>();
+    private IReadOnlyList<LookupDto> seasons = Array.Empty<LookupDto>();
+    private ProjectionCreateDto? creating;
+    private int? seasonFilter;
+    private string? error;
+    private string? errorCode;
+    private string? success;
+    private bool busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        estates = await Api.LookupAsync("estates");
+        seasons = await Api.LookupAsync("seasons");
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        try
+        {
+            busy = true;
+            error = null;
+            result = await Api.GetProjectionsAsync(seasonFilter, null, query);
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            errorCode = ex.Error.Code;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task OnSeasonChanged(ChangeEventArgs args)
+    {
+        seasonFilter = int.TryParse(args.Value?.ToString(), out var id) ? id : null;
+        query.Page = 1;
+        await Load();
+    }
+
+    private async Task OnAllVersionsChanged(ChangeEventArgs args)
+    {
+        query.IncludeInactive = args.Value is bool value && value;
+        query.Page = 1;
+        await Load();
+    }
+
+    private async Task GoToPage(int page)
+    {
+        query.Page = page;
+        await Load();
+    }
+
+    private async Task ChangePageSize(int size)
+    {
+        query.PageSize = size;
+        query.Page = 1;
+        await Load();
+    }
+
+    private void StartCreate()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        creating = new ProjectionCreateDto
+        {
+            EstateId = estates.FirstOrDefault()?.Id ?? 0,
+            GrowingSeasonId = seasons.FirstOrDefault()?.Id ?? 0,
+            ProjectionDate = today,
+            PlanningStartDate = today,
+            PlanningEndDate = today.AddMonths(6)
+        };
+    }
+
+    private async Task Create()
+    {
+        if (creating is null) return;
+        try
+        {
+            busy = true;
+            error = null;
+            var created = await Api.CreateProjectionAsync(creating);
+            creating = null;
+            success = $"Projection {created?.ProjectionNo} created.";
+            if (created is not null) Navigation.NavigateTo($"projections/{created.Id}");
+            else await Load();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            errorCode = ex.Error.Code;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

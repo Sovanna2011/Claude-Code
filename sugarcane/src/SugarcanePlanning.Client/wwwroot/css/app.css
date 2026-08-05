@@ -1,0 +1,216 @@
+/* Layout shell -------------------------------------------------------------- */
+
+html, body {
+    height: 100%;
+}
+
+body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: #f6f8f6;
+}
+
+.app-shell {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.app-body {
+    display: flex;
+    flex: 1 1 auto;
+    position: relative;
+}
+
+.app-sidebar {
+    width: 260px;
+    background: #ffffff;
+    border-right: 1px solid #dee2e6;
+    position: fixed;
+    top: 56px;
+    bottom: 0;
+    left: -260px;
+    overflow-y: auto;
+    transition: left .2s ease-in-out;
+    z-index: 1040;
+}
+
+.app-sidebar.open {
+    left: 0;
+}
+
+.app-backdrop {
+    position: fixed;
+    inset: 56px 0 0 0;
+    background: rgba(0, 0, 0, .35);
+    z-index: 1030;
+}
+
+.app-content {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+@media (min-width: 992px) {
+    .app-sidebar { left: 0; }
+    .app-content { margin-left: 260px; }
+    .app-backdrop { display: none; }
+}
+
+.nav-link {
+    color: #263238;
+}
+
+.nav-link:hover {
+    background-color: #e8f5e9;
+}
+
+.nav-link.active {
+    background-color: #2e7d32;
+    color: #ffffff;
+}
+
+/* Tables -------------------------------------------------------------------- */
+
+.table > :not(caption) > * > * {
+    padding: .45rem .5rem;
+}
+
+.table-sticky thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+/* Gantt --------------------------------------------------------------------- */
+
+.gantt-scroll {
+    max-height: 70vh;
+    overflow: auto;
+}
+
+.gantt-table {
+    min-width: 900px;
+}
+
+.gantt-label {
+    width: 260px;
+    min-width: 220px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.gantt-axis {
+    display: grid;
+    align-items: center;
+    min-height: 22px;
+}
+
+.gantt-tick {
+    border-left: 1px solid #dee2e6;
+    padding-left: 4px;
+    color: #6c757d;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.gantt-bar {
+    position: relative;
+    height: 18px;
+    border-radius: 3px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+}
+
+.gantt-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, .45);
+}
+
+.gantt-text {
+    position: relative;
+    color: #fff;
+    font-size: .68rem;
+    padding-left: 4px;
+    white-space: nowrap;
+}
+
+.gantt-key {
+    display: inline-block;
+    width: 14px;
+    height: 10px;
+    border-radius: 2px;
+    margin-right: .25rem;
+}
+
+/* Schedule board ------------------------------------------------------------ */
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: .5rem;
+}
+
+.calendar-day {
+    border: 1px solid #dee2e6;
+    border-radius: .375rem;
+    background: #fff;
+    padding: .5rem;
+    min-height: 90px;
+}
+
+.calendar-day.is-weekend {
+    background: #f1f3f5;
+}
+
+.calendar-day .day-number {
+    font-weight: 600;
+}
+
+/* Printing ------------------------------------------------------------------ */
+
+@media print {
+    .app-sidebar, .app-backdrop, .navbar, .d-print-none {
+        display: none !important;
+    }
+
+    .app-content {
+        margin-left: 0 !important;
+    }
+
+    body {
+        background: #fff;
+    }
+
+    .table {
+        font-size: 10px;
+    }
+
+    a[href]::after {
+        content: none !important;
+    }
+}
+
+/* Blazor error UI ----------------------------------------------------------- */
+
+#blazor-error-ui {
+    background: #ffc107;
+    bottom: 0;
+    display: none;
+    left: 0;
+    padding: .6rem 1.25rem .7rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1080;
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: .75rem;
+    top: .5rem;
+}

@@ -1,0 +1,111 @@
+# Architecture
+
+## Layers and dependency direction
+
+```
+┌──────────────────────────┐   HTTPS / JSON   ┌───────────────────────────┐   T-SQL   ┌──────────────┐
+│  Blazor WebAssembly      │ ───────────────▶ │  ASP.NET Core Web API     │ ────────▶ │  SQL Server  │
+│  Bootstrap · 18 screens  │ ◀─────────────── │  controllers · policies   │ ◀──────── │  planning    │
+└──────────────────────────┘                  └───────────────────────────┘           └──────────────┘
+        Presentation                                  Delivery                          Persistence
+                                                          │
+                                     ┌────────────────────┴────────────────────┐
+                                     │            Application layer            │
+                                     │  services · engines · mapping · rules   │
+                                     └────────────────────┬────────────────────┘
+                                                          │
+                                     ┌────────────────────┴────────────────────┐
+                                     │              Domain layer               │
+                                     │  entities · enums · PlanningFormulas    │
+                                     └─────────────────────────────────────────┘
+```
+
+Dependencies point inwards only:
+
+| Project | References | Contains |
+|---------|------------|----------|
+| `Domain` | *(nothing)* | entities, enums, `PlanningFormulas`, domain exceptions |
+| `Contracts` | Domain | DTOs shared verbatim by the API and the Blazor client, plus the role/policy map |
+| `Application` | Domain, Contracts, EF Core *abstractions* | services, the five engines, mapping, `IAppDbContext`, `ICurrentUser`, `IDateTimeProvider` |
+| `Infrastructure` | Application | `AppDbContext`, Fluent API configurations, migrations, Identity, audit interceptor, PDF/Excel exporters |
+| `Api` | Infrastructure | controllers, JWT issuing, authorization policies, global exception middleware |
+| `Client` | Contracts | Blazor components, typed API client, JWT auth state provider |
+
+The application layer never sees `AppDbContext`; it depends on `IAppDbContext`, which is why
+the integration tests can run the real services over an in-memory database.
+
+## The five engines
+
+| Engine | Service | What it does |
+|--------|---------|--------------|
+| Activity scheduling | `ActivityPlanService` | Turns each approved projection line into a chain of activity plans, honouring sequence, standard start-day offset, blocking dependency lag and the working calendar. |
+| Conflict detection | `SchedulingService` | Eight checks before any booking is written (see below). |
+| Material requirement | `MaterialRequirementService` | Resolves the most specific standard per activity, applies rate × applications + waste, nets against stock. |
+| Capacity | `CapacityService` | Compares required versus available tractors, implements, workers, materials, daily hectares and the completion date. |
+| Scenario | `ScenarioService` | Re-runs the capacity engine with levers applied in memory; the stored plan is never modified. |
+
+### Conflict checks (section 10)
+
+1. Tractor double-booking — overlapping time windows on the same machine
+2. Equipment double-booking
+3. Operator double-booking
+4. Assignment during maintenance or breakdown
+5. Insufficient tractor horsepower for the implement
+6. Tractor or equipment location conflict (machine stationed at another farm)
+7. Activity dependency not satisfied — overridable by a manager, with a recorded reason
+8. Scheduling outside the approved plan period
+
+The permitted plan period is the projection's planning window **widened by the activity
+plan's own dates**, because land preparation legitimately runs before the planting window
+via negative day offsets.
+
+## Cross-cutting concerns
+
+**Multi-tenancy.** Every entity implementing `ICompanyScoped` gets a global query filter
+`!e.IsDeleted && (TenantCompanyId == null || e.CompanyId == TenantCompanyId)`. The tenant comes
+from the `company_id` claim on the JWT, so no query can leak another company's rows.
+
+**Soft deletion.** `BaseEntity.IsDeleted` plus the same global filter. Services refuse to
+delete records still referenced by a plan or a booking.
+
+**Optimistic concurrency.** Every table carries a SQL Server `rowversion`. Update DTOs carry
+the token; `ServiceBase.ApplyConcurrencyToken` seeds it as the original value, so a stale save
+raises `DbUpdateConcurrencyException`, which the middleware turns into `409 CONCURRENCY_CONFLICT`.
+Providers other than SQL Server fall back to a plain concurrency token.
+
+**Audit trail.** `AuditSaveChangesInterceptor` stamps created/modified fields and writes one
+`AuditLog` row per changed entity with the old values, new values, changed columns, user,
+timestamp, IP address and device. Workflow, export and login events are written explicitly by
+`AuditService`.
+
+**Transactions.** Multi-step operations (create projection with lines, revise, generate plans)
+open an explicit transaction through `IAppDbContext.BeginTransactionAsync`. A nested call
+returns a no-op handle so the outer scope keeps control of the commit.
+
+**Error handling.** `ExceptionHandlingMiddleware` maps `NotFoundException` → 404,
+`ForbiddenException` → 403, `BusinessRuleException` → 422 with its stable code,
+`DbUpdateConcurrencyException` → 409, everything else → 500 with a trace id. The client turns
+the body back into `ApiException` so screens can show the real reason.
+
+**Authorization.** Ten roles and seventeen policies (`perm:view`, `perm:approve`,
+`perm:override-dependency`, …). `Policies.RoleMap` in `Contracts` is the single source of
+truth, used to register the ASP.NET Core policies, to answer `ICurrentUser.HasPolicy` inside
+services, and to drive what the Blazor client offers.
+
+## Request flow
+
+```
+Blazor page → PlanningApi (typed client) → ApiClient (bearer token, error translation)
+   → controller (policy check) → application service (business rules, engines)
+      → IAppDbContext → AppDbContext (query filters, interceptor) → SQL Server
+```
+
+## Testing strategy
+
+`UnitTests` cover `PlanningFormulas` (including the specification's worked example
+2,600 ÷ (4 × 90) = 7.22 → 8 tractors), the dependency-cycle guard, working-day arithmetic,
+material-standard resolution, scenario levers and status derivation.
+
+`IntegrationTests` build the real service graph over an isolated in-memory database and drive
+the whole process of section 24 — including all eight conflict checks, the workflow state
+machine, revision and version comparison, and every one of the 22 reports.

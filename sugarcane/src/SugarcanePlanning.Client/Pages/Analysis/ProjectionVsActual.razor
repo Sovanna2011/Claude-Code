@@ -1,0 +1,293 @@
+@page "/projection-vs-actual"
+@attribute [Authorize]
+@inject PlanningApi Api
+
+<PageTitle>Projection versus actual</PageTitle>
+
+<h1 class="h4 mb-1">Projection versus actual</h1>
+<p class="text-secondary small">
+    Variance = actual − planned · completion % = actual area ÷ planned area × 100.
+</p>
+
+<ErrorAlert Message="@error" Code="@errorCode" OnDismiss="() => error = null" />
+<SuccessToast Message="@success" OnDismiss="() => success = null" />
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">Projection</label>
+                <select class="form-select form-select-sm" @onchange="OnProjectionChanged">
+                    <option value="">Select a projection…</option>
+                    @foreach (var projection in projections)
+                    {
+                        <option value="@projection.Id" selected="@(projection.Id == projectionId)">@projection.Code</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Group by</label>
+                <select class="form-select form-select-sm" @onchange="OnGroupChanged">
+                    @foreach (var option in GroupOptions)
+                    {
+                        <option value="@option" selected="@(option == groupBy)">@option</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-5 text-end">
+                <button class="btn btn-outline-secondary btn-sm" @onclick="LoadPlans" disabled="@(projectionId is null || busy)">
+                    Record actual progress
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (recording is not null)
+{
+    <div class="card shadow-sm mb-3">
+        <div class="card-header bg-white fw-semibold">Record actual execution</div>
+        <div class="card-body">
+            <EditForm Model="recording" OnValidSubmit="SaveActual">
+                <DataAnnotationsValidator />
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label class="form-label">Activity plan</label>
+                        <InputSelect class="form-select" @bind-Value="recording.ActivityPlanId">
+                            <option value="0">— select —</option>
+                            @foreach (var plan in plans)
+                            {
+                                <option value="@plan.Id">@plan.BlockName · @plan.ActivityName (planned @plan.PlannedAreaHa.ToString("N2") ha)</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-3"><label class="form-label">Actual start</label><InputDate class="form-control" @bind-Value="recording.ActualStartDate" /></div>
+                    <div class="col-md-3"><label class="form-label">Actual completion</label><InputDate class="form-control" @bind-Value="recording.ActualCompletionDate" /></div>
+
+                    <div class="col-md-3"><label class="form-label">Completed area (ha)</label><InputNumber class="form-control" @bind-Value="recording.ActualCompletedAreaHa" step="0.01" /></div>
+                    <div class="col-md-3"><label class="form-label">Working hours</label><InputNumber class="form-control" @bind-Value="recording.ActualWorkingHours" step="0.25" /></div>
+                    <div class="col-md-3"><label class="form-label">Fuel (L)</label><InputNumber class="form-control" @bind-Value="recording.ActualFuelLiters" step="0.1" /></div>
+                    <div class="col-md-3"><label class="form-label">Labor-days</label><InputNumber class="form-control" @bind-Value="recording.ActualLaborDays" step="0.1" /></div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Tractor used</label>
+                        <InputSelect class="form-select" @bind-Value="recording.ActualTractorId">
+                            <option value="">— none —</option>
+                            @foreach (var tractor in tractors)
+                            {
+                                <option value="@tractor.Id">@tractor.Code</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Equipment used</label>
+                        <InputSelect class="form-select" @bind-Value="recording.ActualEquipmentId">
+                            <option value="">— none —</option>
+                            @foreach (var item in equipment)
+                            {
+                                <option value="@item.Id">@item.Display</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Operator</label>
+                        <InputSelect class="form-select" @bind-Value="recording.ActualOperatorId">
+                            <option value="">— none —</option>
+                            @foreach (var op in operators)
+                            {
+                                <option value="@op.Id">@op.Name</option>
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="col-md-6"><label class="form-label">Delay reason</label><InputText class="form-control" @bind-Value="recording.DelayReason" /></div>
+                    <div class="col-md-6"><label class="form-label">Remarks</label><InputText class="form-control" @bind-Value="recording.Remarks" /></div>
+                </div>
+
+                <div class="d-flex gap-2 mt-3">
+                    <button class="btn btn-success btn-sm" type="submit" disabled="@busy">Save actuals</button>
+                    <button class="btn btn-outline-secondary btn-sm" type="button" @onclick="() => recording = null">Cancel</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@if (projectionId is null)
+{
+    <div class="alert alert-secondary">Select a projection to compare it with the recorded actuals.</div>
+}
+else if (busy && rows.Count == 0)
+{
+    <LoadingPanel />
+}
+else if (rows.Count == 0)
+{
+    <div class="alert alert-secondary">No activity plans exist for this projection yet.</div>
+}
+else
+{
+    <div class="row g-3 mb-3">
+        <div class="col-6 col-lg-3">
+            <KpiCard Title="Planned area" Value="@rows.Sum(r => r.PlannedAreaHa).ToString("N0")" Unit="ha" />
+        </div>
+        <div class="col-6 col-lg-3">
+            <KpiCard Title="Actual area" Value="@rows.Sum(r => r.ActualAreaHa).ToString("N0")" Unit="ha"
+                     ProgressPercent="@(rows.Sum(r => r.PlannedAreaHa) <= 0 ? 0 : rows.Sum(r => r.ActualAreaHa) / rows.Sum(r => r.PlannedAreaHa) * 100m)" />
+        </div>
+        <div class="col-6 col-lg-3">
+            <KpiCard Title="Fuel variance" Value="@rows.Sum(r => r.FuelVariance).ToString("N0")" Unit="L"
+                     ValueClass="@(rows.Sum(r => r.FuelVariance) > 0 ? "text-danger" : "text-success")" />
+        </div>
+        <div class="col-6 col-lg-3">
+            <KpiCard Title="Delayed activities" Value="@rows.Sum(r => r.PlansDelayed).ToString()"
+                     Caption="@($"{rows.Sum(r => r.PlansCompleted)} of {rows.Sum(r => r.PlansTotal)} completed")" />
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-white fw-semibold">Comparison by @groupBy</div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>@groupBy</th>
+                            <th class="text-end">Planned (ha)</th>
+                            <th class="text-end">Actual (ha)</th>
+                            <th class="text-end">Area variance</th>
+                            <th class="text-end">Planned fuel (L)</th>
+                            <th class="text-end">Actual fuel (L)</th>
+                            <th class="text-end">Fuel variance</th>
+                            <th class="text-end">Planned labor-days</th>
+                            <th class="text-end">Actual labor-days</th>
+                            <th class="text-end">Delayed</th>
+                            <th class="text-end">Sched. var (d)</th>
+                            <th style="min-width:160px">Completion</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in rows)
+                        {
+                            <tr>
+                                <td>@row.GroupName</td>
+                                <td class="text-end">@row.PlannedAreaHa.ToString("N2")</td>
+                                <td class="text-end">@row.ActualAreaHa.ToString("N2")</td>
+                                <td class="text-end @(row.AreaVariance < 0 ? "text-danger" : "text-success")">@row.AreaVariance.ToString("N2")</td>
+                                <td class="text-end">@row.PlannedFuelLiters.ToString("N0")</td>
+                                <td class="text-end">@row.ActualFuelLiters.ToString("N0")</td>
+                                <td class="text-end @(row.FuelVariance > 0 ? "text-danger" : "")">@row.FuelVariance.ToString("N0")</td>
+                                <td class="text-end">@row.PlannedLaborDays.ToString("N1")</td>
+                                <td class="text-end">@row.ActualLaborDays.ToString("N1")</td>
+                                <td class="text-end">@row.PlansDelayed</td>
+                                <td class="text-end">@(row.AverageScheduleVarianceDays?.ToString() ?? "—")</td>
+                                <td><ProgressBarCell Percent="row.CompletionPercent" /></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private static readonly string[] GroupOptions = { "block", "farm", "activity", "month" };
+
+    [SupplyParameterFromQuery] public int? PlanId { get; set; }
+
+    private IReadOnlyList<LookupDto> projections = Array.Empty<LookupDto>();
+    private IReadOnlyList<LookupDto> tractors = Array.Empty<LookupDto>();
+    private IReadOnlyList<LookupDto> equipment = Array.Empty<LookupDto>();
+    private IReadOnlyList<LookupDto> operators = Array.Empty<LookupDto>();
+    private IReadOnlyList<ActivityPlanDto> plans = Array.Empty<ActivityPlanDto>();
+    private IReadOnlyList<ProjectionVsActualDto> rows = Array.Empty<ProjectionVsActualDto>();
+    private ActivityActualUpsertDto? recording;
+    private int? projectionId;
+    private string groupBy = "block";
+    private string? error;
+    private string? errorCode;
+    private string? success;
+    private bool busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        projections = await Api.LookupAsync("projections");
+        tractors = await Api.LookupAsync("tractors");
+        equipment = await Api.LookupAsync("equipment");
+        operators = await Api.LookupAsync("operators");
+
+        if (PlanId is not null)
+        {
+            recording = new ActivityActualUpsertDto { ActivityPlanId = PlanId.Value };
+            plans = (await Api.GetActivityPlansAsync(null, null, null, new QueryParameters { PageSize = 200 })).Items;
+        }
+    }
+
+    private async Task OnProjectionChanged(ChangeEventArgs args)
+    {
+        projectionId = int.TryParse(args.Value?.ToString(), out var id) ? id : null;
+        await Load();
+    }
+
+    private async Task OnGroupChanged(ChangeEventArgs args)
+    {
+        groupBy = args.Value?.ToString() ?? "block";
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        if (projectionId is null) return;
+        try
+        {
+            busy = true;
+            error = null;
+            rows = await Api.CompareActualAsync(projectionId.Value, groupBy);
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            errorCode = ex.Error.Code;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task LoadPlans()
+    {
+        plans = (await Api.GetActivityPlansAsync(projectionId, null, null, new QueryParameters { PageSize = 200 })).Items;
+        recording = new ActivityActualUpsertDto
+        {
+            ActivityPlanId = plans.FirstOrDefault()?.Id ?? 0,
+            ActualStartDate = DateOnly.FromDateTime(DateTime.Today)
+        };
+    }
+
+    private async Task SaveActual()
+    {
+        if (recording is null) return;
+        try
+        {
+            busy = true;
+            error = null;
+            var saved = await Api.RecordActualAsync(recording);
+            success = saved is null
+                ? "Actuals recorded."
+                : $"Actuals recorded — completion {saved.CompletionPercent:N1}%, area variance {saved.AreaVariance:N2} ha.";
+            recording = null;
+            await Load();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            errorCode = ex.Error.Code;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

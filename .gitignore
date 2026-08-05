@@ -16,6 +16,10 @@ dist/
 npm-debug.log*
 yarn-error.log
 
+# Vendored client libraries are part of the app, not build output (source maps excluded).
+!sugarcane/src/SugarcanePlanning.Client/wwwroot/lib/**
+sugarcane/src/SugarcanePlanning.Client/wwwroot/lib/**/*.map
+
 # ---- IDE ----
 .idea/
 *.swp

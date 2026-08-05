@@ -1,0 +1,61 @@
+@*
+    The 18 screens of section 19, grouped the way a planner works: master data first,
+    then planning, then resources, then analysis and administration.
+*@
+<nav class="nav flex-column p-2">
+    @foreach (var group in Groups)
+    {
+        <div class="text-uppercase small fw-semibold text-secondary px-2 pt-3 pb-1">@group.Title</div>
+        @foreach (var item in group.Items)
+        {
+            <NavLink class="nav-link px-2 py-1 rounded" href="@item.Href"
+                     Match="@(item.Href == "" ? NavLinkMatch.All : NavLinkMatch.Prefix)"
+                     @onclick="() => OnNavigate.InvokeAsync()">
+                <span class="me-2" aria-hidden="true">@item.Icon</span>@item.Label
+            </NavLink>
+        }
+    }
+</nav>
+
+@code {
+    [Parameter] public EventCallback OnNavigate { get; set; }
+
+    private record NavItem(string Label, string Href, string Icon);
+    private record NavGroup(string Title, NavItem[] Items);
+
+    private static readonly NavGroup[] Groups =
+    {
+        new("Overview", new[]
+        {
+            new NavItem("Dashboard", "", "📊")
+        }),
+        new("Master data", new[]
+        {
+            new NavItem("Enterprise & land", "land-structure", "🏢"),
+            new NavItem("Growing seasons", "seasons", "🗓"),
+            new NavItem("Sugarcane varieties", "varieties", "🌾"),
+            new NavItem("Plantation blocks", "blocks", "🟩"),
+            new NavItem("Activities & dependencies", "activities", "🧩"),
+            new NavItem("Tractors", "tractors", "🚜"),
+            new NavItem("Equipment & compatibility", "equipment", "⚙"),
+            new NavItem("Materials & standards", "materials", "🧪")
+        }),
+        new("Planning", new[]
+        {
+            new NavItem("Planting projections", "projections", "📋"),
+            new NavItem("Monthly / weekly plan", "period-plan", "📆"),
+            new NavItem("Activity plan & Gantt", "activity-plan", "📈"),
+            new NavItem("Resource scheduling", "scheduling", "🗂"),
+            new NavItem("Material requirements", "material-requirements", "📦"),
+            new NavItem("Fuel & labor projection", "fuel-labor", "⛽")
+        }),
+        new("Analysis", new[]
+        {
+            new NavItem("Capacity & scenarios", "capacity", "⚖"),
+            new NavItem("Approvals & revisions", "approvals", "✅"),
+            new NavItem("Projection vs actual", "projection-vs-actual", "🎯"),
+            new NavItem("Reports", "reports", "🖨"),
+            new NavItem("Audit log", "audit", "🔍")
+        })
+    };
+}

@@ -1,0 +1,421 @@
+@page "/capacity"
+@attribute [Authorize]
+@inject PlanningApi Api
+
+<PageTitle>Capacity & scenario planning</PageTitle>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+        <h1 class="h4 mb-0">Capacity analysis and scenario planning</h1>
+        <small class="text-secondary">Scenario testing never overwrites the approved plan.</small>
+    </div>
+    <select class="form-select form-select-sm" style="width:auto" @onchange="OnProjectionChanged" aria-label="Projection">
+        <option value="">Select a projection…</option>
+        @foreach (var projection in projections)
+        {
+            <option value="@projection.Id" selected="@(projection.Id == ProjectionId)">@projection.Code</option>
+        }
+    </select>
+</div>
+
+<ErrorAlert Message="@error" Code="@errorCode" OnDismiss="() => error = null" />
+<SuccessToast Message="@success" OnDismiss="() => success = null" />
+
+@if (ProjectionId is null)
+{
+    <div class="alert alert-secondary">Select a projection to analyse its capacity.</div>
+}
+else if (busy && analysis is null)
+{
+    <LoadingPanel Message="Comparing requirements with availability…" />
+}
+else if (analysis is not null)
+{
+    <div class="row g-3 mb-3">
+        <div class="col-6 col-lg-3">
+            <KpiCard Title="Overall status" Value="@analysis.OverallStatus.ToString()"
+                     ValueClass="@StatusText(analysis.OverallStatus)" />
+        </div>
+        <div class="col-6 col-lg-3">
+            <KpiCard Title="Planned area" Value="@analysis.TotalPlannedAreaHa.ToString("N0")" Unit="ha"
+                     Caption="@($"{analysis.WorkingDays} working days")" />
+        </div>
+        <div class="col-6 col-lg-3">
+            <KpiCard Title="Daily capacity" Value="@analysis.DailyCapacityRequiredHa.ToString("N1")" Unit="ha/day required"
+                     Caption="@($"{analysis.DailyCapacityAvailableHa:N1} ha/day available")" />
+        </div>
+        <div class="col-6 col-lg-3">
+            <KpiCard Title="Completion date"
+                     Value="@(analysis.PlannedCompletionDate?.ToString("yyyy-MM-dd") ?? "—")"
+                     Caption="@(analysis.CompletionVarianceDays is null ? "" : $"{analysis.CompletionVarianceDays:+#;-#;0} days versus required")"
+                     ValueClass="@(analysis.CompletionVarianceDays > 0 ? "text-danger" : "")" />
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-header bg-white fw-semibold">Required versus available</div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Type</th>
+                            <th>Resource</th>
+                            <th>Unit</th>
+                            <th class="text-end">Required</th>
+                            <th class="text-end">Available</th>
+                            <th class="text-end">Gap</th>
+                            <th style="min-width:140px">Coverage</th>
+                            <th>Status</th>
+                            <th>Recommendation</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var line in analysis.Lines)
+                        {
+                            <tr class="@(line.Status is CapacityStatus.Shortage or CapacityStatus.Unavailable ? "table-warning" : "")">
+                                <td>@line.ResourceType</td>
+                                <td>@line.ResourceName</td>
+                                <td>@line.Unit</td>
+                                <td class="text-end">@line.Required.ToString("N2")</td>
+                                <td class="text-end">@line.Available.ToString("N2")</td>
+                                <td class="text-end @(line.Gap < 0 ? "text-danger fw-semibold" : "")">@line.Gap.ToString("N2")</td>
+                                <td><ProgressBarCell Percent="line.CoveragePercent" /></td>
+                                <td><StatusBadge Capacity="line.Status" /></td>
+                                <td class="small">@line.Recommendation</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    @* --------------------------------------------------------------- scenarios *@
+    <div class="card shadow-sm">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <span class="fw-semibold">What-if scenarios</span>
+            <button class="btn btn-success btn-sm" @onclick="StartScenario">New scenario</button>
+        </div>
+        <div class="card-body">
+            @if (editingScenario is not null)
+            {
+                <EditForm Model="editingScenario" OnValidSubmit="SaveScenario" class="border rounded p-3 mb-3 bg-light">
+                    <DataAnnotationsValidator />
+                    <div class="row g-2">
+                        <div class="col-md-4"><label class="form-label">Name</label><InputText class="form-control" @bind-Value="editingScenario.Name" /></div>
+                        <div class="col-md-8"><label class="form-label">Description</label><InputText class="form-control" @bind-Value="editingScenario.Description" /></div>
+                    </div>
+
+                    <div class="mt-3">
+                        <label class="form-label">Adjustments</label>
+                        @foreach (var adjustment in editingScenario.Adjustments)
+                        {
+                            <div class="row g-2 align-items-end mb-2">
+                                <div class="col-md-5">
+                                    <select class="form-select form-select-sm" value="@adjustment.AdjustmentType"
+                                            @onchange="e => SetAdjustmentType(adjustment, e)">
+                                        @foreach (var type in Enum.GetValues<ScenarioAdjustmentType>())
+                                        {
+                                            <option value="@type">@Describe(type)</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <input type="number" step="0.1" class="form-control form-control-sm"
+                                           value="@adjustment.Value" @onchange="e => SetAdjustmentValue(adjustment, e)" />
+                                </div>
+                                <div class="col-md-3">
+                                    <input class="form-control form-control-sm" placeholder="Remarks"
+                                           value="@adjustment.Remarks" @onchange="e => adjustment.Remarks = e.Value?.ToString()" />
+                                </div>
+                                <div class="col-md-1 text-end">
+                                    <button type="button" class="btn btn-outline-danger btn-sm"
+                                            @onclick="() => editingScenario.Adjustments.Remove(adjustment)">×</button>
+                                </div>
+                            </div>
+                        }
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="AddAdjustment">Add adjustment</button>
+                    </div>
+
+                    <div class="d-flex gap-2 mt-3">
+                        <button class="btn btn-success btn-sm" type="submit" disabled="@busy">Save scenario</button>
+                        <button class="btn btn-outline-secondary btn-sm" type="button" @onclick="() => editingScenario = null">Cancel</button>
+                    </div>
+                </EditForm>
+            }
+
+            @if (scenarios.Count == 0)
+            {
+                <div class="text-secondary small">No scenarios yet.</div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Name</th>
+                                <th>Adjustments</th>
+                                <th>Status</th>
+                                <th>Last simulated</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var scenario in scenarios)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="fw-semibold">@scenario.Name</div>
+                                        <div class="small text-secondary">@scenario.Description</div>
+                                    </td>
+                                    <td class="small">
+                                        @foreach (var adjustment in scenario.Adjustments)
+                                        {
+                                            <div>@Describe(adjustment.AdjustmentType): @adjustment.Value.ToString("N1")</div>
+                                        }
+                                    </td>
+                                    <td><StatusBadge Scenario="scenario.Status" /></td>
+                                    <td class="small">@(scenario.SimulatedAtUtc?.ToString("yyyy-MM-dd HH:mm"))</td>
+                                    <td class="text-end">
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-primary" @onclick="() => Simulate(scenario.Id)" disabled="@busy">Simulate</button>
+                                            <button class="btn btn-outline-secondary" @onclick="() => EditScenario(scenario)">Edit</button>
+                                            <button class="btn btn-outline-danger" @onclick="() => DeleteScenario(scenario.Id)">Delete</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            @if (result is not null)
+            {
+                <div class="mt-3">
+                    <h6>Simulation: @result.ScenarioName</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Resource</th>
+                                    <th class="text-end">Baseline gap</th>
+                                    <th class="text-end">Scenario gap</th>
+                                    <th class="text-end">Improvement</th>
+                                    <th>Baseline</th>
+                                    <th>Scenario</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var delta in result.Deltas)
+                                {
+                                    <tr>
+                                        <td>@delta.ResourceType — @delta.ResourceName</td>
+                                        <td class="text-end">@delta.BaselineGap.ToString("N2")</td>
+                                        <td class="text-end">@delta.SimulatedGap.ToString("N2")</td>
+                                        <td class="text-end @(delta.Improvement > 0 ? "text-success fw-semibold" : "")">
+                                            @delta.Improvement.ToString("+0.00;-0.00;0")
+                                        </td>
+                                        <td><StatusBadge Capacity="delta.BaselineStatus" /></td>
+                                        <td><StatusBadge Capacity="delta.SimulatedStatus" /></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="small text-secondary">
+                        Scenario completion date @result.Simulated.PlannedCompletionDate?.ToString("yyyy-MM-dd")
+                        versus baseline @result.Baseline.PlannedCompletionDate?.ToString("yyyy-MM-dd").
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery] public int? ProjectionId { get; set; }
+
+    private CapacityAnalysisDto? analysis;
+    private IReadOnlyList<ScenarioDto> scenarios = Array.Empty<ScenarioDto>();
+    private ScenarioResultDto? result;
+    private ScenarioUpsertDto? editingScenario;
+    private int? editingScenarioId;
+    private IReadOnlyList<LookupDto> projections = Array.Empty<LookupDto>();
+    private string? error;
+    private string? errorCode;
+    private string? success;
+    private bool busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        projections = await Api.LookupAsync("projections");
+        if (ProjectionId is not null) await Load();
+    }
+
+    private async Task OnProjectionChanged(ChangeEventArgs args)
+    {
+        ProjectionId = int.TryParse(args.Value?.ToString(), out var id) ? id : null;
+        result = null;
+        if (ProjectionId is not null) await Load();
+    }
+
+    private async Task Load()
+    {
+        if (ProjectionId is null) return;
+        try
+        {
+            busy = true;
+            error = null;
+            analysis = await Api.GetCapacityAsync(ProjectionId.Value);
+            scenarios = await Api.GetScenariosAsync(ProjectionId.Value);
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            errorCode = ex.Error.Code;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private static string StatusText(CapacityStatus status) => status switch
+    {
+        CapacityStatus.Sufficient => "text-success",
+        CapacityStatus.AtRisk => "text-warning",
+        _ => "text-danger"
+    };
+
+    private static string Describe(ScenarioAdjustmentType type) => type switch
+    {
+        ScenarioAdjustmentType.AdditionalRentalTractors => "Additional rental tractors (units)",
+        ScenarioAdjustmentType.AdditionalEquipment => "Additional equipment (units per category)",
+        ScenarioAdjustmentType.ExtendedWorkingHours => "Extended working hours (hours/day)",
+        ScenarioAdjustmentType.ReducedPlantingArea => "Reduced planting area (%)",
+        ScenarioAdjustmentType.ChangedPlantingDates => "Shift planting dates (days)",
+        ScenarioAdjustmentType.ChangedActivityDuration => "Change activity duration (days)",
+        ScenarioAdjustmentType.AdditionalWorkers => "Additional workers (people)",
+        _ => type.ToString()
+    };
+
+    private void StartScenario()
+    {
+        editingScenarioId = null;
+        editingScenario = new ScenarioUpsertDto
+        {
+            ProjectionId = ProjectionId ?? 0,
+            Name = "Scenario " + (scenarios.Count + 1),
+            Adjustments = new List<ScenarioAdjustmentUpsertDto>
+            {
+                new() { AdjustmentType = ScenarioAdjustmentType.AdditionalRentalTractors, Value = 2 }
+            }
+        };
+    }
+
+    private void EditScenario(ScenarioDto scenario)
+    {
+        editingScenarioId = scenario.Id;
+        editingScenario = new ScenarioUpsertDto
+        {
+            ProjectionId = scenario.ProjectionId,
+            Name = scenario.Name,
+            Description = scenario.Description,
+            RowVersion = scenario.RowVersion,
+            Adjustments = scenario.Adjustments.Select(a => new ScenarioAdjustmentUpsertDto
+            {
+                AdjustmentType = a.AdjustmentType,
+                Value = a.Value,
+                ActivityId = a.ActivityId,
+                Remarks = a.Remarks
+            }).ToList()
+        };
+    }
+
+    private void AddAdjustment()
+        => editingScenario?.Adjustments.Add(new ScenarioAdjustmentUpsertDto
+        {
+            AdjustmentType = ScenarioAdjustmentType.ExtendedWorkingHours,
+            Value = 2
+        });
+
+    private static void SetAdjustmentType(ScenarioAdjustmentUpsertDto adjustment, ChangeEventArgs args)
+    {
+        if (Enum.TryParse<ScenarioAdjustmentType>(args.Value?.ToString(), out var type))
+            adjustment.AdjustmentType = type;
+    }
+
+    private static void SetAdjustmentValue(ScenarioAdjustmentUpsertDto adjustment, ChangeEventArgs args)
+    {
+        if (decimal.TryParse(args.Value?.ToString(), out var value)) adjustment.Value = value;
+    }
+
+    private async Task SaveScenario()
+    {
+        if (editingScenario is null) return;
+        try
+        {
+            busy = true;
+            error = null;
+            if (editingScenarioId is null) await Api.CreateScenarioAsync(editingScenario);
+            else await Api.UpdateScenarioAsync(editingScenarioId.Value, editingScenario);
+            success = "Scenario saved.";
+            editingScenario = null;
+            await Load();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            errorCode = ex.Error.Code;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task Simulate(int id)
+    {
+        try
+        {
+            busy = true;
+            error = null;
+            result = await Api.SimulateScenarioAsync(id);
+            success = "Simulation complete — the approved plan is unchanged.";
+            await Load();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            errorCode = ex.Error.Code;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task DeleteScenario(int id)
+    {
+        try
+        {
+            busy = true;
+            await Api.DeleteScenarioAsync(id);
+            success = "Scenario deleted.";
+            result = null;
+            await Load();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            errorCode = ex.Error.Code;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

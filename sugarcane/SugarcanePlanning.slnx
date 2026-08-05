@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SugarcanePlanning.Api/SugarcanePlanning.Api.csproj" />
+    <Project Path="src/SugarcanePlanning.Application/SugarcanePlanning.Application.csproj" />
+    <Project Path="src/SugarcanePlanning.Client/SugarcanePlanning.Client.csproj" />
+    <Project Path="src/SugarcanePlanning.Contracts/SugarcanePlanning.Contracts.csproj" />
+    <Project Path="src/SugarcanePlanning.Domain/SugarcanePlanning.Domain.csproj" />
+    <Project Path="src/SugarcanePlanning.Infrastructure/SugarcanePlanning.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SugarcanePlanning.IntegrationTests/SugarcanePlanning.IntegrationTests.csproj" />
+    <Project Path="tests/SugarcanePlanning.UnitTests/SugarcanePlanning.UnitTests.csproj" />
+  </Folder>
+</Solution>

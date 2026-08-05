@@ -1,0 +1,34 @@
+@* Headline figure for the dashboard. *@
+<div class="card h-100 shadow-sm">
+    <div class="card-body">
+        <div class="text-secondary text-uppercase small fw-semibold">@Title</div>
+        <div class="d-flex align-items-baseline gap-2">
+            <span class="fs-3 fw-bold @ValueClass">@Value</span>
+            @if (!string.IsNullOrWhiteSpace(Unit))
+            {
+                <span class="text-secondary small">@Unit</span>
+            }
+        </div>
+        @if (!string.IsNullOrWhiteSpace(Caption))
+        {
+            <div class="small text-secondary mt-1">@Caption</div>
+        }
+        @if (ProgressPercent is not null)
+        {
+            <div class="progress mt-2" style="height:6px" role="progressbar"
+                 aria-valuenow="@((int)ProgressPercent)" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-bar @ProgressClass" style="width:@(Math.Min(100, ProgressPercent.Value).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))%"></div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Value { get; set; } = string.Empty;
+    [Parameter] public string? Unit { get; set; }
+    [Parameter] public string? Caption { get; set; }
+    [Parameter] public decimal? ProgressPercent { get; set; }
+    [Parameter] public string ValueClass { get; set; } = "";
+    [Parameter] public string ProgressClass { get; set; } = "bg-success";
+}

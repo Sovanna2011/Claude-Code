@@ -1,0 +1,20 @@
+@* Inline completion bar used inside grids. *@
+<div class="d-flex align-items-center gap-2">
+    <div class="progress flex-grow-1" style="height:8px;min-width:60px" role="progressbar"
+         aria-valuenow="@((int)Percent)" aria-valuemin="0" aria-valuemax="100">
+        <div class="progress-bar @BarClass" style="width:@(Math.Min(100m, Math.Max(0m, Percent)).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))%"></div>
+    </div>
+    <small class="text-secondary" style="min-width:3.2rem">@Percent.ToString("N1")%</small>
+</div>
+
+@code {
+    [Parameter] public decimal Percent { get; set; }
+
+    private string BarClass => Percent switch
+    {
+        >= 100m => "bg-success",
+        >= 60m => "bg-primary",
+        >= 25m => "bg-warning",
+        _ => "bg-danger"
+    };
+}

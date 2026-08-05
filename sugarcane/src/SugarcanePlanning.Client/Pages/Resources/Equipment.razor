@@ -1,0 +1,355 @@
+@page "/equipment"
+@attribute [Authorize]
+@inject PlanningApi Api
+
+<PageTitle>Equipment master</PageTitle>
+
+<h1 class="h4 mb-3">Equipment master and compatibility</h1>
+<p class="text-secondary small">
+    An implement records the minimum tractor horsepower it needs. Where compatibility rows exist
+    for an implement, the scheduler accepts only the listed tractors.
+</p>
+
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item"><button class="nav-link @(tab == "equipment" ? "active" : "")" @onclick='() => tab = "equipment"'>Equipment</button></li>
+    <li class="nav-item"><button class="nav-link @(tab == "compat" ? "active" : "")" @onclick="ShowCompatibility">Tractor compatibility</button></li>
+</ul>
+
+@if (tab == "equipment")
+{
+    <CrudTable TItem="EquipmentDto" TUpsert="EquipmentUpsertDto"
+               Title="Equipment"
+               Columns="@(new[] { "Code", "Name", "Category", "Min HP", "Cap/hour", "Cap/day", "Farm", "Ownership", "Availability", "Active" })"
+               RowTemplate="RenderRow"
+               EditorTemplate="RenderEditor"
+               ToEditModel="ToEditModel"
+               NewModel="@(() => new EquipmentUpsertDto { CompanyId = companies.FirstOrDefault()?.Id ?? 0 })"
+               OnLoad="@(q => Api.GetEquipmentAsync(q))"
+               OnCreate="@(dto => Api.CreateEquipmentAsync(dto))"
+               OnUpdate="@((id, dto) => Api.UpdateEquipmentAsync(id, dto))"
+               OnDelete="@(id => Api.DeleteEquipmentAsync(id))"
+               IdSelector="@(e => e.Id)" />
+}
+else
+{
+    <div class="card shadow-sm">
+        <div class="card-header bg-white fw-semibold">Tractor / equipment compatibility</div>
+        <div class="card-body">
+            <ErrorAlert Message="@error" Code="@errorCode" OnDismiss="() => error = null" />
+            <SuccessToast Message="@success" OnDismiss="() => success = null" />
+
+            <div class="row g-2 align-items-end border rounded p-3 mb-3 bg-light">
+                <div class="col-md-4">
+                    <label class="form-label">Tractor</label>
+                    <select class="form-select" @bind="newPair.TractorId">
+                        <option value="0">— select —</option>
+                        @foreach (var tractor in tractorLookup)
+                        {
+                            <option value="@tractor.Id">@tractor.Code (@tractor.Value hp)</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Equipment</label>
+                    <select class="form-select" @bind="newPair.EquipmentId">
+                        <option value="0">— select —</option>
+                        @foreach (var item in equipmentLookup)
+                        {
+                            <option value="@item.Id">@item.Display (min @item.Value hp)</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <div class="form-check mt-4">
+                        <input class="form-check-input" type="checkbox" id="recommended" @bind="newPair.IsRecommended" />
+                        <label class="form-check-label small" for="recommended">Recommended</label>
+                    </div>
+                </div>
+                <div class="col-md-2 text-end">
+                    <button class="btn btn-success btn-sm" @onclick="AddPair" disabled="@busy">Add pairing</button>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2 mb-3">
+                <select class="form-select form-select-sm" style="width:auto" @onchange="FilterByEquipment" aria-label="Filter by equipment">
+                    <option value="">All equipment</option>
+                    @foreach (var item in equipmentLookup)
+                    {
+                        <option value="@item.Id">@item.Display</option>
+                    }
+                </select>
+            </div>
+
+            @if (busy && pairs.Count == 0)
+            {
+                <LoadingPanel />
+            }
+            else if (pairs.Count == 0)
+            {
+                <div class="text-secondary small">No compatibility rules yet — every tractor with enough horsepower is accepted.</div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Tractor</th>
+                                <th class="text-end">Tractor HP</th>
+                                <th>Equipment</th>
+                                <th class="text-end">Required HP</th>
+                                <th>Horsepower</th>
+                                <th>Recommended</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var pair in pairs)
+                            {
+                                <tr>
+                                    <td>@pair.TractorCode</td>
+                                    <td class="text-end">@pair.TractorHorsepower</td>
+                                    <td>@pair.EquipmentCode — @pair.EquipmentName</td>
+                                    <td class="text-end">@pair.MinimumTractorHp</td>
+                                    <td>
+                                        <span class="badge @(pair.HorsepowerSatisfied ? "text-bg-success" : "text-bg-danger")">
+                                            @(pair.HorsepowerSatisfied ? "Sufficient" : "Insufficient")
+                                        </span>
+                                    </td>
+                                    <td>@(pair.IsRecommended ? "Yes" : "No")</td>
+                                    <td class="text-end">
+                                        <button class="btn btn-outline-danger btn-sm" @onclick="() => RemovePair(pair.Id)">Remove</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private string tab = "equipment";
+    private IReadOnlyList<LookupDto> companies = Array.Empty<LookupDto>();
+    private IReadOnlyList<LookupDto> estates = Array.Empty<LookupDto>();
+    private IReadOnlyList<LookupDto> farms = Array.Empty<LookupDto>();
+    private IReadOnlyList<LookupDto> tractorLookup = Array.Empty<LookupDto>();
+    private IReadOnlyList<LookupDto> equipmentLookup = Array.Empty<LookupDto>();
+    private IReadOnlyList<CompatibilityDto> pairs = Array.Empty<CompatibilityDto>();
+    private CompatibilityUpsertDto newPair = new();
+    private int? equipmentFilter;
+    private string? error;
+    private string? errorCode;
+    private string? success;
+    private bool busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        companies = await Api.LookupAsync("companies");
+        estates = await Api.LookupAsync("estates");
+        farms = await Api.LookupAsync("farms");
+    }
+
+    private async Task ShowCompatibility()
+    {
+        tab = "compat";
+        tractorLookup = await Api.LookupAsync("tractors");
+        equipmentLookup = await Api.LookupAsync("equipment");
+        await LoadPairs();
+    }
+
+    private async Task LoadPairs()
+    {
+        try
+        {
+            busy = true;
+            error = null;
+            pairs = await Api.GetCompatibilityAsync(null, equipmentFilter);
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            errorCode = ex.Error.Code;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task FilterByEquipment(ChangeEventArgs args)
+    {
+        equipmentFilter = int.TryParse(args.Value?.ToString(), out var id) ? id : null;
+        await LoadPairs();
+    }
+
+    private async Task AddPair()
+    {
+        if (newPair.TractorId == 0 || newPair.EquipmentId == 0)
+        {
+            error = "Select both a tractor and an implement.";
+            errorCode = "INCOMPLETE";
+            return;
+        }
+
+        try
+        {
+            busy = true;
+            error = null;
+            await Api.AddCompatibilityAsync(newPair);
+            success = "Pairing added.";
+            newPair = new CompatibilityUpsertDto { IsRecommended = true };
+            await LoadPairs();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            errorCode = ex.Error.Code;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task RemovePair(int id)
+    {
+        try
+        {
+            busy = true;
+            await Api.RemoveCompatibilityAsync(id);
+            success = "Pairing removed.";
+            await LoadPairs();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            errorCode = ex.Error.Code;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private EquipmentUpsertDto ToEditModel(EquipmentDto e) => new()
+    {
+        CompanyId = e.CompanyId,
+        EstateId = e.EstateId,
+        Code = e.Code,
+        Name = e.Name,
+        Category = e.Category,
+        MinimumTractorHp = e.MinimumTractorHp,
+        CapacityPerHour = e.CapacityPerHour,
+        CapacityPerDay = e.CapacityPerDay,
+        CurrentFarmId = e.CurrentFarmId,
+        Ownership = e.Ownership,
+        Availability = e.Availability,
+        Maintenance = e.Maintenance,
+        MaintenanceFromDate = e.MaintenanceFromDate,
+        MaintenanceToDate = e.MaintenanceToDate,
+        IsActive = e.IsActive,
+        RowVersion = e.RowVersion
+    };
+
+    private RenderFragment<EquipmentDto> RenderRow => item =>
+    @<text>
+        <td>@item.Code</td>
+        <td>@item.Name</td>
+        <td>@item.Category</td>
+        <td class="text-end">@item.MinimumTractorHp</td>
+        <td class="text-end">@item.CapacityPerHour.ToString("N2")</td>
+        <td class="text-end">@item.CapacityPerDay.ToString("N2")</td>
+        <td>@item.CurrentFarmName</td>
+        <td>@item.Ownership</td>
+        <td><StatusBadge Availability="item.Availability" /></td>
+        <td>@(item.IsActive ? "Yes" : "No")</td>
+    </text>;
+
+    private RenderFragment<EquipmentUpsertDto> RenderEditor => model =>
+    @<text>
+        <div class="col-md-3">
+            <label class="form-label">Company</label>
+            <InputSelect class="form-select" @bind-Value="model.CompanyId">
+                @foreach (var company in companies)
+                {
+                    <option value="@company.Id">@company.Display</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Estate</label>
+            <InputSelect class="form-select" @bind-Value="model.EstateId">
+                <option value="">— none —</option>
+                @foreach (var estate in estates)
+                {
+                    <option value="@estate.Id">@estate.Display</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Current farm</label>
+            <InputSelect class="form-select" @bind-Value="model.CurrentFarmId">
+                <option value="">— none —</option>
+                @foreach (var farm in farms)
+                {
+                    <option value="@farm.Id">@farm.Display</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Category</label>
+            <InputSelect class="form-select" @bind-Value="model.Category">
+                @foreach (var category in Enum.GetValues<EquipmentCategory>())
+                {
+                    <option value="@category">@category</option>
+                }
+            </InputSelect>
+        </div>
+
+        <div class="col-md-2"><label class="form-label">Code</label><InputText class="form-control" @bind-Value="model.Code" /></div>
+        <div class="col-md-6"><label class="form-label">Name</label><InputText class="form-control" @bind-Value="model.Name" /></div>
+        <div class="col-md-2"><label class="form-label">Minimum tractor HP</label><InputNumber class="form-control" @bind-Value="model.MinimumTractorHp" /></div>
+        <div class="col-md-2">
+            <label class="form-label">Ownership</label>
+            <InputSelect class="form-select" @bind-Value="model.Ownership">
+                @foreach (var ownership in Enum.GetValues<OwnershipType>())
+                {
+                    <option value="@ownership">@ownership</option>
+                }
+            </InputSelect>
+        </div>
+
+        <div class="col-md-3"><label class="form-label">Capacity per hour (ha)</label><InputNumber class="form-control" @bind-Value="model.CapacityPerHour" step="0.01" /></div>
+        <div class="col-md-3"><label class="form-label">Capacity per day (ha)</label><InputNumber class="form-control" @bind-Value="model.CapacityPerDay" step="0.01" /></div>
+        <div class="col-md-3">
+            <label class="form-label">Availability</label>
+            <InputSelect class="form-select" @bind-Value="model.Availability">
+                @foreach (var availability in Enum.GetValues<AvailabilityStatus>())
+                {
+                    <option value="@availability">@availability</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Maintenance status</label>
+            <InputSelect class="form-select" @bind-Value="model.Maintenance">
+                @foreach (var maintenance in Enum.GetValues<MaintenanceStatus>())
+                {
+                    <option value="@maintenance">@maintenance</option>
+                }
+            </InputSelect>
+        </div>
+
+        <div class="col-md-3"><label class="form-label">Maintenance from</label><InputDate class="form-control" @bind-Value="model.MaintenanceFromDate" /></div>
+        <div class="col-md-3"><label class="form-label">Maintenance to</label><InputDate class="form-control" @bind-Value="model.MaintenanceToDate" /></div>
+        <div class="col-md-3 d-flex align-items-end">
+            <div class="form-check">
+                <InputCheckbox class="form-check-input" @bind-Value="model.IsActive" id="equipmentActive" />
+                <label class="form-check-label" for="equipmentActive">Active</label>
+            </div>
+        </div>
+    </text>;
+}

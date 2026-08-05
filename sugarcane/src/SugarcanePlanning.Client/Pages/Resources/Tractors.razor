@@ -1,0 +1,157 @@
+@page "/tractors"
+@attribute [Authorize]
+@inject PlanningApi Api
+
+<PageTitle>Tractor master</PageTitle>
+
+<h1 class="h4 mb-3">Tractor master</h1>
+<p class="text-secondary small">
+    Daily capacity drives the requirement formula
+    <code>ceil(area ÷ (capacity per day × working days))</code>; availability and the maintenance
+    window are enforced by the scheduling engine.
+</p>
+
+<CrudTable TItem="TractorDto" TUpsert="TractorUpsertDto"
+           Title="Tractors"
+           Columns="@(new[] { "Code", "Asset no", "Brand / model", "HP", "Farm", "Ownership", "Capacity (ha/day)", "Fuel L/h", "Fuel L/ha", "Availability", "Active" })"
+           RowTemplate="RenderRow"
+           EditorTemplate="RenderEditor"
+           ToEditModel="ToEditModel"
+           NewModel="@(() => new TractorUpsertDto { CompanyId = companies.FirstOrDefault()?.Id ?? 0 })"
+           OnLoad="@(q => Api.GetTractorsAsync(q))"
+           OnCreate="@(dto => Api.CreateTractorAsync(dto))"
+           OnUpdate="@((id, dto) => Api.UpdateTractorAsync(id, dto))"
+           OnDelete="@(id => Api.DeleteTractorAsync(id))"
+           IdSelector="@(t => t.Id)" />
+
+@code {
+    private IReadOnlyList<LookupDto> companies = Array.Empty<LookupDto>();
+    private IReadOnlyList<LookupDto> estates = Array.Empty<LookupDto>();
+    private IReadOnlyList<LookupDto> farms = Array.Empty<LookupDto>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        companies = await Api.LookupAsync("companies");
+        estates = await Api.LookupAsync("estates");
+        farms = await Api.LookupAsync("farms");
+    }
+
+    private TractorUpsertDto ToEditModel(TractorDto t) => new()
+    {
+        CompanyId = t.CompanyId,
+        EstateId = t.EstateId,
+        AssetNo = t.AssetNo,
+        Code = t.Code,
+        RegistrationNo = t.RegistrationNo,
+        Brand = t.Brand,
+        Model = t.Model,
+        Horsepower = t.Horsepower,
+        CurrentFarmId = t.CurrentFarmId,
+        Ownership = t.Ownership,
+        DailyCapacityHa = t.DailyCapacityHa,
+        FuelConsumptionPerHour = t.FuelConsumptionPerHour,
+        FuelConsumptionPerHa = t.FuelConsumptionPerHa,
+        Availability = t.Availability,
+        Maintenance = t.Maintenance,
+        MaintenanceFromDate = t.MaintenanceFromDate,
+        MaintenanceToDate = t.MaintenanceToDate,
+        IsActive = t.IsActive,
+        RowVersion = t.RowVersion
+    };
+
+    private RenderFragment<TractorDto> RenderRow => tractor =>
+    @<text>
+        <td>@tractor.Code</td>
+        <td>@tractor.AssetNo</td>
+        <td>@tractor.Brand @tractor.Model</td>
+        <td class="text-end">@tractor.Horsepower</td>
+        <td>@tractor.CurrentFarmName</td>
+        <td>@tractor.Ownership</td>
+        <td class="text-end">@tractor.DailyCapacityHa.ToString("N2")</td>
+        <td class="text-end">@tractor.FuelConsumptionPerHour.ToString("N1")</td>
+        <td class="text-end">@tractor.FuelConsumptionPerHa.ToString("N1")</td>
+        <td><StatusBadge Availability="tractor.Availability" /></td>
+        <td>@(tractor.IsActive ? "Yes" : "No")</td>
+    </text>;
+
+    private RenderFragment<TractorUpsertDto> RenderEditor => model =>
+    @<text>
+        <div class="col-md-3">
+            <label class="form-label">Company</label>
+            <InputSelect class="form-select" @bind-Value="model.CompanyId">
+                @foreach (var company in companies)
+                {
+                    <option value="@company.Id">@company.Display</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Estate</label>
+            <InputSelect class="form-select" @bind-Value="model.EstateId">
+                <option value="">— none —</option>
+                @foreach (var estate in estates)
+                {
+                    <option value="@estate.Id">@estate.Display</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Current farm</label>
+            <InputSelect class="form-select" @bind-Value="model.CurrentFarmId">
+                <option value="">— none —</option>
+                @foreach (var farm in farms)
+                {
+                    <option value="@farm.Id">@farm.Display</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Ownership</label>
+            <InputSelect class="form-select" @bind-Value="model.Ownership">
+                @foreach (var ownership in Enum.GetValues<OwnershipType>())
+                {
+                    <option value="@ownership">@ownership</option>
+                }
+            </InputSelect>
+        </div>
+
+        <div class="col-md-2"><label class="form-label">Code</label><InputText class="form-control" @bind-Value="model.Code" /></div>
+        <div class="col-md-3"><label class="form-label">Asset number</label><InputText class="form-control" @bind-Value="model.AssetNo" /></div>
+        <div class="col-md-3"><label class="form-label">Registration</label><InputText class="form-control" @bind-Value="model.RegistrationNo" /></div>
+        <div class="col-md-2"><label class="form-label">Brand</label><InputText class="form-control" @bind-Value="model.Brand" /></div>
+        <div class="col-md-2"><label class="form-label">Model</label><InputText class="form-control" @bind-Value="model.Model" /></div>
+
+        <div class="col-md-2"><label class="form-label">Horsepower</label><InputNumber class="form-control" @bind-Value="model.Horsepower" /></div>
+        <div class="col-md-3"><label class="form-label">Daily capacity (ha)</label><InputNumber class="form-control" @bind-Value="model.DailyCapacityHa" step="0.01" /></div>
+        <div class="col-md-3"><label class="form-label">Fuel per hour (L)</label><InputNumber class="form-control" @bind-Value="model.FuelConsumptionPerHour" step="0.1" /></div>
+        <div class="col-md-3"><label class="form-label">Fuel per hectare (L)</label><InputNumber class="form-control" @bind-Value="model.FuelConsumptionPerHa" step="0.1" /></div>
+
+        <div class="col-md-3">
+            <label class="form-label">Availability</label>
+            <InputSelect class="form-select" @bind-Value="model.Availability">
+                @foreach (var availability in Enum.GetValues<AvailabilityStatus>())
+                {
+                    <option value="@availability">@availability</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Maintenance status</label>
+            <InputSelect class="form-select" @bind-Value="model.Maintenance">
+                @foreach (var maintenance in Enum.GetValues<MaintenanceStatus>())
+                {
+                    <option value="@maintenance">@maintenance</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-3"><label class="form-label">Maintenance from</label><InputDate class="form-control" @bind-Value="model.MaintenanceFromDate" /></div>
+        <div class="col-md-3"><label class="form-label">Maintenance to</label><InputDate class="form-control" @bind-Value="model.MaintenanceToDate" /></div>
+
+        <div class="col-md-3 d-flex align-items-end">
+            <div class="form-check">
+                <InputCheckbox class="form-check-input" @bind-Value="model.IsActive" id="tractorActive" />
+                <label class="form-check-label" for="tractorActive">Active</label>
+            </div>
+        </div>
+    </text>;
+}

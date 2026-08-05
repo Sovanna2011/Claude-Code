@@ -1,0 +1,9 @@
+@* Spinner shown while a screen loads its data. *@
+<div class="d-flex align-items-center gap-2 text-secondary py-4">
+    <div class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></div>
+    <span>@Message</span>
+</div>
+
+@code {
+    [Parameter] public string Message { get; set; } = "Loading…";
+}

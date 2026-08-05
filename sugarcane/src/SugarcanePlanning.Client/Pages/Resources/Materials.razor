@@ -1,0 +1,333 @@
+@page "/materials"
+@attribute [Authorize]
+@inject PlanningApi Api
+
+<PageTitle>Materials and standards</PageTitle>
+
+<h1 class="h4 mb-3">Material master and activity material standards</h1>
+<p class="text-secondary small">
+    A standard is chosen per activity by the most specific match on crop type, variety and soil
+    type. Requirement = area × rate × applications, plus the waste percentage.
+</p>
+
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item"><button class="nav-link @(tab == "materials" ? "active" : "")" @onclick='() => tab = "materials"'>Materials</button></li>
+    <li class="nav-item"><button class="nav-link @(tab == "standards" ? "active" : "")" @onclick="ShowStandards">Activity standards</button></li>
+    <li class="nav-item"><button class="nav-link @(tab == "stock" ? "active" : "")" @onclick="ShowStock">Stock (interface)</button></li>
+</ul>
+
+@if (tab == "materials")
+{
+    <CrudTable TItem="MaterialDto" TUpsert="MaterialUpsertDto"
+               Title="Materials"
+               Columns="@(new[] { "Code", "Name", "Category", "Base unit", "Alt unit", "Factor", "Std rate/ha", "Min", "Max", "Active" })"
+               RowTemplate="RenderMaterialRow"
+               EditorTemplate="RenderMaterialEditor"
+               ToEditModel="ToMaterialEdit"
+               NewModel="@(() => new MaterialUpsertDto { CompanyId = companies.FirstOrDefault()?.Id ?? 0 })"
+               OnLoad="@(q => Api.GetMaterialsAsync(q))"
+               OnCreate="@(dto => Api.CreateMaterialAsync(dto))"
+               OnUpdate="@((id, dto) => Api.UpdateMaterialAsync(id, dto))"
+               OnDelete="@(id => Api.DeleteMaterialAsync(id))"
+               IdSelector="@(m => m.Id)" />
+}
+else if (tab == "standards")
+{
+    <CrudTable TItem="ActivityMaterialStandardDto" TUpsert="ActivityMaterialStandardUpsertDto"
+               Title="Activity material standards"
+               Columns="@(new[] { "Activity", "Material", "Crop", "Variety", "Soil", "Rate/ha", "Applications", "Waste %", "Effective", "Active" })"
+               RowTemplate="RenderStandardRow"
+               EditorTemplate="RenderStandardEditor"
+               ToEditModel="ToStandardEdit"
+               NewModel="NewStandard"
+               OnLoad="@(q => Api.GetStandardsAsync(null, q))"
+               OnCreate="@(dto => Api.CreateStandardAsync(dto))"
+               OnUpdate="@((id, dto) => Api.UpdateStandardAsync(id, dto))"
+               OnDelete="@(id => Api.DeleteStandardAsync(id))"
+               IdSelector="@(s => s.Id)" />
+}
+else
+{
+    <div class="card shadow-sm">
+        <div class="card-header bg-white fw-semibold">
+            Stock positions
+            <span class="text-secondary small fw-normal ms-2">read-only — supplied by the ERP interface</span>
+        </div>
+        <div class="card-body">
+            <ErrorAlert Message="@error" Code="@errorCode" OnDismiss="() => error = null" />
+            @if (busy && stock.Count == 0)
+            {
+                <LoadingPanel />
+            }
+            else if (stock.Count == 0)
+            {
+                <div class="text-secondary small">No stock has been received through the interface yet.</div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Material</th>
+                                <th>Estate</th>
+                                <th class="text-end">Available</th>
+                                <th class="text-end">Reserved</th>
+                                <th class="text-end">Incoming</th>
+                                <th class="text-end">Net available</th>
+                                <th>Unit</th>
+                                <th>Incoming date</th>
+                                <th>Last sync</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in stock)
+                            {
+                                <tr>
+                                    <td>@row.MaterialCode — @row.MaterialName</td>
+                                    <td>@row.EstateName</td>
+                                    <td class="text-end">@row.AvailableStock.ToString("N2")</td>
+                                    <td class="text-end">@row.ReservedQuantity.ToString("N2")</td>
+                                    <td class="text-end">@row.IncomingQuantity.ToString("N2")</td>
+                                    <td class="text-end fw-semibold">@row.NetAvailableQuantity.ToString("N2")</td>
+                                    <td>@row.Unit</td>
+                                    <td>@(row.IncomingExpectedDate?.ToString("yyyy-MM-dd"))</td>
+                                    <td class="small text-secondary">@row.LastSyncedUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private string tab = "materials";
+    private IReadOnlyList<LookupDto> companies = Array.Empty<LookupDto>();
+    private IReadOnlyList<LookupDto> activities = Array.Empty<LookupDto>();
+    private IReadOnlyList<LookupDto> materials = Array.Empty<LookupDto>();
+    private IReadOnlyList<LookupDto> varieties = Array.Empty<LookupDto>();
+    private IReadOnlyList<MaterialStockDto> stock = Array.Empty<MaterialStockDto>();
+    private string? error;
+    private string? errorCode;
+    private bool busy;
+
+    protected override async Task OnInitializedAsync() => companies = await Api.LookupAsync("companies");
+
+    private async Task ShowStandards()
+    {
+        tab = "standards";
+        activities = await Api.LookupAsync("activities");
+        materials = await Api.LookupAsync("materials");
+        varieties = await Api.LookupAsync("varieties");
+    }
+
+    private async Task ShowStock()
+    {
+        tab = "stock";
+        try
+        {
+            busy = true;
+            error = null;
+            stock = await Api.GetStockAsync();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            errorCode = ex.Error.Code;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private MaterialUpsertDto ToMaterialEdit(MaterialDto m) => new()
+    {
+        CompanyId = m.CompanyId,
+        Code = m.Code,
+        Name = m.Name,
+        Category = m.Category,
+        BaseUnit = m.BaseUnit,
+        AlternativeUnit = m.AlternativeUnit,
+        UnitConversionFactor = m.UnitConversionFactor,
+        StandardRatePerHa = m.StandardRatePerHa,
+        MinApplicationRate = m.MinApplicationRate,
+        MaxApplicationRate = m.MaxApplicationRate,
+        IsActive = m.IsActive,
+        RowVersion = m.RowVersion
+    };
+
+    private ActivityMaterialStandardUpsertDto NewStandard() => new()
+    {
+        ActivityId = activities.FirstOrDefault()?.Id ?? 0,
+        MaterialId = materials.FirstOrDefault()?.Id ?? 0,
+        EffectiveFrom = DateOnly.FromDateTime(DateTime.Today)
+    };
+
+    private ActivityMaterialStandardUpsertDto ToStandardEdit(ActivityMaterialStandardDto s) => new()
+    {
+        ActivityId = s.ActivityId,
+        MaterialId = s.MaterialId,
+        CropType = s.CropType,
+        CaneVarietyId = s.CaneVarietyId,
+        SoilType = s.SoilType,
+        StandardRatePerHa = s.StandardRatePerHa,
+        NumberOfApplications = s.NumberOfApplications,
+        WastePercent = s.WastePercent,
+        EffectiveFrom = s.EffectiveFrom,
+        EffectiveTo = s.EffectiveTo,
+        IsActive = s.IsActive,
+        RowVersion = s.RowVersion
+    };
+
+    private RenderFragment<MaterialDto> RenderMaterialRow => material =>
+    @<text>
+        <td>@material.Code</td>
+        <td>@material.Name</td>
+        <td>@material.Category</td>
+        <td>@material.BaseUnit</td>
+        <td>@(material.AlternativeUnit?.ToString() ?? "—")</td>
+        <td class="text-end">@material.UnitConversionFactor.ToString("N2")</td>
+        <td class="text-end">@material.StandardRatePerHa.ToString("N2")</td>
+        <td class="text-end">@material.MinApplicationRate.ToString("N2")</td>
+        <td class="text-end">@material.MaxApplicationRate.ToString("N2")</td>
+        <td>@(material.IsActive ? "Yes" : "No")</td>
+    </text>;
+
+    private RenderFragment<MaterialUpsertDto> RenderMaterialEditor => model =>
+    @<text>
+        <div class="col-md-3">
+            <label class="form-label">Company</label>
+            <InputSelect class="form-select" @bind-Value="model.CompanyId">
+                @foreach (var company in companies)
+                {
+                    <option value="@company.Id">@company.Display</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-2"><label class="form-label">Code</label><InputText class="form-control" @bind-Value="model.Code" /></div>
+        <div class="col-md-4"><label class="form-label">Name</label><InputText class="form-control" @bind-Value="model.Name" /></div>
+        <div class="col-md-3">
+            <label class="form-label">Category</label>
+            <InputSelect class="form-select" @bind-Value="model.Category">
+                @foreach (var category in Enum.GetValues<MaterialCategory>())
+                {
+                    <option value="@category">@category</option>
+                }
+            </InputSelect>
+        </div>
+
+        <div class="col-md-3">
+            <label class="form-label">Base unit</label>
+            <InputSelect class="form-select" @bind-Value="model.BaseUnit">
+                @foreach (var unit in Enum.GetValues<UnitOfMeasure>())
+                {
+                    <option value="@unit">@unit</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Alternative unit</label>
+            <InputSelect class="form-select" @bind-Value="model.AlternativeUnit">
+                <option value="">— none —</option>
+                @foreach (var unit in Enum.GetValues<UnitOfMeasure>())
+                {
+                    <option value="@unit">@unit</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-3"><label class="form-label">Conversion factor</label><InputNumber class="form-control" @bind-Value="model.UnitConversionFactor" step="0.0001" /></div>
+        <div class="col-md-3"><label class="form-label">Standard rate per ha</label><InputNumber class="form-control" @bind-Value="model.StandardRatePerHa" step="0.01" /></div>
+
+        <div class="col-md-3"><label class="form-label">Minimum rate</label><InputNumber class="form-control" @bind-Value="model.MinApplicationRate" step="0.01" /></div>
+        <div class="col-md-3"><label class="form-label">Maximum rate</label><InputNumber class="form-control" @bind-Value="model.MaxApplicationRate" step="0.01" /></div>
+        <div class="col-md-3 d-flex align-items-end">
+            <div class="form-check">
+                <InputCheckbox class="form-check-input" @bind-Value="model.IsActive" id="materialActive" />
+                <label class="form-check-label" for="materialActive">Active</label>
+            </div>
+        </div>
+    </text>;
+
+    private RenderFragment<ActivityMaterialStandardDto> RenderStandardRow => standard =>
+    @<text>
+        <td>@standard.ActivityName</td>
+        <td>@standard.MaterialCode — @standard.MaterialName</td>
+        <td>@standard.CropType</td>
+        <td>@(standard.VarietyName ?? "any")</td>
+        <td>@(standard.SoilType?.ToString() ?? "any")</td>
+        <td class="text-end">@standard.StandardRatePerHa.ToString("N2") @standard.Unit</td>
+        <td class="text-end">@standard.NumberOfApplications</td>
+        <td class="text-end">@standard.WastePercent.ToString("N1")</td>
+        <td class="small">@standard.EffectiveFrom.ToString("yyyy-MM-dd") → @(standard.EffectiveTo?.ToString("yyyy-MM-dd") ?? "open")</td>
+        <td>@(standard.IsActive ? "Yes" : "No")</td>
+    </text>;
+
+    private RenderFragment<ActivityMaterialStandardUpsertDto> RenderStandardEditor => model =>
+    @<text>
+        <div class="col-md-4">
+            <label class="form-label">Activity</label>
+            <InputSelect class="form-select" @bind-Value="model.ActivityId">
+                @foreach (var activity in activities)
+                {
+                    <option value="@activity.Id">@activity.Display</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Material</label>
+            <InputSelect class="form-select" @bind-Value="model.MaterialId">
+                @foreach (var material in materials)
+                {
+                    <option value="@material.Id">@material.Display</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Crop type</label>
+            <InputSelect class="form-select" @bind-Value="model.CropType">
+                @foreach (var crop in Enum.GetValues<CropType>())
+                {
+                    <option value="@crop">@crop</option>
+                }
+            </InputSelect>
+        </div>
+
+        <div class="col-md-4">
+            <label class="form-label">Variety (optional)</label>
+            <InputSelect class="form-select" @bind-Value="model.CaneVarietyId">
+                <option value="">any variety</option>
+                @foreach (var variety in varieties)
+                {
+                    <option value="@variety.Id">@variety.Display</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Soil type (optional)</label>
+            <InputSelect class="form-select" @bind-Value="model.SoilType">
+                <option value="">any soil</option>
+                @foreach (var soil in Enum.GetValues<SoilType>())
+                {
+                    <option value="@soil">@soil</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-4"><label class="form-label">Rate per hectare</label><InputNumber class="form-control" @bind-Value="model.StandardRatePerHa" step="0.01" /></div>
+
+        <div class="col-md-3"><label class="form-label">Applications</label><InputNumber class="form-control" @bind-Value="model.NumberOfApplications" /></div>
+        <div class="col-md-3"><label class="form-label">Waste (%)</label><InputNumber class="form-control" @bind-Value="model.WastePercent" step="0.1" /></div>
+        <div class="col-md-3"><label class="form-label">Effective from</label><InputDate class="form-control" @bind-Value="model.EffectiveFrom" /></div>
+        <div class="col-md-3"><label class="form-label">Effective to</label><InputDate class="form-control" @bind-Value="model.EffectiveTo" /></div>
+
+        <div class="col-md-3 d-flex align-items-end">
+            <div class="form-check">
+                <InputCheckbox class="form-check-input" @bind-Value="model.IsActive" id="standardActive" />
+                <label class="form-check-label" for="standardActive">Active</label>
+            </div>
+        </div>
+    </text>;
+}

@@ -1,0 +1,180 @@
+@page "/audit"
+@attribute [Authorize]
+@inject PlanningApi Api
+
+<PageTitle>Audit log</PageTitle>
+
+<h1 class="h4 mb-1">Audit trail</h1>
+<p class="text-secondary small">
+    Creation and change of records, workflow events, schedule changes, reassignments, exports and
+    sign-ins — with user, timestamp, table, record, old and new values, IP address and device.
+</p>
+
+<ErrorAlert Message="@error" Code="@errorCode" OnDismiss="() => error = null" />
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label">User</label>
+                <input class="form-control form-control-sm" @bind="query.UserName" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Table</label>
+                <input class="form-control form-control-sm" @bind="query.TableName" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Record id</label>
+                <input class="form-control form-control-sm" @bind="query.RecordId" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Action</label>
+                <select class="form-select form-select-sm" @onchange="OnActionChanged">
+                    <option value="">All actions</option>
+                    @foreach (var action in Enum.GetValues<AuditAction>())
+                    {
+                        <option value="@action">@action</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">From</label>
+                <input type="date" class="form-control form-control-sm" @onchange="e => query.FromDate = ParseDate(e)" />
+            </div>
+            <div class="col-md-1">
+                <label class="form-label">To</label>
+                <input type="date" class="form-control form-control-sm" @onchange="e => query.ToDate = ParseDate(e)" />
+            </div>
+            <div class="col-md-1 text-end">
+                <button class="btn btn-success btn-sm" @onclick="Load" disabled="@busy">Search</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (busy && result is null)
+{
+    <LoadingPanel />
+}
+else if (result is null || result.Items.Count == 0)
+{
+    <div class="alert alert-secondary">No audit entries match the filter.</div>
+}
+else
+{
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Timestamp (UTC)</th>
+                            <th>User</th>
+                            <th>Action</th>
+                            <th>Table</th>
+                            <th>Record</th>
+                            <th>Changed columns</th>
+                            <th>IP</th>
+                            <th class="text-end">Values</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var entry in result.Items)
+                        {
+                            <tr>
+                                <td class="small">@entry.TimestampUtc.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                <td>@entry.UserName</td>
+                                <td><span class="badge text-bg-light border">@entry.Action</span></td>
+                                <td>@entry.TableName</td>
+                                <td>@entry.RecordId</td>
+                                <td class="small text-truncate" style="max-width:220px" title="@entry.ChangedColumns">@entry.ChangedColumns</td>
+                                <td class="small">@entry.IpAddress</td>
+                                <td class="text-end">
+                                    <button class="btn btn-outline-secondary btn-sm"
+                                            @onclick="() => expanded = expanded == entry.Id ? null : entry.Id">
+                                        @(expanded == entry.Id ? "Hide" : "Show")
+                                    </button>
+                                </td>
+                            </tr>
+                            @if (expanded == entry.Id)
+                            {
+                                <tr class="table-light">
+                                    <td colspan="8">
+                                        <div class="row g-2 small">
+                                            <div class="col-md-6">
+                                                <div class="fw-semibold">Old values</div>
+                                                <pre class="bg-white border rounded p-2 mb-0" style="max-height:220px;overflow:auto">@(entry.OldValues ?? "—")</pre>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="fw-semibold">New values</div>
+                                                <pre class="bg-white border rounded p-2 mb-0" style="max-height:220px;overflow:auto">@(entry.NewValues ?? "—")</pre>
+                                            </div>
+                                            @if (!string.IsNullOrWhiteSpace(entry.DeviceInfo) || !string.IsNullOrWhiteSpace(entry.Remarks))
+                                            {
+                                                <div class="col-12 text-secondary">
+                                                    @entry.Remarks
+                                                    <div>@entry.DeviceInfo</div>
+                                                </div>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <Pager TItem="AuditLogDto" Result="result" OnPageChanged="GoToPage" OnPageSizeChanged="ChangePageSize" />
+        </div>
+    </div>
+}
+
+@code {
+    private readonly AuditLogQuery query = new();
+    private PagedResult<AuditLogDto>? result;
+    private int? expanded;
+    private string? error;
+    private string? errorCode;
+    private bool busy;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private static DateOnly? ParseDate(ChangeEventArgs args)
+        => DateOnly.TryParse(args.Value?.ToString(), out var date) ? date : null;
+
+    private void OnActionChanged(ChangeEventArgs args)
+        => query.Action = Enum.TryParse<AuditAction>(args.Value?.ToString(), out var action) ? action : null;
+
+    private async Task Load()
+    {
+        try
+        {
+            busy = true;
+            error = null;
+            result = await Api.GetAuditAsync(query);
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            errorCode = ex.Error.Code;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task GoToPage(int page)
+    {
+        query.Page = page;
+        await Load();
+    }
+
+    private async Task ChangePageSize(int size)
+    {
+        query.PageSize = size;
+        query.Page = 1;
+        await Load();
+    }
+}

@@ -1,0 +1,293 @@
+@page "/land-structure"
+@attribute [Authorize]
+@inject PlanningApi Api
+
+<PageTitle>Enterprise & land structure</PageTitle>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+        <h1 class="h4 mb-0">Enterprise and land structure</h1>
+        <small class="text-secondary">Company → estate → farm → zone → plantation block</small>
+    </div>
+    <button class="btn btn-outline-secondary btn-sm" @onclick="Load" disabled="@busy">Refresh</button>
+</div>
+
+<ErrorAlert Message="@error" Code="@errorCode" OnDismiss="() => error = null" />
+
+<ul class="nav nav-tabs mb-3">
+    @foreach (var tab in Tabs)
+    {
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == tab ? "active" : "")" @onclick="() => SwitchTab(tab)">@tab</button>
+        </li>
+    }
+</ul>
+
+@if (activeTab == "Tree")
+{
+    @if (busy && tree.Count == 0)
+    {
+        <LoadingPanel />
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="card-body">
+                @foreach (var company in tree)
+                {
+                    <RenderNode Node="company" Level="0" />
+                }
+                @if (tree.Count == 0)
+                {
+                    <div class="text-secondary small">No companies have been created yet.</div>
+                }
+            </div>
+        </div>
+    }
+}
+else if (activeTab == "Companies")
+{
+    <CrudTable TItem="CompanyDto" TUpsert="CompanyUpsertDto"
+               Title="Companies"
+               Result="companies"
+               Columns="@(new[] { "Code", "Name", "Currency", "Estates", "Active" })"
+               RowTemplate="RenderCompanyRow"
+               EditorTemplate="RenderCompanyEditor"
+               ToEditModel="@(c => new CompanyUpsertDto { Code = c.Code, Name = c.Name, Address = c.Address, BaseCurrency = c.BaseCurrency, IsActive = c.IsActive, RowVersion = c.RowVersion })"
+               NewModel="@(() => new CompanyUpsertDto())"
+               OnLoad="LoadCompanies"
+               OnCreate="@(dto => Api.CreateCompanyAsync(dto))"
+               OnUpdate="@((id, dto) => Api.UpdateCompanyAsync(id, dto))"
+               OnDelete="@(id => Api.DeleteCompanyAsync(id))"
+               IdSelector="@(c => c.Id)" />
+}
+else if (activeTab == "Estates")
+{
+    <CrudTable TItem="EstateDto" TUpsert="EstateUpsertDto"
+               Title="Estates"
+               Result="estates"
+               Columns="@(new[] { "Code", "Name", "Location", "Area (ha)", "Farms", "Active" })"
+               RowTemplate="RenderEstateRow"
+               EditorTemplate="RenderEstateEditor"
+               ToEditModel="@(e => new EstateUpsertDto { CompanyId = e.CompanyId, Code = e.Code, Name = e.Name, Location = e.Location, TotalAreaHa = e.TotalAreaHa, IsActive = e.IsActive, RowVersion = e.RowVersion })"
+               NewModel="@(() => new EstateUpsertDto { CompanyId = companies?.Items.FirstOrDefault()?.Id ?? 0 })"
+               OnLoad="LoadEstates"
+               OnCreate="@(dto => Api.CreateEstateAsync(dto))"
+               OnUpdate="@((id, dto) => Api.UpdateEstateAsync(id, dto))"
+               OnDelete="@(id => Api.DeleteEstateAsync(id))"
+               IdSelector="@(e => e.Id)" />
+}
+else if (activeTab == "Farms")
+{
+    <CrudTable TItem="FarmDto" TUpsert="FarmUpsertDto"
+               Title="Farms"
+               Result="farms"
+               Columns="@(new[] { "Code", "Name", "Estate", "Manager", "Area (ha)", "Zones", "Active" })"
+               RowTemplate="RenderFarmRow"
+               EditorTemplate="RenderFarmEditor"
+               ToEditModel="@(f => new FarmUpsertDto { EstateId = f.EstateId, Code = f.Code, Name = f.Name, ManagerName = f.ManagerName, TotalAreaHa = f.TotalAreaHa, IsActive = f.IsActive, RowVersion = f.RowVersion })"
+               NewModel="@(() => new FarmUpsertDto { EstateId = estateLookup.FirstOrDefault()?.Id ?? 0 })"
+               OnLoad="LoadFarms"
+               OnCreate="@(dto => Api.CreateFarmAsync(dto))"
+               OnUpdate="@((id, dto) => Api.UpdateFarmAsync(id, dto))"
+               OnDelete="@(id => Api.DeleteFarmAsync(id))"
+               IdSelector="@(f => f.Id)" />
+}
+else if (activeTab == "Zones")
+{
+    <CrudTable TItem="ZoneDto" TUpsert="ZoneUpsertDto"
+               Title="Zones"
+               Result="zones"
+               Columns="@(new[] { "Code", "Name", "Farm", "Supervisor", "Area (ha)", "Blocks", "Active" })"
+               RowTemplate="RenderZoneRow"
+               EditorTemplate="RenderZoneEditor"
+               ToEditModel="@(z => new ZoneUpsertDto { FarmId = z.FarmId, Code = z.Code, Name = z.Name, SupervisorName = z.SupervisorName, TotalAreaHa = z.TotalAreaHa, IsActive = z.IsActive, RowVersion = z.RowVersion })"
+               NewModel="@(() => new ZoneUpsertDto { FarmId = farmLookup.FirstOrDefault()?.Id ?? 0 })"
+               OnLoad="LoadZones"
+               OnCreate="@(dto => Api.CreateZoneAsync(dto))"
+               OnUpdate="@((id, dto) => Api.UpdateZoneAsync(id, dto))"
+               OnDelete="@(id => Api.DeleteZoneAsync(id))"
+               IdSelector="@(z => z.Id)" />
+}
+
+@code {
+    private static readonly string[] Tabs = { "Tree", "Companies", "Estates", "Farms", "Zones" };
+    private string activeTab = "Tree";
+
+    private IReadOnlyList<LandStructureNodeDto> tree = Array.Empty<LandStructureNodeDto>();
+    private PagedResult<CompanyDto>? companies;
+    private PagedResult<EstateDto>? estates;
+    private PagedResult<FarmDto>? farms;
+    private PagedResult<ZoneDto>? zones;
+
+    private IReadOnlyList<LookupDto> companyLookup = Array.Empty<LookupDto>();
+    private IReadOnlyList<LookupDto> estateLookup = Array.Empty<LookupDto>();
+    private IReadOnlyList<LookupDto> farmLookup = Array.Empty<LookupDto>();
+
+    private string? error;
+    private string? errorCode;
+    private bool busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        companyLookup = await Api.LookupAsync("companies");
+        estateLookup = await Api.LookupAsync("estates");
+        farmLookup = await Api.LookupAsync("farms");
+        await Load();
+    }
+
+    private async Task SwitchTab(string tab)
+    {
+        activeTab = tab;
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        try
+        {
+            busy = true;
+            error = null;
+            if (activeTab == "Tree") tree = await Api.GetLandStructureAsync();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            errorCode = ex.Error.Code;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task<PagedResult<CompanyDto>> LoadCompanies(QueryParameters q)
+        => companies = await Api.GetCompaniesAsync(q);
+
+    private async Task<PagedResult<EstateDto>> LoadEstates(QueryParameters q)
+        => estates = await Api.GetEstatesAsync(null, q);
+
+    private async Task<PagedResult<FarmDto>> LoadFarms(QueryParameters q)
+        => farms = await Api.GetFarmsAsync(null, q);
+
+    private async Task<PagedResult<ZoneDto>> LoadZones(QueryParameters q)
+        => zones = await Api.GetZonesAsync(null, q);
+
+    // ------------------------------------------------------------ row templates
+
+    private RenderFragment<CompanyDto> RenderCompanyRow => company =>
+    @<text>
+        <td>@company.Code</td>
+        <td>@company.Name</td>
+        <td>@company.BaseCurrency</td>
+        <td class="text-end">@company.EstateCount</td>
+        <td>@(company.IsActive ? "Yes" : "No")</td>
+    </text>;
+
+    private RenderFragment<CompanyUpsertDto> RenderCompanyEditor => model =>
+    @<text>
+        <div class="col-md-3"><label class="form-label">Code</label><InputText class="form-control" @bind-Value="model.Code" /></div>
+        <div class="col-md-5"><label class="form-label">Name</label><InputText class="form-control" @bind-Value="model.Name" /></div>
+        <div class="col-md-2"><label class="form-label">Currency</label><InputText class="form-control" @bind-Value="model.BaseCurrency" /></div>
+        <div class="col-md-2 d-flex align-items-end">
+            <div class="form-check"><InputCheckbox class="form-check-input" @bind-Value="model.IsActive" id="companyActive" />
+                <label class="form-check-label" for="companyActive">Active</label></div>
+        </div>
+        <div class="col-12"><label class="form-label">Address</label><InputText class="form-control" @bind-Value="model.Address" /></div>
+    </text>;
+
+    private RenderFragment<EstateDto> RenderEstateRow => estate =>
+    @<text>
+        <td>@estate.Code</td>
+        <td>@estate.Name</td>
+        <td>@estate.Location</td>
+        <td class="text-end">@estate.TotalAreaHa.ToString("N1")</td>
+        <td class="text-end">@estate.FarmCount</td>
+        <td>@(estate.IsActive ? "Yes" : "No")</td>
+    </text>;
+
+    private RenderFragment<EstateUpsertDto> RenderEstateEditor => model =>
+    @<text>
+        <div class="col-md-4">
+            <label class="form-label">Company</label>
+            <InputSelect class="form-select" @bind-Value="model.CompanyId">
+                @foreach (var company in companyLookup)
+                {
+                    <option value="@company.Id">@company.Display</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-2"><label class="form-label">Code</label><InputText class="form-control" @bind-Value="model.Code" /></div>
+        <div class="col-md-6"><label class="form-label">Name</label><InputText class="form-control" @bind-Value="model.Name" /></div>
+        <div class="col-md-6"><label class="form-label">Location</label><InputText class="form-control" @bind-Value="model.Location" /></div>
+        <div class="col-md-3"><label class="form-label">Total area (ha)</label><InputNumber class="form-control" @bind-Value="model.TotalAreaHa" /></div>
+        <div class="col-md-3 d-flex align-items-end">
+            <div class="form-check"><InputCheckbox class="form-check-input" @bind-Value="model.IsActive" id="estateActive" />
+                <label class="form-check-label" for="estateActive">Active</label></div>
+        </div>
+    </text>;
+
+    private RenderFragment<FarmDto> RenderFarmRow => farm =>
+    @<text>
+        <td>@farm.Code</td>
+        <td>@farm.Name</td>
+        <td>@farm.EstateName</td>
+        <td>@farm.ManagerName</td>
+        <td class="text-end">@farm.TotalAreaHa.ToString("N1")</td>
+        <td class="text-end">@farm.ZoneCount</td>
+        <td>@(farm.IsActive ? "Yes" : "No")</td>
+    </text>;
+
+    private RenderFragment<FarmUpsertDto> RenderFarmEditor => model =>
+    @<text>
+        <div class="col-md-4">
+            <label class="form-label">Estate</label>
+            <InputSelect class="form-select" @bind-Value="model.EstateId">
+                @foreach (var estate in estateLookup)
+                {
+                    <option value="@estate.Id">@estate.Display</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-2"><label class="form-label">Code</label><InputText class="form-control" @bind-Value="model.Code" /></div>
+        <div class="col-md-6"><label class="form-label">Name</label><InputText class="form-control" @bind-Value="model.Name" /></div>
+        <div class="col-md-6"><label class="form-label">Manager</label><InputText class="form-control" @bind-Value="model.ManagerName" /></div>
+        <div class="col-md-3"><label class="form-label">Total area (ha)</label><InputNumber class="form-control" @bind-Value="model.TotalAreaHa" /></div>
+        <div class="col-md-3 d-flex align-items-end">
+            <div class="form-check"><InputCheckbox class="form-check-input" @bind-Value="model.IsActive" id="farmActive" />
+                <label class="form-check-label" for="farmActive">Active</label></div>
+        </div>
+    </text>;
+
+    private RenderFragment<ZoneDto> RenderZoneRow => zone =>
+    @<text>
+        <td>@zone.Code</td>
+        <td>@zone.Name</td>
+        <td>@zone.FarmName</td>
+        <td>@zone.SupervisorName</td>
+        <td class="text-end">@zone.TotalAreaHa.ToString("N1")</td>
+        <td class="text-end">@zone.BlockCount</td>
+        <td>@(zone.IsActive ? "Yes" : "No")</td>
+    </text>;
+
+    private RenderFragment<ZoneUpsertDto> RenderZoneEditor => model =>
+    @<text>
+        <div class="col-md-4">
+            <label class="form-label">Farm</label>
+            <InputSelect class="form-select" @bind-Value="model.FarmId">
+                @foreach (var farm in farmLookup)
+                {
+                    <option value="@farm.Id">@farm.Display</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-2"><label class="form-label">Code</label><InputText class="form-control" @bind-Value="model.Code" /></div>
+        <div class="col-md-6"><label class="form-label">Name</label><InputText class="form-control" @bind-Value="model.Name" /></div>
+        <div class="col-md-6"><label class="form-label">Supervisor</label><InputText class="form-control" @bind-Value="model.SupervisorName" /></div>
+        <div class="col-md-3"><label class="form-label">Total area (ha)</label><InputNumber class="form-control" @bind-Value="model.TotalAreaHa" /></div>
+        <div class="col-md-3 d-flex align-items-end">
+            <div class="form-check"><InputCheckbox class="form-check-input" @bind-Value="model.IsActive" id="zoneActive" />
+                <label class="form-check-label" for="zoneActive">Active</label></div>
+        </div>
+    </text>;
+}

@@ -1,0 +1,158 @@
+@page "/reports"
+@attribute [Authorize]
+@inject PlanningApi Api
+
+<PageTitle>Reports</PageTitle>
+
+<h1 class="h4 mb-1 d-print-none">Reports</h1>
+<p class="text-secondary small d-print-none">
+    Every report supports filtering, sorting, grouping, print preview and PDF / Excel export.
+</p>
+
+<div class="card shadow-sm mb-3 d-print-none">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">Report</label>
+                <select class="form-select form-select-sm" @onchange="OnReportChanged">
+                    @foreach (var report in Enum.GetValues<ReportKey>())
+                    {
+                        <option value="@report" selected="@(report == selected)">@Describe(report)</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Projection</label>
+                <select class="form-select form-select-sm" @onchange="e => request.ProjectionId = ParseId(e)">
+                    <option value="">All / none</option>
+                    @foreach (var projection in projections)
+                    {
+                        <option value="@projection.Id">@projection.Code</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Season</label>
+                <select class="form-select form-select-sm" @onchange="e => request.SeasonId = ParseId(e)">
+                    <option value="">All seasons</option>
+                    @foreach (var season in seasons)
+                    {
+                        <option value="@season.Id">@season.Display</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Farm</label>
+                <select class="form-select form-select-sm" @onchange="e => request.FarmId = ParseId(e)">
+                    <option value="">All farms</option>
+                    @foreach (var farm in farms)
+                    {
+                        <option value="@farm.Id">@farm.Display</option>
+                    }
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">From</label>
+                <input type="date" class="form-control form-control-sm" @onchange="e => request.FromDate = ParseDate(e)" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">To</label>
+                <input type="date" class="form-control form-control-sm" @onchange="e => request.ToDate = ParseDate(e)" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Group by</label>
+                <input class="form-control form-control-sm" placeholder="e.g. activity, farm, month"
+                       @onchange="e => request.GroupBy = e.Value?.ToString()" />
+            </div>
+            @if (selected == ReportKey.RevisionComparison)
+            {
+                <div class="col-md-3">
+                    <label class="form-label">Compare with version</label>
+                    <select class="form-select form-select-sm" @onchange="e => request.CompareToProjectionId = ParseId(e)">
+                        <option value="">Select…</option>
+                        @foreach (var projection in projections)
+                        {
+                            <option value="@projection.Id">@projection.Code</option>
+                        }
+                    </select>
+                </div>
+            }
+            <div class="col-md-3 text-end">
+                <button class="btn btn-success btn-sm" @onclick="Run">Run report</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <ReportViewer @ref="viewer" ReportKey="selected" Request="request" />
+    </div>
+</div>
+
+@code {
+    private ReportKey selected = ReportKey.PlantingProjection;
+    private ReportRequest request = new();
+    private ReportViewer? viewer;
+    private IReadOnlyList<LookupDto> projections = Array.Empty<LookupDto>();
+    private IReadOnlyList<LookupDto> seasons = Array.Empty<LookupDto>();
+    private IReadOnlyList<LookupDto> farms = Array.Empty<LookupDto>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        projections = await Api.LookupAsync("projections");
+        seasons = await Api.LookupAsync("seasons");
+        farms = await Api.LookupAsync("farms");
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && viewer is not null) await viewer.ReloadAsync();
+    }
+
+    private static int? ParseId(ChangeEventArgs args)
+        => int.TryParse(args.Value?.ToString(), out var id) ? id : null;
+
+    private static DateOnly? ParseDate(ChangeEventArgs args)
+        => DateOnly.TryParse(args.Value?.ToString(), out var date) ? date : null;
+
+    private void OnReportChanged(ChangeEventArgs args)
+    {
+        if (Enum.TryParse<ReportKey>(args.Value?.ToString(), out var key)) selected = key;
+    }
+
+    private async Task Run()
+    {
+        request.Report = selected;
+        if (viewer is not null) await viewer.ReloadAsync();
+    }
+
+    /// <summary>Human-readable name for each of the 22 reports of section 20.</summary>
+    private static string Describe(ReportKey key) => key switch
+    {
+        ReportKey.PlantingProjection => "Planting projection",
+        ReportKey.MonthlyPlan => "Monthly plan",
+        ReportKey.FarmZoneBlockPlan => "Farm / zone / block plan",
+        ReportKey.NewPlantingAndRatoon => "New planting and ratoon",
+        ReportKey.ActivitySchedule => "Activity schedule",
+        ReportKey.ActivityCalendar => "Activity calendar",
+        ReportKey.TractorRequirement => "Tractor requirement",
+        ReportKey.TractorUtilization => "Tractor utilization",
+        ReportKey.TractorShortage => "Tractor shortage",
+        ReportKey.EquipmentRequirement => "Equipment requirement",
+        ReportKey.EquipmentUtilization => "Equipment utilization",
+        ReportKey.EquipmentShortage => "Equipment shortage",
+        ReportKey.SeedCane => "Seed cane",
+        ReportKey.Fertilizer => "Fertilizer",
+        ReportKey.Chemicals => "Chemicals",
+        ReportKey.MaterialShortage => "Material shortage",
+        ReportKey.Fuel => "Fuel",
+        ReportKey.Labor => "Labor",
+        ReportKey.CapacityAnalysis => "Capacity analysis",
+        ReportKey.DelayedActivities => "Delayed activities",
+        ReportKey.RevisionComparison => "Revision comparison",
+        ReportKey.ProjectionVsActual => "Projection versus actual",
+        _ => key.ToString()
+    };
+}
