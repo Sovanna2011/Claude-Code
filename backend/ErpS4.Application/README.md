@@ -17,6 +17,9 @@ ErpS4.Application/
 │   ├── PostingEngine.cs      orchestration and persistence
 │   ├── PostingEngine.Validation.cs  the rule set
 │   └── PostJournalEntryCommand.cs   CQRS command, validator, handler
+├── Clearing/
+│   ├── ClearingContracts.cs  IClearingService, allocations, results
+│   └── ClearingService.cs    payments, partial, residual, discount, reset
 ├── BusinessPartners/
 │   ├── BusinessPartnerContracts.cs  IBusinessPartnerSyncService, results
 │   └── BusinessPartnerSyncService.cs  role assignment, BP_SYNC, BP_CHECK
@@ -24,7 +27,7 @@ ErpS4.Application/
 └── DependencyInjection.cs
 
 ErpS4.Database/               (existing) + IErpDataContext, NumberRangeService
-ErpS4.Tests/                  52 tests, no database required
+ErpS4.Tests/                  65 tests, no database required
 ```
 
 ## What the engine enforces
@@ -83,7 +86,7 @@ validation pipeline composable and the API mapping trivial.
 
 ## Tests
 
-52 tests, all running against in-memory lists — no database, no EF provider,
+65 tests, all running against in-memory lists — no database, no EF provider,
 milliseconds to run. They encode the rules section 23 of the design calls
 mandatory:
 
@@ -101,6 +104,9 @@ mandatory:
 * a repeated role assignment changes nothing
 * a company code segment is refused unless its reconciliation account matches
   the role, which is what stops the failure surfacing later as a bad posting
+* a payment clears its item, a partial payment leaves the remainder open, and a
+  residual closes the invoice and re-ages the balance from the payment date
+* an item cannot be paid twice, or for more than it owes
 
 ```bash
 dotnet test backend/ErpS4.Tests
@@ -123,8 +129,13 @@ The rest of Phase 3, in the order it makes sense to add:
    identity. `SynchronizeAsync` repairs partners whose role data is missing;
    `CheckAsync` (BP_CHECK) reports roles without data, data without roles,
    reconciliation accounts of the wrong type, and number mismatches.
-3. **Clearing and payments** — open item clearing, partial and residual
-   payments, the payment run.
+3. ~~**Clearing and payments**~~ — done for manual payments:
+   `IClearingService` posts the payment **through the posting engine** rather
+   than writing its own document, then links it to the items it settles.
+   Partial payments, residuals, cash discount and reset are covered. Two gaps
+   remain: foreign-currency clearing (needs a per-line local amount override on
+   the engine to realise the exchange difference — refused explicitly rather
+   than guessed) and the automatic payment run (F110).
 4. **Asset and depreciation services** — acquisition, retirement, the
    depreciation run that produces `fin.DepreciationPosting`.
 5. **Workflow** — routing a document to approval instead of posting it when a

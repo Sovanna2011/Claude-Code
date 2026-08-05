@@ -107,6 +107,21 @@ public sealed class PostingScenario
 
         Context.Seed(CompanyCode).Seed(Ledger).Seed(Period).Seed(PeriodControl).Seed(DocumentType);
 
+        // Payment document types, so clearing can post through the same engine.
+        Context.Seed(
+            new DocumentType
+            {
+                TenantId = 1, DocumentTypeCode = "DZ", Name = "Customer payment",
+                NumberRangeObjectId = 1, NumberRangeCode = "03",
+                AllowGLAccounts = true, AllowCustomerAccounts = true,
+            },
+            new DocumentType
+            {
+                TenantId = 1, DocumentTypeCode = "KZ", Name = "Supplier payment",
+                NumberRangeObjectId = 1, NumberRangeCode = "05",
+                AllowGLAccounts = true, AllowVendorAccounts = true,
+            });
+
         Context.Seed(
             new Currency { TenantId = 1, CurrencyCode = "USD", IsoCode = "USD", Name = "US Dollar", DecimalPlaces = 2 },
             new Currency { TenantId = 1, CurrencyCode = "KHR", IsoCode = "KHR", Name = "Riel", DecimalPlaces = 0 });
@@ -115,7 +130,9 @@ public sealed class PostingScenario
             new PostingKey { TenantId = 1, PostingKeyCode = "40", Name = "Debit G/L", DebitCreditIndicator = "S", AccountType = "S" },
             new PostingKey { TenantId = 1, PostingKeyCode = "50", Name = "Credit G/L", DebitCreditIndicator = "H", AccountType = "S" },
             new PostingKey { TenantId = 1, PostingKeyCode = "01", Name = "Customer invoice", DebitCreditIndicator = "S", AccountType = "D" },
-            new PostingKey { TenantId = 1, PostingKeyCode = "11", Name = "Customer credit memo", DebitCreditIndicator = "H", AccountType = "D" });
+            new PostingKey { TenantId = 1, PostingKeyCode = "11", Name = "Customer credit memo", DebitCreditIndicator = "H", AccountType = "D" },
+            new PostingKey { TenantId = 1, PostingKeyCode = "15", Name = "Incoming payment", DebitCreditIndicator = "H", AccountType = "D", PaymentTransaction = true },
+            new PostingKey { TenantId = 1, PostingKeyCode = "25", Name = "Outgoing payment", DebitCreditIndicator = "S", AccountType = "K", PaymentTransaction = true });
 
         RevenueAccount = SeedAccount(Revenue, isReconciliation: false);
         ExpenseAccount = SeedAccount(Expense, isReconciliation: false);

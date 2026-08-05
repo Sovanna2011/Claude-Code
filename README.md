@@ -40,8 +40,8 @@ The catalogue drives both physical artefacts, so they cannot drift from it:
 
 | | |
 |---|---|
-| **[`backend/ErpS4.Application/`](backend/ErpS4.Application/README.md)** | Posting engine and Business Partner role synchronisation — 52 tests covering the mandatory rules |
-| **[`backend/ErpS4.Api/`](backend/ErpS4.Api/README.md)** | .NET 10 minimal API — journal entries and business partners, permission policies resolved from the security tables, RFC 7807 problems, capped paging |
+| **[`backend/ErpS4.Application/`](backend/ErpS4.Application/README.md)** | Posting engine, Business Partner role synchronisation and open item clearing — 65 tests covering the mandatory rules |
+| **[`backend/ErpS4.Api/`](backend/ErpS4.Api/README.md)** | .NET 10 minimal API — journal entries, business partners, payments and open items, permission policies resolved from the security tables, RFC 7807 problems, capped paging |
 | **[`database/s4hana/`](database/s4hana/)** | SQL Server DDL — 228 tables, 838 foreign keys, 172 indexes, the SE11 dictionary seed, and a sample dataset (2 companies, 3 company codes, customer/vendor/dual-role partners, an asset, an intercompany pair, a KHR invoice) |
 | **[`backend/ErpS4.Database/`](backend/ErpS4.Database/README.md)** | .NET 10 / EF Core 10 model — 228 entities and configurations, tenant query filters, audit stamping, append-only enforcement |
 

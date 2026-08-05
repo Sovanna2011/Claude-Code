@@ -74,6 +74,7 @@ app.UseAuthorization();
 
 app.MapJournalEntryEndpoints();
 app.MapBusinessPartnerEndpoints();
+app.MapPaymentEndpoints();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
     .AllowAnonymous()

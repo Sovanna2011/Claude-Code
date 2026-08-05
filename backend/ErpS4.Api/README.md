@@ -17,6 +17,13 @@ dotnet run --project backend/ErpS4.Api      # http://localhost:5000
 | `POST` | `/api/v1/journal-entries/{year}/{doc}/reversal` | FB08 | `Finance.JournalEntry.Reverse` |
 | `GET` | `/api/v1/journal-entries/{year}/{doc}` | FB03 | `Finance.Report.Read` |
 | `GET` | `/api/v1/journal-entries/line-items` | FBL3N | `Finance.Report.Read` |
+| `GET` | `/api/v1/business-partners` | BP | `Master.BusinessPartner.Read` |
+| `POST` | `/api/v1/business-partners/{n}/roles` | BP_ROLE | `Master.BusinessPartner.Update` |
+| `POST` | `/api/v1/business-partners/{n}/synchronize` | BP_SYNC | `Master.BusinessPartner.Update` |
+| `GET` | `/api/v1/business-partners/{n}/consistency-check` | BP_CHECK | `Master.BusinessPartner.Read` |
+| `POST` | `/api/v1/payments` | F-28 / F-53 | `Finance.JournalEntry.Post` |
+| `POST` | `/api/v1/clearing/{year}/{doc}/reset` | — | `Finance.JournalEntry.Reverse` |
+| `GET` | `/api/v1/open-items` | FBL5N / FBL1N | `Finance.Report.Read` |
 
 ## How the pieces fit
 
