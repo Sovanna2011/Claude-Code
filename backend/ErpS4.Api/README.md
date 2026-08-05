@@ -24,6 +24,11 @@ dotnet run --project backend/ErpS4.Api      # http://localhost:5000
 | `POST` | `/api/v1/payments` | F-28 / F-53 | `Finance.JournalEntry.Post` |
 | `POST` | `/api/v1/clearing/{year}/{doc}/reset` | — | `Finance.JournalEntry.Reverse` |
 | `GET` | `/api/v1/open-items` | FBL5N / FBL1N | `Finance.Report.Read` |
+| `POST` | `/api/v1/assets/{n}/acquisitions` | F-90 | `Assets.Asset.Post` |
+| `POST` | `/api/v1/assets/{n}/retirement` | ABAVN | `Assets.Asset.Post` |
+| `POST` | `/api/v1/depreciation-runs/preview` | — | `Assets.Asset.Read` |
+| `POST` | `/api/v1/depreciation-runs` | AFAB | `Assets.Asset.Post` |
+| `GET` | `/api/v1/assets` | AS03 | `Assets.Asset.Read` |
 
 ## How the pieces fit
 

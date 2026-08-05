@@ -100,6 +100,8 @@ public sealed partial class PostingEngine
             .Select(l => l.Segment!).Distinct().ToList();
         var taxCodes = draft.Lines.Where(l => l.TaxCode is not null)
             .Select(l => l.TaxCode!).Distinct().ToList();
+        var assetNumbers = draft.Lines.Where(l => l.Asset is not null)
+            .Select(l => l.Asset!).Distinct().ToList();
 
         var accounts = await context.Query<GLAccount>()
             .AsNoTracking()
@@ -195,6 +197,13 @@ public sealed partial class PostingEngine
                     .ToListAsync(cancellationToken))
                 .ToDictionary(t => t.TaxCodeKey, StringComparer.Ordinal),
             CostElementsByAccount = costElements.ToDictionary(e => e.GLAccountId!.Value),
+            Assets = (await context.Query<Asset>()
+                    .AsNoTracking()
+                    .Where(a => a.TenantId == TenantId
+                                && a.CompanyCodeId == companyCode.Id
+                                && assetNumbers.Contains(a.AssetNumber))
+                    .ToListAsync(cancellationToken))
+                .ToDictionary(a => a.AssetNumber, StringComparer.Ordinal),
             DocumentCurrencyDecimals =
                 await currencyConverter.GetDecimalsAsync(draft.DocumentCurrency, cancellationToken),
             LocalCurrencyDecimals =
@@ -354,6 +363,8 @@ public sealed partial class PostingEngine
             errors.AddRange(ValidateReconciliation(line, postingKey, account, configuration, field));
             errors.AddRange(ValidateAccountAssignment(line, postingKey, segment, configuration, field));
 
+            errors.AddRange(ValidateAsset(line, postingKey, configuration, field));
+
             if (line.TaxCode is not null && !configuration.TaxCodes.ContainsKey(line.TaxCode))
             {
                 errors.Add(new PostingError(
@@ -373,6 +384,55 @@ public sealed partial class PostingEngine
                     "receive postings.",
                     $"{field}.InternalOrder", line.LineNumber));
             }
+        }
+
+        return errors;
+    }
+
+    /// <summary>
+    /// An asset line has to name an asset that exists, is not blocked, and
+    /// belongs to this company code - an asset account posted without an asset
+    /// leaves the register and the ledger disagreeing.
+    /// </summary>
+    private static List<PostingError> ValidateAsset(
+        JournalEntryDraftLine line,
+        PostingKey postingKey,
+        PostingConfiguration configuration,
+        string field)
+    {
+        var errors = new List<PostingError>();
+
+        if (postingKey.AccountType != "A")
+        {
+            return errors;
+        }
+
+        if (line.Asset is null)
+        {
+            errors.Add(new PostingError(
+                PostingErrorCodes.AssetRequired,
+                $"Posting key {postingKey.PostingKeyCode} posts to an asset account and needs " +
+                "an asset number.",
+                $"{field}.Asset", line.LineNumber));
+            return errors;
+        }
+
+        if (!configuration.Assets.TryGetValue(line.Asset, out var asset))
+        {
+            errors.Add(new PostingError(
+                PostingErrorCodes.AssetUnknown,
+                $"Asset {line.Asset} does not exist in company code " +
+                $"{configuration.CompanyCode.CompanyCodeKey}.",
+                $"{field}.Asset", line.LineNumber));
+            return errors;
+        }
+
+        if (asset.IsPostingBlocked)
+        {
+            errors.Add(new PostingError(
+                PostingErrorCodes.AssetBlocked,
+                $"Asset {line.Asset} is blocked for postings.",
+                $"{field}.Asset", line.LineNumber));
         }
 
         return errors;

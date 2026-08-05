@@ -8,6 +8,7 @@ that is what this project is, and nothing more yet.
 ErpS4.Domain/                 no packages, no persistence, no framework
 ├── Money.cs                  amount + currency, rounding by currency precision
 ├── JournalEntryDraft.cs      a document before configuration is consulted
+├── DepreciationCalculator.cs pure period depreciation arithmetic
 └── PostingError.cs           stable error codes the API and UI bind to
 
 ErpS4.Application/
@@ -17,6 +18,9 @@ ErpS4.Application/
 │   ├── PostingEngine.cs      orchestration and persistence
 │   ├── PostingEngine.Validation.cs  the rule set
 │   └── PostJournalEntryCommand.cs   CQRS command, validator, handler
+├── Assets/
+│   ├── AssetContracts.cs     IAssetService, run requests, results
+│   └── AssetService.cs       acquisition, retirement, depreciation run
 ├── Clearing/
 │   ├── ClearingContracts.cs  IClearingService, allocations, results
 │   └── ClearingService.cs    payments, partial, residual, discount, reset
@@ -27,7 +31,7 @@ ErpS4.Application/
 └── DependencyInjection.cs
 
 ErpS4.Database/               (existing) + IErpDataContext, NumberRangeService
-ErpS4.Tests/                  65 tests, no database required
+ErpS4.Tests/                  77 tests, no database required
 ```
 
 ## What the engine enforces
@@ -86,7 +90,7 @@ validation pipeline composable and the API mapping trivial.
 
 ## Tests
 
-65 tests, all running against in-memory lists — no database, no EF provider,
+77 tests, all running against in-memory lists — no database, no EF provider,
 milliseconds to run. They encode the rules section 23 of the design calls
 mandatory:
 
@@ -107,6 +111,9 @@ mandatory:
 * a payment clears its item, a partial payment leaves the remainder open, and a
   residual closes the invoice and re-ages the balance from the payment date
 * an item cannot be paid twice, or for more than it owes
+* depreciation stops at the scrap value, charges the first period pro rata, and
+  takes exactly what is left in the final period
+* a planned depreciation run refuses to run twice for the same period
 
 ```bash
 dotnet test backend/ErpS4.Tests
@@ -136,8 +143,15 @@ The rest of Phase 3, in the order it makes sense to add:
    remain: foreign-currency clearing (needs a per-line local amount override on
    the engine to realise the exchange difference — refused explicitly rather
    than guessed) and the automatic payment run (F110).
-4. **Asset and depreciation services** — acquisition, retirement, the
-   depreciation run that produces `fin.DepreciationPosting`.
+4. ~~**Asset and depreciation services**~~ — done: `IAssetService` capitalises,
+   retires (booking the gain or loss against net book value) and runs
+   depreciation, all through the posting engine. `DepreciationCalculator` is
+   pure arithmetic — straight line, declining balance with the switch to
+   straight line, immediate, pro rata first period, scrap value floor — so an
+   auditor can recalculate it. Accounts come from account determination, and
+   missing configuration is a reported violation rather than a null at posting
+   time. Not yet: transfers, write-ups, impairment and assets under
+   construction settlement.
 5. **Workflow** — routing a document to approval instead of posting it when a
    `wf.WorkflowRule` matches, with maker-checker enforced.
 6. **Dictionary, table browser and custom object services** — the SE11 and

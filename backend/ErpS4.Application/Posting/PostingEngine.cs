@@ -356,6 +356,10 @@ public sealed partial class PostingEngine(
                 AccountType = postingKey.AccountType,
                 GLAccountId = account.Id,
                 GLAccount = account.GLAccountCode,
+                AssetId = line.Asset is null
+                    ? null
+                    : configuration.Assets[line.Asset].Id,
+                AssetSubNumber = line.AssetSubNumber,
                 BusinessPartnerId = partner?.Id,
                 BusinessPartnerRoleCategory = partner is null
                     ? null

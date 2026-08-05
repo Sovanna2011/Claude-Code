@@ -384,7 +384,9 @@ VALUES (@Tenant, @Coa, N'110000', @AgBs, N'CashAccount',    1, 0, 0, NULL, NULL,
        (@Tenant, @Coa, N'520000', @AgPl, N'PrimaryCost',    0, 1, 0, NULL, NULL, N'1',  @By),
        (@Tenant, @Coa, N'530000', @AgPl, N'PrimaryCost',    0, 1, 0, NULL, NULL, N'1',  @By),
        (@Tenant, @Coa, N'600000', @AgPl, N'NonOperatingExpenseRevenue', 0, 1, 0, NULL, NULL, NULL, @By),
-       (@Tenant, @Coa, N'610000', @AgPl, N'NonOperatingExpenseRevenue', 0, 1, 0, NULL, NULL, NULL, @By);
+       (@Tenant, @Coa, N'610000', @AgPl, N'NonOperatingExpenseRevenue', 0, 1, 0, NULL, NULL, NULL, @By),
+       (@Tenant, @Coa, N'620000', @AgPl, N'NonOperatingExpenseRevenue', 0, 1, 0, NULL, NULL, NULL, @By),
+       (@Tenant, @Coa, N'630000', @AgPl, N'NonOperatingExpenseRevenue', 0, 1, 0, NULL, NULL, NULL, @By);
 
 INSERT INTO mdm.GLAccountText (TenantId, GLAccountId, LanguageCode, ShortText, LongText, CreatedBy)
 SELECT @Tenant, a.Id, N'EN', t.ShortText, t.LongText, @By
@@ -407,7 +409,9 @@ JOIN  (VALUES
         (N'520000', N'Depreciation',    N'Depreciation expense'),
         (N'530000', N'Utilities',       N'Utilities expense'),
         (N'600000', N'FX gain',         N'Realised foreign exchange gain'),
-        (N'610000', N'FX loss',         N'Realised foreign exchange loss')
+        (N'610000', N'FX loss',         N'Realised foreign exchange loss'),
+        (N'620000', N'Disposal gain',    N'Gain on asset disposal'),
+        (N'630000', N'Disposal loss',    N'Loss on asset disposal')
       ) AS t(GLAccount, ShortText, LongText) ON t.GLAccount = a.GLAccount
 WHERE  a.TenantId = @Tenant AND a.ChartOfAccountsId = @Coa;
 
@@ -754,6 +758,23 @@ INSERT INTO fin.AssetTimeDependent
     (TenantId, AssetId, ValidFrom, ValidTo, CostCenterId, ProfitCenterId, SegmentId,
      PlantId, IsShutdown, CreatedBy)
 VALUES (@Tenant, @Asset1, '2026-01-15', @Never, @CcProd, @PcSugar, @SegSugar, @PlantP100, 0, @By);
+
+/* Account determination for asset accounting. Without these rows the asset
+   service refuses to post rather than guessing an account. */
+INSERT INTO cfg.AccountDeterminationRule
+    (TenantId, ChartOfAccountsId, TransactionKey, AccountModifier, CompanyCodeId,
+     DebitGLAccountId, CreditGLAccountId, Description, ValidFrom, ValidTo, CreatedBy)
+SELECT @Tenant, @Coa, t.TransactionKey, N'20000', NULL, a.Id, a.Id, t.Description,
+       @Open, @Never, @By
+FROM  (VALUES
+        (N'ANL', N'150000', N'Asset balance sheet account'),
+        (N'AFA', N'151000', N'Accumulated depreciation'),
+        (N'AFX', N'520000', N'Depreciation expense'),
+        (N'AAV', N'620000', N'Gain on asset disposal'),
+        (N'AAL', N'630000', N'Loss on asset disposal')
+      ) AS t(TransactionKey, GLAccount, Description)
+JOIN   mdm.GLAccount AS a
+       ON a.TenantId = @Tenant AND a.ChartOfAccountsId = @Coa AND a.GLAccount = t.GLAccount;
 
 /* ---------------------------------------------------------------------------
    10. Postings
@@ -1118,7 +1139,9 @@ VALUES (@Tenant, N'Finance.JournalEntry.Create',  N'Create journal entry',  N'Fi
        (@Tenant, N'Master.BusinessPartner.Read',   N'Display partners',    N'Master',  N'BusinessPartner', N'Read',   0, @By),
        (@Tenant, N'Master.BusinessPartner.Update', N'Maintain partners',    N'Master',  N'BusinessPartner', N'Update', 0, @By),
        (@Tenant, N'Admin.Dictionary.Update',      N'Maintain dictionary',   N'Admin',   N'DictionaryObject', N'Update', 1, @By),
-       (@Tenant, N'Admin.TableBrowser.Read',      N'Browse tables',         N'Admin',   N'TableBrowser', N'Read',    1, @By);
+       (@Tenant, N'Admin.TableBrowser.Read',      N'Browse tables',         N'Admin',   N'TableBrowser', N'Read',    1, @By),
+       (@Tenant, N'Assets.Asset.Read',            N'Display assets',        N'Assets',  N'Asset',        N'Read',    0, @By),
+       (@Tenant, N'Assets.Asset.Post',            N'Post asset movements',  N'Assets',  N'Asset',        N'Post',    1, @By);
 
 INSERT INTO sec.RolePermission (TenantId, RoleId, PermissionId, IsGranted, CreatedBy)
 SELECT @Tenant, @RoleAdmin, p.Id, 1, @By FROM sec.Permission AS p WHERE p.TenantId = @Tenant;
@@ -1129,7 +1152,8 @@ FROM   sec.Permission AS p
 WHERE  p.TenantId = @Tenant
        AND p.PermissionCode IN (N'Finance.JournalEntry.Create', N'Finance.JournalEntry.Post',
                                 N'Finance.Report.Read', N'Master.BusinessPartner.Read',
-                                N'Master.BusinessPartner.Update');
+                                N'Master.BusinessPartner.Update', N'Assets.Asset.Read',
+                                N'Assets.Asset.Post');
 
 INSERT INTO sec.RolePermission (TenantId, RoleId, PermissionId, IsGranted, CreatedBy)
 SELECT @Tenant, @RoleApprover, p.Id, 1, @By

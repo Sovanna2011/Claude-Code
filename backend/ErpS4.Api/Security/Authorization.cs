@@ -140,6 +140,8 @@ public static class Policies
     public const string ReadFinanceReport = "Finance.Report.Read";
     public const string ReadBusinessPartner = "Master.BusinessPartner.Read";
     public const string UpdateBusinessPartner = "Master.BusinessPartner.Update";
+    public const string ReadAsset = "Assets.Asset.Read";
+    public const string PostAsset = "Assets.Asset.Post";
 }
 
 /// <summary>

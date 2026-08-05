@@ -42,6 +42,8 @@ internal sealed class PostingConfiguration
 
     public required IReadOnlyDictionary<string, TaxCode> TaxCodes { get; init; }
 
+    public required IReadOnlyDictionary<string, Asset> Assets { get; init; }
+
     public required IReadOnlyDictionary<long, CostElement> CostElementsByAccount { get; init; }
 
     public required int DocumentCurrencyDecimals { get; init; }

@@ -26,6 +26,9 @@ public static class PostingErrorCodes
     public const string BusinessPartnerRequired = "POST.BUSINESS_PARTNER_REQUIRED";
     public const string BusinessPartnerBlocked = "POST.BUSINESS_PARTNER_BLOCKED";
     public const string BusinessPartnerRoleMissing = "POST.BUSINESS_PARTNER_ROLE_MISSING";
+    public const string AssetRequired = "POST.ASSET_REQUIRED";
+    public const string AssetUnknown = "POST.ASSET_UNKNOWN";
+    public const string AssetBlocked = "POST.ASSET_BLOCKED";
     public const string CostCenterRequired = "POST.COST_CENTER_REQUIRED";
     public const string ProfitCenterRequired = "POST.PROFIT_CENTER_REQUIRED";
     public const string CostObjectNotValidOnDate = "POST.COST_OBJECT_NOT_VALID_ON_DATE";
