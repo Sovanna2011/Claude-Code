@@ -75,16 +75,20 @@ The Blazor client reads its API address from `wwwroot/appsettings.json`:
 { "ApiBaseUrl": "https://api.plan.example.com/" }
 ```
 
+The API and the client run on different origins, so `Cors:AllowedOrigins` must list the
+client's address. The policy also exposes `Content-Disposition`; without that the browser hides
+the header and every exported report is saved as `report.pdf` rather than its real name.
+
 ## 3. Build and publish
 
 ```bash
 dotnet restore
 dotnet build -c Release
-dotnet test  -c Release                      # 160 tests
+dotnet test  -c Release                      # 163 tests
 
 # Optional: also run the 13 tests that need a real SQL Server.
 export SUGARCANE_TEST_SQLSERVER="Server=127.0.0.1,1433;User Id=sa;Password=…;TrustServerCertificate=True"
-dotnet test  -c Release                      # 173 tests
+dotnet test  -c Release                      # 176 tests
 
 dotnet publish src/SugarcanePlanning.Api    -c Release -o ./publish/api
 dotnet publish src/SugarcanePlanning.Client -c Release -o ./publish/client

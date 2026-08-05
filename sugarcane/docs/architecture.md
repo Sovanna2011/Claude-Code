@@ -139,6 +139,13 @@ assigned client-side, which is exactly why the defect was invisible there. The i
 remembers each insert's audit row, fills in the key in `SavedChanges` and saves once more; the
 second pass sees only `AuditLog` changes, which are never audited, so it cannot recurse.
 
+**Exported reports all downloaded as `report.pdf`.** The API sets a descriptive
+`Content-Disposition`, and every server-side test saw it — but the client runs on a different
+origin, and a browser only reveals non-simple response headers listed in
+`Access-Control-Expose-Headers`. The Blazor client therefore fell back to its default name, so
+exporting several reports overwrote the same file. The CORS policy now exposes the header, and
+`CorsPolicyTests` guards it.
+
 **The schema script could never be applied.** `sqlcmd` connects with `QUOTED_IDENTIFIER` OFF,
 and SQL Server refuses to create filtered indexes in that state, so the documented
 `sqlcmd -i database/01_schema.sql` created one table and stopped with *Msg 1934*.

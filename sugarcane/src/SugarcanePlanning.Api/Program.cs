@@ -63,7 +63,10 @@ builder.Services.AddCors(options => options.AddPolicy("BlazorClient", policy => 
     .WithOrigins(builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
                  ?? new[] { "https://localhost:7150", "http://localhost:5150" })
     .AllowAnyHeader()
-    .AllowAnyMethod()));
+    .AllowAnyMethod()
+    // Without this the browser hides Content-Disposition from the Blazor client, and every
+    // exported report is saved as "report.pdf" instead of its real name.
+    .WithExposedHeaders("Content-Disposition")));
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
