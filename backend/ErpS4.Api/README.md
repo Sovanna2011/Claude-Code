@@ -29,6 +29,9 @@ dotnet run --project backend/ErpS4.Api      # http://localhost:5000
 | `POST` | `/api/v1/depreciation-runs/preview` | — | `Assets.Asset.Read` |
 | `POST` | `/api/v1/depreciation-runs` | AFAB | `Assets.Asset.Post` |
 | `GET` | `/api/v1/assets` | AS03 | `Assets.Asset.Read` |
+| `GET` | `/api/v1/approvals/inbox` | — | authenticated |
+| `POST` | `/api/v1/approvals/{id}/approve` | — | `Finance.JournalEntry.Approve` |
+| `POST` | `/api/v1/approvals/{id}/reject` | — | `Finance.JournalEntry.Approve` |
 
 ## How the pieces fit
 

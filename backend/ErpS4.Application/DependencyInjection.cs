@@ -1,6 +1,7 @@
 using ErpS4.Application.BusinessPartners;
 using ErpS4.Application.Assets;
 using ErpS4.Application.Clearing;
+using ErpS4.Application.Workflow;
 using ErpS4.Application.Posting;
 using ErpS4.Application.Services;
 using ErpS4.Database;
@@ -26,6 +27,7 @@ public static class DependencyInjection
         services.AddScoped<IBusinessPartnerSyncService, BusinessPartnerSyncService>();
         services.AddScoped<IClearingService, ClearingService>();
         services.AddScoped<IAssetService, AssetService>();
+        services.AddScoped<IWorkflowService, WorkflowService>();
         services.AddScoped<PostJournalEntryHandler>();
 
         services.AddValidatorsFromAssemblyContaining<PostJournalEntryCommandValidator>();

@@ -17,6 +17,24 @@ public interface IPostingEngine
     /// Posted documents are never changed or deleted.
     /// </summary>
     Task<PostingResult> ReverseAsync(ReversalRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Validates a document, gives it a number and stores its lines, but leaves
+    /// the ledger untouched: no open items, no controlling documents, no
+    /// balances. This is what a document waiting for approval looks like - it
+    /// can be displayed and audited, and it changes no figure until approved.
+    /// </summary>
+    Task<PostingResult> ParkAsync(PostingRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Completes a parked document once approval is in. Rules are checked again
+    /// first: the period may have closed while the document sat in an inbox.
+    /// </summary>
+    Task<PostingResult> PostParkedAsync(
+        string companyCode,
+        short fiscalYear,
+        string documentNumber,
+        CancellationToken cancellationToken = default);
 }
 
 /// <param name="Draft">What the caller wants to post.</param>

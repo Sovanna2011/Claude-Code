@@ -23,7 +23,9 @@ builder.Services.AddErpApplication();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ITenantProvider, HttpTenantProvider>();
-builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
+builder.Services.AddScoped<HttpCurrentUser>();
+builder.Services.AddScoped<ICurrentUser>(p => p.GetRequiredService<HttpCurrentUser>());
+builder.Services.AddScoped<ICurrentUserAccessor>(p => p.GetRequiredService<HttpCurrentUser>());
 builder.Services.AddScoped<IOrganizationalAccessGuard, OrganizationalAccessGuard>();
 
 builder.Services
@@ -76,6 +78,7 @@ app.MapJournalEntryEndpoints();
 app.MapBusinessPartnerEndpoints();
 app.MapPaymentEndpoints();
 app.MapAssetEndpoints();
+app.MapApprovalEndpoints();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
     .AllowAnonymous()

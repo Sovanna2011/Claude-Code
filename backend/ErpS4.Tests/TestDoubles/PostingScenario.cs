@@ -203,6 +203,16 @@ public sealed class PostingScenario
 
     public FakeCurrencyConverter CurrencyConverter { get; }
 
+    /// <summary>An engine acting as a named user, for maker-checker tests.</summary>
+    public PostingEngine CreateEngineAs(string userName) =>
+        new(Context,
+            NumberRanges,
+            CurrencyConverter,
+            new FixedTenantProvider(1),
+            new FixedCurrentUser(userName),
+            Clock,
+            NullLogger<PostingEngine>.Instance);
+
     public PostingEngine CreateEngine() =>
         new(Context,
             NumberRanges,

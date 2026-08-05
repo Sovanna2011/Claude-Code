@@ -24,8 +24,14 @@ public sealed class HttpTenantProvider(IHttpContextAccessor accessor) : ITenantP
             : throw new UnauthorizedAccessException("The token carries no tenant.");
 }
 
+/// <summary>The signed-in user, for endpoints that need it directly.</summary>
+public interface ICurrentUserAccessor
+{
+    string UserName { get; }
+}
+
 /// <summary>Acting user for the audit columns.</summary>
-public sealed class HttpCurrentUser(IHttpContextAccessor accessor) : ICurrentUser
+public sealed class HttpCurrentUser(IHttpContextAccessor accessor) : ICurrentUser, ICurrentUserAccessor
 {
     public string UserName =>
         accessor.HttpContext?.User.FindFirstValue(ErpClaims.UserName)
@@ -142,6 +148,7 @@ public static class Policies
     public const string UpdateBusinessPartner = "Master.BusinessPartner.Update";
     public const string ReadAsset = "Assets.Asset.Read";
     public const string PostAsset = "Assets.Asset.Post";
+    public const string ApproveJournalEntry = "Finance.JournalEntry.Approve";
 }
 
 /// <summary>

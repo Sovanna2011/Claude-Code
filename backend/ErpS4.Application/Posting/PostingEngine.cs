@@ -44,6 +44,30 @@ public sealed partial class PostingEngine(
         PostingRequest request,
         CancellationToken cancellationToken = default)
     {
+        var prepared = await PrepareAsync(request, cancellationToken);
+        if (prepared.Result is not null)
+        {
+            return prepared.Result;
+        }
+
+        return await context.ExecuteInTransactionAsync(
+            token => CommitAsync(request, prepared.Configuration!, prepared.Lines, token),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Everything that happens before anything is written: idempotency, the
+    /// configuration, every rule, and the currency conversion.
+    /// </summary>
+    /// <remarks>
+    /// Posting and parking share it, which is the point - a parked document has
+    /// passed the same rules as a posted one, so approval cannot smuggle
+    /// through a document that was never valid.
+    /// </remarks>
+    private async Task<PreparedPosting> PrepareAsync(
+        PostingRequest request,
+        CancellationToken cancellationToken)
+    {
         var draft = request.Draft;
 
         if (request.IdempotencyKey is { } key && !request.Simulate)
@@ -60,20 +84,20 @@ public sealed partial class PostingEngine(
                     "Idempotency key {Key} already produced document {Document}/{Year}",
                     key, existing.DocumentNumber, existing.FiscalYear);
 
-                return PostingResult.Posted(
+                return new PreparedPosting(null, [], PostingResult.Posted(
                     existing.DocumentNumber,
                     existing.FiscalYear,
                     existing.FiscalPeriod,
                     existing.Status,
                     [],
-                    alreadyPosted: true);
+                    alreadyPosted: true));
             }
         }
 
         var (configuration, loadErrors) = await LoadConfigurationAsync(draft, cancellationToken);
         if (configuration is null)
         {
-            return PostingResult.Rejected(loadErrors);
+            return new PreparedPosting(null, [], PostingResult.Rejected(loadErrors));
         }
 
         var errors = new List<PostingError>(loadErrors);
@@ -89,7 +113,7 @@ public sealed partial class PostingEngine(
             logger.LogInformation(
                 "Document for company code {CompanyCode} rejected by {Count} rules",
                 draft.CompanyCode, errors.Count);
-            return PostingResult.Rejected(errors);
+            return new PreparedPosting(null, [], PostingResult.Rejected(errors));
         }
 
         // Local currency has to balance as well: rounding each line separately
@@ -98,27 +122,31 @@ public sealed partial class PostingEngine(
             .Aggregate(0m, (total, line) => total + line.LocalAmount.Amount);
         if (Math.Round(localDifference, configuration.LocalCurrencyDecimals) != 0m)
         {
-            return PostingResult.Rejected([
+            return new PreparedPosting(null, [], PostingResult.Rejected([
                 new PostingError(
                     PostingErrorCodes.DocumentNotBalanced,
                     $"Converted amounts differ by {localDifference} {configuration.LocalCurrency}; " +
                     "adjust a line or post the rounding difference explicitly.",
                     nameof(JournalEntryDraft.Lines)),
-            ]);
+            ]));
         }
 
         if (request.Simulate)
         {
-            return PostingResult.Simulated(
+            return new PreparedPosting(configuration, lines, PostingResult.Simulated(
                 (short)configuration.Period.FiscalYear,
                 configuration.Period.FiscalPeriodCode,
-                lines);
+                lines));
         }
 
-        return await context.ExecuteInTransactionAsync(
-            token => CommitAsync(request, configuration, lines, token),
-            cancellationToken);
+        return new PreparedPosting(configuration, lines, null);
     }
+
+    /// <param name="Result">Set when the caller should stop here.</param>
+    private sealed record PreparedPosting(
+        PostingConfiguration? Configuration,
+        IReadOnlyList<SimulatedLine> Lines,
+        PostingResult? Result);
 
     public async Task<PostingResult> ReverseAsync(
         ReversalRequest request,
@@ -221,6 +249,177 @@ public sealed partial class PostingEngine(
         return result;
     }
 
+    public async Task<PostingResult> ParkAsync(
+        PostingRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var prepared = await PrepareAsync(request, cancellationToken);
+        if (prepared.Result is not null)
+        {
+            return prepared.Result;
+        }
+
+        return await context.ExecuteInTransactionAsync(
+            async token =>
+            {
+                var (header, lines) = await WriteDocumentAsync(
+                    request, prepared.Configuration!, prepared.Lines, "PendingApproval", token);
+
+                // Audit records the parking; the ledger effect waits for approval.
+                await AddAuditTrailAsync(
+                    header, timeProvider.GetUtcNow().UtcDateTime, currentUser.UserName, token);
+                await context.SaveChangesAsync(token);
+
+                logger.LogInformation(
+                    "Parked {Document}/{Year} pending approval",
+                    header.DocumentNumber, header.FiscalYear);
+
+                return PostingResult.Posted(
+                    header.DocumentNumber, header.FiscalYear, header.FiscalPeriod,
+                    "PendingApproval", prepared.Lines);
+            },
+            cancellationToken);
+    }
+
+    public async Task<PostingResult> PostParkedAsync(
+        string companyCode,
+        short fiscalYear,
+        string documentNumber,
+        CancellationToken cancellationToken = default)
+    {
+        var header = await context.Query<JournalEntryHeader>()
+            .FirstOrDefaultAsync(
+                h => h.TenantId == TenantId
+                     && h.FiscalYear == fiscalYear
+                     && h.DocumentNumber == documentNumber,
+                cancellationToken);
+
+        if (header is null)
+        {
+            return PostingResult.Rejected([
+                new PostingError(
+                    PostingErrorCodes.DocumentNotPosted,
+                    $"Document {documentNumber}/{fiscalYear} does not exist."),
+            ]);
+        }
+
+        if (header.Status is not ("PendingApproval" or "Parked" or "Approved"))
+        {
+            return PostingResult.Rejected([
+                new PostingError(
+                    PostingErrorCodes.DocumentNotPosted,
+                    $"Document {documentNumber} is {header.Status} and cannot be posted again."),
+            ]);
+        }
+
+        var lines = await context.Query<JournalEntryLine>()
+            .Where(l => l.TenantId == TenantId && l.JournalEntryHeaderId == header.Id)
+            .OrderBy(l => l.LineItemNumber)
+            .ToListAsync(cancellationToken);
+
+        // The period is checked again on purpose: a document can sit in an
+        // inbox across a period close, and posting it then would reopen a
+        // closed period through the back door.
+        var period = await context.Query<FiscalPeriod>()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                p => p.TenantId == TenantId
+                     && p.FiscalYear == fiscalYear
+                     && p.FiscalPeriodCode == header.FiscalPeriod,
+                cancellationToken);
+
+        if (period is null || period.PeriodStatus != "Open")
+        {
+            return PostingResult.Rejected([
+                new PostingError(
+                    PostingErrorCodes.PeriodClosed,
+                    $"Period {header.FiscalPeriod}/{fiscalYear} closed while the document was " +
+                    "waiting for approval. Change the posting date and resubmit.",
+                    nameof(JournalEntryDraft.PostingDate)),
+            ]);
+        }
+
+        var companyCodeEntity = await context.Query<CompanyCode>()
+            .AsNoTracking()
+            .FirstAsync(c => c.Id == header.CompanyCodeId, cancellationToken);
+
+        var configuration = await LoadConfigurationForLinesAsync(
+            companyCodeEntity, header, lines, period, cancellationToken);
+
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        var user = currentUser.UserName;
+
+        return await context.ExecuteInTransactionAsync(
+            async token =>
+            {
+                await WriteLedgerEffectAsync(configuration, header, lines, now, user, token);
+
+                header.Status = "Posted";
+                header.PostedAt = now;
+                header.PostedBy = user;
+
+                await context.SaveChangesAsync(token);
+
+                logger.LogInformation(
+                    "Approved document {Document}/{Year} posted by {User}",
+                    documentNumber, fiscalYear, user);
+
+                return PostingResult.Posted(
+                    documentNumber, fiscalYear, header.FiscalPeriod, "Posted", []);
+            },
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Minimal configuration for a document whose lines already exist: only the
+    /// controlling area and cost elements are needed to write the ledger effect.
+    /// </summary>
+    private async Task<PostingConfiguration> LoadConfigurationForLinesAsync(
+        CompanyCode companyCode,
+        JournalEntryHeader header,
+        IReadOnlyList<JournalEntryLine> lines,
+        FiscalPeriod period,
+        CancellationToken cancellationToken)
+    {
+        var accountIds = lines.Select(l => l.GLAccountId).Distinct().ToList();
+
+        var costElements = await context.Query<CostElement>()
+            .AsNoTracking()
+            .Where(e => e.TenantId == TenantId
+                        && e.IsPrimary
+                        && e.GLAccountId != null
+                        && accountIds.Contains(e.GLAccountId!.Value))
+            .ToListAsync(cancellationToken);
+
+        return new PostingConfiguration
+        {
+            CompanyCode = companyCode,
+            DocumentType = await context.Query<DocumentType>()
+                .AsNoTracking()
+                .FirstAsync(d => d.Id == header.DocumentTypeId, cancellationToken),
+            Ledger = await context.Query<Ledger>()
+                .AsNoTracking()
+                .FirstAsync(l => l.Id == header.LedgerId, cancellationToken),
+            Period = period,
+            PeriodControls = [],
+            PostingKeys = new Dictionary<string, PostingKey>(),
+            Accounts = new Dictionary<string, GLAccount>(),
+            AccountSegments = new Dictionary<long, GLAccountCompanyCode>(),
+            Partners = new Dictionary<string, BusinessPartner>(),
+            PartnerSegments = [],
+            CostCenters = new Dictionary<string, CostCenter>(),
+            ProfitCenters = new Dictionary<string, ProfitCenter>(),
+            InternalOrders = new Dictionary<string, InternalOrder>(),
+            Segments = new Dictionary<string, Segment>(),
+            TaxCodes = new Dictionary<string, TaxCode>(),
+            Assets = new Dictionary<string, Asset>(),
+            CostElementsByAccount = costElements.ToDictionary(e => e.GLAccountId!.Value),
+            DocumentCurrencyDecimals = 2,
+            LocalCurrencyDecimals = 2,
+            GroupCurrencyDecimals = 2,
+        };
+    }
+
     /// <summary>
     /// Debit becomes credit on the same account type: 40 &lt;-&gt; 50,
     /// 01 &lt;-&gt; 11, 21 &lt;-&gt; 31, 70 &lt;-&gt; 75.
@@ -246,6 +445,38 @@ public sealed partial class PostingEngine(
         IReadOnlyList<SimulatedLine> lines,
         CancellationToken cancellationToken)
     {
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        var user = currentUser.UserName;
+
+        var (header, entityLines) = await WriteDocumentAsync(
+            request, configuration, lines, "Posted", cancellationToken);
+
+        await WriteLedgerEffectAsync(
+            configuration, header, entityLines, now, user, cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
+
+        logger.LogInformation(
+            "Posted {Document}/{Year} in {CompanyCode} with {LineCount} lines",
+            header.DocumentNumber, header.FiscalYear, request.Draft.CompanyCode,
+            entityLines.Count);
+
+        return PostingResult.Posted(
+            header.DocumentNumber, header.FiscalYear, header.FiscalPeriod, "Posted", lines);
+    }
+
+    /// <summary>
+    /// Draws the document number and writes the header and the lines. Nothing
+    /// here touches a balance or an open item: that is the ledger effect, and
+    /// it is written separately so parking can leave it out.
+    /// </summary>
+    private async Task<(JournalEntryHeader Header, List<JournalEntryLine> Lines)>
+        WriteDocumentAsync(
+            PostingRequest request,
+            PostingConfiguration configuration,
+            IReadOnlyList<SimulatedLine> lines,
+            string status,
+            CancellationToken cancellationToken)
+    {
         var draft = request.Draft;
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var user = currentUser.UserName;
@@ -262,6 +493,8 @@ public sealed partial class PostingEngine(
 
         var totalDebit = lines.Where(l => l.DocumentAmount.IsDebit)
             .Sum(l => l.DocumentAmount.Amount);
+
+        var posted = status == "Posted";
 
         var header = new JournalEntryHeader
         {
@@ -283,9 +516,10 @@ public sealed partial class PostingEngine(
             TotalCreditAmount = totalDebit,
             ReferenceDocumentNumber = draft.ReferenceDocumentNumber,
             DocumentHeaderText = draft.HeaderText,
-            Status = "Posted",
-            PostedAt = now,
-            PostedBy = user,
+            Status = status,
+            PostedAt = posted ? now : null,
+            PostedBy = posted ? user : null,
+            ParkedBy = posted ? null : user,
             IsReversed = false,
             ReversedDocumentNumber = draft.Reverses?.DocumentNumber,
             ReversalReasonCode = draft.Reverses?.ReasonCode,
@@ -305,19 +539,32 @@ public sealed partial class PostingEngine(
         context.AddRange(entityLines);
         await context.SaveChangesAsync(cancellationToken);
 
-        AddOpenItems(entityLines, header, now, user);
-        AddControllingPostings(configuration, entityLines, now, user);
-        await UpdateBalancesAsync(configuration, entityLines, cancellationToken);
+        return (header, entityLines);
+    }
+
+    /// <summary>
+    /// Everything that makes a document *count*: open items, controlling
+    /// documents, balances, the audit record and the integration event.
+    /// </summary>
+    /// <remarks>
+    /// Parking writes the header and the lines but not this, which is what
+    /// "no ledger effect until approved" means in practice. Approval calls it
+    /// on the same lines, so an approved document is indistinguishable from one
+    /// posted directly.
+    /// </remarks>
+    private async Task WriteLedgerEffectAsync(
+        PostingConfiguration configuration,
+        JournalEntryHeader header,
+        IReadOnlyList<JournalEntryLine> lines,
+        DateTime now,
+        string user,
+        CancellationToken cancellationToken)
+    {
+        AddOpenItems(lines, header, now, user);
+        AddControllingPostings(configuration, lines, now, user);
+        await UpdateBalancesAsync(configuration, lines, cancellationToken);
         await AddAuditTrailAsync(header, now, user, cancellationToken);
-        AddOutboxEvent(header, entityLines, now, user);
-
-        await context.SaveChangesAsync(cancellationToken);
-
-        logger.LogInformation(
-            "Posted {Document}/{Year} in {CompanyCode} with {LineCount} lines",
-            documentNumber, fiscalYear, draft.CompanyCode, entityLines.Count);
-
-        return PostingResult.Posted(documentNumber, fiscalYear, period, "Posted", lines);
+        AddOutboxEvent(header, lines, now, user);
     }
 
     private List<JournalEntryLine> BuildLines(

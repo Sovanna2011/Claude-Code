@@ -18,6 +18,9 @@ ErpS4.Application/
 │   ├── PostingEngine.cs      orchestration and persistence
 │   ├── PostingEngine.Validation.cs  the rule set
 │   └── PostJournalEntryCommand.cs   CQRS command, validator, handler
+├── Workflow/
+│   ├── WorkflowContracts.cs  IWorkflowService, decisions, inbox
+│   └── WorkflowService.cs    rules, tasks, maker-checker, substitution
 ├── Assets/
 │   ├── AssetContracts.cs     IAssetService, run requests, results
 │   └── AssetService.cs       acquisition, retirement, depreciation run
@@ -31,7 +34,7 @@ ErpS4.Application/
 └── DependencyInjection.cs
 
 ErpS4.Database/               (existing) + IErpDataContext, NumberRangeService
-ErpS4.Tests/                  77 tests, no database required
+ErpS4.Tests/                  90 tests, no database required
 ```
 
 ## What the engine enforces
@@ -90,7 +93,7 @@ validation pipeline composable and the API mapping trivial.
 
 ## Tests
 
-77 tests, all running against in-memory lists — no database, no EF provider,
+90 tests, all running against in-memory lists — no database, no EF provider,
 milliseconds to run. They encode the rules section 23 of the design calls
 mandatory:
 
@@ -114,6 +117,10 @@ mandatory:
 * depreciation stops at the scrap value, charges the first period pro rata, and
   takes exactly what is left in the final period
 * a planned depreciation run refuses to run twice for the same period
+* a parked document has a number and lines but no balances or open items
+* the submitter is never given a task on their own document, and cannot decide
+* only the final approval posts; a rejection leaves the ledger untouched
+* approval after the period closed escalates rather than posting
 
 ```bash
 dotnet test backend/ErpS4.Tests
@@ -152,7 +159,13 @@ The rest of Phase 3, in the order it makes sense to add:
    missing configuration is a reported violation rather than a null at posting
    time. Not yet: transfers, write-ups, impairment and assets under
    construction settlement.
-5. **Workflow** — routing a document to approval instead of posting it when a
-   `wf.WorkflowRule` matches, with maker-checker enforced.
+5. ~~**Workflow**~~ — done: `IPostingEngine.ParkAsync` writes a document with a
+   number and lines but **no ledger effect**; `IWorkflowService` matches a rule,
+   creates the tasks, and only the final approval calls `PostParkedAsync` to
+   give the document its balances and open items. Maker-checker keeps the
+   submitter off their own document twice over — they never receive a task, and
+   a decision from them is refused. Substitutes can decide, and the task records
+   who acted. Rules are re-checked at approval, so a period that closed while
+   the document waited escalates instead of reopening itself.
 6. **Dictionary, table browser and custom object services** — the SE11 and
    SE16N back ends over the metadata tables.
