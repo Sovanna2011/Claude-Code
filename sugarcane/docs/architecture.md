@@ -109,3 +109,37 @@ material-standard resolution, scenario levers and status derivation.
 `IntegrationTests` build the real service graph over an isolated in-memory database and drive
 the whole process of section 24 — including all eight conflict checks, the workflow state
 machine, revision and version comparison, and every one of the 22 reports.
+
+They also execute `DbSeeder.SeedTransactionsAsync` against a real service provider, so the
+start-up seeding path is verified on a machine with no SQL Server.
+
+`SqlServerIntegrationTests` runs the same service graph against an actual SQL Server, creating
+a throw-away database and applying the real migration to it. Set `SUGARCANE_TEST_SQLSERVER` to
+enable it; without that variable the thirteen facts skip, so `dotnet test` stays green on a
+machine with no server.
+
+## What only a real database caught
+
+Two defects passed every in-memory test and failed immediately on SQL Server. Both are now
+covered by the SQL Server suite.
+
+**Retry-on-failure broke every transaction.** `EnableRetryOnFailure` installs
+`SqlServerRetryingExecutionStrategy`, which refuses user-initiated transactions. Creating a
+projection, revising one and generating an activity plan each open an explicit transaction, so
+all three threw `InvalidOperationException` — and the API died during start-up seeding. Retry
+is now off: making those blocks retriable safely would mean running the whole unit through the
+execution strategy *and* rebuilding the change tracker per attempt, since a transient fault
+would otherwise re-insert the rows the failed attempt already added. Correct transactions beat
+transient retries; the trade-off is written down in `Infrastructure/DependencyInjection.cs`.
+
+**The audit trail recorded `RecordId = 0` for every insert.** The interceptor builds its rows
+during `SavingChanges`, before SQL Server has assigned the identity value — so section 22's
+"record ID" was useless for creations, while updates and deletes were fine. In-memory keys are
+assigned client-side, which is exactly why the defect was invisible there. The interceptor now
+remembers each insert's audit row, fills in the key in `SavedChanges` and saves once more; the
+second pass sees only `AuditLog` changes, which are never audited, so it cannot recurse.
+
+**The schema script could never be applied.** `sqlcmd` connects with `QUOTED_IDENTIFIER` OFF,
+and SQL Server refuses to create filtered indexes in that state, so the documented
+`sqlcmd -i database/01_schema.sql` created one table and stopped with *Msg 1934*.
+`database/generate-schema.sh` now prepends the required `SET` options on every regeneration.

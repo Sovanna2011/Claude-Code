@@ -32,7 +32,15 @@ public static class DependencyInjection
             options.UseSqlServer(connectionString, sql =>
             {
                 sql.MigrationsHistoryTable("__EFMigrationsHistory", "planning");
-                sql.EnableRetryOnFailure(3);
+
+                // Retry-on-failure is deliberately NOT enabled. It installs an execution
+                // strategy that refuses user-initiated transactions, and the multi-step
+                // operations here (create projection with lines, revise a version, generate an
+                // activity plan) each need one atomic transaction. Retrying such a block is only
+                // safe if the whole unit runs through the execution strategy AND the change
+                // tracker is rebuilt per attempt, otherwise a transient fault re-inserts the
+                // rows added by the failed attempt. Correct transactions beat transient retries;
+                // see docs/deployment.md if you need resilience on Azure SQL.
             });
             options.AddInterceptors(provider.GetRequiredService<AuditSaveChangesInterceptor>());
         });

@@ -18,6 +18,12 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
     private readonly ICurrentUser _user;
     private readonly IDateTimeProvider _clock;
 
+    /// <summary>
+    /// Audit rows for inserts, paired with the entity they describe. A store-generated key is
+    /// still zero while <c>SavingChanges</c> runs, so the record id is filled in afterwards.
+    /// </summary>
+    private readonly List<(AuditLog Log, BaseEntity Entity)> _pendingKeys = new();
+
     public AuditSaveChangesInterceptor(ICurrentUser user, IDateTimeProvider clock)
     {
         _user = user;
@@ -37,6 +43,47 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
         return base.SavingChangesAsync(eventData, result, cancellationToken);
     }
 
+    public override int SavedChanges(SaveChangesCompletedEventData eventData, int result)
+    {
+        if (ResolvePendingKeys() && eventData.Context is not null) eventData.Context.SaveChanges();
+        return base.SavedChanges(eventData, result);
+    }
+
+    public override async ValueTask<int> SavedChangesAsync(SaveChangesCompletedEventData eventData, int result,
+        CancellationToken cancellationToken = default)
+    {
+        if (ResolvePendingKeys() && eventData.Context is not null)
+            await eventData.Context.SaveChangesAsync(cancellationToken);
+        return await base.SavedChangesAsync(eventData, result, cancellationToken);
+    }
+
+    public override void SaveChangesFailed(DbContextErrorEventData eventData)
+    {
+        _pendingKeys.Clear();
+        base.SaveChangesFailed(eventData);
+    }
+
+    public override Task SaveChangesFailedAsync(DbContextErrorEventData eventData,
+        CancellationToken cancellationToken = default)
+    {
+        _pendingKeys.Clear();
+        return base.SaveChangesFailedAsync(eventData, cancellationToken);
+    }
+
+    /// <summary>
+    /// Copies the now-known keys onto the insert audit rows. Returns true when a further save is
+    /// needed; the second pass finds only <see cref="AuditLog"/> changes, which are not audited,
+    /// so it cannot recurse.
+    /// </summary>
+    private bool ResolvePendingKeys()
+    {
+        if (_pendingKeys.Count == 0) return false;
+
+        foreach (var (log, entity) in _pendingKeys) log.RecordId = entity.Id.ToString();
+        _pendingKeys.Clear();
+        return true;
+    }
+
     private void Apply(DbContext context)
     {
         var now = _clock.UtcNow;
@@ -53,7 +100,9 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
                 case EntityState.Added:
                     entry.Entity.CreatedAtUtc = now;
                     entry.Entity.CreatedBy = user;
-                    logs.Add(BuildLog(entry, AuditAction.Create, user, now));
+                    var insertLog = BuildLog(entry, AuditAction.Create, user, now);
+                    logs.Add(insertLog);
+                    _pendingKeys.Add((insertLog, entry.Entity));
                     break;
 
                 case EntityState.Modified:
@@ -88,6 +137,8 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
         {
             var name = property.Metadata.Name;
             if (name is nameof(BaseEntity.RowVersion)) continue;
+            // The key is carried by RecordId; on an insert it is still zero here.
+            if (name is nameof(BaseEntity.Id)) continue;
 
             switch (entry.State)
             {

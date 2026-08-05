@@ -11,7 +11,7 @@ plantation activity, tractor, equipment, material, workforce, location and sched
 | Persistence | **EF Core 10** → **Microsoft SQL Server** (migrations, row-version concurrency, soft delete) |
 | Identity | **ASP.NET Core Identity** with ten roles and seventeen permission policies |
 | Reporting | 22 reports with print preview, **PDF** (QuestPDF) and **Excel** (ClosedXML) export |
-| Tests | 160 automated tests (xUnit) — 66 unit, 94 integration |
+| Tests | 173 automated tests (xUnit) — 66 unit, 94 integration, 13 against a real SQL Server |
 
 The solution follows **Clean Architecture**: `Domain` has no dependencies, `Application`
 depends only on `Domain` + `Contracts`, `Infrastructure` implements the persistence
@@ -31,6 +31,7 @@ sugarcane/
 │   ├── SugarcanePlanning.UnitTests/       formulas and engine logic
 │   └── SugarcanePlanning.IntegrationTests/full process over a real service graph
 ├── database/01_schema.sql                 idempotent SQL Server DDL (36 tables)
+├── database/generate-schema.sh            regenerates it from the migrations
 └── docs/                                  architecture · data model · deployment · user guide
 ```
 
@@ -121,8 +122,17 @@ Configure master data
 
 ```bash
 dotnet test                      # 160 tests, no database required
+
+# The 13 SQL Server tests skip unless a server is configured. To run them:
+export SUGARCANE_TEST_SQLSERVER="Server=127.0.0.1,1433;User Id=sa;Password=…;TrustServerCertificate=True"
+dotnet test                      # 173 tests
 ```
 
 Integration tests run the real service graph (projection → activity plan → MRP → scheduling →
 capacity → actuals → reports) against an isolated in-memory database, and execute the sample
 data seeder itself so the start-up path is covered even without SQL Server.
+
+The SQL Server suite covers what no in-memory provider can: that the migration applies, that
+the multi-step operations survive their explicit transactions, and that the unique indexes,
+check constraints and `rowversion` tokens actually bite. It exists because it caught two real
+defects — see [docs/architecture.md](docs/architecture.md#what-only-a-real-database-caught).

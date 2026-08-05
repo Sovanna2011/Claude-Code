@@ -22,8 +22,14 @@ To regenerate the script after a model change:
 
 ```bash
 dotnet ef migrations add <Name> -p src/SugarcanePlanning.Infrastructure -s src/SugarcanePlanning.Api -o Persistence/Migrations
-dotnet ef migrations script  -p src/SugarcanePlanning.Infrastructure -s src/SugarcanePlanning.Api -o database/01_schema.sql --idempotent
+database/generate-schema.sh          # regenerates database/01_schema.sql
 ```
+
+Use the script rather than calling `dotnet ef migrations script` directly. The schema contains
+filtered indexes, and SQL Server refuses to create those while `QUOTED_IDENTIFIER` is OFF —
+which is how `sqlcmd` connects by default. `generate-schema.sh` prepends the required `SET`
+options; without them the raw generator output fails on the first `CREATE INDEX` with
+*Msg 1934* after creating a single table.
 
 ## 2. Configuration
 
@@ -75,6 +81,10 @@ The Blazor client reads its API address from `wwwroot/appsettings.json`:
 dotnet restore
 dotnet build -c Release
 dotnet test  -c Release                      # 160 tests
+
+# Optional: also run the 13 tests that need a real SQL Server.
+export SUGARCANE_TEST_SQLSERVER="Server=127.0.0.1,1433;User Id=sa;Password=…;TrustServerCertificate=True"
+dotnet test  -c Release                      # 173 tests
 
 dotnet publish src/SugarcanePlanning.Api    -c Release -o ./publish/api
 dotnet publish src/SugarcanePlanning.Client -c Release -o ./publish/client
@@ -211,3 +221,8 @@ removing the other demo users.
   The planning system never posts movements back.
 - **Working calendar.** Changing `Planning:WorkOnSaturday`/`WorkOnSunday` changes every
   duration and requirement calculation; regenerate activity plans afterwards.
+- **Transient-fault retries are deliberately off.** EF Core's `EnableRetryOnFailure` installs an
+  execution strategy that refuses the explicit transactions used by the create, revise and
+  plan-generation paths. If you need resilience on Azure SQL, route each of those operations
+  through `Database.CreateExecutionStrategy()` and rebuild the change tracker per attempt —
+  simply switching the option on will break them. `docs/architecture.md` has the detail.
