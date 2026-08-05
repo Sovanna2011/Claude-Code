@@ -110,8 +110,7 @@ dotnet test backend/ErpS4.Tests
 
 The rest of Phase 3, in the order it makes sense to add:
 
-1. **Web API** — endpoints for the engine, RFC 7807 Problem Details mapping
-   from `PostingError`, authorization policies, correlation ids.
+1. ~~**Web API**~~ — done: see [`ErpS4.Api`](../ErpS4.Api/README.md).
 2. **Business partner synchronisation** — assigning a customer role creates the
    role-specific data without duplicating the identity.
 3. **Clearing and payments** — open item clearing, partial and residual
