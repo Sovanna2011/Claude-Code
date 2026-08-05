@@ -26,11 +26,20 @@ for the concept-to-concept mapping.
 | [`10_sap_reference_mapping.md`](10_sap_reference_mapping.md) | — | Real S/4HANA tables and key fields → tables in this design |
 | [`table_catalogue.csv`](table_catalogue.csv) | all | Flat `Schema,Table,Field,DataType,Key,Nullable,Description` export (includes expanded) |
 
-Regenerate the CSV after editing any catalogue file:
+The catalogue is the source of truth for the physical artefacts. After editing
+any file here, regenerate all three:
 
 ```bash
-python3 tools/generate_table_catalogue.py
+python3 tools/generate_table_catalogue.py   # markdown  -> table_catalogue.csv
+python3 tools/generate_sql_ddl.py           # CSV       -> database/s4hana/*.sql
+python3 tools/generate_ef_core.py           # CSV       -> backend/ErpS4.Database
+python3 tools/validate_generated_sql.py     # parse + referential + name checks
 ```
+
+| Artefact | Location |
+|----------|----------|
+| SQL Server DDL, foreign keys, indexes, dictionary seed | [`database/s4hana/`](../../database/s4hana/) |
+| EF Core entities, configurations, DbContext | [`backend/ErpS4.Database/`](../../backend/ErpS4.Database/README.md) |
 
 ## Reading a table entry
 
@@ -136,7 +145,7 @@ stores at runtime.
 
 ## Table count by schema
 
-**228 tables, 4 393 fields** (counts produced by the CSV generator, includes
+**228 tables, 4 379 fields** (counts produced by the CSV generator, includes
 expanded).
 
 | Schema | Purpose | Tables |

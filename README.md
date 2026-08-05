@@ -30,12 +30,23 @@ See **[docs/architecture.md](docs/architecture.md)** for the full design, and th
 ## S/4HANA-inspired ERP — table catalogue
 
 Separate from the HR module, **[docs/s4hana/](docs/s4hana/README.md)** holds the
-data dictionary for the S/4HANA-inspired finance ERP: **228 tables / 4 393
+data dictionary for the S/4HANA-inspired finance ERP: **228 tables / 4 379
 fields** with table name, field name and SQL Server data type across the `org`,
 `cfg`, `mdm`, `fin`, `co`, `wf`, `sec`, `audit`, `rpt` and `intg` schemas, plus a
-[mapping to real S/4HANA tables and ABAP types](docs/s4hana/10_sap_reference_mapping.md)
-and a flat CSV export (`docs/s4hana/table_catalogue.csv`, regenerated with
-`python3 tools/generate_table_catalogue.py`).
+[mapping to real S/4HANA tables and ABAP types](docs/s4hana/10_sap_reference_mapping.md).
+
+The catalogue drives both physical artefacts, so they cannot drift from it:
+
+| | |
+|---|---|
+| **[`database/s4hana/`](database/s4hana/)** | SQL Server DDL — 228 tables, 838 foreign keys, 172 indexes, and a seed that loads the catalogue into the SE11 dictionary tables |
+| **[`backend/ErpS4.Database/`](backend/ErpS4.Database/README.md)** | EF Core 8 model — 228 entities and configurations, tenant query filters, audit stamping, append-only enforcement |
+
+```bash
+cd database/s4hana && sqlcmd -S localhost -i run_all.sql   # install the schema
+python3 tools/generate_sql_ddl.py && python3 tools/generate_ef_core.py   # regenerate
+python3 tools/validate_generated_sql.py                    # check before shipping
+```
 
 ## Try it in one command (demo)
 

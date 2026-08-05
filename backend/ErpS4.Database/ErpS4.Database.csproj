@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The catalogue targets .NET 10 / EF Core 10 per the design prompt; this
+       project pins the LTS pair the rest of this repository builds against.
+       To move to .NET 10, change TargetFramework to net10.0 and the EF Core
+       package version to 10.0.x - no source change is required. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <RootNamespace>ErpS4.Database</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.10" />
+  </ItemGroup>
+
+</Project>

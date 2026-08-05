@@ -156,13 +156,26 @@ def parse_catalogue(includes: dict[str, list[dict]]) -> list[dict]:
                 index += 1
             fields, index = parse_field_rows(lines, index)
             position = 0
+            seen: dict[str, bool] = {}
             for field in fields:
+                from_include = "include" in field
                 expanded = (
-                    includes.get(field["include"], []) if "include" in field else [field]
+                    includes.get(field["include"], []) if from_include else [field]
                 )
-                if "include" in field and not expanded:
+                if from_include and not expanded:
                     sys.exit(f"unknown include {field['include']} in {schema}.{table}")
                 for item in expanded:
+                    # A table may state a field explicitly that one of its
+                    # includes also brings in (IsActive is the common case).
+                    # The explicit definition wins; two explicit rows with the
+                    # same name are an error.
+                    if item["field"] in seen:
+                        if from_include:
+                            continue
+                        sys.exit(
+                            f"{schema}.{table}: field {item['field']} defined twice"
+                        )
+                    seen[item["field"]] = from_include
                     position += 1
                     rows.append(
                         {

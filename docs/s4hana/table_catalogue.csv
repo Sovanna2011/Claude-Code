@@ -218,7 +218,6 @@ org,SalesArea,org.SalesArea,8,CreatedBy,nvarchar(64),,no,Creating user name,Perm
 org,SalesArea,org.SalesArea,9,ModifiedAt,datetime2(3),,yes,Last change timestamp (UTC),Permitted sales organisation / channel / division combination,TVTA,01_enterprise_structure.md
 org,SalesArea,org.SalesArea,10,ModifiedBy,nvarchar(64),,yes,Last changing user name,Permitted sales organisation / channel / division combination,TVTA,01_enterprise_structure.md
 org,SalesArea,org.SalesArea,11,RowVersion,rowversion,,no,Optimistic concurrency token,Permitted sales organisation / channel / division combination,TVTA,01_enterprise_structure.md
-org,SalesArea,org.SalesArea,12,IsActive,bit,,no,Soft-delete / active flag (master + config only),Permitted sales organisation / channel / division combination,TVTA,01_enterprise_structure.md
 org,PurchasingOrganization,org.PurchasingOrganization,1,Id,bigint,PK,no,Surrogate key,Purchasing organisation,T024E,01_enterprise_structure.md
 org,PurchasingOrganization,org.PurchasingOrganization,2,TenantId,int,"FK,IX",no,Owning tenant — every query is filtered by it,Purchasing organisation,T024E,01_enterprise_structure.md
 org,PurchasingOrganization,org.PurchasingOrganization,3,PurchasingOrganization,nvarchar(4),AK,no,Purchasing organisation key,Purchasing organisation,T024E,01_enterprise_structure.md
@@ -406,7 +405,6 @@ cfg,LedgerCompanyCode,cfg.LedgerCompanyCode,12,CreatedBy,nvarchar(64),,no,Creati
 cfg,LedgerCompanyCode,cfg.LedgerCompanyCode,13,ModifiedAt,datetime2(3),,yes,Last change timestamp (UTC),Company code settings per ledger,T882G,02_configuration.md
 cfg,LedgerCompanyCode,cfg.LedgerCompanyCode,14,ModifiedBy,nvarchar(64),,yes,Last changing user name,Company code settings per ledger,T882G,02_configuration.md
 cfg,LedgerCompanyCode,cfg.LedgerCompanyCode,15,RowVersion,rowversion,,no,Optimistic concurrency token,Company code settings per ledger,T882G,02_configuration.md
-cfg,LedgerCompanyCode,cfg.LedgerCompanyCode,16,IsActive,bit,,no,Soft-delete / active flag (master + config only),Company code settings per ledger,T882G,02_configuration.md
 cfg,FiscalYearVariant,cfg.FiscalYearVariant,1,Id,bigint,PK,no,Surrogate key,Fiscal year variant,T009,02_configuration.md
 cfg,FiscalYearVariant,cfg.FiscalYearVariant,2,TenantId,int,"FK,IX",no,Owning tenant — every query is filtered by it,Fiscal year variant,T009,02_configuration.md
 cfg,FiscalYearVariant,cfg.FiscalYearVariant,3,FiscalYearVariant,nvarchar(2),AK,no,"Variant key, e.g. `K4`",Fiscal year variant,T009,02_configuration.md
@@ -717,7 +715,6 @@ cfg,Language,cfg.Language,8,CreatedBy,nvarchar(64),,no,Creating user name,Langua
 cfg,Language,cfg.Language,9,ModifiedAt,datetime2(3),,yes,Last change timestamp (UTC),Language,T002,02_configuration.md
 cfg,Language,cfg.Language,10,ModifiedBy,nvarchar(64),,yes,Last changing user name,Language,T002,02_configuration.md
 cfg,Language,cfg.Language,11,RowVersion,rowversion,,no,Optimistic concurrency token,Language,T002,02_configuration.md
-cfg,Language,cfg.Language,12,IsActive,bit,,no,Soft-delete / active flag (master + config only),Language,T002,02_configuration.md
 cfg,UnitOfMeasure,cfg.UnitOfMeasure,1,Id,bigint,PK,no,Surrogate key,Unit of measure,T006,02_configuration.md
 cfg,UnitOfMeasure,cfg.UnitOfMeasure,2,TenantId,int,"FK,IX",no,Owning tenant — every query is filtered by it,Unit of measure,T006,02_configuration.md
 cfg,UnitOfMeasure,cfg.UnitOfMeasure,3,UnitOfMeasure,nvarchar(3),AK,no,Internal unit key,Unit of measure,T006,02_configuration.md
@@ -2118,7 +2115,6 @@ mdm,HouseBankAccount,mdm.HouseBankAccount,14,CreatedBy,nvarchar(64),,no,Creating
 mdm,HouseBankAccount,mdm.HouseBankAccount,15,ModifiedAt,datetime2(3),,yes,Last change timestamp (UTC),Bank account of a house bank,T012K,04_business_partner.md
 mdm,HouseBankAccount,mdm.HouseBankAccount,16,ModifiedBy,nvarchar(64),,yes,Last changing user name,Bank account of a house bank,T012K,04_business_partner.md
 mdm,HouseBankAccount,mdm.HouseBankAccount,17,RowVersion,rowversion,,no,Optimistic concurrency token,Bank account of a house bank,T012K,04_business_partner.md
-mdm,HouseBankAccount,mdm.HouseBankAccount,18,IsActive,bit,,no,Soft-delete / active flag (master + config only),Bank account of a house bank,T012K,04_business_partner.md
 fin,JournalEntryHeader,fin.JournalEntryHeader,1,Id,bigint,PK,no,Surrogate key,Accounting document header,BKPF,05_financial_accounting.md
 fin,JournalEntryHeader,fin.JournalEntryHeader,2,TenantId,int,"FK,IX",no,Owning tenant — every query is filtered by it,Accounting document header,BKPF,05_financial_accounting.md
 fin,JournalEntryHeader,fin.JournalEntryHeader,3,CompanyCodeId,bigint,"AK,FK",no,Company code,Accounting document header,BKPF,05_financial_accounting.md
@@ -2806,7 +2802,6 @@ fin,DepreciationArea,fin.DepreciationArea,19,CreatedBy,nvarchar(64),,no,Creating
 fin,DepreciationArea,fin.DepreciationArea,20,ModifiedAt,datetime2(3),,yes,Last change timestamp (UTC),"Depreciation area (book, tax, group, cost accounting)",T093,06_asset_accounting.md
 fin,DepreciationArea,fin.DepreciationArea,21,ModifiedBy,nvarchar(64),,yes,Last changing user name,"Depreciation area (book, tax, group, cost accounting)",T093,06_asset_accounting.md
 fin,DepreciationArea,fin.DepreciationArea,22,RowVersion,rowversion,,no,Optimistic concurrency token,"Depreciation area (book, tax, group, cost accounting)",T093,06_asset_accounting.md
-fin,DepreciationArea,fin.DepreciationArea,23,IsActive,bit,,no,Soft-delete / active flag (master + config only),"Depreciation area (book, tax, group, cost accounting)",T093,06_asset_accounting.md
 fin,AssetClassDepreciationArea,fin.AssetClassDepreciationArea,1,Id,bigint,PK,no,Surrogate key,Default depreciation settings per asset class and area,ANKB,06_asset_accounting.md
 fin,AssetClassDepreciationArea,fin.AssetClassDepreciationArea,2,TenantId,int,"FK,IX",no,Owning tenant — every query is filtered by it,Default depreciation settings per asset class and area,ANKB,06_asset_accounting.md
 fin,AssetClassDepreciationArea,fin.AssetClassDepreciationArea,3,AssetClassId,bigint,"AK,FK",no,Asset class,Default depreciation settings per asset class and area,ANKB,06_asset_accounting.md
@@ -3591,7 +3586,6 @@ wf,WorkflowDefinition,wf.WorkflowDefinition,16,CreatedBy,nvarchar(64),,no,Creati
 wf,WorkflowDefinition,wf.WorkflowDefinition,17,ModifiedAt,datetime2(3),,yes,Last change timestamp (UTC),Approval process definition,,08_workflow_security_audit.md
 wf,WorkflowDefinition,wf.WorkflowDefinition,18,ModifiedBy,nvarchar(64),,yes,Last changing user name,Approval process definition,,08_workflow_security_audit.md
 wf,WorkflowDefinition,wf.WorkflowDefinition,19,RowVersion,rowversion,,no,Optimistic concurrency token,Approval process definition,,08_workflow_security_audit.md
-wf,WorkflowDefinition,wf.WorkflowDefinition,20,IsActive,bit,,no,Soft-delete / active flag (master + config only),Approval process definition,,08_workflow_security_audit.md
 wf,WorkflowRule,wf.WorkflowRule,1,Id,bigint,PK,no,Surrogate key,Condition selecting a workflow and its approval level,,08_workflow_security_audit.md
 wf,WorkflowRule,wf.WorkflowRule,2,TenantId,int,"FK,IX",no,Owning tenant — every query is filtered by it,Condition selecting a workflow and its approval level,,08_workflow_security_audit.md
 wf,WorkflowRule,wf.WorkflowRule,3,WorkflowDefinitionId,bigint,"AK,FK",no,Workflow definition,Condition selecting a workflow and its approval level,,08_workflow_security_audit.md
@@ -3613,7 +3607,6 @@ wf,WorkflowRule,wf.WorkflowRule,18,CreatedBy,nvarchar(64),,no,Creating user name
 wf,WorkflowRule,wf.WorkflowRule,19,ModifiedAt,datetime2(3),,yes,Last change timestamp (UTC),Condition selecting a workflow and its approval level,,08_workflow_security_audit.md
 wf,WorkflowRule,wf.WorkflowRule,20,ModifiedBy,nvarchar(64),,yes,Last changing user name,Condition selecting a workflow and its approval level,,08_workflow_security_audit.md
 wf,WorkflowRule,wf.WorkflowRule,21,RowVersion,rowversion,,no,Optimistic concurrency token,Condition selecting a workflow and its approval level,,08_workflow_security_audit.md
-wf,WorkflowRule,wf.WorkflowRule,22,IsActive,bit,,no,Soft-delete / active flag (master + config only),Condition selecting a workflow and its approval level,,08_workflow_security_audit.md
 wf,WorkflowStep,wf.WorkflowStep,1,Id,bigint,PK,no,Surrogate key,Step of a workflow definition,,08_workflow_security_audit.md
 wf,WorkflowStep,wf.WorkflowStep,2,TenantId,int,"FK,IX",no,Owning tenant — every query is filtered by it,Step of a workflow definition,,08_workflow_security_audit.md
 wf,WorkflowStep,wf.WorkflowStep,3,WorkflowDefinitionId,bigint,"AK,FK",no,Workflow definition,Step of a workflow definition,,08_workflow_security_audit.md
@@ -3990,7 +3983,6 @@ sec,UserSubstitution,sec.UserSubstitution,16,CreatedBy,nvarchar(64),,no,Creating
 sec,UserSubstitution,sec.UserSubstitution,17,ModifiedAt,datetime2(3),,yes,Last change timestamp (UTC),Substitute who may act for a user during an absence,,08_workflow_security_audit.md
 sec,UserSubstitution,sec.UserSubstitution,18,ModifiedBy,nvarchar(64),,yes,Last changing user name,Substitute who may act for a user during an absence,,08_workflow_security_audit.md
 sec,UserSubstitution,sec.UserSubstitution,19,RowVersion,rowversion,,no,Optimistic concurrency token,Substitute who may act for a user during an absence,,08_workflow_security_audit.md
-sec,UserSubstitution,sec.UserSubstitution,20,IsActive,bit,,no,Soft-delete / active flag (master + config only),Substitute who may act for a user during an absence,,08_workflow_security_audit.md
 sec,SegregationOfDutiesRule,sec.SegregationOfDutiesRule,1,Id,bigint,PK,no,Surrogate key,Conflicting duty combination,,08_workflow_security_audit.md
 sec,SegregationOfDutiesRule,sec.SegregationOfDutiesRule,2,TenantId,int,"FK,IX",no,Owning tenant — every query is filtered by it,Conflicting duty combination,,08_workflow_security_audit.md
 sec,SegregationOfDutiesRule,sec.SegregationOfDutiesRule,3,RuleCode,nvarchar(20),AK,no,"Rule key, e.g. `SOD_AP_01`",Conflicting duty combination,,08_workflow_security_audit.md
@@ -4008,7 +4000,6 @@ sec,SegregationOfDutiesRule,sec.SegregationOfDutiesRule,14,CreatedBy,nvarchar(64
 sec,SegregationOfDutiesRule,sec.SegregationOfDutiesRule,15,ModifiedAt,datetime2(3),,yes,Last change timestamp (UTC),Conflicting duty combination,,08_workflow_security_audit.md
 sec,SegregationOfDutiesRule,sec.SegregationOfDutiesRule,16,ModifiedBy,nvarchar(64),,yes,Last changing user name,Conflicting duty combination,,08_workflow_security_audit.md
 sec,SegregationOfDutiesRule,sec.SegregationOfDutiesRule,17,RowVersion,rowversion,,no,Optimistic concurrency token,Conflicting duty combination,,08_workflow_security_audit.md
-sec,SegregationOfDutiesRule,sec.SegregationOfDutiesRule,18,IsActive,bit,,no,Soft-delete / active flag (master + config only),Conflicting duty combination,,08_workflow_security_audit.md
 sec,SegregationOfDutiesViolation,sec.SegregationOfDutiesViolation,1,Id,bigint,PK,no,Surrogate key,Detected or accepted conflict for a user,,08_workflow_security_audit.md
 sec,SegregationOfDutiesViolation,sec.SegregationOfDutiesViolation,2,TenantId,int,"FK,IX",no,Owning tenant — every query is filtered by it,Detected or accepted conflict for a user,,08_workflow_security_audit.md
 sec,SegregationOfDutiesViolation,sec.SegregationOfDutiesViolation,3,SegregationOfDutiesRuleId,bigint,"AK,FK",no,Rule violated,Detected or accepted conflict for a user,,08_workflow_security_audit.md
@@ -4099,7 +4090,6 @@ audit,RetentionPolicy,audit.RetentionPolicy,11,CreatedBy,nvarchar(64),,no,Creati
 audit,RetentionPolicy,audit.RetentionPolicy,12,ModifiedAt,datetime2(3),,yes,Last change timestamp (UTC),Retention and archiving rule per audit or business object,,08_workflow_security_audit.md
 audit,RetentionPolicy,audit.RetentionPolicy,13,ModifiedBy,nvarchar(64),,yes,Last changing user name,Retention and archiving rule per audit or business object,,08_workflow_security_audit.md
 audit,RetentionPolicy,audit.RetentionPolicy,14,RowVersion,rowversion,,no,Optimistic concurrency token,Retention and archiving rule per audit or business object,,08_workflow_security_audit.md
-audit,RetentionPolicy,audit.RetentionPolicy,15,IsActive,bit,,no,Soft-delete / active flag (master + config only),Retention and archiving rule per audit or business object,,08_workflow_security_audit.md
 rpt,ReportDefinition,rpt.ReportDefinition,1,Id,bigint,PK,no,Surrogate key,Registered report,,09_reporting_integration.md
 rpt,ReportDefinition,rpt.ReportDefinition,2,TenantId,int,"FK,IX",no,Owning tenant — every query is filtered by it,Registered report,,09_reporting_integration.md
 rpt,ReportDefinition,rpt.ReportDefinition,3,ReportCode,nvarchar(40),AK,no,"Report key, e.g. `FI_TRIAL_BALANCE`",Registered report,,09_reporting_integration.md
@@ -4122,7 +4112,6 @@ rpt,ReportDefinition,rpt.ReportDefinition,19,CreatedBy,nvarchar(64),,no,Creating
 rpt,ReportDefinition,rpt.ReportDefinition,20,ModifiedAt,datetime2(3),,yes,Last change timestamp (UTC),Registered report,,09_reporting_integration.md
 rpt,ReportDefinition,rpt.ReportDefinition,21,ModifiedBy,nvarchar(64),,yes,Last changing user name,Registered report,,09_reporting_integration.md
 rpt,ReportDefinition,rpt.ReportDefinition,22,RowVersion,rowversion,,no,Optimistic concurrency token,Registered report,,09_reporting_integration.md
-rpt,ReportDefinition,rpt.ReportDefinition,23,IsActive,bit,,no,Soft-delete / active flag (master + config only),Registered report,,09_reporting_integration.md
 rpt,ReportParameter,rpt.ReportParameter,1,Id,bigint,PK,no,Surrogate key,Selection parameter of a report,,09_reporting_integration.md
 rpt,ReportParameter,rpt.ReportParameter,2,TenantId,int,"FK,IX",no,Owning tenant — every query is filtered by it,Selection parameter of a report,,09_reporting_integration.md
 rpt,ReportParameter,rpt.ReportParameter,3,ReportDefinitionId,bigint,"AK,FK",no,Report,Selection parameter of a report,,09_reporting_integration.md
@@ -4211,7 +4200,6 @@ intg,ApiClient,intg.ApiClient,19,CreatedBy,nvarchar(64),,no,Creating user name,R
 intg,ApiClient,intg.ApiClient,20,ModifiedAt,datetime2(3),,yes,Last change timestamp (UTC),Registered API consumer,,09_reporting_integration.md
 intg,ApiClient,intg.ApiClient,21,ModifiedBy,nvarchar(64),,yes,Last changing user name,Registered API consumer,,09_reporting_integration.md
 intg,ApiClient,intg.ApiClient,22,RowVersion,rowversion,,no,Optimistic concurrency token,Registered API consumer,,09_reporting_integration.md
-intg,ApiClient,intg.ApiClient,23,IsActive,bit,,no,Soft-delete / active flag (master + config only),Registered API consumer,,09_reporting_integration.md
 intg,IdempotencyKey,intg.IdempotencyKey,1,Id,bigint,PK,no,Surrogate key,Recorded idempotency key and its stored response,,09_reporting_integration.md
 intg,IdempotencyKey,intg.IdempotencyKey,2,TenantId,int,"FK,IX",no,Owning tenant — every query is filtered by it,Recorded idempotency key and its stored response,,09_reporting_integration.md
 intg,IdempotencyKey,intg.IdempotencyKey,3,IdempotencyKey,uniqueidentifier,AK,no,Key supplied by the caller,Recorded idempotency key and its stored response,,09_reporting_integration.md
@@ -4276,7 +4264,6 @@ intg,WebhookSubscription,intg.WebhookSubscription,16,CreatedBy,nvarchar(64),,no,
 intg,WebhookSubscription,intg.WebhookSubscription,17,ModifiedAt,datetime2(3),,yes,Last change timestamp (UTC),Subscription of an external system to events,,09_reporting_integration.md
 intg,WebhookSubscription,intg.WebhookSubscription,18,ModifiedBy,nvarchar(64),,yes,Last changing user name,Subscription of an external system to events,,09_reporting_integration.md
 intg,WebhookSubscription,intg.WebhookSubscription,19,RowVersion,rowversion,,no,Optimistic concurrency token,Subscription of an external system to events,,09_reporting_integration.md
-intg,WebhookSubscription,intg.WebhookSubscription,20,IsActive,bit,,no,Soft-delete / active flag (master + config only),Subscription of an external system to events,,09_reporting_integration.md
 intg,WebhookDelivery,intg.WebhookDelivery,1,Id,bigint,PK,no,Surrogate key,Delivery attempt of a webhook,,09_reporting_integration.md
 intg,WebhookDelivery,intg.WebhookDelivery,2,TenantId,int,"FK,IX",no,Owning tenant — every query is filtered by it,Delivery attempt of a webhook,,09_reporting_integration.md
 intg,WebhookDelivery,intg.WebhookDelivery,3,WebhookSubscriptionId,bigint,"FK,IX",no,Subscription,Delivery attempt of a webhook,,09_reporting_integration.md
@@ -4391,4 +4378,3 @@ intg,IntegrationEndpoint,intg.IntegrationEndpoint,18,CreatedBy,nvarchar(64),,no,
 intg,IntegrationEndpoint,intg.IntegrationEndpoint,19,ModifiedAt,datetime2(3),,yes,Last change timestamp (UTC),"Outbound endpoint configuration (payroll, bank, logistics)",,09_reporting_integration.md
 intg,IntegrationEndpoint,intg.IntegrationEndpoint,20,ModifiedBy,nvarchar(64),,yes,Last changing user name,"Outbound endpoint configuration (payroll, bank, logistics)",,09_reporting_integration.md
 intg,IntegrationEndpoint,intg.IntegrationEndpoint,21,RowVersion,rowversion,,no,Optimistic concurrency token,"Outbound endpoint configuration (payroll, bank, logistics)",,09_reporting_integration.md
-intg,IntegrationEndpoint,intg.IntegrationEndpoint,22,IsActive,bit,,no,Soft-delete / active flag (master + config only),"Outbound endpoint configuration (payroll, bank, logistics)",,09_reporting_integration.md
