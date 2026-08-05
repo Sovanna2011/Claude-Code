@@ -206,7 +206,7 @@ BEGIN
         [AccountNumberLength]    tinyint NOT NULL,                                                                    -- Length of G/L account numbers (max 10)
         [GroupChartOfAccountsId] bigint NULL,                                                                         -- Group chart for consolidation
         [IsBlockedForPosting]    bit NOT NULL CONSTRAINT [DF_cfg_ChartOfAccounts_IsBlockedForPosting] DEFAULT (0),    -- Chart blocked
-        [ChartType]              nvarchar(10) NOT NULL,                                                               -- Operational, Group, Country
+        [ChartType]              nvarchar(20) NOT NULL,                                                               -- Operational, Group, Country
         [CreatedAt]              datetime2(3) NOT NULL CONSTRAINT [DF_cfg_ChartOfAccounts_CreatedAt] DEFAULT (SYSUTCDATETIME()),-- Creation timestamp (UTC)
         [CreatedBy]              nvarchar(64) NOT NULL,                                                               -- Creating user name
         [ModifiedAt]             datetime2(3) NULL,                                                                   -- Last change timestamp (UTC)

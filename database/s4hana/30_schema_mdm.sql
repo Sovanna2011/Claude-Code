@@ -682,7 +682,7 @@ BEGIN
         [ChartOfAccountsId]          bigint NOT NULL,                                                                 -- Chart of accounts
         [GLAccount]                  nvarchar(10) NOT NULL,                                                           -- G/L account number
         [AccountGroupId]             bigint NOT NULL,                                                                 -- Account group
-        [AccountType]                nvarchar(20) NOT NULL,                                                           -- BalanceSheet, PrimaryCost, SecondaryCost, NonOperatingExpenseRevenue, CashAccount
+        [AccountType]                nvarchar(30) NOT NULL,                                                           -- BalanceSheet, PrimaryCost, SecondaryCost, NonOperatingExpenseRevenue, CashAccount
         [IsBalanceSheetAccount]      bit NOT NULL CONSTRAINT [DF_mdm_GLAccount_IsBalanceSheetAccount] DEFAULT (0),    -- Balance sheet account
         [IsProfitAndLossAccount]     bit NOT NULL CONSTRAINT [DF_mdm_GLAccount_IsProfitAndLossAccount] DEFAULT (0),   -- P&L account
         [IsReconciliationAccount]    bit NOT NULL CONSTRAINT [DF_mdm_GLAccount_IsReconciliationAccount] DEFAULT (0),  -- Reconciliation account - no direct posting

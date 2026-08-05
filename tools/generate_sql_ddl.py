@@ -25,6 +25,10 @@ from catalogue_model import (  # noqa: E402
 OUT = ROOT / "database" / "s4hana"
 DATABASE = "ErpS4"
 
+# Hand-written scripts that run after the generated ones. Listed here so
+# run_all.sql keeps them when it is regenerated.
+EXTRA_SCRIPTS = ["93_seed_sample_data.sql"]
+
 FILE_NUMBERS = {
     "org": "10",
     "cfg": "20",
@@ -399,6 +403,10 @@ def main() -> None:
     files.append(write_foreign_keys(tables))
     files.append(write_indexes(tables))
     files.append(write_dictionary_seed(tables))
+    for extra in EXTRA_SCRIPTS:
+        if not (OUT / extra).exists():
+            sys.exit(f"missing hand-written script: {extra}")
+        files.append(extra)
     write_run_all(files)
     columns = sum(len(t.fields) for t in tables)
     print(f"database/s4hana: {len(tables)} tables, {columns} columns, {len(files)} scripts")

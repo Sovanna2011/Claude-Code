@@ -21,7 +21,7 @@ currencies, tax, payment terms, ledgers and account determination.
 | `AccountNumberLength` | `tinyint` | | no | Length of G/L account numbers (max 10) |
 | `GroupChartOfAccountsId` | `bigint` | FK | yes | Group chart for consolidation |
 | `IsBlockedForPosting` | `bit` | | no | Chart blocked |
-| `ChartType` | `nvarchar(10)` | | no | `Operational`, `Group`, `Country` |
+| `ChartType` | `nvarchar(20)` | | no | `Operational`, `Group`, `Country` |
 | *include* | `#AUDIT` | | | Standard audit columns |
 
 ---

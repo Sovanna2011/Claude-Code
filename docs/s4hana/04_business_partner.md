@@ -508,7 +508,7 @@ without touching the general identity.
 | `ChartOfAccountsId` | `bigint` | AK,FK | no | Chart of accounts |
 | `GLAccount` | `nvarchar(10)` | AK | no | G/L account number |
 | `AccountGroupId` | `bigint` | FK | no | Account group |
-| `AccountType` | `nvarchar(20)` | | no | `BalanceSheet`, `PrimaryCost`, `SecondaryCost`, `NonOperatingExpenseRevenue`, `CashAccount` |
+| `AccountType` | `nvarchar(30)` | | no | `BalanceSheet`, `PrimaryCost`, `SecondaryCost`, `NonOperatingExpenseRevenue`, `CashAccount` |
 | `IsBalanceSheetAccount` | `bit` | | no | Balance sheet account |
 | `IsProfitAndLossAccount` | `bit` | | no | P&L account |
 | `IsReconciliationAccount` | `bit` | | no | Reconciliation account — no direct posting |

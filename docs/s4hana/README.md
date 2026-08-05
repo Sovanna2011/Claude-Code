@@ -24,6 +24,7 @@ for the concept-to-concept mapping.
 | [`08_workflow_security_audit.md`](08_workflow_security_audit.md) | `wf`, `sec`, `audit` | Approval workflow, users/roles/authorization objects, audit log, change documents |
 | [`09_reporting_integration.md`](09_reporting_integration.md) | `rpt`, `intg` | Report definitions, layouts, outbox/inbox, webhooks, idempotency, bank statement import |
 | [`10_sap_reference_mapping.md`](10_sap_reference_mapping.md) | — | Real S/4HANA tables and key fields → tables in this design |
+| [`11_entity_relationships.md`](11_entity_relationships.md) | all | Nine Mermaid ERDs, generated from the resolved foreign keys |
 | [`table_catalogue.csv`](table_catalogue.csv) | all | Flat `Schema,Table,Field,DataType,Key,Nullable,Description` export (includes expanded) |
 
 The catalogue is the source of truth for the physical artefacts. After editing
@@ -33,13 +34,20 @@ any file here, regenerate all three:
 python3 tools/generate_table_catalogue.py   # markdown  -> table_catalogue.csv
 python3 tools/generate_sql_ddl.py           # CSV       -> database/s4hana/*.sql
 python3 tools/generate_ef_core.py           # CSV       -> backend/ErpS4.Database
-python3 tools/validate_generated_sql.py     # parse + referential + name checks
+python3 tools/generate_erd.py               # CSV       -> 11_entity_relationships.md
+python3 tools/validate_generated_sql.py     # five static checks, see below
 ```
 
 | Artefact | Location |
 |----------|----------|
 | SQL Server DDL, foreign keys, indexes, dictionary seed | [`database/s4hana/`](../../database/s4hana/) |
 | EF Core entities, configurations, DbContext | [`backend/ErpS4.Database/`](../../backend/ErpS4.Database/README.md) |
+
+`validate_generated_sql.py` runs before anything reaches a server: a T-SQL parse
+of every batch, foreign keys resolving to a real primary or business key of a
+matching type, unique constraint names within 128 characters, seeded columns
+existing and every required column supplied, and each `VALUES` row matching its
+column list with literals that fit their column width.
 
 ## Reading a table entry
 

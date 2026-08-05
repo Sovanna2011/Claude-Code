@@ -19,6 +19,7 @@
 :r 90_foreign_keys.sql
 :r 91_indexes.sql
 :r 92_seed_dictionary.sql
+:r 93_seed_sample_data.sql
 GO
 PRINT 'ErpS4 database installation complete.';
 GO

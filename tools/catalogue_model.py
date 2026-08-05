@@ -159,6 +159,7 @@ class Table:
     name: str
     description: str
     sap_reference: str
+    source_file: str = ""
     fields: list[Field] = dc_field(default_factory=list)
 
     @property
@@ -234,6 +235,7 @@ def load_tables() -> list[Table]:
                     name=row["Table"],
                     description=row["TableDescription"],
                     sap_reference=row["SapReference"],
+                    source_file=row["SourceFile"],
                 )
                 tables[key] = table
             table.fields.append(

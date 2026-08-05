@@ -76,6 +76,155 @@ def check_references() -> list[str]:
     return problems
 
 
+INSERT = re.compile(
+    r"INSERT\s+INTO\s+(?:\[?(\w+)\]?\.\[?(\w+)\]?)\s*\(([^)]*(?:\([^)]*\)[^)]*)*)\)\s*"
+    r"(?:VALUES|SELECT|OUTPUT)",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def check_inserts() -> list[str]:
+    """Every seeded column must exist, and every column the database cannot
+    fill by itself must be supplied."""
+    tables = {t.full_name: t for t in load_tables()}
+    problems: list[str] = []
+    for path in sorted(SQL_DIR.glob("9*_seed*.sql")):
+        text = path.read_text(encoding="utf-8-sig")
+        for schema, name, column_list, in [
+            (m.group(1), m.group(2), m.group(3)) for m in INSERT.finditer(text)
+        ]:
+            full_name = f"{schema}.{name}"
+            table = tables.get(full_name)
+            if table is None:
+                if not full_name.startswith("#"):
+                    problems.append(f"{path.name}: unknown table {full_name}")
+                continue
+            columns = [c.strip().strip("[]") for c in column_list.split(",") if c.strip()]
+            for column in columns:
+                if table.field(column) is None:
+                    problems.append(f"{path.name}: {full_name} has no column {column}")
+            supplied = set(columns)
+            for f in table.fields:
+                if f.nullable or f.name in supplied:
+                    continue
+                # The database fills these on its own.
+                if f.sql_type == "rowversion" or (f.is_pk and f.name == "Id"):
+                    continue
+                if f.name == "CreatedAt" or f.sql_type == "bit":
+                    continue
+                problems.append(
+                    f"{path.name}: {full_name}.{f.name} is required but not supplied"
+                )
+    return problems
+
+
+def split_top_level(text: str) -> list[str]:
+    """Split on commas that are not inside parentheses or a string literal."""
+    parts, current, depth, in_string = [], [], 0, False
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if in_string:
+            if char == "'":
+                if index + 1 < len(text) and text[index + 1] == "'":
+                    current.append("''")
+                    index += 2
+                    continue
+                in_string = False
+            current.append(char)
+        elif char == "'":
+            in_string = True
+            current.append(char)
+        elif char == "(":
+            depth += 1
+            current.append(char)
+        elif char == ")":
+            depth -= 1
+            current.append(char)
+        elif char == "," and depth == 0:
+            parts.append("".join(current).strip())
+            current = []
+        else:
+            current.append(char)
+        index += 1
+    if "".join(current).strip():
+        parts.append("".join(current).strip())
+    return parts
+
+
+STRING_LITERAL = re.compile(r"^N?'((?:[^']|'')*)'$", re.DOTALL)
+BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
+LINE_COMMENT = re.compile(r"--[^\n]*")
+
+
+def strip_comments(text: str) -> str:
+    return LINE_COMMENT.sub("", BLOCK_COMMENT.sub("", text))
+
+
+def value_tuples(text: str) -> list[str]:
+    """Top-level parenthesised groups - one per VALUES row. Depth aware, so a
+    nested call such as DATEFROMPARTS(2026, 1, 1) does not end a row."""
+    tuples, depth, start, in_string = [], 0, None, False
+    for index, char in enumerate(text):
+        if in_string:
+            if char == "'":
+                in_string = False
+            continue
+        if char == "'":
+            in_string = True
+        elif char == "(":
+            if depth == 0:
+                start = index + 1
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0 and start is not None:
+                tuples.append(text[start:index])
+                start = None
+        elif char == ";" and depth == 0:
+            break
+    return tuples
+
+
+def check_insert_arity() -> list[str]:
+    """Each VALUES row must supply exactly one value per column, and a string
+    literal must fit the column it goes into."""
+    tables = {t.full_name: t for t in load_tables()}
+    problems: list[str] = []
+    for path in sorted(SQL_DIR.glob("9*_seed*.sql")):
+        text = path.read_text(encoding="utf-8-sig")
+        for match in INSERT.finditer(text):
+            table = tables.get(f"{match.group(1)}.{match.group(2)}")
+            if table is None:
+                continue
+            if not text[match.start() : match.end()].rstrip().upper().endswith("VALUES"):
+                continue  # INSERT ... SELECT: SQL Server checks those itself
+            columns = [c.strip().strip("[]") for c in match.group(3).split(",") if c.strip()]
+            for row_number, row in enumerate(
+                value_tuples(strip_comments(text[match.end() :])), start=1
+            ):
+                values = split_top_level(row)
+                where = f"{path.name}: {table.full_name} row {row_number}"
+                if len(values) != len(columns):
+                    problems.append(
+                        f"{where}: {len(values)} values for {len(columns)} columns"
+                    )
+                    continue
+                for column_name, value in zip(columns, values):
+                    field = table.field(column_name)
+                    literal = STRING_LITERAL.match(value)
+                    if field is None or literal is None:
+                        continue
+                    limit = field.max_length
+                    actual = len(literal.group(1).replace("''", "'"))
+                    if limit is not None and actual > limit:
+                        problems.append(
+                            f"{where}: {column_name} is {field.sql_type} but the "
+                            f"value is {actual} characters"
+                        )
+    return problems
+
+
 def check_identifiers() -> list[str]:
     problems: list[str] = []
     seen: collections.Counter[str] = collections.Counter()
@@ -97,6 +246,8 @@ def main() -> None:
         ("T-SQL parse", parse_batches()),
         ("references", check_references()),
         ("identifiers", check_identifiers()),
+        ("seed inserts", check_inserts()),
+        ("seed values", check_insert_arity()),
     ):
         if problems:
             failures += len(problems)

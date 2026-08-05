@@ -33,13 +33,14 @@ Separate from the HR module, **[docs/s4hana/](docs/s4hana/README.md)** holds the
 data dictionary for the S/4HANA-inspired finance ERP: **228 tables / 4 379
 fields** with table name, field name and SQL Server data type across the `org`,
 `cfg`, `mdm`, `fin`, `co`, `wf`, `sec`, `audit`, `rpt` and `intg` schemas, plus a
-[mapping to real S/4HANA tables and ABAP types](docs/s4hana/10_sap_reference_mapping.md).
+[mapping to real S/4HANA tables and ABAP types](docs/s4hana/10_sap_reference_mapping.md)
+and [nine entity relationship diagrams](docs/s4hana/11_entity_relationships.md).
 
 The catalogue drives both physical artefacts, so they cannot drift from it:
 
 | | |
 |---|---|
-| **[`database/s4hana/`](database/s4hana/)** | SQL Server DDL — 228 tables, 838 foreign keys, 172 indexes, and a seed that loads the catalogue into the SE11 dictionary tables |
+| **[`database/s4hana/`](database/s4hana/)** | SQL Server DDL — 228 tables, 838 foreign keys, 172 indexes, the SE11 dictionary seed, and a sample dataset (2 companies, 3 company codes, customer/vendor/dual-role partners, an asset, an intercompany pair, a KHR invoice) |
 | **[`backend/ErpS4.Database/`](backend/ErpS4.Database/README.md)** | .NET 10 / EF Core 10 model — 228 entities and configurations, tenant query filters, audit stamping, append-only enforcement |
 
 ```bash

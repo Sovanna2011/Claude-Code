@@ -1117,7 +1117,7 @@ public sealed class GLAccountConfiguration : IEntityTypeConfiguration<GLAccount>
         builder.Property(e => e.ChartOfAccountsId).IsRequired();
         builder.Property(e => e.GLAccountCode).HasColumnName("GLAccount").HasMaxLength(10).IsUnicode().IsRequired();
         builder.Property(e => e.AccountGroupId).IsRequired();
-        builder.Property(e => e.AccountType).HasMaxLength(20).IsUnicode().IsRequired();
+        builder.Property(e => e.AccountType).HasMaxLength(30).IsUnicode().IsRequired();
         builder.Property(e => e.IsBalanceSheetAccount).IsRequired();
         builder.Property(e => e.IsProfitAndLossAccount).IsRequired();
         builder.Property(e => e.IsReconciliationAccount).IsRequired();

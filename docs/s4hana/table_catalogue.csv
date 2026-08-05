@@ -343,7 +343,7 @@ cfg,ChartOfAccounts,cfg.ChartOfAccounts,5,MaintenanceLanguage,nvarchar(2),FK,no,
 cfg,ChartOfAccounts,cfg.ChartOfAccounts,6,AccountNumberLength,tinyint,,no,Length of G/L account numbers (max 10),Chart of accounts,T004,02_configuration.md
 cfg,ChartOfAccounts,cfg.ChartOfAccounts,7,GroupChartOfAccountsId,bigint,FK,yes,Group chart for consolidation,Chart of accounts,T004,02_configuration.md
 cfg,ChartOfAccounts,cfg.ChartOfAccounts,8,IsBlockedForPosting,bit,,no,Chart blocked,Chart of accounts,T004,02_configuration.md
-cfg,ChartOfAccounts,cfg.ChartOfAccounts,9,ChartType,nvarchar(10),,no,"`Operational`, `Group`, `Country`",Chart of accounts,T004,02_configuration.md
+cfg,ChartOfAccounts,cfg.ChartOfAccounts,9,ChartType,nvarchar(20),,no,"`Operational`, `Group`, `Country`",Chart of accounts,T004,02_configuration.md
 cfg,ChartOfAccounts,cfg.ChartOfAccounts,10,CreatedAt,datetime2(3),,no,Creation timestamp (UTC),Chart of accounts,T004,02_configuration.md
 cfg,ChartOfAccounts,cfg.ChartOfAccounts,11,CreatedBy,nvarchar(64),,no,Creating user name,Chart of accounts,T004,02_configuration.md
 cfg,ChartOfAccounts,cfg.ChartOfAccounts,12,ModifiedAt,datetime2(3),,yes,Last change timestamp (UTC),Chart of accounts,T004,02_configuration.md
@@ -2000,7 +2000,7 @@ mdm,GLAccount,mdm.GLAccount,2,TenantId,int,"FK,IX",no,Owning tenant — every qu
 mdm,GLAccount,mdm.GLAccount,3,ChartOfAccountsId,bigint,"AK,FK",no,Chart of accounts,G/L account — chart of accounts area,SKA1,04_business_partner.md
 mdm,GLAccount,mdm.GLAccount,4,GLAccount,nvarchar(10),AK,no,G/L account number,G/L account — chart of accounts area,SKA1,04_business_partner.md
 mdm,GLAccount,mdm.GLAccount,5,AccountGroupId,bigint,FK,no,Account group,G/L account — chart of accounts area,SKA1,04_business_partner.md
-mdm,GLAccount,mdm.GLAccount,6,AccountType,nvarchar(20),,no,"`BalanceSheet`, `PrimaryCost`, `SecondaryCost`, `NonOperatingExpenseRevenue`, `CashAccount`",G/L account — chart of accounts area,SKA1,04_business_partner.md
+mdm,GLAccount,mdm.GLAccount,6,AccountType,nvarchar(30),,no,"`BalanceSheet`, `PrimaryCost`, `SecondaryCost`, `NonOperatingExpenseRevenue`, `CashAccount`",G/L account — chart of accounts area,SKA1,04_business_partner.md
 mdm,GLAccount,mdm.GLAccount,7,IsBalanceSheetAccount,bit,,no,Balance sheet account,G/L account — chart of accounts area,SKA1,04_business_partner.md
 mdm,GLAccount,mdm.GLAccount,8,IsProfitAndLossAccount,bit,,no,P&L account,G/L account — chart of accounts area,SKA1,04_business_partner.md
 mdm,GLAccount,mdm.GLAccount,9,IsReconciliationAccount,bit,,no,Reconciliation account — no direct posting,G/L account — chart of accounts area,SKA1,04_business_partner.md

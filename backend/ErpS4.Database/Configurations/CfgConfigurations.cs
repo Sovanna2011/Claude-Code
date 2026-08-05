@@ -333,7 +333,7 @@ public sealed class ChartOfAccountsConfiguration : IEntityTypeConfiguration<Char
         builder.Property(e => e.MaintenanceLanguage).HasMaxLength(2).IsUnicode().IsRequired();
         builder.Property(e => e.AccountNumberLength).IsRequired();
         builder.Property(e => e.IsBlockedForPosting).IsRequired();
-        builder.Property(e => e.ChartType).HasMaxLength(10).IsUnicode().IsRequired();
+        builder.Property(e => e.ChartType).HasMaxLength(20).IsUnicode().IsRequired();
         builder.Property(e => e.CreatedAt).HasColumnType("datetime2(3)").IsRequired().HasDefaultValueSql("SYSUTCDATETIME()");
         builder.Property(e => e.CreatedBy).HasMaxLength(64).IsUnicode().IsRequired();
         builder.Property(e => e.ModifiedAt).HasColumnType("datetime2(3)");
