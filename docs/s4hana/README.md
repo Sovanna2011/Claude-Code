@@ -43,6 +43,15 @@ python3 tools/validate_generated_sql.py     # five static checks, see below
 | SQL Server DDL, foreign keys, indexes, dictionary seed | [`database/s4hana/`](../../database/s4hana/) |
 | EF Core entities, configurations, DbContext | [`backend/ErpS4.Database/`](../../backend/ErpS4.Database/README.md) |
 
+The dictionary seed also carries the two things SE16N reads before it will
+answer anything: each table's **authorization group** (`SECU` for `sec` and
+`audit`, which are never browsable; `FINC`, `MAST`, `CONF`, `TECH` for the
+rest, each with its own row cap and export flag) and the **masked fields** —
+password hashes, API credentials, IBANs and bank account numbers, and a
+person's date and place of birth. Both live in `tools/generate_sql_ddl.py`
+beside the catalogue, and a masked field naming a column that no longer exists
+fails the generator rather than silently unmasking it.
+
 `validate_generated_sql.py` runs before anything reaches a server: a T-SQL parse
 of every batch, foreign keys resolving to a real primary or business key of a
 matching type, unique constraint names within 128 characters, seeded columns

@@ -149,6 +149,9 @@ public static class Policies
     public const string ReadAsset = "Assets.Asset.Read";
     public const string PostAsset = "Assets.Asset.Post";
     public const string ApproveJournalEntry = "Finance.JournalEntry.Approve";
+    public const string ReadDictionary = "Admin.Dictionary.Read";
+    public const string ReadTableBrowser = "Admin.TableBrowser.Read";
+    public const string ExportTableBrowser = "Admin.TableBrowser.Export";
 }
 
 /// <summary>

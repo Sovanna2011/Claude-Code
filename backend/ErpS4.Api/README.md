@@ -32,6 +32,15 @@ dotnet run --project backend/ErpS4.Api      # http://localhost:5000
 | `GET` | `/api/v1/approvals/inbox` | — | authenticated |
 | `POST` | `/api/v1/approvals/{id}/approve` | — | `Finance.JournalEntry.Approve` |
 | `POST` | `/api/v1/approvals/{id}/reject` | — | `Finance.JournalEntry.Approve` |
+| `GET` | `/api/v1/dictionary/objects` | SE11 | `Admin.Dictionary.Read` |
+| `GET` | `/api/v1/dictionary/tables/{schema}/{table}` | SE11 | `Admin.Dictionary.Read` |
+| `GET` | `/api/v1/dictionary/tables/{schema}/{table}/ddl` | SE11 | `Admin.Dictionary.Read` |
+| `GET` | `/api/v1/dictionary/tables/{schema}/{table}/where-used` | SE11 | `Admin.Dictionary.Read` |
+| `GET` | `/api/v1/dictionary/domains/{name}` | SE11 | `Admin.Dictionary.Read` |
+| `GET` | `/api/v1/dictionary/data-elements/{name}` | SE11 | `Admin.Dictionary.Read` |
+| `GET` | `/api/v1/table-browser/tables` | SE16N | `Admin.TableBrowser.Read` |
+| `POST` | `/api/v1/table-browser/query` | SE16N | `Admin.TableBrowser.Read` |
+| `POST` | `/api/v1/table-browser/export` | SE16N | `Admin.TableBrowser.Export` |
 
 ## How the pieces fit
 
@@ -69,6 +78,13 @@ outbox message the request writes.
 
 **Errors never leak internals.** Stack traces, SQL and connection strings stay
 in the log; the client gets a stable `errorCode` and a `traceId` to quote.
+
+**Export is a separate permission from display.** `/table-browser/query` and
+`/table-browser/export` run the same code; taking rows out of the system is a
+different act from looking at them, so it needs its own grant and is logged as
+an export. A browser query narrowed to a company code is still checked against
+the caller's organisational access, so the browser cannot hand out what the
+posting endpoints refuse.
 
 > Not compiled or run: no .NET SDK is available in this environment
 > (`builds.dotnet.microsoft.com` is blocked by network policy). Run

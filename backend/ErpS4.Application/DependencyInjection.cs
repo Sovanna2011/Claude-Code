@@ -1,9 +1,11 @@
 using ErpS4.Application.BusinessPartners;
 using ErpS4.Application.Assets;
 using ErpS4.Application.Clearing;
+using ErpS4.Application.DataDictionary;
 using ErpS4.Application.Workflow;
 using ErpS4.Application.Posting;
 using ErpS4.Application.Services;
+using ErpS4.Application.TableBrowser;
 using ErpS4.Database;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,6 +30,8 @@ public static class DependencyInjection
         services.AddScoped<IClearingService, ClearingService>();
         services.AddScoped<IAssetService, AssetService>();
         services.AddScoped<IWorkflowService, WorkflowService>();
+        services.AddScoped<IDictionaryService, DictionaryService>();
+        services.AddScoped<ITableBrowserService, TableBrowserService>();
         services.AddScoped<PostJournalEntryHandler>();
 
         services.AddValidatorsFromAssemblyContaining<PostJournalEntryCommandValidator>();

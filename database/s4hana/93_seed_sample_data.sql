@@ -1138,8 +1138,10 @@ VALUES (@Tenant, N'Finance.JournalEntry.Create',  N'Create journal entry',  N'Fi
        (@Tenant, N'Finance.Report.Export',        N'Export reports',        N'Finance', N'Report',       N'Export',  1, @By),
        (@Tenant, N'Master.BusinessPartner.Read',   N'Display partners',    N'Master',  N'BusinessPartner', N'Read',   0, @By),
        (@Tenant, N'Master.BusinessPartner.Update', N'Maintain partners',    N'Master',  N'BusinessPartner', N'Update', 0, @By),
+       (@Tenant, N'Admin.Dictionary.Read',        N'Display dictionary',    N'Admin',   N'DictionaryObject', N'Read',   0, @By),
        (@Tenant, N'Admin.Dictionary.Update',      N'Maintain dictionary',   N'Admin',   N'DictionaryObject', N'Update', 1, @By),
        (@Tenant, N'Admin.TableBrowser.Read',      N'Browse tables',         N'Admin',   N'TableBrowser', N'Read',    1, @By),
+       (@Tenant, N'Admin.TableBrowser.Export',    N'Export browser results', N'Admin',  N'TableBrowser', N'Export',  1, @By),
        (@Tenant, N'Assets.Asset.Read',            N'Display assets',        N'Assets',  N'Asset',        N'Read',    0, @By),
        (@Tenant, N'Assets.Asset.Post',            N'Post asset movements',  N'Assets',  N'Asset',        N'Post',    1, @By);
 

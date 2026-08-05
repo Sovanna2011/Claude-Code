@@ -18,6 +18,12 @@ ErpS4.Application/
 │   ├── PostingEngine.cs      orchestration and persistence
 │   ├── PostingEngine.Validation.cs  the rule set
 │   └── PostJournalEntryCommand.cs   CQRS command, validator, handler
+├── DataDictionary/
+│   ├── DictionaryContracts.cs  IDictionaryService, table/domain/element views
+│   └── DictionaryService.cs    SE11 display and generated DDL
+├── TableBrowser/
+│   ├── TableBrowserContracts.cs  ITableBrowserService, filters, operators
+│   └── TableBrowserService.cs    SE16N query building, masking, logging
 ├── Workflow/
 │   ├── WorkflowContracts.cs  IWorkflowService, decisions, inbox
 │   └── WorkflowService.cs    rules, tasks, maker-checker, substitution
@@ -34,7 +40,7 @@ ErpS4.Application/
 └── DependencyInjection.cs
 
 ErpS4.Database/               (existing) + IErpDataContext, NumberRangeService
-ErpS4.Tests/                  90 tests, no database required
+ErpS4.Tests/                  120 tests, no database required
 ```
 
 ## What the engine enforces
@@ -91,9 +97,21 @@ pointer to its reversal. There is no code path that alters a posted line.
 `PostingError`; exceptions are reserved for genuine faults. That keeps the
 validation pipeline composable and the API mapping trivial.
 
+**The browser builds SQL; nothing else in the system does.** `IErpDataContext`
+exposes exactly one raw-query method, and `TableBrowserService` is its only
+caller. Identifiers come from the dictionary rows the service just loaded and
+are bracket-quoted; every value the caller supplies becomes a parameter. There
+is no branch in which request text reaches the statement — which is why a field
+name that is not in the dictionary is refused rather than escaped.
+
+**Masked means never read.** A masked column is selected as a literal `NULL`,
+so the value never leaves the database, and it cannot be filtered on or sorted
+by either: repeated equality probes and an ordering both recover what the
+display refuses to show.
+
 ## Tests
 
-90 tests, all running against in-memory lists — no database, no EF provider,
+120 tests, all running against in-memory lists — no database, no EF provider,
 milliseconds to run. They encode the rules section 23 of the design calls
 mandatory:
 
@@ -121,6 +139,17 @@ mandatory:
 * the submitter is never given a task on their own document, and cannot decide
 * only the final approval posts; a rejection leaves the ledger untouched
 * approval after the period closed escalates rather than posting
+* a security table is refused by the browser and absent from its table list
+* a filter value carrying `'; DROP TABLE …` travels as a parameter, and a field
+  name that is not in the dictionary is refused outright
+* `%` and `_` typed by a user match themselves instead of expanding
+* the tenant condition is added by the service, never asked for by the caller
+* the authorization group's row cap beats the request, and a truncated result
+  says so
+* a masked column comes back as asterisks and cannot be filtered or sorted on
+* every query is logged with who ran it, what it selected and how much it
+  returned
+* the DDL SE11 renders is the DDL the dictionary rows describe
 
 ```bash
 dotnet test backend/ErpS4.Tests
@@ -167,5 +196,22 @@ The rest of Phase 3, in the order it makes sense to add:
    a decision from them is refused. Substitutes can decide, and the task records
    who acted. Rules are re-checked at approval, so a period that closed while
    the document waited escalates instead of reopening itself.
-6. **Dictionary, table browser and custom object services** — the SE11 and
-   SE16N back ends over the metadata tables.
+6. ~~**Dictionary and table browser**~~ — done: `IDictionaryService` is SE11's
+   display half — objects, a table with its fields, indexes and foreign keys,
+   domains and data elements, a where-used list, and the DDL those rows imply.
+   `ITableBrowserService` is SE16N: it resolves the table and its fields through
+   the dictionary, refuses anything it cannot find there, adds tenant isolation
+   itself, caps the result by authorization group, masks what is marked masked,
+   and logs every query.
+
+## Still not built
+
+* **SE11's change half** — activating a dictionary object, generating the
+  migration and routing it through approval (design section 10.4). The display
+  service deliberately stops at showing the DDL: a service that also ran it
+  would be a way to change the database without a migration.
+* **Custom object services** — custom tables, fields and their transport.
+* **Foreign-currency clearing** and the **automatic payment run** (F110).
+* **Asset transfers, write-ups, impairment** and assets-under-construction
+  settlement.
+* Phase 4 (frontend) and Phase 5 (testing and deployment).

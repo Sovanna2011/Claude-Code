@@ -55,6 +55,54 @@ SCHEMA_TITLES = {
     "intg": "Integration and API management",
 }
 
+# SE16N authorization groups. The browser reads these: a system-protected group
+# is never browsable at all, and the row cap is per group rather than per user
+# so that "how much can leave this table in one go" is a property of the data.
+AUTHORIZATION_GROUPS = [
+    # code, name, system protected, export allowed, max rows per query
+    ("SECU", "Security and audit - never browsable", 1, 0, 0),
+    ("FINC", "Financial documents and balances", 0, 1, 5000),
+    ("MAST", "Master data", 0, 1, 5000),
+    ("CONF", "Configuration and customizing", 0, 1, 5000),
+    ("TECH", "Technical, integration and reporting metadata", 0, 0, 1000),
+]
+
+SCHEMA_AUTHORIZATION_GROUP = {
+    "sec": "SECU",
+    "audit": "SECU",
+    "fin": "FINC",
+    "co": "FINC",
+    "mdm": "MAST",
+    "org": "MAST",
+    "cfg": "CONF",
+    "wf": "TECH",
+    "rpt": "TECH",
+    "intg": "TECH",
+}
+
+# Fields SE16N shows as asterisks and never reads from the database. Listed
+# exactly rather than matched by pattern: a regex over field names would sweep
+# in IsMfaEnabled and PasswordChangedAt, which are not secrets, and would miss
+# CredentialReference, which is.
+MASKED_FIELDS = {
+    ("sec", "User", "PasswordHash"),
+    ("sec", "User", "PasswordSalt"),
+    ("sec", "User", "MfaSecretReference"),
+    ("sec", "PasswordHistory", "PasswordHash"),
+    ("sec", "PasswordHistory", "PasswordSalt"),
+    ("sec", "UserSession", "RefreshTokenHash"),
+    ("intg", "ApiClient", "ApiKeyHash"),
+    ("intg", "IntegrationEndpoint", "CredentialReference"),
+    ("intg", "WebhookSubscription", "SecretReference"),
+    ("intg", "BankStatementItem", "PartnerIban"),
+    ("mdm", "BusinessPartnerBank", "BankAccountNumber"),
+    ("mdm", "BusinessPartnerBank", "Iban"),
+    ("mdm", "HouseBankAccount", "BankAccountNumber"),
+    ("mdm", "HouseBankAccount", "Iban"),
+    ("mdm", "BusinessPartner", "DateOfBirth"),
+    ("mdm", "BusinessPartner", "PlaceOfBirth"),
+}
+
 BANNER = """/* ============================================================================
    {title}
    {subtitle}
@@ -307,6 +355,36 @@ def write_dictionary_seed(tables: list[Table]) -> str:
         "GO\n",
     ]
 
+    group_rows = ",\n".join(
+        f"(1, N'{code}', N'{name}', {protected}, {export}, {max_rows}, N'SYSTEM')"
+        for code, name, protected, export, max_rows in AUTHORIZATION_GROUPS
+    )
+    parts.append(
+        "/* SE16N authorization groups. A table's group decides whether it can be\n"
+        "   browsed at all, whether the result can be exported, and how many rows\n"
+        "   one query may return. */\n"
+        "MERGE cfg.TableAuthorizationGroup AS target\n"
+        "USING (VALUES\n" + group_rows + "\n"
+        ") AS source (TenantId, AuthorizationGroup, Name, IsSystemProtected,\n"
+        "             AllowExport, MaxRowsPerQuery, CreatedBy)\n"
+        "    ON  target.TenantId           = source.TenantId\n"
+        "    AND target.AuthorizationGroup = source.AuthorizationGroup\n"
+        "WHEN MATCHED THEN UPDATE SET\n"
+        "    target.Name              = source.Name,\n"
+        "    target.IsSystemProtected = source.IsSystemProtected,\n"
+        "    target.AllowExport       = source.AllowExport,\n"
+        "    target.MaxRowsPerQuery   = source.MaxRowsPerQuery,\n"
+        "    target.ModifiedAt        = SYSUTCDATETIME(),\n"
+        "    target.ModifiedBy        = source.CreatedBy\n"
+        "WHEN NOT MATCHED BY TARGET THEN INSERT\n"
+        "    (TenantId, AuthorizationGroup, Name, IsSystemProtected, AllowExport,\n"
+        "     MaxRowsPerQuery, CreatedBy)\n"
+        "    VALUES (source.TenantId, source.AuthorizationGroup, source.Name,\n"
+        "            source.IsSystemProtected, source.AllowExport,\n"
+        "            source.MaxRowsPerQuery, source.CreatedBy);\n"
+        "GO\n"
+    )
+
     table_rows = []
     for t in tables:
         category = (
@@ -318,28 +396,40 @@ def write_dictionary_seed(tables: list[Table]) -> str:
         )
         immutable = 1 if t.is_append_only else 0
         pk = ",".join(f.name for f in t.primary_key)
+        group = SCHEMA_AUTHORIZATION_GROUP[t.schema]
         table_rows.append(
             f"(1, N'{t.schema}', N'{t.name}', N'{quote(clean(t.description))}', "
             f"N'{category}', N'A', N'Maintain', {1 if t.has_tenant else 0}, "
             f"{1 if t.field('CompanyCodeId') else 0}, 3, N'None', 1, {immutable}, "
-            f"N'{pk}', N'Active', N'SYSTEM')"
+            f"N'{group}', N'{pk}', N'Active', N'SYSTEM')"
         )
     parts.append(
         "INSERT INTO cfg.DictionaryTable\n"
         "    (TenantId, SchemaName, TableName, ShortDescription, TableCategory,\n"
         "     DeliveryClass, MaintenanceType, IsTenantDependent, IsCompanyCodeDependent,\n"
-        "     SizeCategory, BufferingType, IsLogged, IsImmutable, PrimaryKeyFields,\n"
-        "     Status, CreatedBy)\n"
+        "     SizeCategory, BufferingType, IsLogged, IsImmutable, AuthorizationGroup,\n"
+        "     PrimaryKeyFields, Status, CreatedBy)\n"
         "VALUES\n" + ",\n".join(table_rows) + ";\nGO\n"
     )
+
+    # A masked field that no longer exists would silently stop being masked, so
+    # the list is checked against the catalogue rather than trusted.
+    known = {(t.schema, t.name, f.name) for t in tables for f in t.fields}
+    unknown = sorted(MASKED_FIELDS - known)
+    if unknown:
+        raise SystemExit(
+            "MASKED_FIELDS names fields that are not in the catalogue: "
+            + ", ".join(".".join(entry) for entry in unknown)
+        )
 
     field_rows: list[str] = []
     for t in tables:
         for f in t.fields:
+            masked = 1 if (t.schema, t.name, f.name) in MASKED_FIELDS else 0
             field_rows.append(
                 f"(1, N'{t.schema}', N'{t.name}', N'{f.name}', {f.position}, "
                 f"N'{f.sql_type}', {1 if f.is_pk else 0}, {0 if f.nullable else 1}, "
-                f"{1 if f.is_pk and f.name == 'Id' else 0}, "
+                f"{1 if f.is_pk and f.name == 'Id' else 0}, {masked}, "
                 f"N'{quote(clean(f.description))}')"
             )
     parts.append(
@@ -348,14 +438,16 @@ def write_dictionary_seed(tables: list[Table]) -> str:
         "(\n"
         "    TenantId int, SchemaName nvarchar(20), TableName nvarchar(64),\n"
         "    FieldName nvarchar(64), FieldPosition int, SqlType nvarchar(40),\n"
-        "    IsKey bit, IsRequired bit, IsIdentity bit, ShortDescription nvarchar(255)\n"
+        "    IsKey bit, IsRequired bit, IsIdentity bit, IsMasked bit,\n"
+        "    ShortDescription nvarchar(255)\n"
         ");\nGO\n"
     )
     for start in range(0, len(field_rows), 900):
         chunk = field_rows[start : start + 900]
         parts.append(
             "INSERT INTO #DictionaryField\n    (TenantId, SchemaName, TableName, FieldName,\n"
-            "     FieldPosition, SqlType, IsKey, IsRequired, IsIdentity, ShortDescription)\n"
+            "     FieldPosition, SqlType, IsKey, IsRequired, IsIdentity, IsMasked,\n"
+            "     ShortDescription)\n"
             "VALUES\n" + ",\n".join(chunk) + ";\nGO\n"
         )
     parts.append(
@@ -364,7 +456,8 @@ def write_dictionary_seed(tables: list[Table]) -> str:
         "     IsKey, IsRequired, IsIdentity, IsCustomField, IsMasked, ShortDescription,\n"
         "     CreatedBy)\n"
         "SELECT s.TenantId, d.Id, s.FieldName, s.FieldPosition, s.SqlType,\n"
-        "       s.IsKey, s.IsRequired, s.IsIdentity, 0, 0, s.ShortDescription, N'SYSTEM'\n"
+        "       s.IsKey, s.IsRequired, s.IsIdentity, 0, s.IsMasked, s.ShortDescription,\n"
+        "       N'SYSTEM'\n"
         "FROM   #DictionaryField AS s\n"
         "JOIN   cfg.DictionaryTable AS d\n"
         "       ON  d.TenantId   = s.TenantId\n"

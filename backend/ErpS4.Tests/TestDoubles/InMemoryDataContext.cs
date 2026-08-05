@@ -69,6 +69,25 @@ public sealed class InMemoryDataContext : IErpDataContext
         return Task.FromResult(0);
     }
 
+    /// <summary>Every raw query the code under test built, in order.</summary>
+    public List<RawQuery> RawQueries { get; } = [];
+
+    /// <summary>What <see cref="QueryRawAsync"/> hands back. Empty by default.</summary>
+    public RawQueryResult RawResult { get; set; } = new([], []);
+
+    /// <summary>
+    /// Records the statement instead of executing it. The point of the table
+    /// browser tests is what the SQL looks like and what travelled as a
+    /// parameter, which is exactly what this captures.
+    /// </summary>
+    public Task<RawQueryResult> QueryRawAsync(
+        RawQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        RawQueries.Add(query);
+        return Task.FromResult(RawResult);
+    }
+
     public Task<TResult> ExecuteInTransactionAsync<TResult>(
         Func<CancellationToken, Task<TResult>> operation,
         CancellationToken cancellationToken = default)
