@@ -1,0 +1,221 @@
+@page "/workforce"
+@attribute [Authorize]
+@inject PlanningApi Api
+
+<PageTitle>Operators and work teams</PageTitle>
+
+<h1 class="h4 mb-3">Operators and work teams</h1>
+<p class="text-secondary small">
+    Operators and crews are the workforce the labor projection counts and the scheduler books.
+    A team's head count is kept in step with its active members automatically.
+</p>
+
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item"><button class="nav-link @(tab == "operators" ? "active" : "")" @onclick='() => tab = "operators"'>Operators</button></li>
+    <li class="nav-item"><button class="nav-link @(tab == "teams" ? "active" : "")" @onclick='() => tab = "teams"'>Work teams</button></li>
+</ul>
+
+@if (tab == "operators")
+{
+    <CrudTable TItem="OperatorDto" TUpsert="OperatorUpsertDto"
+               Title="Operators"
+               Columns="@(new[] { "Code", "Name", "Skill", "Farm", "Work team", "Licence", "Expires", "Hours/day", "Active" })"
+               RowTemplate="RenderOperatorRow"
+               EditorTemplate="RenderOperatorEditor"
+               ToEditModel="ToOperatorEdit"
+               NewModel="@(() => new OperatorUpsertDto { CompanyId = companies.FirstOrDefault()?.Id ?? 0 })"
+               OnLoad="@(q => Api.GetOperatorsAsync(q))"
+               OnCreate="@(dto => Api.CreateOperatorAsync(dto))"
+               OnUpdate="@((id, dto) => Api.UpdateOperatorAsync(id, dto))"
+               OnDelete="@(id => Api.DeleteOperatorAsync(id))"
+               IdSelector="@(o => o.Id)" />
+}
+else
+{
+    <CrudTable TItem="WorkTeamDto" TUpsert="WorkTeamUpsertDto"
+               Title="Work teams"
+               Columns="@(new[] { "Code", "Name", "Farm", "Supervisor", "Primary skill", "Members", "Hours/day", "Active" })"
+               RowTemplate="RenderTeamRow"
+               EditorTemplate="RenderTeamEditor"
+               ToEditModel="ToTeamEdit"
+               NewModel="@(() => new WorkTeamUpsertDto { CompanyId = companies.FirstOrDefault()?.Id ?? 0 })"
+               OnLoad="@(q => Api.GetWorkTeamsAsync(q))"
+               OnCreate="@(dto => Api.CreateWorkTeamAsync(dto))"
+               OnUpdate="@((id, dto) => Api.UpdateWorkTeamAsync(id, dto))"
+               OnDelete="@(id => Api.DeleteWorkTeamAsync(id))"
+               IdSelector="@(t => t.Id)" />
+}
+
+@code {
+    private string tab = "operators";
+    private IReadOnlyList<LookupDto> companies = Array.Empty<LookupDto>();
+    private IReadOnlyList<LookupDto> farms = Array.Empty<LookupDto>();
+    private IReadOnlyList<LookupDto> teams = Array.Empty<LookupDto>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        companies = await Api.LookupAsync("companies");
+        farms = await Api.LookupAsync("farms");
+        teams = await Api.LookupAsync("workteams");
+    }
+
+    private OperatorUpsertDto ToOperatorEdit(OperatorDto o) => new()
+    {
+        CompanyId = o.CompanyId,
+        FarmId = o.FarmId,
+        Code = o.Code,
+        FullName = o.FullName,
+        Skill = o.Skill,
+        LicenseNo = o.LicenseNo,
+        LicenseExpiry = o.LicenseExpiry,
+        WorkTeamId = o.WorkTeamId,
+        StandardHoursPerDay = o.StandardHoursPerDay,
+        IsActive = o.IsActive,
+        RowVersion = o.RowVersion
+    };
+
+    private WorkTeamUpsertDto ToTeamEdit(WorkTeamDto t) => new()
+    {
+        CompanyId = t.CompanyId,
+        FarmId = t.FarmId,
+        Code = t.Code,
+        Name = t.Name,
+        SupervisorName = t.SupervisorName,
+        PrimarySkill = t.PrimarySkill,
+        MemberCount = t.MemberCount,
+        StandardHoursPerDay = t.StandardHoursPerDay,
+        IsActive = t.IsActive,
+        RowVersion = t.RowVersion
+    };
+
+    private RenderFragment<OperatorDto> RenderOperatorRow => op =>
+    @<text>
+        <td>@op.Code</td>
+        <td>@op.FullName</td>
+        <td>@op.Skill</td>
+        <td>@op.FarmName</td>
+        <td>@op.WorkTeamName</td>
+        <td>@op.LicenseNo</td>
+        <td class="small @(op.LicenseExpiry is not null && op.LicenseExpiry < DateOnly.FromDateTime(DateTime.Today) ? "text-danger fw-semibold" : "")">
+            @(op.LicenseExpiry?.ToString("yyyy-MM-dd"))
+        </td>
+        <td class="text-end">@op.StandardHoursPerDay.ToString("N1")</td>
+        <td>@(op.IsActive ? "Yes" : "No")</td>
+    </text>;
+
+    private RenderFragment<OperatorUpsertDto> RenderOperatorEditor => model =>
+    @<text>
+        <div class="col-md-3">
+            <label class="form-label">Company</label>
+            <InputSelect class="form-select" @bind-Value="model.CompanyId">
+                @foreach (var company in companies)
+                {
+                    <option value="@company.Id">@company.Display</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-2"><label class="form-label">Code</label><InputText class="form-control" @bind-Value="model.Code" /></div>
+        <div class="col-md-4"><label class="form-label">Full name</label><InputText class="form-control" @bind-Value="model.FullName" /></div>
+        <div class="col-md-3">
+            <label class="form-label">Skill</label>
+            <InputSelect class="form-select" @bind-Value="model.Skill">
+                @foreach (var skill in Enum.GetValues<SkillType>())
+                {
+                    <option value="@skill">@skill</option>
+                }
+            </InputSelect>
+        </div>
+
+        <div class="col-md-3">
+            <label class="form-label">Farm</label>
+            <InputSelect class="form-select" @bind-Value="model.FarmId">
+                <option value="">— none —</option>
+                @foreach (var farm in farms)
+                {
+                    <option value="@farm.Id">@farm.Display</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Work team</label>
+            <InputSelect class="form-select" @bind-Value="model.WorkTeamId">
+                <option value="">— none —</option>
+                @foreach (var team in teams)
+                {
+                    <option value="@team.Id">@team.Display</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-2"><label class="form-label">Licence no</label><InputText class="form-control" @bind-Value="model.LicenseNo" /></div>
+        <div class="col-md-2"><label class="form-label">Licence expiry</label><InputDate class="form-control" @bind-Value="model.LicenseExpiry" /></div>
+        <div class="col-md-2"><label class="form-label">Hours per day</label><InputNumber class="form-control" @bind-Value="model.StandardHoursPerDay" step="0.5" /></div>
+
+        <div class="col-md-3 d-flex align-items-end">
+            <div class="form-check">
+                <InputCheckbox class="form-check-input" @bind-Value="model.IsActive" id="operatorActive" />
+                <label class="form-check-label" for="operatorActive">Active</label>
+            </div>
+        </div>
+    </text>;
+
+    private RenderFragment<WorkTeamDto> RenderTeamRow => team =>
+    @<text>
+        <td>@team.Code</td>
+        <td>@team.Name</td>
+        <td>@team.FarmName</td>
+        <td>@team.SupervisorName</td>
+        <td>@team.PrimarySkill</td>
+        <td class="text-end">@team.MemberCount</td>
+        <td class="text-end">@team.StandardHoursPerDay.ToString("N1")</td>
+        <td>@(team.IsActive ? "Yes" : "No")</td>
+    </text>;
+
+    private RenderFragment<WorkTeamUpsertDto> RenderTeamEditor => model =>
+    @<text>
+        <div class="col-md-3">
+            <label class="form-label">Company</label>
+            <InputSelect class="form-select" @bind-Value="model.CompanyId">
+                @foreach (var company in companies)
+                {
+                    <option value="@company.Id">@company.Display</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-2"><label class="form-label">Code</label><InputText class="form-control" @bind-Value="model.Code" /></div>
+        <div class="col-md-4"><label class="form-label">Name</label><InputText class="form-control" @bind-Value="model.Name" /></div>
+        <div class="col-md-3">
+            <label class="form-label">Farm</label>
+            <InputSelect class="form-select" @bind-Value="model.FarmId">
+                <option value="">— none —</option>
+                @foreach (var farm in farms)
+                {
+                    <option value="@farm.Id">@farm.Display</option>
+                }
+            </InputSelect>
+        </div>
+
+        <div class="col-md-4"><label class="form-label">Supervisor</label><InputText class="form-control" @bind-Value="model.SupervisorName" /></div>
+        <div class="col-md-3">
+            <label class="form-label">Primary skill</label>
+            <InputSelect class="form-select" @bind-Value="model.PrimarySkill">
+                @foreach (var skill in Enum.GetValues<SkillType>())
+                {
+                    <option value="@skill">@skill</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Members</label>
+            <InputNumber class="form-control" @bind-Value="model.MemberCount" />
+            <div class="form-text">Kept in step with active members.</div>
+        </div>
+        <div class="col-md-2"><label class="form-label">Hours per day</label><InputNumber class="form-control" @bind-Value="model.StandardHoursPerDay" step="0.5" /></div>
+
+        <div class="col-md-3 d-flex align-items-end">
+            <div class="form-check">
+                <InputCheckbox class="form-check-input" @bind-Value="model.IsActive" id="teamActive" />
+                <label class="form-check-label" for="teamActive">Active</label>
+            </div>
+        </div>
+    </text>;
+}

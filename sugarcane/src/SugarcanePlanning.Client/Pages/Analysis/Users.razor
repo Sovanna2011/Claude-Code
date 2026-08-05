@@ -1,0 +1,264 @@
+@page "/users"
+@attribute [Authorize]
+@inject PlanningApi Api
+@inject AuthService Auth
+
+<PageTitle>Users and roles</PageTitle>
+
+<h1 class="h4 mb-1">Users and roles</h1>
+<p class="text-secondary small">
+    Ten roles gate every screen and endpoint. A user belongs to exactly one company, and that
+    company scopes every record they can reach.
+</p>
+
+<ErrorAlert Message="@error" Code="@errorCode" OnDismiss="() => error = null" />
+<SuccessToast Message="@success" OnDismiss="() => success = null" />
+
+<div class="row g-3">
+    <div class="col-12 col-xl-8">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <span class="fw-semibold">Users</span>
+                <button class="btn btn-success btn-sm" @onclick="StartCreate">Add user</button>
+            </div>
+            <div class="card-body">
+                @if (creating is not null)
+                {
+                    <EditForm Model="creating" OnValidSubmit="Create" class="border rounded p-3 mb-3 bg-light">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="text-danger small" />
+                        <div class="row g-2">
+                            <div class="col-md-4"><label class="form-label">User name</label><InputText class="form-control" @bind-Value="creating.UserName" /></div>
+                            <div class="col-md-4"><label class="form-label">Full name</label><InputText class="form-control" @bind-Value="creating.FullName" /></div>
+                            <div class="col-md-4"><label class="form-label">Email</label><InputText class="form-control" @bind-Value="creating.Email" /></div>
+                            <div class="col-md-4">
+                                <label class="form-label">Password</label>
+                                <InputText type="password" class="form-control" @bind-Value="creating.Password" />
+                                <div class="form-text">At least 8 characters, with a digit and a capital.</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Company</label>
+                                <InputSelect class="form-select" @bind-Value="creating.CompanyId">
+                                    @foreach (var company in companies)
+                                    {
+                                        <option value="@company.Id">@company.Display</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Roles</label>
+                                <div class="d-flex flex-wrap gap-3">
+                                    @foreach (var role in roles)
+                                    {
+                                        var current = role;
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="@($"role-{current}")"
+                                                   checked="@creating.Roles.Contains(current)"
+                                                   @onchange="e => ToggleRole(current, e)" />
+                                            <label class="form-check-label small" for="@($"role-{current}")">@current</label>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2 mt-3">
+                            <button class="btn btn-success btn-sm" type="submit" disabled="@busy">Create user</button>
+                            <button class="btn btn-outline-secondary btn-sm" type="button" @onclick="() => creating = null">Cancel</button>
+                        </div>
+                    </EditForm>
+                }
+
+                @if (busy && users.Count == 0)
+                {
+                    <LoadingPanel />
+                }
+                else if (users.Count == 0)
+                {
+                    <div class="text-secondary small">No users are visible to you.</div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>User name</th>
+                                    <th>Full name</th>
+                                    <th>Email</th>
+                                    <th>Roles</th>
+                                    <th>Active</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var user in users)
+                                {
+                                    <tr>
+                                        <td class="fw-semibold">@user.UserName</td>
+                                        <td>@user.FullName</td>
+                                        <td class="small">@user.Email</td>
+                                        <td>
+                                            @foreach (var role in user.Roles)
+                                            {
+                                                <span class="badge text-bg-light border me-1">@role</span>
+                                            }
+                                        </td>
+                                        <td>@(user.IsActive ? "Yes" : "No")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-xl-4">
+        <div class="card shadow-sm mb-3">
+            <div class="card-header bg-white fw-semibold">Change my password</div>
+            <div class="card-body">
+                <EditForm Model="passwordChange" OnValidSubmit="ChangePassword">
+                    <DataAnnotationsValidator />
+                    <div class="mb-2">
+                        <label class="form-label">Current password</label>
+                        <InputText type="password" class="form-control" @bind-Value="passwordChange.CurrentPassword" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">New password</label>
+                        <InputText type="password" class="form-control" @bind-Value="passwordChange.NewPassword" />
+                    </div>
+                    <button class="btn btn-outline-success btn-sm" type="submit" disabled="@busy">Change password</button>
+                </EditForm>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-white fw-semibold">My permissions</div>
+            <div class="card-body">
+                @if (profile is null)
+                {
+                    <LoadingPanel />
+                }
+                else
+                {
+                    <div class="small text-secondary mb-2">
+                        @profile.FullName · @profile.CompanyName
+                    </div>
+                    <div class="mb-2">
+                        @foreach (var role in profile.Roles)
+                        {
+                            <span class="badge text-bg-success me-1">@role</span>
+                        }
+                    </div>
+                    <div class="d-flex flex-wrap gap-1">
+                        @foreach (var permission in profile.Permissions)
+                        {
+                            <span class="badge text-bg-light border">@permission</span>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private IReadOnlyList<UserDto> users = Array.Empty<UserDto>();
+    private IReadOnlyList<string> roles = Array.Empty<string>();
+    private IReadOnlyList<LookupDto> companies = Array.Empty<LookupDto>();
+    private LoginResponse? profile;
+    private RegisterUserRequest? creating;
+    private readonly ChangePasswordRequest passwordChange = new();
+    private string? error;
+    private string? errorCode;
+    private string? success;
+    private bool busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        profile = await Auth.GetProfileAsync();
+        companies = await Api.LookupAsync("companies");
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        try
+        {
+            busy = true;
+            error = null;
+            users = await Api.GetUsersAsync();
+            roles = await Api.GetRolesAsync();
+        }
+        catch (ApiException ex)
+        {
+            // A non-administrator may still use the password and permission panels.
+            error = ex.StatusCode == System.Net.HttpStatusCode.Forbidden
+                ? "Only a System Administrator can list users; your own details are shown on the right."
+                : ex.Message;
+            errorCode = ex.Error.Code;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private void StartCreate() => creating = new RegisterUserRequest
+    {
+        CompanyId = profile?.CompanyId ?? companies.FirstOrDefault()?.Id ?? 0
+    };
+
+    private void ToggleRole(string role, ChangeEventArgs args)
+    {
+        if (creating is null) return;
+        var selected = args.Value is bool value && value;
+        if (selected && !creating.Roles.Contains(role)) creating.Roles.Add(role);
+        else if (!selected) creating.Roles.Remove(role);
+    }
+
+    private async Task Create()
+    {
+        if (creating is null) return;
+        try
+        {
+            busy = true;
+            error = null;
+            var created = await Api.RegisterUserAsync(creating);
+            success = $"User '{created?.UserName}' created.";
+            creating = null;
+            await Load();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            errorCode = ex.Error.Code;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task ChangePassword()
+    {
+        try
+        {
+            busy = true;
+            error = null;
+            await Api.ChangePasswordAsync(passwordChange);
+            success = "Password changed.";
+            passwordChange.CurrentPassword = string.Empty;
+            passwordChange.NewPassword = string.Empty;
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            errorCode = ex.Error.Code;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

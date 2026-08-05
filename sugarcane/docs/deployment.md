@@ -74,7 +74,7 @@ The Blazor client reads its API address from `wwwroot/appsettings.json`:
 ```bash
 dotnet restore
 dotnet build -c Release
-dotnet test  -c Release                      # 153 tests
+dotnet test  -c Release                      # 160 tests
 
 dotnet publish src/SugarcanePlanning.Api    -c Release -o ./publish/api
 dotnet publish src/SugarcanePlanning.Client -c Release -o ./publish/client
@@ -176,7 +176,9 @@ docker run -d -p 8080:8080 \
 ## 5. First run
 
 The API applies pending migrations and, when `Database:SeedSampleData` is true, seeds the ten
-roles, ten demo users (password `Planner#2026`) and a complete demo tenant.
+roles, ten demo users (password `Planner#2026`) and a complete demo tenant — master data, an
+approved projection, its activity plans and material requirements, live resource bookings and
+part-recorded progress.
 
 For a production tenant set `SeedSampleData` to `false`, then create the first administrator:
 

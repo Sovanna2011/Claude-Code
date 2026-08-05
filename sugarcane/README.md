@@ -11,7 +11,7 @@ plantation activity, tractor, equipment, material, workforce, location and sched
 | Persistence | **EF Core 10** → **Microsoft SQL Server** (migrations, row-version concurrency, soft delete) |
 | Identity | **ASP.NET Core Identity** with ten roles and seventeen permission policies |
 | Reporting | 22 reports with print preview, **PDF** (QuestPDF) and **Excel** (ClosedXML) export |
-| Tests | 153 automated tests (xUnit) — 66 unit, 87 integration |
+| Tests | 160 automated tests (xUnit) — 66 unit, 94 integration |
 
 The solution follows **Clean Architecture**: `Domain` has no dependencies, `Application`
 depends only on `Domain` + `Contracts`, `Infrastructure` implements the persistence
@@ -26,7 +26,7 @@ sugarcane/
 │   ├── SugarcanePlanning.Application/     services, engines, mapping, abstractions
 │   ├── SugarcanePlanning.Infrastructure/  EF Core, Identity, audit interceptor, exporters
 │   ├── SugarcanePlanning.Api/             controllers, JWT, global error handling
-│   └── SugarcanePlanning.Client/          Blazor WebAssembly UI (18 screens)
+│   └── SugarcanePlanning.Client/          Blazor WebAssembly UI (20 screens)
 ├── tests/
 │   ├── SugarcanePlanning.UnitTests/       formulas and engine logic
 │   └── SugarcanePlanning.IntegrationTests/full process over a real service graph
@@ -54,7 +54,9 @@ On first run the API applies the migration and seeds a complete demo tenant: one
 an estate with 3 farms / 6 zones / 24 blocks, a 2026 season, 3 varieties, the 19 sample
 planting activities with their dependency chain, 10 tractors, 14 implements with a
 compatibility matrix, 10 operators, 3 crews, 8 materials with standards and stock, and an
-approved planting projection of 12 lines.
+approved planting projection of 12 lines — plus its generated activity plans, material
+requirements, a set of live resource bookings and part-recorded field progress, so the
+dashboard, Gantt, MRP and variance screens all open with real content.
 
 **Demo accounts** — password `Planner#2026` for all of them:
 
@@ -112,14 +114,15 @@ Configure master data
 | [docs/architecture.md](docs/architecture.md) | layers, dependency rules, engines, request flow |
 | [docs/data-model.md](docs/data-model.md) | entity-relationship model and every table |
 | [docs/deployment.md](docs/deployment.md) | build, configure, deploy to IIS / Linux / Docker / Azure |
-| [docs/user-guide.md](docs/user-guide.md) | the 18 screens, step by step |
+| [docs/user-guide.md](docs/user-guide.md) | the 20 screens, step by step |
 | [docs/formulas.md](docs/formulas.md) | every calculation with a worked example |
 
 ## Running the tests
 
 ```bash
-dotnet test                      # 153 tests, no database required
+dotnet test                      # 160 tests, no database required
 ```
 
 Integration tests run the real service graph (projection → activity plan → MRP → scheduling →
-capacity → actuals → reports) against an isolated in-memory database.
+capacity → actuals → reports) against an isolated in-memory database, and execute the sample
+data seeder itself so the start-up path is covered even without SQL Server.

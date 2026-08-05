@@ -1,6 +1,6 @@
 # User guide
 
-The 18 screens of the application, in the order a planning season actually runs.
+The 20 screens of the application, in the order a planning season actually runs.
 
 ## Signing in
 
@@ -67,11 +67,18 @@ in time.
 
 **Stock**: read-only positions delivered by the ERP through `POST /api/materials/stock/sync`.
 
+### 9. Operators and work teams — `/workforce`
+
+The workforce the labor projection counts and the scheduler books. Operators carry a skill,
+an optional licence with an expiry (shown in red once it has passed), a farm and a crew.
+Work teams carry a supervisor, a primary skill and a head count that is kept in step with
+the active members automatically. An operator or team with live bookings cannot be deleted.
+
 ---
 
 ## Planning
 
-### 9. Planting projections — `/projections`
+### 10. Planting projections — `/projections`
 
 Create a projection for an estate and season; the number is issued automatically
 (`PP-<season>-0001`). Open it to add one line per block: crop type, variety, area, planting
@@ -96,12 +103,12 @@ Draft ──Submit──▶ Submitted ──Review──▶ Under review ──A
 Rejecting requires a comment. **Revise** copies the approved version, issues version *n+1* and
 freezes the previous one read-only.
 
-### 10. Monthly and weekly plan — `/period-plan`
+### 11. Monthly and weekly plan — `/period-plan`
 
 Planting targets per month or ISO week against what has been completed, plus the area
 breakdown by farm, zone or block.
 
-### 11. Activity plan and Gantt — `/activity-plan`
+### 12. Activity plan and Gantt — `/activity-plan`
 
 Choose a projection and press **Generate activity plan**. Each line becomes a chain of
 activities honouring sequence, day offsets and blocking dependencies; the derived working
@@ -114,7 +121,7 @@ dates, area, supervisor and status) and **Calendar**.
 > Regenerating is blocked while live bookings exist — cancel them first, so no schedule is
 > silently orphaned.
 
-### 12. Resource scheduling — `/scheduling`
+### 13. Resource scheduling — `/scheduling`
 
 Book a tractor, implement, operator or crew against an activity plan. **Check conflicts** runs
 all eight checks without saving; a blocking conflict stops the save and says why.
@@ -125,14 +132,14 @@ permission, who must give a reason — recorded on the booking and in the audit 
 The board groups by day, tractor, equipment, operator, farm or block, with utilisation per
 resource.
 
-### 13. Material requirements — `/material-requirements`
+### 14. Material requirements — `/material-requirements`
 
 Consolidated requirement versus availability, grouped by material, activity, block, farm,
 month or variety. Every row shows base, waste, total, stock, reserved, incoming, net
 available, shortage, surplus, the required delivery date and a status. **Recalculate from
 plan** refreshes the stored rows after the activity plan changes.
 
-### 14. Fuel and labor projection — `/fuel-labor`
+### 15. Fuel and labor projection — `/fuel-labor`
 
 Fuel by area and by hour side by side — procurement uses the larger. Labor shows required
 labor-days, required workers, available workers and the gap.
@@ -141,7 +148,7 @@ labor-days, required workers, available workers and the gap.
 
 ## Analysis
 
-### 15. Capacity and scenarios — `/capacity`
+### 16. Capacity and scenarios — `/capacity`
 
 Required versus available for tractors, each equipment category, the workforce, every
 material, the daily hectare rate and the completion date, each with a coverage bar, a status
@@ -151,13 +158,13 @@ Below it, **what-if scenarios**: add rental tractors, add equipment, extend work
 reduce the planting area, shift planting dates, change activity durations or add workers.
 **Simulate** shows baseline versus scenario side by side. The approved plan is never modified.
 
-### 16. Approvals and revision history — `/approvals`
+### 17. Approvals and revision history — `/approvals`
 
 The version chain of a projection, the approval history of the selected version and a
 field-by-field comparison of any two versions, marking each difference Added, Removed or
 Changed.
 
-### 17. Projection versus actual — `/projection-vs-actual`
+### 18. Projection versus actual — `/projection-vs-actual`
 
 **Record actual progress** captures actual dates, completed area, machine and operator used,
 hours, fuel, labor-days, material consumption and a delay reason. Variances and the completion
@@ -165,7 +172,7 @@ percentage are derived, and the activity status becomes Completed, In Progress o
 
 The comparison groups by block, farm, activity or month.
 
-### 18. Reports and audit log — `/reports`, `/audit`
+### 19. Reports and audit log — `/reports`, `/audit`
 
 All 22 reports share one surface: pick the report and the filters, sort by clicking any
 column, then **Print preview**, **Export PDF** or **Export Excel**.
@@ -183,6 +190,13 @@ column, then **Print preview**, **Export PDF** or **Export Excel**.
 
 The **audit log** (System Administrator) filters by user, table, record, action and date, and
 expands to the full old/new value JSON with the IP address and device.
+
+### 20. Users and roles — `/users`
+
+A System Administrator creates users, assigns any of the ten roles and sets the company that
+scopes everything they can reach. Every signed-in user can change their own password here and
+see exactly which roles and permissions they hold — the panel on the right works even for
+users who may not list the others.
 
 ---
 

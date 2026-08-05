@@ -2,7 +2,12 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using SugarcanePlanning.Application.Interfaces;
+using SugarcanePlanning.Contracts.Activities;
 using SugarcanePlanning.Contracts.Auth;
+using SugarcanePlanning.Contracts.Execution;
+using SugarcanePlanning.Contracts.Scheduling;
+using SugarcanePlanning.Domain.Common;
 using SugarcanePlanning.Domain.Entities;
 using SugarcanePlanning.Domain.Enums;
 using SugarcanePlanning.Infrastructure.Identity;
@@ -399,9 +404,113 @@ public static class DbSeeder
         db.Projections.Add(projection);
         await db.SaveChangesAsync(ct);
 
+        var transactions = await SeedTransactionsAsync(services, projection.Id, ct);
+
         await SeedUsersAsync(services, company.Id);
-        logger?.LogInformation("Seeded {Blocks} blocks, {Activities} activities and projection {No}.",
-            blocks.Count, activities.Count, projection.ProjectionNo);
+        logger?.LogInformation(
+            "Seeded {Blocks} blocks, {Activities} activities, projection {No}, " +
+            "{Plans} activity plans, {Bookings} bookings and {Actuals} progress records.",
+            blocks.Count, activities.Count, projection.ProjectionNo,
+            transactions.Plans, transactions.Bookings, transactions.Actuals);
+    }
+
+    /// <summary>
+    /// Sample transaction data (section 25.15): runs the real engines so the demo opens with a
+    /// populated Gantt, live bookings, material requirements and part-recorded progress.
+    /// Returns the row counts for the start-up log.
+    /// </summary>
+    public static async Task<(int Plans, int Bookings, int Actuals)> SeedTransactionsAsync(
+        IServiceProvider services, int projectionId, CancellationToken ct = default)
+    {
+        var db = services.GetRequiredService<AppDbContext>();
+        var planning = services.GetRequiredService<IActivityPlanService>();
+        var scheduling = services.GetRequiredService<ISchedulingService>();
+        var execution = services.GetRequiredService<IExecutionService>();
+
+        // 1 — activity plans and, through them, the material requirements.
+        var generated = await planning.GenerateAsync(
+            new GenerateActivityPlanRequest { ProjectionId = projectionId, Regenerate = true }, ct);
+
+        var plans = await db.ActivityPlans
+            .Include(p => p.Activity)
+            .Where(p => p.ProjectionId == projectionId)
+            .OrderBy(p => p.PlannedStartDate).ThenBy(p => p.SequenceNo)
+            .ToListAsync(ct);
+
+        var tractors = await db.Tractors.Where(t => t.Availability == AvailabilityStatus.Available)
+            .OrderBy(t => t.Code).ToListAsync(ct);
+        var equipment = await db.Equipment.OrderBy(e => e.Code).ToListAsync(ct);
+        var operators = await db.Operators.OrderBy(o => o.Code).ToListAsync(ct);
+
+        // 2 — book the first working day of the earliest plans, rotating the fleet so no
+        //     machine is ever double-booked. Anything the engine rejects is simply skipped.
+        var bookings = 0;
+        var index = 0;
+        foreach (var plan in plans.Where(p => p.Activity?.RequiresTractor == true).Take(12))
+        {
+            var tractor = tractors.Count == 0 ? null : tractors[index % tractors.Count];
+            var implement = plan.RequiredEquipmentCategory is null
+                ? null
+                : equipment.FirstOrDefault(e => e.Category == plan.RequiredEquipmentCategory
+                                                && (tractor is null || tractor.Horsepower >= e.MinimumTractorHp));
+            var op = operators.Count == 0 ? null : operators[index % operators.Count];
+            var start = plan.PlannedStartDate.ToDateTime(new TimeOnly(7, 0));
+
+            try
+            {
+                await scheduling.CreateAsync(new ResourceScheduleUpsertDto
+                {
+                    ActivityPlanId = plan.Id,
+                    ScheduleDate = plan.PlannedStartDate,
+                    PlannedStart = start,
+                    PlannedEnd = start.AddHours(8),
+                    TractorId = tractor?.Id,
+                    EquipmentId = implement?.Id,
+                    OperatorId = op?.Id,
+                    PlannedAreaHa = plan.DailyTargetHa,
+                    ExpectedWorkingHours = 8m,
+                    SupervisorName = "M. Diallo",
+                    Status = ScheduleStatus.Confirmed
+                }, ct);
+                bookings++;
+            }
+            catch (BusinessRuleException)
+            {
+                // A conflicting sample booking is not worth failing start-up over.
+            }
+            index++;
+        }
+
+        // 3 — record progress on the earliest land-preparation activities: some complete,
+        //     one deliberately short so the variance and delay screens have content.
+        var actuals = 0;
+        var completed = plans
+            .Where(p => p.Activity?.Category == ActivityCategory.LandPreparation)
+            .Take(6)
+            .ToList();
+
+        for (var i = 0; i < completed.Count; i++)
+        {
+            var plan = completed[i];
+            var isShort = i == completed.Count - 1;
+
+            await execution.RecordAsync(new ActivityActualUpsertDto
+            {
+                ActivityPlanId = plan.Id,
+                ActualStartDate = plan.PlannedStartDate,
+                ActualCompletionDate = isShort ? null : plan.PlannedEndDate,
+                ActualCompletedAreaHa = isShort
+                    ? Math.Round(plan.PlannedAreaHa * 0.45m, 4)
+                    : plan.PlannedAreaHa,
+                ActualWorkingHours = plan.PlannedWorkingHours,
+                ActualFuelLiters = Math.Round(plan.PlannedFuelLiters * (isShort ? 0.5m : 1.06m), 4),
+                ActualLaborDays = plan.RequiredLaborDays,
+                DelayReason = isShort ? "Heavy rain stopped work for four days" : null
+            }, ct);
+            actuals++;
+        }
+
+        return (generated.PlansCreated, bookings, actuals);
     }
 
     /// <summary>The 19 sample activities from section 6, with their standards and requirements.</summary>

@@ -1,5 +1,6 @@
 using SugarcanePlanning.Contracts.Activities;
 using SugarcanePlanning.Contracts.Auditing;
+using SugarcanePlanning.Contracts.Auth;
 using SugarcanePlanning.Contracts.Capacity;
 using SugarcanePlanning.Contracts.Common;
 using SugarcanePlanning.Contracts.Dashboard;
@@ -261,4 +262,18 @@ public class PlanningApi
 
     public async Task<PagedResult<AuditLogDto>> GetAuditAsync(AuditLogQuery query)
         => await _api.GetAsync<PagedResult<AuditLogDto>>($"api/audit?{query.ToQueryString()}") ?? Empty<AuditLogDto>();
+
+    // ---------------------------------------------------- users and security
+
+    public async Task<IReadOnlyList<UserDto>> GetUsersAsync()
+        => await _api.GetAsync<List<UserDto>>("api/auth/users") ?? new List<UserDto>();
+
+    public async Task<IReadOnlyList<string>> GetRolesAsync()
+        => await _api.GetAsync<List<string>>("api/auth/roles") ?? new List<string>();
+
+    public Task<UserDto?> RegisterUserAsync(RegisterUserRequest request)
+        => _api.PostAsync<UserDto>("api/auth/users", request);
+
+    public Task ChangePasswordAsync(ChangePasswordRequest request)
+        => _api.PostAsync<object>("api/auth/change-password", request);
 }
