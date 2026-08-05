@@ -138,6 +138,8 @@ public static class Policies
     public const string CreateJournalEntry = "Finance.JournalEntry.Create";
     public const string ReverseJournalEntry = "Finance.JournalEntry.Reverse";
     public const string ReadFinanceReport = "Finance.Report.Read";
+    public const string ReadBusinessPartner = "Master.BusinessPartner.Read";
+    public const string UpdateBusinessPartner = "Master.BusinessPartner.Update";
 }
 
 /// <summary>

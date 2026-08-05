@@ -1115,6 +1115,7 @@ VALUES (@Tenant, N'Finance.JournalEntry.Create',  N'Create journal entry',  N'Fi
        (@Tenant, N'Finance.JournalEntry.Reverse', N'Reverse journal entry', N'Finance', N'JournalEntry', N'Reverse', 1, @By),
        (@Tenant, N'Finance.Report.Read',          N'Display reports',       N'Finance', N'Report',       N'Read',    0, @By),
        (@Tenant, N'Finance.Report.Export',        N'Export reports',        N'Finance', N'Report',       N'Export',  1, @By),
+       (@Tenant, N'Master.BusinessPartner.Read',   N'Display partners',    N'Master',  N'BusinessPartner', N'Read',   0, @By),
        (@Tenant, N'Master.BusinessPartner.Update', N'Maintain partners',    N'Master',  N'BusinessPartner', N'Update', 0, @By),
        (@Tenant, N'Admin.Dictionary.Update',      N'Maintain dictionary',   N'Admin',   N'DictionaryObject', N'Update', 1, @By),
        (@Tenant, N'Admin.TableBrowser.Read',      N'Browse tables',         N'Admin',   N'TableBrowser', N'Read',    1, @By);
@@ -1127,14 +1128,16 @@ SELECT @Tenant, @RoleAccountant, p.Id, 1, @By
 FROM   sec.Permission AS p
 WHERE  p.TenantId = @Tenant
        AND p.PermissionCode IN (N'Finance.JournalEntry.Create', N'Finance.JournalEntry.Post',
-                                N'Finance.Report.Read', N'Master.BusinessPartner.Update');
+                                N'Finance.Report.Read', N'Master.BusinessPartner.Read',
+                                N'Master.BusinessPartner.Update');
 
 INSERT INTO sec.RolePermission (TenantId, RoleId, PermissionId, IsGranted, CreatedBy)
 SELECT @Tenant, @RoleApprover, p.Id, 1, @By
 FROM   sec.Permission AS p
 WHERE  p.TenantId = @Tenant
        AND p.PermissionCode IN (N'Finance.JournalEntry.Approve', N'Finance.JournalEntry.Reverse',
-                                N'Finance.Report.Read', N'Finance.Report.Export');
+                                N'Finance.Report.Read', N'Finance.Report.Export',
+                                N'Master.BusinessPartner.Read');
 
 INSERT INTO sec.UserRole
     (TenantId, UserId, RoleId, AssignedBy, AssignedAt, ApprovedBy, ApprovedAt,

@@ -17,11 +17,14 @@ ErpS4.Application/
 │   ├── PostingEngine.cs      orchestration and persistence
 │   ├── PostingEngine.Validation.cs  the rule set
 │   └── PostJournalEntryCommand.cs   CQRS command, validator, handler
+├── BusinessPartners/
+│   ├── BusinessPartnerContracts.cs  IBusinessPartnerSyncService, results
+│   └── BusinessPartnerSyncService.cs  role assignment, BP_SYNC, BP_CHECK
 ├── Services/CurrencyConverter.cs
 └── DependencyInjection.cs
 
 ErpS4.Database/               (existing) + IErpDataContext, NumberRangeService
-ErpS4.Tests/                  36 tests, no database required
+ErpS4.Tests/                  52 tests, no database required
 ```
 
 ## What the engine enforces
@@ -80,7 +83,7 @@ validation pipeline composable and the API mapping trivial.
 
 ## Tests
 
-36 tests, all running against in-memory lists — no database, no EF provider,
+52 tests, all running against in-memory lists — no database, no EF provider,
 milliseconds to run. They encode the rules section 23 of the design calls
 mandatory:
 
@@ -94,6 +97,10 @@ mandatory:
   cannot be reversed twice
 * a simulation writes nothing and draws no document number
 * every broken rule is reported in one pass
+* one partner holds the customer and the supplier role on a single identity
+* a repeated role assignment changes nothing
+* a company code segment is refused unless its reconciliation account matches
+  the role, which is what stops the failure surfacing later as a bad posting
 
 ```bash
 dotnet test backend/ErpS4.Tests
@@ -111,8 +118,11 @@ dotnet test backend/ErpS4.Tests
 The rest of Phase 3, in the order it makes sense to add:
 
 1. ~~**Web API**~~ — done: see [`ErpS4.Api`](../ErpS4.Api/README.md).
-2. **Business partner synchronisation** — assigning a customer role creates the
-   role-specific data without duplicating the identity.
+2. ~~**Business partner synchronisation**~~ — done: `IBusinessPartnerSyncService`
+   assigns a role, creates only the data that role needs, and never touches the
+   identity. `SynchronizeAsync` repairs partners whose role data is missing;
+   `CheckAsync` (BP_CHECK) reports roles without data, data without roles,
+   reconciliation accounts of the wrong type, and number mismatches.
 3. **Clearing and payments** — open item clearing, partial and residual
    payments, the payment run.
 4. **Asset and depreciation services** — acquisition, retirement, the

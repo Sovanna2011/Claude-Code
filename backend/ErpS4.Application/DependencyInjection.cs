@@ -1,3 +1,4 @@
+using ErpS4.Application.BusinessPartners;
 using ErpS4.Application.Posting;
 using ErpS4.Application.Services;
 using ErpS4.Database;
@@ -20,6 +21,7 @@ public static class DependencyInjection
         services.AddScoped<INumberRangeService, NumberRangeService>();
         services.AddScoped<ICurrencyConverter, CurrencyConverter>();
         services.AddScoped<IPostingEngine, PostingEngine>();
+        services.AddScoped<IBusinessPartnerSyncService, BusinessPartnerSyncService>();
         services.AddScoped<PostJournalEntryHandler>();
 
         services.AddValidatorsFromAssemblyContaining<PostJournalEntryCommandValidator>();
