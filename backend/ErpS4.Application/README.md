@@ -41,7 +41,14 @@ ErpS4.Application/
 
 ErpS4.Database/               (existing) + IErpDataContext, NumberRangeService
 ErpS4.Tests/                  123 tests, no database required
+ErpS4.IntegrationTests/       8 tests against a real SQL Server
 ```
+
+The two suites answer different questions. The unit tests ask whether the rules
+are right and run in milliseconds over lists. The integration tests ask whether
+the model maps — whether a column is wide enough, whether a query translates,
+whether `UPDATE … OUTPUT` really serialises under eight concurrent posts. Only
+a database can fail in those ways, and it did: see the four bugs below.
 
 ## What the engine enforces
 
@@ -167,13 +174,38 @@ mandatory:
 dotnet test backend/ErpS4.Tests
 ```
 
-All 123 pass on .NET 10.0.110. Getting there cost four real bugs that static
-checking had not found, described in the repository history: a draft with mixed
-currencies threw out of `Validate` instead of reporting the mixture, a payment
-left its own open item dangling on the customer account, the SE11 field join
-was a null reference the moment it ran over objects rather than SQL, and the
-number-range mask produced document numbers two characters wider than the
+All 123 pass on .NET 10.0.110, and the eight integration tests pass against SQL
+Server 2025.
+
+Compiling the code cost four bugs static checking had not found: a draft with
+mixed currencies threw out of `Validate` instead of reporting the mixture, a
+payment left its own open item dangling on the customer account, the SE11 field
+join was a null reference the moment it ran over objects rather than SQL, and
+the number-range mask produced document numbers two characters wider than the
 column that stores them.
+
+*Running* it against a database cost four more, and these are the ones worth
+dwelling on, because every one of them passed the unit tests:
+
+* **A posted document could not be reversed.** `ReverseAsync` built the mirror
+  with `CostCenter = null, ProfitCenter = null` under a comment promising "same
+  accounts and assignments". The stored line keeps cost objects as surrogate
+  keys and a draft speaks in codes, so they have to be translated back; dropping
+  them produced a reversal that failed its own validation on any account needing
+  a cost object. In a company code with a mandatory profit centre, that is
+  nearly every document.
+* **Validation passed and the commit threw.** A line with a cost object needs a
+  controlling area, which the engine read from a denormalised column the seed
+  never fills — the assignment lives in `org.ControllingAreaCompanyCode`. So a
+  valid document reached the middle of its transaction and raised
+  `InvalidOperationException`: a 500 for a configuration problem, and the one
+  rule this codebase is built around — errors are values — broken in the one
+  place it mattered.
+* **`Status` and `IsReversed` disagreed.** A reversed document kept
+  `Status = 'Posted'`, so anything selecting on status counted it as live.
+* **`co.ControllingPosting.ControllingDocumentNumber` was too narrow.** The CO
+  number is the FI number plus a `-CO###` suffix, so 20 characters could never
+  hold it.
 
 ## Not built yet
 

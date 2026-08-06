@@ -170,16 +170,9 @@ public sealed partial class PostingEngine(
             ]);
         }
 
-        if (original.Status != "Posted")
-        {
-            return PostingResult.Rejected([
-                new PostingError(
-                    PostingErrorCodes.DocumentNotPosted,
-                    $"Only a posted document can be reversed; this one is {original.Status}.",
-                    nameof(ReversalRequest.DocumentNumber)),
-            ]);
-        }
-
+        // Checked before the status, because a reversed document is also not
+        // posted and "already reversed, by this document" tells the user far
+        // more than "not posted" does.
         if (original.IsReversed)
         {
             return PostingResult.Rejected([
@@ -187,6 +180,16 @@ public sealed partial class PostingEngine(
                     PostingErrorCodes.DocumentAlreadyReversed,
                     $"Document {request.DocumentNumber} was already reversed by " +
                     $"{original.ReversalDocumentNumber}.",
+                    nameof(ReversalRequest.DocumentNumber)),
+            ]);
+        }
+
+        if (original.Status != "Posted")
+        {
+            return PostingResult.Rejected([
+                new PostingError(
+                    PostingErrorCodes.DocumentNotPosted,
+                    $"Only a posted document can be reversed; this one is {original.Status}.",
                     nameof(ReversalRequest.DocumentNumber)),
             ]);
         }
@@ -215,6 +218,13 @@ public sealed partial class PostingEngine(
                 original.DocumentNumber, original.FiscalYear, request.ReasonCode),
         };
 
+        // The stored line keeps its cost objects as surrogate keys, and a draft
+        // speaks in codes, so they have to be translated back. Dropping them
+        // instead - which is what this used to do - produced a reversal that
+        // failed validation on any account needing a cost object, so a document
+        // could be posted and then never reversed.
+        var assignments = await LoadAssignmentCodesAsync(originalLines, cancellationToken);
+
         foreach (var line in originalLines)
         {
             draft.AddLine(new JournalEntryDraftLine(
@@ -222,9 +232,11 @@ public sealed partial class PostingEngine(
                 line.GLAccount,
                 new Money(-line.AmountInDocumentCurrency, line.DocumentCurrencyCode))
             {
-                BusinessPartner = null,
-                CostCenter = null,
-                ProfitCenter = null,
+                BusinessPartner = assignments.Partner(line.BusinessPartnerId),
+                CostCenter = assignments.CostCenter(line.CostCenterId),
+                ProfitCenter = assignments.ProfitCenter(line.ProfitCenterId),
+                InternalOrder = assignments.InternalOrder(line.InternalOrderId),
+                Segment = assignments.Segment(line.SegmentId),
                 Text = $"Reversal: {line.LineItemText}",
                 Assignment = line.AssignmentReference,
             });
@@ -239,7 +251,12 @@ public sealed partial class PostingEngine(
             var tracked = await context.Query<JournalEntryHeader>()
                 .FirstAsync(h => h.Id == original.Id, cancellationToken);
 
+            // Status and IsReversed have to agree. Setting only the flag left
+            // the status reading Posted, so anything selecting on Status - a
+            // trial balance, an open item list, a report - counted a reversed
+            // document as live.
             tracked.IsReversed = true;
+            tracked.Status = "Reversed";
             tracked.ReversalDocumentNumber = result.DocumentNumber;
             tracked.ReversalReasonCode = request.ReasonCode;
             tracked.ReversalDate = postingDate;
@@ -438,6 +455,67 @@ public sealed partial class PostingEngine(
         "75" => "70",
         _ => postingKey,
     };
+
+    /// <summary>
+    /// Surrogate keys of the cost objects on a set of lines, resolved back to
+    /// the codes a draft is written in.
+    /// </summary>
+    private async Task<AssignmentCodes> LoadAssignmentCodesAsync(
+        IReadOnlyList<JournalEntryLine> lines,
+        CancellationToken cancellationToken)
+    {
+        static List<long> Ids(IEnumerable<long?> values) =>
+            values.Where(v => v is not null).Select(v => v!.Value).Distinct().ToList();
+
+        var costCenterIds = Ids(lines.Select(l => l.CostCenterId));
+        var profitCenterIds = Ids(lines.Select(l => l.ProfitCenterId));
+        var internalOrderIds = Ids(lines.Select(l => l.InternalOrderId));
+        var segmentIds = Ids(lines.Select(l => l.SegmentId));
+        var partnerIds = Ids(lines.Select(l => l.BusinessPartnerId));
+
+        return new AssignmentCodes(
+            costCenterIds.Count == 0 ? [] : await context.Query<CostCenter>()
+                .AsNoTracking()
+                .Where(c => costCenterIds.Contains(c.Id))
+                .ToDictionaryAsync(c => c.Id, c => c.CostCenterCode, cancellationToken),
+            profitCenterIds.Count == 0 ? [] : await context.Query<ProfitCenter>()
+                .AsNoTracking()
+                .Where(p => profitCenterIds.Contains(p.Id))
+                .ToDictionaryAsync(p => p.Id, p => p.ProfitCenterCode, cancellationToken),
+            internalOrderIds.Count == 0 ? [] : await context.Query<InternalOrder>()
+                .AsNoTracking()
+                .Where(o => internalOrderIds.Contains(o.Id))
+                .ToDictionaryAsync(o => o.Id, o => o.OrderNumber, cancellationToken),
+            segmentIds.Count == 0 ? [] : await context.Query<Segment>()
+                .AsNoTracking()
+                .Where(s => segmentIds.Contains(s.Id))
+                .ToDictionaryAsync(s => s.Id, s => s.SegmentCode, cancellationToken),
+            partnerIds.Count == 0 ? [] : await context.Query<BusinessPartner>()
+                .AsNoTracking()
+                .Where(p => partnerIds.Contains(p.Id))
+                .ToDictionaryAsync(p => p.Id, p => p.PartnerNumber, cancellationToken));
+    }
+
+    private sealed record AssignmentCodes(
+        Dictionary<long, string> CostCenters,
+        Dictionary<long, string> ProfitCenters,
+        Dictionary<long, string> InternalOrders,
+        Dictionary<long, string> Segments,
+        Dictionary<long, string> Partners)
+    {
+        public string? CostCenter(long? id) => Lookup(CostCenters, id);
+
+        public string? ProfitCenter(long? id) => Lookup(ProfitCenters, id);
+
+        public string? InternalOrder(long? id) => Lookup(InternalOrders, id);
+
+        public string? Segment(long? id) => Lookup(Segments, id);
+
+        public string? Partner(long? id) => Lookup(Partners, id);
+
+        private static string? Lookup(Dictionary<long, string> codes, long? id) =>
+            id is { } key && codes.TryGetValue(key, out var code) ? code : null;
+    }
 
     private async Task<PostingResult> CommitAsync(
         PostingRequest request,
@@ -712,9 +790,9 @@ public sealed partial class PostingEngine(
             context.Add(new ControllingPosting
             {
                 TenantId = TenantId,
-                ControllingAreaId = configuration.CompanyCode.ControllingAreaId
-                    ?? throw new InvalidOperationException(
-                        "A controlling posting needs a controlling area on the company code."),
+                // Validation has already refused a cost object without one, so
+                // this cannot be null by the time the line is written.
+                ControllingAreaId = configuration.ControllingAreaId!.Value,
                 ControllingDocumentNumber =
                     $"{line.DocumentNumber}-CO{sequence.ToString("000", CultureInfo.InvariantCulture)}",
                 LineItemNumber = 1,

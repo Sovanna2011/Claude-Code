@@ -287,7 +287,7 @@ public sealed class AllocationRunConfiguration : IEntityTypeConfiguration<Alloca
         builder.Property(e => e.Status).HasMaxLength(20).IsUnicode().IsRequired();
         builder.Property(e => e.TotalAllocatedAmount).HasPrecision(19, 4);
         builder.Property(e => e.CurrencyCode).HasMaxLength(5).IsUnicode();
-        builder.Property(e => e.ControllingDocumentNumber).HasMaxLength(20).IsUnicode();
+        builder.Property(e => e.ControllingDocumentNumber).HasMaxLength(30).IsUnicode();
         builder.Property(e => e.ExecutedAt).HasColumnType("datetime2(3)").IsRequired();
         builder.Property(e => e.ExecutedBy).HasMaxLength(64).IsUnicode().IsRequired();
         builder.Property(e => e.LogText).HasColumnType("nvarchar(max)");
@@ -379,7 +379,7 @@ public sealed class ControllingPostingConfiguration : IEntityTypeConfiguration<C
         builder.Property(e => e.Id).IsRequired().ValueGeneratedOnAdd();
         builder.Property(e => e.TenantId).IsRequired();
         builder.Property(e => e.ControllingAreaId).IsRequired();
-        builder.Property(e => e.ControllingDocumentNumber).HasMaxLength(20).IsUnicode().IsRequired();
+        builder.Property(e => e.ControllingDocumentNumber).HasMaxLength(30).IsUnicode().IsRequired();
         builder.Property(e => e.LineItemNumber).IsRequired();
         builder.Property(e => e.FiscalYear).IsRequired();
         builder.Property(e => e.FiscalPeriod).IsRequired();

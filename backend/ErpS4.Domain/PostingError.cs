@@ -30,6 +30,12 @@ public static class PostingErrorCodes
     public const string AssetUnknown = "POST.ASSET_UNKNOWN";
     public const string AssetBlocked = "POST.ASSET_BLOCKED";
     public const string CostCenterRequired = "POST.COST_CENTER_REQUIRED";
+
+    /// <summary>
+    /// A line carries a cost object but the company code belongs to no
+    /// controlling area, so the controlling document cannot be written.
+    /// </summary>
+    public const string ControllingAreaMissing = "POST.CONTROLLING_AREA_MISSING";
     public const string ProfitCenterRequired = "POST.PROFIT_CENTER_REQUIRED";
     public const string CostObjectNotValidOnDate = "POST.COST_OBJECT_NOT_VALID_ON_DATE";
     public const string CurrencyUnknown = "POST.CURRENCY_UNKNOWN";

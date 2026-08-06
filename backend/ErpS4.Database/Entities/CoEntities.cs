@@ -485,7 +485,7 @@ public class ControllingPosting : ITenantScoped
     /// <summary>Controlling area</summary>
     public long ControllingAreaId { get; set; }
 
-    /// <summary>CO document number</summary>
+    /// <summary>CO document number - the FI number plus a -CO### suffix, so it needs more room than the FI number itself</summary>
     public string ControllingDocumentNumber { get; set; } = null!;
 
     /// <summary>Line number</summary>

@@ -181,7 +181,7 @@ BEGIN
         [ReceiverCount]             int NULL,                                                                         -- Number of receivers credited
         [TotalAllocatedAmount]      decimal(19,4) NULL,                                                               -- Total allocated
         [CurrencyCode]              nvarchar(5) NULL,                                                                 -- Currency
-        [ControllingDocumentNumber] nvarchar(20) NULL,                                                                -- CO document produced
+        [ControllingDocumentNumber] nvarchar(30) NULL,                                                                -- CO document produced
         [ExecutedAt]                datetime2(3) NOT NULL,                                                            -- Execution timestamp (UTC)
         [ExecutedBy]                nvarchar(64) NOT NULL,                                                            -- Executing user or job
         [LogText]                   nvarchar(max) NULL,                                                               -- Run log
@@ -238,7 +238,7 @@ BEGIN
         [Id]                              bigint IDENTITY(1,1) NOT NULL,                                              -- Surrogate key
         [TenantId]                        int NOT NULL,                                                               -- Owning tenant - every query is filtered by it
         [ControllingAreaId]               bigint NOT NULL,                                                            -- Controlling area
-        [ControllingDocumentNumber]       nvarchar(20) NOT NULL,                                                      -- CO document number
+        [ControllingDocumentNumber]       nvarchar(30) NOT NULL,                                                      -- CO document number - the FI number plus a -CO### suffix, so it needs more room than the FI number itself
         [LineItemNumber]                  int NOT NULL,                                                               -- Line number
         [FiscalYear]                      smallint NOT NULL,                                                          -- Fiscal year
         [FiscalPeriod]                    tinyint NOT NULL,                                                           -- Period

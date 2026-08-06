@@ -1588,7 +1588,7 @@ public sealed class JournalEntryLineConfiguration : IEntityTypeConfiguration<Jou
         builder.Property(e => e.IsNegativePosting).IsRequired();
         builder.Property(e => e.IsStatistical).IsRequired();
         builder.Property(e => e.SourceModule).HasMaxLength(10).IsUnicode().IsRequired();
-        builder.Property(e => e.ControllingDocumentNumber).HasMaxLength(20).IsUnicode();
+        builder.Property(e => e.ControllingDocumentNumber).HasMaxLength(30).IsUnicode();
         builder.Property(e => e.AssetDocumentNumber).HasMaxLength(20).IsUnicode();
         builder.Property(e => e.MaterialNumber).HasMaxLength(40).IsUnicode();
         builder.Property(e => e.CreatedAt).HasColumnType("datetime2(3)").IsRequired().HasDefaultValueSql("SYSUTCDATETIME()");

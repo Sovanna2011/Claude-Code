@@ -90,8 +90,8 @@ posting endpoints refuse.
 
 | | |
 |---|---|
-| **.NET** | 10.0 — `Microsoft.NET.Sdk.Web`, `net10.0`, `Microsoft.EntityFrameworkCore.SqlServer` 10.0.10, `Microsoft.AspNetCore.Authentication.JwtBearer` 10.0.0 |
-| **SQL Server** | **2012 is the real floor**, 2019+ recommended. The schema uses nothing newer: `datetime2`, `rowversion`, `decimal(19,4)`, `MERGE` and `UPDATE … OUTPUT` are 2008; `OFFSET … FETCH`, `FORMAT`, `DATEFROMPARTS`, `EOMONTH` and `THROW` are 2012. No columnstore, temporal tables, memory-optimised tables, JSON functions or 2025-only syntax anywhere. Azure SQL Database and LocalDB both work. |
+| **.NET** | 10.0 throughout — every project in `backend/` is `net10.0`, including the HR module. Versions come from [`Directory.Packages.props`](../Directory.Packages.props): EF Core 10.0.10, JwtBearer 10.0.0, `Microsoft.OpenApi` pinned to 2.11.0 because everything below 2.5.0 carries GHSA-v5pm-xwqc-g5wc. |
+| **SQL Server** | Built and tested on **2025 (17.0.4065.4)**, and `00_create_database.sql` raises the database to **compatibility level 170** — the level, not the product version, is what selects the cardinality estimator. **2012 is the floor** the syntax needs: `datetime2`, `rowversion`, `decimal(19,4)`, `MERGE` and `UPDATE … OUTPUT` are 2008; `OFFSET … FETCH`, `FORMAT`, `DATEFROMPARTS`, `EOMONTH` and `THROW` are 2012. Nothing needs 2025 to run. Azure SQL Database and LocalDB both work. |
 | **Isolation** | `READ_COMMITTED_SNAPSHOT ON`, set by `00_create_database.sql`. That is why nothing in the code uses `NOLOCK` — readers do not block writers, and the browser never shows a half-written document. |
 | **Resilience** | `EnableRetryOnFailure` covers EF's own commands; the transaction helper and the browser's raw query both run *inside* the execution strategy, so a transient error retries rather than surfacing as a 500. |
 | **Connection** | `TrustServerCertificate=True` in the sample string — `Microsoft.Data.SqlClient` 4.0 and later default to `Encrypt=true`, so a local instance without a trusted certificate fails to connect without it. Remove it in production and install a real certificate. |

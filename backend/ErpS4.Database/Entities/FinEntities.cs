@@ -2031,7 +2031,7 @@ public class JournalEntryLine : ITenantScoped
     /// <summary>Originating module</summary>
     public string SourceModule { get; set; } = null!;
 
-    /// <summary>Related CO document</summary>
+    /// <summary>Related CO document (FI number plus a -CO### suffix)</summary>
     public string? ControllingDocumentNumber { get; set; }
 
     /// <summary>Related asset document</summary>

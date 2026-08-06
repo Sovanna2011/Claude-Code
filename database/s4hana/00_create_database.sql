@@ -16,6 +16,30 @@ GO
 ALTER DATABASE [ErpS4] SET READ_COMMITTED_SNAPSHOT ON WITH ROLLBACK IMMEDIATE;
 GO
 
+/* Raise the compatibility level to the highest the server supports, up to 170
+   (SQL Server 2025). A restored or newly created database can inherit an older
+   level from model, and the level - not the product version - is what decides
+   which cardinality estimator and which optimiser features apply. The schema
+   itself needs nothing newer than 2012, so this is about how well it runs, not
+   whether it runs. */
+DECLARE @Level int = (SELECT MIN(level) FROM (VALUES
+    (170), (CAST(SERVERPROPERTY('ProductMajorVersion') AS int) * 10)) AS l(level));
+
+IF @Level > (SELECT compatibility_level FROM sys.databases WHERE name = N'ErpS4')
+BEGIN
+    DECLARE @Sql nvarchar(200) =
+        N'ALTER DATABASE [ErpS4] SET COMPATIBILITY_LEVEL = ' + CAST(@Level AS nvarchar(3)) + N';';
+    EXEC sp_executesql @Sql;
+END
+GO
+
+/* Snapshot statistics and the default cardinality estimator: this schema is
+   read far more than it is written, and a stale estimate on the universal
+   journal is the difference between a seek and a 4 000 000 row scan. */
+ALTER DATABASE [ErpS4] SET AUTO_UPDATE_STATISTICS ON;
+ALTER DATABASE [ErpS4] SET AUTO_UPDATE_STATISTICS_ASYNC ON;
+GO
+
 USE [ErpS4];
 GO
 

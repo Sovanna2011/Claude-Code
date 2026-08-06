@@ -5,7 +5,7 @@ Capital Management application, built on an open stack:
 
 - **Database** — Microsoft **SQL Server** (SAP-faithful schema: PA infotypes,
   Organizational Management, customizing/T-tables, stored procedures, views)
-- **Backend** — **C# / ASP.NET Core 8** Web API with **Entity Framework Core**
+- **Backend** — **C# / ASP.NET Core 10** Web API with **Entity Framework Core 10**
 - **Frontend** — **SAPUI5** (Fiori, Horizon theme) master–detail application
 
 It covers the core HCM sub-modules plus common HR processes:
@@ -49,8 +49,14 @@ The catalogue drives both physical artefacts, so they cannot drift from it:
 cd database/s4hana && sqlcmd -S localhost -i run_all.sql   # install the schema
 python3 tools/generate_sql_ddl.py && python3 tools/generate_ef_core.py   # regenerate
 python3 tools/validate_generated_sql.py                    # six checks before shipping
-dotnet test backend/ErpS4.Tests                            # 123 tests
+dotnet test backend/ErpS4.Tests                            # 123 tests, no database
+ERPS4_TEST_CONNECTION='Server=...;Database=ErpS4;...' \
+  dotnet test backend/ErpS4.IntegrationTests               # 8 tests, real SQL Server
 ```
+
+The integration tests skip rather than fail when `ERPS4_TEST_CONNECTION` is
+unset, so the suite stays runnable without a server without pretending it
+passed.
 
 Installed and exercised end to end on SQL Server 2025 and .NET 10: the schema
 loads from `run_all.sql`, the API serves the seeded documents, and SE16N refuses
@@ -75,7 +81,7 @@ Claude-Code/
 ├── database/                 # SQL Server scripts (run in numeric order)
 │   ├── 01_create_database.sql … 08_views.sql
 │   └── run_all.sql           # SQLCMD master installer
-├── backend/HRModule.Api/     # ASP.NET Core 8 Web API (EF Core)
+├── backend/HRModule.Api/     # ASP.NET Core 10 Web API (EF Core 10)
 │   ├── Models/               # EmployeeMaster, Infotypes, OrgManagement, Customizing
 │   ├── Data/HRDbContext.cs   # EF Core mappings (schema [HR])
 │   ├── DTOs/ Services/ Controllers/ Middleware/
@@ -90,10 +96,15 @@ Claude-Code/
 
 | Tool | Version | Used for |
 |------|---------|----------|
-| SQL Server | 2019+ (or Azure SQL / LocalDB); verified on **2025 / 17.0.4065.4** | database |
-| .NET SDK | 8.0 | HR module backend build/run |
-| .NET SDK | 10.0 | S/4HANA ERP backend — built and tested on **10.0.110** |
+| SQL Server | 2019+ (or Azure SQL / LocalDB); built and tested on **2025 / 17.0.4065.4** | database |
+| .NET SDK | **10.0** (tested on 10.0.110) | both backends — HR module and S/4HANA ERP |
 | Node.js | 18+ | UI5 dev server / build |
+
+Package versions for everything under `backend/` are decided in one place,
+[`backend/Directory.Packages.props`](backend/Directory.Packages.props), and the
+project files carry only package names. That is not tidiness for its own sake:
+mixing 10.0.0 and 10.0.10 across projects produced `NU1605` package-downgrade
+build errors twice, and a single list makes that impossible rather than fixed.
 
 ## 1. Database
 

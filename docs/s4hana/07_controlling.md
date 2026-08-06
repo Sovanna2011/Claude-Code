@@ -411,7 +411,7 @@ same path, so plan-versus-actual reporting reads one table.
 | `Id` | `bigint` | PK | no | Surrogate key |
 | *include* | `#TENANT` | | | Tenant discriminator |
 | `ControllingAreaId` | `bigint` | AK,FK | no | Controlling area |
-| `ControllingDocumentNumber` | `nvarchar(20)` | AK | no | CO document number |
+| `ControllingDocumentNumber` | `nvarchar(30)` | AK | no | CO document number - the FI number plus a `-CO###` suffix, so it needs more room than the FI number itself |
 | `LineItemNumber` | `int` | AK | no | Line number |
 | `FiscalYear` | `smallint` | IX | no | Fiscal year |
 | `FiscalPeriod` | `tinyint` | IX | no | Period |
@@ -559,7 +559,7 @@ same path, so plan-versus-actual reporting reads one table.
 | `ReceiverCount` | `int` | | yes | Number of receivers credited |
 | `TotalAllocatedAmount` | `decimal(19,4)` | | yes | Total allocated |
 | `CurrencyCode` | `nvarchar(5)` | FK | yes | Currency |
-| `ControllingDocumentNumber` | `nvarchar(20)` | | yes | CO document produced |
+| `ControllingDocumentNumber` | `nvarchar(30)` | | yes | CO document produced |
 | `ExecutedAt` | `datetime2(3)` | | no | Execution timestamp (UTC) |
 | `ExecutedBy` | `nvarchar(64)` | | no | Executing user or job |
 | `LogText` | `nvarchar(max)` | | yes | Run log |

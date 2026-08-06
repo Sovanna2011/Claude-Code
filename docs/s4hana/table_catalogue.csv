@@ -2248,7 +2248,7 @@ fin,JournalEntryLine,fin.JournalEntryLine,81,IsReversalLine,bit,,no,Line belongs
 fin,JournalEntryLine,fin.JournalEntryLine,82,IsNegativePosting,bit,,no,Negative posting (reduces the same side),Universal journal line item — the single source of accounting truth,ACDOCA` / `BSEG,05_financial_accounting.md
 fin,JournalEntryLine,fin.JournalEntryLine,83,IsStatistical,bit,,no,"Statistical posting (noted item, statistical order)",Universal journal line item — the single source of accounting truth,ACDOCA` / `BSEG,05_financial_accounting.md
 fin,JournalEntryLine,fin.JournalEntryLine,84,SourceModule,nvarchar(10),,no,Originating module,Universal journal line item — the single source of accounting truth,ACDOCA` / `BSEG,05_financial_accounting.md
-fin,JournalEntryLine,fin.JournalEntryLine,85,ControllingDocumentNumber,nvarchar(20),,yes,Related CO document,Universal journal line item — the single source of accounting truth,ACDOCA` / `BSEG,05_financial_accounting.md
+fin,JournalEntryLine,fin.JournalEntryLine,85,ControllingDocumentNumber,nvarchar(30),,yes,Related CO document (FI number plus a `-CO###` suffix),Universal journal line item — the single source of accounting truth,ACDOCA` / `BSEG,05_financial_accounting.md
 fin,JournalEntryLine,fin.JournalEntryLine,86,AssetDocumentNumber,nvarchar(20),,yes,Related asset document,Universal journal line item — the single source of accounting truth,ACDOCA` / `BSEG,05_financial_accounting.md
 fin,JournalEntryLine,fin.JournalEntryLine,87,MaterialNumber,nvarchar(40),,yes,Material (future inventory module),Universal journal line item — the single source of accounting truth,ACDOCA` / `BSEG,05_financial_accounting.md
 fin,JournalEntryLine,fin.JournalEntryLine,88,CreatedAt,datetime2(3),,no,Creation timestamp (UTC),Universal journal line item — the single source of accounting truth,ACDOCA` / `BSEG,05_financial_accounting.md
@@ -3388,7 +3388,7 @@ co,SettlementDocumentItem,co.SettlementDocumentItem,17,IsActive,bit,,no,Soft-del
 co,ControllingPosting,co.ControllingPosting,1,Id,bigint,PK,no,Surrogate key,CO line item — actual and plan,COEP,07_controlling.md
 co,ControllingPosting,co.ControllingPosting,2,TenantId,int,"FK,IX",no,Owning tenant — every query is filtered by it,CO line item — actual and plan,COEP,07_controlling.md
 co,ControllingPosting,co.ControllingPosting,3,ControllingAreaId,bigint,"AK,FK",no,Controlling area,CO line item — actual and plan,COEP,07_controlling.md
-co,ControllingPosting,co.ControllingPosting,4,ControllingDocumentNumber,nvarchar(20),AK,no,CO document number,CO line item — actual and plan,COEP,07_controlling.md
+co,ControllingPosting,co.ControllingPosting,4,ControllingDocumentNumber,nvarchar(30),AK,no,"CO document number - the FI number plus a `-CO###` suffix, so it needs more room than the FI number itself",CO line item — actual and plan,COEP,07_controlling.md
 co,ControllingPosting,co.ControllingPosting,5,LineItemNumber,int,AK,no,Line number,CO line item — actual and plan,COEP,07_controlling.md
 co,ControllingPosting,co.ControllingPosting,6,FiscalYear,smallint,IX,no,Fiscal year,CO line item — actual and plan,COEP,07_controlling.md
 co,ControllingPosting,co.ControllingPosting,7,FiscalPeriod,tinyint,IX,no,Period,CO line item — actual and plan,COEP,07_controlling.md
@@ -3511,7 +3511,7 @@ co,AllocationRun,co.AllocationRun,10,SenderCount,int,,yes,Number of senders proc
 co,AllocationRun,co.AllocationRun,11,ReceiverCount,int,,yes,Number of receivers credited,Execution of an allocation cycle,,07_controlling.md
 co,AllocationRun,co.AllocationRun,12,TotalAllocatedAmount,"decimal(19,4)",,yes,Total allocated,Execution of an allocation cycle,,07_controlling.md
 co,AllocationRun,co.AllocationRun,13,CurrencyCode,nvarchar(5),FK,yes,Currency,Execution of an allocation cycle,,07_controlling.md
-co,AllocationRun,co.AllocationRun,14,ControllingDocumentNumber,nvarchar(20),,yes,CO document produced,Execution of an allocation cycle,,07_controlling.md
+co,AllocationRun,co.AllocationRun,14,ControllingDocumentNumber,nvarchar(30),,yes,CO document produced,Execution of an allocation cycle,,07_controlling.md
 co,AllocationRun,co.AllocationRun,15,ExecutedAt,datetime2(3),,no,Execution timestamp (UTC),Execution of an allocation cycle,,07_controlling.md
 co,AllocationRun,co.AllocationRun,16,ExecutedBy,nvarchar(64),,no,Executing user or job,Execution of an allocation cycle,,07_controlling.md
 co,AllocationRun,co.AllocationRun,17,LogText,nvarchar(max),,yes,Run log,Execution of an allocation cycle,,07_controlling.md

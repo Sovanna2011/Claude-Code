@@ -211,6 +211,12 @@ public sealed partial class PostingEngine
             GroupCurrencyDecimals = companyCode.GroupCurrencyCode is null
                 ? 2
                 : await currencyConverter.GetDecimalsAsync(companyCode.GroupCurrencyCode, cancellationToken),
+            ControllingAreaId = companyCode.ControllingAreaId
+                ?? await context.Query<ControllingAreaCompanyCode>()
+                    .AsNoTracking()
+                    .Where(a => a.TenantId == TenantId && a.CompanyCodeId == companyCode.Id)
+                    .Select(a => (long?)a.ControllingAreaId)
+                    .FirstOrDefaultAsync(cancellationToken),
         };
 
         return (configuration, errors);
@@ -544,6 +550,20 @@ public sealed partial class PostingEngine
             errors.Add(new PostingError(
                 PostingErrorCodes.CostCenterRequired,
                 "This account needs a cost centre or an internal order.",
+                $"{field}.CostCenter", line.LineNumber));
+        }
+
+        // A cost object means a controlling document, and a controlling
+        // document needs a controlling area. Checked here rather than at the
+        // point of writing it, where an unassigned company code used to throw
+        // out of the middle of a transaction instead of being reported.
+        if ((line.CostCenter is not null || line.InternalOrder is not null)
+            && configuration.ControllingAreaId is null)
+        {
+            errors.Add(new PostingError(
+                PostingErrorCodes.ControllingAreaMissing,
+                $"Company code {configuration.CompanyCode.CompanyCodeKey} is not assigned to " +
+                "a controlling area, so a line with a cost object cannot be posted.",
                 $"{field}.CostCenter", line.LineNumber));
         }
 

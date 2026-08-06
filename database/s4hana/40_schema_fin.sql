@@ -912,7 +912,7 @@ BEGIN
         [IsNegativePosting]               bit NOT NULL CONSTRAINT [DF_fin_JournalEntryLine_IsNegativePosting] DEFAULT (0),-- Negative posting (reduces the same side)
         [IsStatistical]                   bit NOT NULL CONSTRAINT [DF_fin_JournalEntryLine_IsStatistical] DEFAULT (0),-- Statistical posting (noted item, statistical order)
         [SourceModule]                    nvarchar(10) NOT NULL,                                                      -- Originating module
-        [ControllingDocumentNumber]       nvarchar(20) NULL,                                                          -- Related CO document
+        [ControllingDocumentNumber]       nvarchar(30) NULL,                                                          -- Related CO document (FI number plus a -CO### suffix)
         [AssetDocumentNumber]             nvarchar(20) NULL,                                                          -- Related asset document
         [MaterialNumber]                  nvarchar(40) NULL,                                                          -- Material (future inventory module)
         [CreatedAt]                       datetime2(3) NOT NULL CONSTRAINT [DF_fin_JournalEntryLine_CreatedAt] DEFAULT (SYSUTCDATETIME()),-- Creation timestamp (UTC)

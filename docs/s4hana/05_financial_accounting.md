@@ -160,7 +160,7 @@ written by dedicated engine operations that also insert their own audit rows.
 | `IsNegativePosting` | `bit` | | no | Negative posting (reduces the same side) |
 | `IsStatistical` | `bit` | | no | Statistical posting (noted item, statistical order) |
 | `SourceModule` | `nvarchar(10)` | | no | Originating module |
-| `ControllingDocumentNumber` | `nvarchar(20)` | | yes | Related CO document |
+| `ControllingDocumentNumber` | `nvarchar(30)` | | yes | Related CO document (FI number plus a `-CO###` suffix) |
 | `AssetDocumentNumber` | `nvarchar(20)` | | yes | Related asset document |
 | `MaterialNumber` | `nvarchar(40)` | | yes | Material (future inventory module) |
 | `CreatedAt` | `datetime2(3)` | | no | Creation timestamp (UTC) |

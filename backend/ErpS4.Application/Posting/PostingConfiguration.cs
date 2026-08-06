@@ -46,6 +46,18 @@ internal sealed class PostingConfiguration
 
     public required IReadOnlyDictionary<long, CostElement> CostElementsByAccount { get; init; }
 
+    /// <summary>
+    /// Controlling area the company code belongs to, or null if it belongs to
+    /// none.
+    /// </summary>
+    /// <remarks>
+    /// Resolved from <c>org.ControllingAreaCompanyCode</c> first, because that
+    /// assignment table is where the relationship actually lives - a company
+    /// code joins a controlling area, and the column on the company code is
+    /// only a denormalised copy that may never have been filled in.
+    /// </remarks>
+    public long? ControllingAreaId { get; init; }
+
     public required int DocumentCurrencyDecimals { get; init; }
 
     public required int LocalCurrencyDecimals { get; init; }
