@@ -378,7 +378,32 @@ func (e *Execution) postChecked(ctx context.Context, tx store.Store,
 	}
 
 	caller := auth.FromContext(ctx)
-	return exec.PostDocument(ctx, document, caller.Username)
+	posted, err := exec.PostDocument(ctx, document, caller.Username)
+	if err != nil {
+		return domain.InventoryDocument{}, err
+	}
+
+	// Every stock movement in the application comes through here, so this is
+	// also the one place the integration event has to be written. Emitting it
+	// from each caller instead would mean a movement added later quietly stops
+	// telling the ERP anything.
+	if err := emit(ctx, tx, topicForDocument(posted.DocType), stockEvent(posted)); err != nil {
+		return domain.InventoryDocument{}, err
+	}
+	return posted, nil
+}
+
+// topicForDocument picks the topic a movement is published under. A shipment
+// and a reversal get their own, because a consumer that only cares about goods
+// leaving the gate should not have to parse every stock posting to find them.
+func topicForDocument(t domain.DocType) domain.Topic {
+	switch t {
+	case domain.DocShipment:
+		return domain.TopicShipmentDispatched
+	case domain.DocReversal:
+		return domain.TopicStockReversed
+	}
+	return domain.TopicStockPosted
 }
 
 func yearOf(d domain.BusinessDate) (int, error) {

@@ -587,10 +587,25 @@ func (e *Execution) Confirm(ctx context.Context, orderID string, req ConfirmRequ
 			return err
 		}
 
-		return e.audit(ctx, tx, auditEntry{
+		if err := e.audit(ctx, tx, auditEntry{
 			action: "CONFIRM", entity: "production_order", entityID: order.ID,
 			before: before, after: result.Order,
 			reason: fmt.Sprintf("confirmation %s: %s t", confirmation.ConfirmationNo, confirmation.YieldQty),
+		}); err != nil {
+			return err
+		}
+
+		return emit(ctx, tx, domain.TopicProductionConfirm, ConfirmationEvent{
+			ConfirmationID: result.Confirmation.ID, ConfirmationNo: result.Confirmation.ConfirmationNo,
+			OrderID: order.ID, OrderNo: order.OrderNo, FactoryID: order.FactoryID,
+			BusinessDate: confirmation.BusinessDate, ProductID: order.ProductID,
+			BatchID: result.Confirmation.BatchID, GoodQuantity: confirmation.YieldQty,
+			ScrapQuantity: confirmation.ScrapQty, ReworkQuantity: confirmation.ReworkQty,
+			OrderStatus: result.Order.Status,
+			// A consumer that closes its own order needs to know this was the
+			// last confirmation, and the order's status is what says so.
+			Final:       result.Order.Status == domain.OrderCompleted,
+			ConfirmedBy: caller.Username,
 		})
 	})
 	if err != nil {

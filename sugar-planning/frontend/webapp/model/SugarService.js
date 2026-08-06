@@ -454,6 +454,33 @@ sap.ui.define([
 			return this.get("/audit?" + aQuery.join("&"));
 		},
 
+		// ------------------------------------------------------------------
+		// Interfaces
+		// ------------------------------------------------------------------
+
+		/** listEvents reads the outbox: what this system has to tell the
+		 * connected systems, and what it has not managed to tell them yet. */
+		listEvents: function (oParams) {
+			var aQuery = ["$top=200"];
+			Object.keys(oParams || {}).forEach(function (sKey) {
+				if (oParams[sKey]) {
+					aQuery.push(encodeURIComponent(sKey) + "=" + encodeURIComponent(oParams[sKey]));
+				}
+			});
+			return this.get("/integration/events?" + aQuery.join("&"));
+		},
+
+		/** retryEvent delivers one event now, whatever its backoff says. */
+		retryEvent: function (sId) {
+			return this.post("/integration/events/" + encodeURIComponent(sId) + "/retry", null);
+		},
+
+		/** dispatch runs a dispatcher pass on demand, which is what drains a
+		 * backlog after an outage rather than waiting for the next tick. */
+		dispatch: function () {
+			return this.post("/integration/dispatch", null);
+		},
+
 		/** newModel wraps a payload in a JSONModel with a generous size limit,
 		 * because a season is 137 days across several dimensions. */
 		newModel: function (oData) {

@@ -25,6 +25,11 @@ var (
 	ErrCapacity = errors.New("capacity exceeded")
 	// ErrDuplicate marks a unique business key violation.
 	ErrDuplicate = errors.New("duplicate business key")
+	// ErrUpstream marks a system this one depends on refusing or failing - an
+	// ERP that would not take an event, a laboratory system that answered with
+	// an error. It is deliberately distinct from a fault in this system,
+	// because the person who has to act on it is a different person.
+	ErrUpstream = errors.New("upstream system failed")
 )
 
 // FieldError carries a message that the SAPUI5 MessagePopover can bind to a

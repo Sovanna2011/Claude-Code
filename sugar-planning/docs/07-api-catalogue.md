@@ -344,7 +344,97 @@ remember to type the dates into a generate request.
 
 ---
 
-## 7.5 What the API does not do
+## 7.5 Interfaces
+
+The two directions are deliberately different in kind. What leaves this system
+goes through an outbox and is delivered asynchronously; what arrives comes in
+through ordinary, synchronous endpoints that answer with what they did.
+
+### Outbound: the transactional outbox
+
+| Method | Path | Purpose | Permission |
+| --- | --- | --- | --- |
+| GET | `/integration/events` | The outbox, newest first | `integration:read` |
+| POST | `/integration/events/{id}/retry` | Deliver one event now, whatever its backoff says | `integration:read` |
+| POST | `/integration/dispatch` | Run a dispatcher pass on demand | `integration:read` |
+
+An event is written **in the same transaction as the change it describes**. That
+is the whole point: a confirmation that rolls back cannot leave a message
+telling the ERP it happened, and an ERP that is down cannot cause a confirmation
+to be refused. A dispatcher reads the outbox afterwards and delivers.
+
+Eight topics are published: `plan.released`, `production.confirmed`,
+`stock.posted`, `stock.reversed`, `quality.failed`, `quality.released`,
+`shipment.dispatched` and `cost.run.completed`. Stock movements are emitted from
+the single posting door every movement passes through, so a movement added later
+cannot quietly stop telling anyone.
+
+Delivery is **at least once**. A crash between delivering an event and recording
+that it was delivered sends it again, which is why every envelope carries an `id`
+to deduplicate on and the `X-Event-Id` header repeats it for a gateway that would
+rather not parse the body. Exactly-once across two systems is not a promise this
+or any other system can keep, and pretending otherwise would just move the
+duplicate somewhere less visible.
+
+Retries back off from one second, doubling to a ceiling of an hour. After 25
+attempts an event stops being retried and waits for a person; it is never
+discarded, and it keeps the last thing the far end said. `?exhausted=true` is the
+list somebody should be looking at.
+
+With no `INTEGRATION_ENDPOINT` configured the dispatcher publishes to the
+application log. That is a real destination rather than a pretend one - the
+events appear where the operator already looks - and pointing the variable at the
+ERP is the only change needed to start feeding it.
+
+### Inbound: the weighbridge
+
+| Method | Path | Purpose | Permission |
+| --- | --- | --- | --- |
+| POST | `/integration/weighbridge` | Gate tickets become actual cane | `integration:write` |
+
+A ticket carries the gross and the tare, not only the net, because a dispute
+about a delivery is settled by the two weights and a system holding only their
+difference could not settle it. Accepted tonnage is
+`(gross − tare − rejected) / 1000`, and cane refused at the gate needs a reason
+code, since that is what the grower is shown.
+
+Tickets are **added** to the day and factory they name: the gate weighs a lorry
+at a time, and each message carries what has arrived since the last one. The
+crushed figure is never touched - it comes from the mill, and a gate reading is
+not evidence about it.
+
+The default is all or nothing, so a terminal that sent a bad batch resends the
+batch rather than working out what got through; `partial: true` accepts the
+sound tickets and reports the rest by row. Send an `Idempotency-Key`: a terminal
+that lost the network mid-send retries, and the retry must not weigh the same
+lorries twice.
+
+### Inbound: the laboratory system
+
+| Method | Path | Purpose | Permission |
+| --- | --- | --- | --- |
+| POST | `/integration/lab-results` | Instrument readings become quality results | `integration:write` |
+
+The message names the sample by the number printed on the bottle and the
+parameters by their codes, because that is what an instrument knows; asking a
+laboratory technician to key a uuid would guarantee the interface went unused.
+
+The readings are then judged by the ordinary quality service - the same
+effective-dated specifications, the same verdict, the same hold on failing
+material. An interface that could reach a different verdict from a technician
+entering the same numbers would be worse than no interface at all.
+`complete: false` saves an interim sheet without producing a verdict, which is
+what an instrument reporting one parameter at a time needs.
+
+### The machine account
+
+Both inbound endpoints sit behind `integration:write`, held by the `INTEGRATION`
+role and by nothing else. That account can read master data, record cane and
+enter laboratory readings. It cannot move stock, release a hold or touch a plan.
+
+---
+
+## 7.6 What the API does not do
 
 Worth stating so nobody looks for it:
 

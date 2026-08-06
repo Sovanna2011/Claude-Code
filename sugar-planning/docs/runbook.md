@@ -56,6 +56,23 @@ in a state it cannot honour.
 | `AUTH_ROLE_MAPPING` | empty | `provider-group=APP_ROLE,other=OTHER_ROLE` |
 | `AUTH_DEV_SECRET` | — | Required for `dev`. At least 16 characters |
 
+### Interfaces and background jobs
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `INTEGRATION_ENDPOINT` | *(none)* | Where integration events are POSTed. With none set they go to the application log, which is a real destination, not a silent drop |
+| `INTEGRATION_AUTH_HEADER` | *(none)* | e.g. `Authorization`. Set with `INTEGRATION_AUTH_VALUE` or not at all |
+| `INTEGRATION_AUTH_VALUE` | *(none)* | e.g. `Bearer …`. A secret: inject it, never bake it in |
+| `INTEGRATION_TIMEOUT` | `15s` | One delivery attempt |
+| `INTEGRATION_SOURCE` | `sugarplan` | Names this system in the envelope |
+| `INTEGRATION_DISPATCH_INTERVAL` | `30s` | How often the dispatcher runs. `0` switches it off and says so in the log |
+| `INTEGRATION_DISPATCH_BATCH` | `50` | Events per pass |
+
+The dispatcher runs inside the server process. Two instances behind a load
+balancer both have one, and each job is taken under a lease in `job_leases`, so
+only one instance runs it per tick. An instance that dies holding a lease blocks
+its job only until the lease expires, not until somebody notices.
+
 ### Seed data
 
 | Variable | Default | Notes |
@@ -228,6 +245,8 @@ only real once it has been measured.
 | Replication lag | above 30 seconds |
 | Backup age | no successful backup in 26 hours |
 | Unpublished outbox events | older than 15 minutes |
+| Exhausted outbox events | any at all — they have stopped being retried and are waiting for a person (`GET /api/v1/integration/events?exhausted=true`) |
+| Outbox dispatcher | `finishedAt` from `GET /api/v1/integration/jobs` older than three intervals — the scheduler has stopped |
 | Disk | above 80 % on the data volume |
 
 ### Business monitoring
@@ -239,6 +258,9 @@ These are not infrastructure problems, but somebody needs to see them:
 - Any store forecast to exceed capacity within 14 days
 - A material shortage with a suggested order date already in the past
 - A plan submitted for review and untouched for more than 48 hours
+- No weighbridge tickets received for a shift during a campaign — the gate
+  terminal has probably lost its network, and the cane figures are silently
+  behind rather than wrong
 
 ### Logs
 

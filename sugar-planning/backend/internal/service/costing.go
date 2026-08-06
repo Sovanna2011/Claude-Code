@@ -394,9 +394,19 @@ func (c *Costing) Run(ctx context.Context, req CostRunRequest) (CostRunResult, e
 			return err
 		}
 		result.Run, result.Saved = saved, true
-		return c.audit(ctx, tx, auditEntry{
+		if err := c.audit(ctx, tx, auditEntry{
 			action: "COST_RUN", entity: "cost_run", entityID: saved.ID, after: output.Totals,
 			reason: fmt.Sprintf("costed %s to %s in %s", from, to, currency),
+		}); err != nil {
+			return err
+		}
+		// Only a saved run is published. A planner trying figures on screen is
+		// not making a statement the finance system should record.
+		return emit(ctx, tx, domain.TopicCostRunCompleted, CostRunEvent{
+			RunID: saved.ID, SeasonID: season.ID, VersionID: plan.ID, FactoryID: season.FactoryID,
+			From: from, To: to, Currency: currency,
+			PlannedCost: output.Totals.PlannedCost, ActualCost: output.Totals.ActualCost,
+			Variance: output.Totals.TotalVariance, RunBy: caller.Username,
 		})
 	})
 	if err != nil {

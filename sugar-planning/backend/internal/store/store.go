@@ -5,6 +5,7 @@ package store
 
 import (
 	"context"
+	"time"
 
 	"github.com/kss/sugarplan/internal/domain"
 )
@@ -148,7 +149,10 @@ type ExecutionFilter struct {
 	WarehouseID string
 	LineID      string
 	OrderID     string
-	Statuses    []string
+	// Number matches a document or sample by its printed number. It is how an
+	// instrument that knows only the number on the bottle finds the sample.
+	Number   string
+	Statuses []string
 	// OpenOnly restricts to records that are still live: orders that are not
 	// closed or cancelled, holds that are not released.
 	OpenOnly bool
@@ -260,6 +264,56 @@ type Costing interface {
 	SaveRun(ctx context.Context, r domain.CostRun, actor string) (domain.CostRun, error)
 }
 
+// Outbox is the transactional outbox. An integration event is written in the
+// same transaction as the change it describes, so the change and its
+// notification commit together or not at all.
+type Outbox interface {
+	// Append writes an event. It takes the caller's transaction, which is the
+	// whole point: an event written outside one can describe a change that was
+	// rolled back.
+	Append(ctx context.Context, e domain.OutboxEvent) error
+	// Get reads one event, for the retry an operator triggers by hand.
+	Get(ctx context.Context, id string) (domain.OutboxEvent, error)
+	// Due returns unpublished events whose backoff has elapsed, oldest first.
+	Due(ctx context.Context, now time.Time, limit int) ([]domain.OutboxEvent, error)
+	// MarkPublished records a successful delivery.
+	MarkPublished(ctx context.Context, id string, at time.Time) error
+	// MarkFailed records an attempt that did not deliver, so the next one waits
+	// longer and the error survives for somebody to read.
+	MarkFailed(ctx context.Context, id string, at time.Time, reason string) error
+	// List returns events for the operations screen, newest first.
+	List(ctx context.Context, f OutboxFilter) (Page[domain.OutboxEvent], error)
+}
+
+// OutboxFilter selects outbox events.
+type OutboxFilter struct {
+	Topic string
+	// Unpublished restricts to events still waiting.
+	Unpublished bool
+	// Exhausted restricts to events that have stopped being retried.
+	Exhausted bool
+	Skip      int
+	Top       int
+}
+
+// Jobs is the lease the background scheduler runs behind, and the record of
+// what each job last did.
+//
+// Two instances of this application both have a scheduler and both wake at the
+// same moment. The lease is what stops them doing the same work twice; the
+// record of the last run is what an operator reads to find out whether the
+// dispatcher has been running at all.
+type Jobs interface {
+	// Acquire takes the lease for a job, or reports that somebody else holds
+	// it. A lease that has expired is taken over: an instance that died holding
+	// one must not block the job for ever.
+	Acquire(ctx context.Context, name, owner string, lease time.Duration, now time.Time) (bool, error)
+	// Finish releases the lease and records the outcome.
+	Finish(ctx context.Context, name, owner string, now time.Time, status, detail string) error
+	// List returns what every job last did, for the operations view.
+	List(ctx context.Context) ([]domain.JobRun, error)
+}
+
 // AuditFilter selects audit records.
 type AuditFilter struct {
 	Entity   string
@@ -299,6 +353,8 @@ type Store interface {
 	Planning() Planning
 	Execution() Execution
 	Costing() Costing
+	Outbox() Outbox
+	Jobs() Jobs
 	Audit() Audit
 	Idempotency() Idempotency
 	// InTx runs fn inside a database transaction. Every posting that touches

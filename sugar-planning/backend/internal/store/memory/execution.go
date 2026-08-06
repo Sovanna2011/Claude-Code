@@ -473,6 +473,9 @@ func (e execution) ListSamples(_ context.Context, f store.ExecutionFilter) (stor
 		if !matchIn(f.ProductIDs, s.ProductID) || !inRange(f, s.BusinessDate) {
 			continue
 		}
+		if f.Number != "" && s.SampleNo != f.Number {
+			continue
+		}
 		s.Results = append([]domain.QualityResult(nil), e.s.d.results[s.ID]...)
 		items = append(items, s)
 	}

@@ -779,6 +779,9 @@ func (e execution) ListSamples(ctx context.Context, f store.ExecutionFilter) (st
 	}
 	w.in("product_id", f.ProductIDs)
 	w.dateRange("business_date", f.From, f.To)
+	if f.Number != "" {
+		w.eq("sample_no", f.Number)
+	}
 	clause := w.sql()
 
 	var total int

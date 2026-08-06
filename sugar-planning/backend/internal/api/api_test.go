@@ -53,6 +53,8 @@ func newTestServer(t *testing.T) *testServer {
 		"controller": {DisplayName: "Cost controller", Roles: []string{auth.RoleCostController}},
 		"executive":  {DisplayName: "Executive", Roles: []string{auth.RoleExecutiveViewer}},
 		"auditor":    {DisplayName: "Auditor", Roles: []string{auth.RoleAuditor}},
+		"admin":      {DisplayName: "Administrator", Roles: []string{auth.RoleSystemAdmin}},
+		"interface":  {DisplayName: "Gate interface", Roles: []string{auth.RoleIntegration}},
 		"outsider":   {DisplayName: "Other factory", Roles: []string{auth.RoleProductionPlanner}},
 	}
 	for name, u := range users {

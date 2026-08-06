@@ -30,6 +30,8 @@ service; nothing reaches around a service into another module's tables.
 | downtime | `internal/store` (planning) | Downtime events, maintenance windows | organization |
 | workflow | `internal/domain` (workflow) | Plan state machine, transitions, locking | seasons, identity |
 | reporting | `internal/api`, `internal/report` | Report catalogue, builders, CSV/XLSX/PDF | everything read-only |
+| costing | `0007` schema | Cost elements, rates, exchange rates, cost runs and variance | planning, masterdata |
+| integration | `internal/integration`, `0005` schema | Transactional outbox, the dispatcher, and the weighbridge and laboratory adapters | planning, quality, inventory |
 | audit | `internal/store` (audit) | Append-only audit trail | identity |
 
 Boundaries are enforced by the repository interfaces: a service can only reach
@@ -62,6 +64,10 @@ the caller holds the permission the backend will check.
 | `materials:read` | Read packaging requirement planning |
 | `report:read` | Run and export reports |
 | `audit:read` | Read the audit trail |
+| `cost:read` | Read the cost structure, rates and cost runs |
+| `cost:write` | Maintain cost elements, rates and exchange rates; save a run |
+| `integration:read` | See the outbox, retry an event, run the dispatcher |
+| `integration:write` | Feed the inbound interfaces: gate tickets and laboratory readings |
 | `capacity:override` | Assign stock beyond usable capacity, recording the override |
 | `admin` | Administration: users, roles, scopes, system settings |
 
@@ -87,6 +93,7 @@ the caller holds the permission the backend will check.
 | Approver / Factory Manager | R | R | – | A + override | – | – | – | – | – | – | – | R | – | – |
 | Executive Viewer | R | R | – | – | – | – | – | – | – | – | – | R | – | – |
 | Auditor / Read Only | R | R | – | – | – | – | – | – | – | – | – | R | R | – |
+| Interface (machine) | R | R | – | – | W | – | – | – | W | – | – | – | – | – |
 
 ### What the matrix is saying
 
@@ -99,6 +106,13 @@ area.
 Approver approves and releases. Neither holds the other's permission, and the
 service refuses an approval by the plan's own submitter even if somebody is
 granted both roles.
+
+**An interface is an account, not an exception.** The weighbridge terminal and
+the laboratory system sign in as the `INTEGRATION` machine account, which holds
+`integration:write` and the two posting permissions its readings need - and
+nothing else. It cannot move stock, release a hold or touch a plan. An interface
+running as an administrator is an interface nobody can safely change, and a
+credential on a terminal in a yard is the one most likely to be copied.
 
 **The administrator is not a superuser.** System Administrator holds `admin` and
 master data, but *not* `plan:write`, `plan:approve` or any actual-posting

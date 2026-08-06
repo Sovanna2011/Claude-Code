@@ -178,8 +178,14 @@ const (
 	// operational figures. What a factory pays for cane is commercially
 	// sensitive in a way that how much cane it crushed is not, so a plan reader
 	// does not see it by default.
-	PermCostRead         = "cost:read"
-	PermCostWrite        = "cost:write"
+	PermCostRead  = "cost:read"
+	PermCostWrite = "cost:write"
+	// PermIntegrationRead and PermIntegrationWrite guard the interfaces. The
+	// read side is an operations view - which events are waiting, which have
+	// given up - and the write side is what a machine account holds to feed
+	// the weighbridge and laboratory readings in.
+	PermIntegrationRead  = "integration:read"
+	PermIntegrationWrite = "integration:write"
 	PermReportRead       = "report:read"
 	PermAuditRead        = "audit:read"
 	PermAdmin            = "admin"

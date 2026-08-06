@@ -43,7 +43,7 @@ reaches for a package-level variable.
 | Store | `internal/store` + `memory`, `postgres` | Persistence, business keys, optimistic concurrency, transactions | Business rules |
 | Service | `internal/service` | Authorisation, validation, orchestration across repositories, transaction boundaries, audit | SQL; HTTP |
 | Transport | `internal/api` | Routing, decoding, problem details, ETags, idempotency, exports | Business rules |
-| Support | `internal/auth`, `config`, `report`, `seed` | Token verification, configuration, renderers, demo data | — |
+| Support | `internal/auth`, `config`, `report`, `seed`, `integration`, `jobs` | Token verification, configuration, renderers, demo data, event delivery, the scheduler | Business rules |
 
 ### Why two store implementations
 
@@ -105,7 +105,10 @@ sugar-planning/
 │       ├── domain/                 # entities, calculations, generator, workflow
 │       │   ├── decimalx.go         # the numeric contract
 │       │   ├── model.go            # entities and enumerations
-│       │   ├── calc.go             # the calculation catalogue, C1-C34
+│       │   ├── calc.go             # the calculation catalogue, C1-C42
+│       │   ├── costing.go          # cost model and variance decomposition
+│       │   ├── execution.go        # postings, orders, quality, maintenance
+│       │   ├── integration.go      # topics, the outbox, inbound readings
 │       │   ├── generator.go        # season plan generation
 │       │   ├── workflow.go         # state machine, locking, permissions
 │       │   └── errors.go           # sentinel errors, field errors
@@ -116,9 +119,12 @@ sugar-planning/
 │       │   │   └── migrations/     # versioned .up.sql / .down.sql (embedded)
 │       │   └── storetest/          # conformance suite both must pass
 │       ├── service/                # planning, generate, dailyrows, analytics,
-│       │                           # materials, compare
+│       │                           # materials, compare, inventory, orders,
+│       │                           # quality, costing, integration
 │       ├── api/                    # router, handlers, middleware, problem
 │       │                           # details, reports, openapi.yaml
+│       ├── integration/            # the publishers events are delivered through
+│       ├── jobs/                   # the in-process scheduler and its lease
 │       ├── auth/                   # principal, roles, OIDC and dev verifiers
 │       ├── config/                 # environment configuration + validation
 │       ├── report/                 # CSV, XLSX and PDF writers
@@ -218,3 +224,7 @@ see [05-data-model.md](05-data-model.md) for the trigger point.
 | A panic in a handler | Recovered, logged with the stack, answered with a 500 problem document; the process stays up |
 | A slow request | The context deadline (30 s default) cancels it rather than pinning a connection |
 | Shutdown signal | Stops accepting, drains in-flight requests within the shutdown timeout, closes the pool |
+| The ERP is down when something is posted | Nothing is refused. The event is already committed to the outbox with the change; the dispatcher retries on a widening backoff and the posting stands |
+| An event cannot be delivered at all | After 25 attempts it stops being retried and stays in the outbox with its last error, listed under `?exhausted=true`. It is never discarded |
+| Two instances run the dispatcher at once | `SELECT ... FOR UPDATE SKIP LOCKED` gives each instance a disjoint batch, so neither delivers the other's events |
+| A weighbridge terminal resends a batch | The idempotency key replays the first answer; the lorries are not weighed twice |

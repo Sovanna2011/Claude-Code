@@ -63,6 +63,13 @@ type data struct {
 	exchangeRates map[string]domain.ExchangeRate
 	costRuns      map[string]domain.CostRun
 
+	outbox map[string]domain.OutboxEvent
+	// jobs holds what each scheduled job last did; jobLeases holds when the
+	// current holder's claim runs out, which is not part of the record an
+	// operator reads and so is kept apart from it.
+	jobs      map[string]domain.JobRun
+	jobLeases map[string]time.Time
+
 	audit []domain.AuditEvent
 	idem  map[string][]byte
 }
@@ -81,6 +88,9 @@ func newData() *data {
 		cane: map[string]domain.DailyCanePlan{}, prodPlans: map[string]domain.DailyProductPlan{},
 		storage: map[string]domain.DailyStoragePlan{}, shipments: map[string]domain.DailyShipmentPlan{},
 		downtime:      map[string]domain.DowntimeEvent{},
+		outbox:        map[string]domain.OutboxEvent{},
+		jobs:          map[string]domain.JobRun{},
+		jobLeases:     map[string]time.Time{},
 		costElements:  map[string]domain.CostElement{},
 		costRates:     map[string]domain.CostRate{},
 		exchangeRates: map[string]domain.ExchangeRate{},
@@ -131,8 +141,11 @@ func (d *data) clone() *data {
 		holds: cloneMap(d.holds), maintenance: cloneMap(d.maintenance),
 		costElements: cloneMap(d.costElements), costRates: cloneMap(d.costRates),
 		exchangeRates: cloneMap(d.exchangeRates), costRuns: cloneRuns(d.costRuns),
-		audit: append([]domain.AuditEvent(nil), d.audit...),
-		idem:  cloneMap(d.idem),
+		outbox:    cloneMap(d.outbox),
+		jobs:      cloneMap(d.jobs),
+		jobLeases: cloneMap(d.jobLeases),
+		audit:     append([]domain.AuditEvent(nil), d.audit...),
+		idem:      cloneMap(d.idem),
 	}
 }
 

@@ -23,6 +23,8 @@ import (
 	"github.com/kss/sugarplan/internal/api"
 	"github.com/kss/sugarplan/internal/auth"
 	"github.com/kss/sugarplan/internal/config"
+	"github.com/kss/sugarplan/internal/integration"
+	"github.com/kss/sugarplan/internal/jobs"
 	"github.com/kss/sugarplan/internal/seed"
 	"github.com/kss/sugarplan/internal/service"
 	"github.com/kss/sugarplan/internal/store"
@@ -66,6 +68,25 @@ func run() error {
 	execution := service.NewExecution(st, func() time.Time { return time.Now().UTC() })
 	costing := service.NewCosting(st, planning, func() time.Time { return time.Now().UTC() })
 
+	// The publisher decides where integration events go. With no endpoint
+	// configured they go to the application log, which is a real destination
+	// rather than a pretend one: the events appear where the operator already
+	// looks, and pointing INTEGRATION_ENDPOINT at the ERP is the only change
+	// needed to start feeding it.
+	var publisher service.Publisher = integration.NewLog(logger, cfg.IntegrationSource)
+	if webhook := integration.NewHTTP(integration.HTTPOptions{
+		Endpoint:   cfg.IntegrationEndpoint,
+		AuthHeader: cfg.IntegrationAuthHeader,
+		AuthValue:  cfg.IntegrationAuthValue,
+		Timeout:    cfg.IntegrationTimeout,
+		Source:     cfg.IntegrationSource,
+	}); webhook != nil {
+		publisher = webhook
+	}
+	interfaces := service.NewIntegration(st, execution, planning, publisher,
+		func() time.Time { return time.Now().UTC() })
+	logger.Info("integration events will be published", "to", publisher.Describe())
+
 	if cfg.SeedDemo {
 		logger.Info("loading the demonstration scenario")
 		res, err := seed.LoadWithActuals(ctx, st, planning, cfg.SeedActualDays)
@@ -99,11 +120,20 @@ func run() error {
 	// --- HTTP ---------------------------------------------------------------
 	handler := api.NewServer(api.Options{
 		Store: st, Planning: planning, Analytics: analytics, Materials: materials,
-		Execution: execution, Costing: costing,
+		Execution: execution, Costing: costing, Integration: interfaces,
 		Verifier: verifier, AuthCfg: cfg.Auth, Logger: logger, Version: cfg.Version,
 		StaticDir: cfg.StaticDir, AllowedOrigins: cfg.AllowedOrigins,
 		RequestTimeout: cfg.RequestTimeout, RateLimit: cfg.RateLimit, RateInterval: cfg.RateInterval,
 	})
+
+	// --- background jobs ----------------------------------------------------
+	scheduler, err := startJobs(ctx, cfg, st, interfaces, logger)
+	if err != nil {
+		return err
+	}
+	if scheduler != nil {
+		defer scheduler.Stop()
+	}
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
@@ -140,6 +170,65 @@ func run() error {
 	}
 	logger.Info("stopped cleanly")
 	return nil
+}
+
+// startJobs starts the recurring work, or reports that it is switched off.
+//
+// The dispatcher is the only job that must run for the system to behave as
+// documented: an event written to the outbox is delivered by it. Setting the
+// interval to zero turns it off, which is a legitimate choice for a site that
+// drives the dispatcher from its own scheduler, but it is said out loud in the
+// log rather than left to be discovered.
+func startJobs(ctx context.Context, cfg config.Config, st store.Store,
+	interfaces *service.Integration, logger *slog.Logger,
+) (*jobs.Scheduler, error) {
+
+	if cfg.DispatchInterval <= 0 {
+		logger.Warn("the outbox dispatcher is switched off; events will wait until somebody sends them by hand")
+		return nil, nil
+	}
+
+	// The lease owner names this instance, so an operations screen can say
+	// which one last ran a job. A hostname is what an operator recognises.
+	owner, err := os.Hostname()
+	if err != nil || owner == "" {
+		owner = "instance"
+	}
+
+	scheduler, err := jobs.New(st, owner, logger, func() time.Time { return time.Now().UTC() },
+		jobs.Job{
+			Name:    "outbox-dispatch",
+			Every:   cfg.DispatchInterval,
+			Timeout: 2 * time.Minute,
+			Run: func(ctx context.Context) (string, error) {
+				// The dispatcher runs as the system rather than as a person, so
+				// it is given a principal that may do exactly this and nothing
+				// else. Running it as an administrator would be one more way in.
+				ctx = auth.WithPrincipal(ctx, auth.NewPrincipal(
+					"system", "system", "Scheduler", "",
+					[]string{auth.RoleIntegration}, nil, nil))
+				result, err := interfaces.Dispatch(ctx, cfg.DispatchBatch)
+				if err != nil {
+					return "", err
+				}
+				if result.Considered == 0 {
+					return "nothing was due", nil
+				}
+				detail := fmt.Sprintf("published %d of %d", result.Published, result.Considered)
+				if result.Failed > 0 {
+					detail += fmt.Sprintf(", %d failed", result.Failed)
+				}
+				if result.Exhausted > 0 {
+					detail += fmt.Sprintf(", %d gave up and need somebody", result.Exhausted)
+				}
+				return detail, nil
+			},
+		})
+	if err != nil {
+		return nil, fmt.Errorf("background jobs: %w", err)
+	}
+	scheduler.Start(ctx)
+	return scheduler, nil
 }
 
 // scopeDevUsers gives every demonstration account access to the companies and

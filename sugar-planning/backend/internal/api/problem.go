@@ -83,6 +83,13 @@ func writeProblem(w http.ResponseWriter, r *http.Request, err error) {
 		p.Status, p.Type, p.Title = http.StatusConflict, problemTypeBase+"capacity", "Storage capacity exceeded"
 		p.Detail = cleanMessage(err)
 
+	case errors.Is(err, domain.ErrUpstream):
+		// 502 rather than 500: this system did its part, and the message names
+		// the system that did not, so the reader knows whom to call.
+		p.Status, p.Type, p.Title = http.StatusBadGateway,
+			problemTypeBase+"upstream", "A connected system could not be reached"
+		p.Detail = cleanMessage(err)
+
 	default:
 		p.Status, p.Type, p.Title = http.StatusInternalServerError,
 			problemTypeBase+"internal", "The request could not be completed"
@@ -109,7 +116,7 @@ func cleanMessage(err error) string {
 	for _, prefix := range []string{
 		"validation failed: ", "not found: ", "forbidden: ", "version conflict: ",
 		"duplicate business key: ", "period locked: ", "illegal state transition: ",
-		"capacity exceeded: ",
+		"capacity exceeded: ", "upstream system failed: ",
 	} {
 		msg = strings.TrimPrefix(msg, prefix)
 	}

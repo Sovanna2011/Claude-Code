@@ -29,6 +29,11 @@ const (
 	RoleApprover           = "APPROVER"
 	RoleExecutiveViewer    = "EXECUTIVE_VIEWER"
 	RoleAuditor            = "AUDITOR"
+	// RoleIntegration is a machine account, not a person: the weighbridge
+	// terminal and the laboratory system sign in as this and may do nothing
+	// else. It is listed here because an interface that runs as an
+	// administrator is an interface nobody can safely change.
+	RoleIntegration = "INTEGRATION"
 )
 
 // DefaultRoles is the role to permission mapping. It is the executable form of
@@ -42,6 +47,7 @@ var DefaultRoles = map[string][]string{
 	RoleSystemAdmin: {
 		domain.PermAdmin, domain.PermMasterDataRead, domain.PermMasterDataWrite,
 		domain.PermPlanRead, domain.PermReportRead, domain.PermAuditRead,
+		domain.PermIntegrationRead,
 	},
 	RoleMasterDataAdmin: {
 		domain.PermMasterDataRead, domain.PermMasterDataWrite, domain.PermPlanRead,
@@ -91,7 +97,14 @@ var DefaultRoles = map[string][]string{
 	},
 	RoleAuditor: {
 		domain.PermPlanRead, domain.PermMasterDataRead, domain.PermCostRead,
-		domain.PermReportRead, domain.PermAuditRead,
+		domain.PermReportRead, domain.PermAuditRead, domain.PermIntegrationRead,
+	},
+	RoleIntegration: {
+		// Exactly what the two inbound interfaces need and nothing more: it
+		// reads master data to resolve the codes a ticket carries, records cane
+		// against the actuals, and enters laboratory readings.
+		domain.PermMasterDataRead, domain.PermPlanRead, domain.PermActualCane,
+		domain.PermQualityWrite, domain.PermIntegrationWrite, domain.PermIntegrationRead,
 	},
 }
 

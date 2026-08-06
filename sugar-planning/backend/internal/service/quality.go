@@ -357,11 +357,31 @@ func (e *Execution) RecordResults(ctx context.Context, sampleID string, req Resu
 			outcome.Hold = &hold
 		}
 
-		return e.audit(ctx, tx, auditEntry{
+		if err := e.audit(ctx, tx, auditEntry{
 			action: "RESULTS", entity: "quality_sample", entityID: sample.ID,
 			after:  outcome.Sample,
 			reason: fmt.Sprintf("verdict %s", outcome.Verdict),
-		})
+		}); err != nil {
+			return err
+		}
+
+		// Only a completed sheet that failed is published. An interim reading
+		// is not a verdict, and a consumer that blocked its own stock on one
+		// would be blocking material the laboratory has not judged yet.
+		if !req.Complete || outcome.Verdict != domain.QualityFail {
+			return nil
+		}
+		event := QualityEvent{
+			SampleID: sample.ID, SampleNo: sample.SampleNo, FactoryID: sample.FactoryID,
+			BusinessDate: sample.BusinessDate, ProductID: sample.ProductID,
+			BatchID: sample.BatchID, Verdict: outcome.Verdict, Actor: caller.Username,
+		}
+		if outcome.Hold != nil {
+			event.HoldID = outcome.Hold.ID
+			event.WarehouseID = outcome.Hold.WarehouseID
+			event.Quantity = outcome.Hold.Quantity
+		}
+		return emit(ctx, tx, domain.TopicQualityFailed, event)
 	})
 	if err != nil {
 		return ResultsOutcome{}, err
@@ -551,9 +571,17 @@ func (e *Execution) ReleaseHold(ctx context.Context, holdID string, req ReleaseR
 		if err != nil {
 			return err
 		}
-		return e.audit(ctx, tx, auditEntry{
+		if err := e.audit(ctx, tx, auditEntry{
 			action: "RELEASE_HOLD", entity: "quality_hold", entityID: saved.ID,
 			before: before, after: saved, reason: req.Reason,
+		}); err != nil {
+			return err
+		}
+		return emit(ctx, tx, domain.TopicQualityReleased, QualityEvent{
+			HoldID: saved.ID, SampleID: saved.SampleID, FactoryID: warehouse.FactoryID,
+			BusinessDate: releasedOn, ProductID: saved.ProductID, BatchID: saved.BatchID,
+			WarehouseID: saved.WarehouseID, Quantity: before.Quantity,
+			Reason: req.Reason, Actor: caller.Username,
 		})
 	})
 	if err != nil {

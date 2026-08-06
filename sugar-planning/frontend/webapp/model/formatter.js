@@ -349,6 +349,39 @@ sap.ui.define([], function () {
 			return fValue > 0 ? "Error" : "Good";
 		},
 
+		// ------------------------------------------------------------------
+		// Interfaces
+		// ------------------------------------------------------------------
+
+		/** eventStatus says in one word where an outbox event has got to. */
+		eventStatus: function (oEvent) {
+			if (!oEvent) {
+				return "";
+			}
+			if (oEvent.publishedAt) {
+				return "Published";
+			}
+			// 25 is the retry ceiling the server stops at; past it the event is
+			// waiting for a person rather than for another attempt.
+			if ((oEvent.attempts || 0) >= 25) {
+				return "Given up";
+			}
+			return (oEvent.attempts || 0) > 0 ? "Retrying" : "Waiting";
+		},
+
+		eventState: function (oEvent) {
+			if (!oEvent) {
+				return "None";
+			}
+			if (oEvent.publishedAt) {
+				return "Success";
+			}
+			if ((oEvent.attempts || 0) >= 25) {
+				return "Error";
+			}
+			return (oEvent.attempts || 0) > 0 ? "Warning" : "Information";
+		},
+
 		/** reversedLabel marks a document that has been undone. */
 		reversedLabel: function (bReversed) {
 			return bReversed ? "Reversed" : "";

@@ -8,6 +8,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -47,6 +48,21 @@ type Config struct {
 	SeedDemo       bool
 	SeedActualDays int
 
+	// Integration configures the outbound interface. With no endpoint set the
+	// dispatcher publishes to the application log, which is a real destination
+	// rather than a pretend one - the events appear where the operator already
+	// looks - and pointing INTEGRATION_ENDPOINT at the ERP is the only change
+	// needed to start feeding it.
+	IntegrationEndpoint   string
+	IntegrationAuthHeader string
+	IntegrationAuthValue  string
+	IntegrationTimeout    time.Duration
+	IntegrationSource     string
+	// DispatchInterval is how often the background dispatcher runs. Zero turns
+	// it off, which leaves the outbox to be drained by hand.
+	DispatchInterval time.Duration
+	DispatchBatch    int
+
 	FactoryTimeZone string
 	Version         string
 }
@@ -77,6 +93,14 @@ func Load() (Config, error) {
 		SeedDemo:       envBool("SEED_DEMO", false),
 		SeedActualDays: envInt("SEED_ACTUAL_DAYS", 14),
 
+		IntegrationEndpoint:   env("INTEGRATION_ENDPOINT", ""),
+		IntegrationAuthHeader: env("INTEGRATION_AUTH_HEADER", ""),
+		IntegrationAuthValue:  env("INTEGRATION_AUTH_VALUE", ""),
+		IntegrationTimeout:    envDuration("INTEGRATION_TIMEOUT", 15*time.Second),
+		IntegrationSource:     env("INTEGRATION_SOURCE", "sugarplan"),
+		DispatchInterval:      envDuration("INTEGRATION_DISPATCH_INTERVAL", 30*time.Second),
+		DispatchBatch:         envInt("INTEGRATION_DISPATCH_BATCH", 50),
+
 		FactoryTimeZone: env("FACTORY_TIMEZONE", "Asia/Phnom_Penh"),
 		Version:         env("APP_VERSION", "dev"),
 	}
@@ -105,6 +129,22 @@ func (c Config) Validate() error {
 	}
 	if c.Store == "postgres" && c.DatabaseURL == "" {
 		problems = append(problems, "DATABASE_URL is required when STORE=postgres")
+	}
+	if c.IntegrationEndpoint != "" {
+		u, err := url.Parse(c.IntegrationEndpoint)
+		switch {
+		case err != nil:
+			problems = append(problems, fmt.Sprintf("INTEGRATION_ENDPOINT is not a URL: %v", err))
+		case u.Scheme != "http" && u.Scheme != "https":
+			problems = append(problems, fmt.Sprintf(
+				"INTEGRATION_ENDPOINT must be an http or https URL, got %q", u.Scheme))
+		case u.Host == "":
+			problems = append(problems, "INTEGRATION_ENDPOINT names no host")
+		}
+	}
+	if (c.IntegrationAuthHeader == "") != (c.IntegrationAuthValue == "") {
+		problems = append(problems,
+			"INTEGRATION_AUTH_HEADER and INTEGRATION_AUTH_VALUE are set together or not at all")
 	}
 	if _, err := time.LoadLocation(c.FactoryTimeZone); err != nil {
 		problems = append(problems, fmt.Sprintf("FACTORY_TIMEZONE %q is not a known IANA time zone", c.FactoryTimeZone))
@@ -177,6 +217,11 @@ func defaultDevUsers() map[string]auth.DevUser {
 			Roles: []string{auth.RoleAuditor}},
 		"admin": {DisplayName: "System Administrator", Email: "admin@example.com",
 			Roles: []string{auth.RoleSystemAdmin, auth.RoleMasterDataAdmin}},
+		// The machine account the weighbridge terminal and the laboratory
+		// system sign in as. It is offered on the demonstration sign-in so the
+		// two inbound interfaces can be tried, and it can do nothing else.
+		"interface": {DisplayName: "Gate and laboratory interface", Email: "interface@example.com",
+			Roles: []string{auth.RoleIntegration}},
 	}
 }
 

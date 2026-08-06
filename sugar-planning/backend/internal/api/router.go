@@ -11,6 +11,7 @@ import (
 
 	"github.com/kss/sugarplan/internal/auth"
 	"github.com/kss/sugarplan/internal/domain"
+	"github.com/kss/sugarplan/internal/integration"
 	"github.com/kss/sugarplan/internal/service"
 	"github.com/kss/sugarplan/internal/store"
 )
@@ -24,10 +25,13 @@ type Server struct {
 	materials *service.Materials
 	execution *service.Execution
 	costing   *service.Costing
-	verifier  auth.Verifier
-	authCfg   auth.Config
-	logger    *slog.Logger
-	version   string
+	// integration is the interface layer: the outbox dispatcher and the
+	// weighbridge and laboratory adapters.
+	integration *service.Integration
+	verifier    auth.Verifier
+	authCfg     auth.Config
+	logger      *slog.Logger
+	version     string
 	// now is injected so that a default business date in a request is
 	// deterministic in tests.
 	now func() time.Time
@@ -46,11 +50,14 @@ type Options struct {
 	Materials *service.Materials
 	Execution *service.Execution
 	Costing   *service.Costing
-	Verifier  auth.Verifier
-	AuthCfg   auth.Config
-	Logger    *slog.Logger
-	Version   string
-	StaticDir string
+	// Integration is optional: without it the server builds one that logs its
+	// deliveries, so an outbox is never left with nobody to drain it.
+	Integration *service.Integration
+	Verifier    auth.Verifier
+	AuthCfg     auth.Config
+	Logger      *slog.Logger
+	Version     string
+	StaticDir   string
 	// Now overrides the clock. Leave it nil outside tests.
 	Now func() time.Time
 	// AllowedOrigins is empty for a same-origin deployment.
@@ -64,7 +71,7 @@ type Options struct {
 func NewServer(o Options) http.Handler {
 	s := &Server{
 		store: o.Store, planning: o.Planning, analytics: o.Analytics, materials: o.Materials,
-		execution: o.Execution, costing: o.Costing,
+		execution: o.Execution, costing: o.Costing, integration: o.Integration,
 		verifier: o.Verifier, authCfg: o.AuthCfg, logger: o.Logger,
 		version: o.Version, staticDir: o.StaticDir, now: o.Now,
 	}
@@ -76,6 +83,10 @@ func NewServer(o Options) http.Handler {
 	}
 	if s.costing == nil {
 		s.costing = service.NewCosting(o.Store, o.Planning, s.now)
+	}
+	if s.integration == nil {
+		s.integration = service.NewIntegration(o.Store, s.execution, o.Planning,
+			integration.NewLog(o.Logger, "sugarplan"), s.now)
 	}
 
 	mux := http.NewServeMux()
@@ -239,6 +250,14 @@ func (s *Server) routes(mux *http.ServeMux) {
 	s.handle(mux, "POST /api/v1/costing/runs", s.handleCostRun)
 	s.handle(mux, "GET /api/v1/costing/runs", s.handleListCostRuns)
 	s.handle(mux, "GET /api/v1/costing/runs/{id}", s.handleGetCostRun)
+
+	// --- interfaces ---------------------------------------------------------
+	s.handle(mux, "GET /api/v1/integration/events", s.handleListEvents)
+	s.handle(mux, "POST /api/v1/integration/events/{id}/retry", s.handleRetryEvent)
+	s.handle(mux, "POST /api/v1/integration/dispatch", s.handleDispatch)
+	s.handle(mux, "GET /api/v1/integration/jobs", s.handleListJobs)
+	s.handle(mux, "POST /api/v1/integration/weighbridge", s.handleWeighbridge)
+	s.handle(mux, "POST /api/v1/integration/lab-results", s.handleLabResults)
 
 	// --- reports ------------------------------------------------------------
 	s.handle(mux, "GET /api/v1/reports", s.handleListReports)

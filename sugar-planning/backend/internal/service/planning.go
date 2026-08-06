@@ -621,10 +621,29 @@ func (p *Planning) Transition(ctx context.Context, versionID string, req Transit
 		if err != nil {
 			return err
 		}
-		return p.audit(ctx, tx, auditEntry{
+		if err := p.audit(ctx, tx, auditEntry{
 			action: string(req.Action), entity: "plan_version", entityID: saved.ID,
 			before: before, after: saved, reason: req.Reason,
-		})
+		}); err != nil {
+			return err
+		}
+
+		// Release is the only transition worth telling another system about.
+		// A plan in review is this department's business; a released plan is
+		// what the factory and the ERP are expected to work to.
+		if req.Action != domain.ActionRelease {
+			return nil
+		}
+		event := PlanReleasedEvent{
+			VersionID: saved.ID, VersionNo: saved.VersionNo, SeasonID: saved.SeasonID,
+			PlanType:    saved.PlanType,
+			Description: saved.Description, ReleasedBy: caller.Username,
+		}
+		if season, err := tx.Planning().GetSeason(ctx, saved.SeasonID); err == nil {
+			event.SeasonCode, event.FactoryID = season.Code, season.FactoryID
+			event.ValidFrom, event.ValidTo = season.StartDate, season.EndDate
+		}
+		return emit(ctx, tx, domain.TopicPlanReleased, event)
 	})
 	return saved, err
 }

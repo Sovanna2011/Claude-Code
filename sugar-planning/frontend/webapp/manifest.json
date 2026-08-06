@@ -160,6 +160,11 @@
 					"pattern": "audit",
 					"name": "audit",
 					"target": "audit"
+				},
+				{
+					"pattern": "interfaces",
+					"name": "interfaces",
+					"target": "interfaces"
 				}
 			],
 			"targets": {
@@ -225,6 +230,10 @@
 				},
 				"costing": {
 					"viewName": "Costing",
+					"viewLevel": 2
+				},
+				"interfaces": {
+					"viewName": "Interfaces",
 					"viewLevel": 2
 				}
 			}
