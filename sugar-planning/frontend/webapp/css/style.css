@@ -1,0 +1,173 @@
+/*
+ * Application styling.
+ *
+ * The rule followed here: lean on the Fiori theme for colour, spacing and
+ * typography, and add only what the theme does not provide. Every colour below
+ * is taken from a theme parameter so the application follows a theme switch and
+ * stays legible in high-contrast themes.
+ */
+
+/* --- sign in ------------------------------------------------------------ */
+
+.sugarLoginPage {
+	background: var(--sapBackgroundColor);
+}
+
+.sugarLoginPanel {
+	box-shadow: var(--sapContent_Shadow1);
+	border-radius: var(--sapElement_BorderCornerRadius);
+	background: var(--sapTile_Background);
+}
+
+/* --- shell -------------------------------------------------------------- */
+
+.sugarBrand {
+	color: var(--sapShell_TextColor);
+}
+
+.sugarHeaderLabel {
+	color: var(--sapShell_TextColor);
+}
+
+/* --- tiles and KPI boxes ------------------------------------------------ */
+
+.sugarTile {
+	margin: 0 0.75rem 0.75rem 0;
+}
+
+.sugarKpiBox {
+	padding: 0.75rem 1rem;
+	background: var(--sapTile_Background);
+	border: 1px solid var(--sapTile_BorderColor, var(--sapGroup_ContentBorderColor));
+	border-radius: var(--sapElement_BorderCornerRadius);
+	min-height: 7.5rem;
+	margin: 0 0.5rem 0.5rem 0;
+}
+
+.sugarKpiLabel {
+	color: var(--sapContent_LabelColor);
+	font-size: 0.875rem;
+	margin-bottom: 0.25rem;
+}
+
+.sugarKpiValue {
+	font-size: 1.5rem;
+	font-weight: bold;
+}
+
+.sugarKpiFoot {
+	color: var(--sapContent_LabelColor);
+	font-size: 0.8125rem;
+	margin-top: 0.25rem;
+}
+
+/* --- tables ------------------------------------------------------------- */
+
+.sugarTable .sapMListTblHeaderCell {
+	font-weight: bold;
+}
+
+/*
+ * The planning board is a data grid, not a list: tighten the rows so a
+ * fortnight fits on one screen without scrolling.
+ */
+.sugarBoardTable .sapMListTblRow > .sapMListTblCell {
+	padding-top: 0.125rem;
+	padding-bottom: 0.125rem;
+}
+
+.sugarNumberInput {
+	min-width: 6rem;
+}
+
+/* An editable cell has to look editable: the theme's field background makes
+   the difference from a calculated column obvious at a glance. */
+.sugarBoardTable .sapMInputBaseInner {
+	text-align: right;
+}
+
+/* A row the server rejected, so the planner can find it immediately. */
+.sugarRowError {
+	background-color: var(--sapErrorBackground) !important;
+}
+
+/* --- charts ------------------------------------------------------------- */
+
+.sugarChart {
+	width: 100%;
+	overflow-x: auto;
+	padding: 0.5rem 0;
+}
+
+.sugarChart svg text {
+	font-family: var(--sapFontFamily);
+}
+
+.sugarChartEmpty {
+	padding: 2rem;
+	text-align: center;
+	color: var(--sapContent_LabelColor);
+	font-family: var(--sapFontFamily);
+}
+
+/* --- reports ------------------------------------------------------------ */
+
+.sugarReportSplit {
+	height: calc(100vh - 6rem);
+}
+
+.sugarReportMeta,
+.sugarReportNotes {
+	color: var(--sapContent_LabelColor);
+	font-size: 0.8125rem;
+}
+
+.sugarReportNotes {
+	border-top: 1px solid var(--sapGroup_ContentBorderColor);
+	padding-top: 0.5rem;
+}
+
+/* --- print -------------------------------------------------------------- */
+
+@media print {
+	.sapTntToolHeader,
+	.sapTntSideNavigation,
+	.sapMPageHeader,
+	.sapMPageSubHeader {
+		display: none !important;
+	}
+
+	.sugarTable {
+		font-size: 9pt;
+	}
+}
+
+/* --- narrow screens ----------------------------------------------------- */
+
+@media (max-width: 600px) {
+	.sugarKpiBox {
+		min-height: auto;
+	}
+
+	.sugarTile {
+		margin: 0 0.5rem 0.5rem 0;
+	}
+}
+
+/* Legend swatches: a short line in the same stroke as the chart series, so the
+   key reads the same way the chart is drawn. */
+.sugarSwatch {
+	display: inline-block;
+	width: 1.5rem;
+	height: 0;
+	margin-right: 0.4rem;
+	vertical-align: middle;
+}
+
+.sugarSwatchTarget {
+	border-top: 2px dashed #5899DA;
+}
+
+.sugarSwatchActual {
+	border-top: 3px solid #2B7D2B;
+}

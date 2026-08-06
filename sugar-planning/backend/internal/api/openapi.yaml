@@ -1,0 +1,1466 @@
+openapi: 3.1.0
+info:
+  title: Sugar Production Planning and Execution API
+  version: "1.0.0"
+  summary: Season planning, daily execution and analytics for a sugar factory.
+  description: |
+    The API behind the sugar production planning system. It replaces the daily
+    Excel workbook with a controlled, auditable service.
+
+    ## Conventions
+
+    * Every path is prefixed `/api/v1`.
+    * Timestamps are ISO 8601 and stored in UTC. Business dates are calendar
+      days in the factory time zone and carry no time component.
+    * Quantities, rates and percentages are transported as JSON numbers with a
+      fixed scale and are held as exact decimals server-side. Clients must not
+      round-trip them through binary floating point.
+    * List endpoints accept `$top`, `$skip` and `$search`, and return
+      `{ value, count, skip, top }`.
+    * Filtering uses documented, allow-listed query parameters only.
+    * Editable resources return an `ETag` carrying the row version; send it back
+      in `If-Match` to update. A mismatch is answered with `412`.
+    * Posting endpoints accept an `Idempotency-Key` header; a repeated key
+      replays the first response instead of posting twice.
+    * Errors are RFC 9457 problem documents. Field-level messages appear in
+      `errors[]`, addressed by `row` and `field`, ready for the SAPUI5
+      MessagePopover.
+  contact:
+    name: Sugar planning platform team
+  license:
+    name: Proprietary
+
+servers:
+  - url: /api/v1
+    description: Same-origin deployment, the SAPUI5 application and the API behind one host
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Session
+    description: Who the caller is and what they may do.
+  - name: Master data
+    description: Configuration shared by every plan.
+  - name: Seasons
+    description: Crushing campaigns and their planning versions.
+  - name: Planning
+    description: Daily cane, production, storage and shipment rows.
+  - name: Workflow
+    description: Submit, approve, release, reopen.
+  - name: Analytics
+    description: Dashboard aggregates and capacity forecasting.
+  - name: Materials
+    description: Packaging requirement planning.
+  - name: Reports
+    description: Report catalogue and exports.
+  - name: Audit
+    description: The append-only audit trail.
+  - name: Operations
+    description: Health, readiness and the specification itself.
+
+paths:
+  /session:
+    get:
+      tags: [Session]
+      summary: The current caller's profile, roles and permissions
+      operationId: getSession
+      responses:
+        "200":
+          description: The session profile.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionProfile" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+
+  /auth/dev-login:
+    post:
+      tags: [Session]
+      summary: Issue a token for a development account
+      description: |
+        Available only when the server runs with `AUTH_MODE=dev`. In `oidc`
+        mode it returns 400, so a misconfigured production box cannot mint
+        tokens. Production sign-in goes through the identity provider.
+      operationId: devLogin
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username]
+              properties:
+                username:
+                  type: string
+                  examples: ["planner"]
+      responses:
+        "200":
+          description: A bearer token and the profile it carries.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken: { type: string }
+                  tokenType: { type: string, const: Bearer }
+                  expiresIn: { type: integer }
+                  profile: { $ref: "#/components/schemas/SessionProfile" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /master/{entity}:
+    parameters:
+      - name: entity
+        in: path
+        required: true
+        description: |
+          One of: companies, factories, production-lines, shifts,
+          product-categories, products, units, unit-conversions,
+          packaging-types, warehouses, customers, shipment-channels,
+          materials, reason-codes.
+        schema: { type: string }
+    get:
+      tags: [Master data]
+      summary: List master records
+      operationId: listMasterData
+      parameters:
+        - $ref: "#/components/parameters/Top"
+        - $ref: "#/components/parameters/Skip"
+        - $ref: "#/components/parameters/Search"
+        - name: active
+          in: query
+          description: Restrict to active or inactive records.
+          schema: { type: boolean }
+        - name: parentId
+          in: query
+          description: The entity's natural parent, for example the factory of a warehouse.
+          schema: { type: string }
+      responses:
+        "200":
+          description: A page of records.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      tags: [Master data]
+      summary: Create a master record
+      operationId: createMasterData
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "201":
+          description: The created record.
+          content:
+            application/json:
+              schema: { type: object }
+        "409": { $ref: "#/components/responses/Duplicate" }
+
+  /master/{entity}/{id}:
+    parameters:
+      - name: entity
+        in: path
+        required: true
+        schema: { type: string }
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Master data]
+      summary: Read one master record
+      operationId: getMasterData
+      responses:
+        "200":
+          description: The record, with its row version in the ETag.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { type: object }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: [Master data]
+      summary: Update a master record
+      operationId: updateMasterData
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: The updated record.
+          content:
+            application/json:
+              schema: { type: object }
+        "412": { $ref: "#/components/responses/VersionConflict" }
+    delete:
+      tags: [Master data]
+      summary: Deactivate a master record
+      description: |
+        Master data is deactivated, never deleted, so transactions keep their
+        references. `If-Match` is required.
+      operationId: deactivateMasterData
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "204": { description: Deactivated. }
+        "412": { $ref: "#/components/responses/VersionConflict" }
+
+  /seasons:
+    get:
+      tags: [Seasons]
+      summary: List seasons within the caller's data scope
+      operationId: listSeasons
+      parameters:
+        - $ref: "#/components/parameters/Top"
+        - $ref: "#/components/parameters/Skip"
+        - $ref: "#/components/parameters/Search"
+      responses:
+        "200":
+          description: A page of seasons.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+    post:
+      tags: [Seasons]
+      summary: Create a season
+      description: Creating a season also opens its single actuals container.
+      operationId: createSeason
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Season" }
+      responses:
+        "201":
+          description: The created season.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Season" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /seasons/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Seasons]
+      summary: Read a season
+      operationId: getSeason
+      responses:
+        "200":
+          description: The season.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Season" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: [Seasons]
+      summary: Update a season
+      operationId: updateSeason
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Season" }
+      responses:
+        "200":
+          description: The updated season.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Season" }
+
+  /seasons/{id}/versions:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Seasons]
+      summary: List the plan versions of a season
+      operationId: listVersions
+      responses:
+        "200":
+          description: A page of versions.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+    post:
+      tags: [Seasons]
+      summary: Create a plan version
+      operationId: createVersion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlanVersion" }
+      responses:
+        "201":
+          description: The created version.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlanVersion" }
+
+  /versions/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Seasons]
+      summary: Read a version with its assumptions, mix and available actions
+      operationId: getVersion
+      responses:
+        "200":
+          description: The version detail.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VersionDetail" }
+    put:
+      tags: [Seasons]
+      summary: Update a version header
+      description: |
+        Status is owned by the workflow and cannot be changed here; use
+        `/versions/{id}/transition`.
+      operationId: updateVersion
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlanVersion" }
+      responses:
+        "200":
+          description: The updated version.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlanVersion" }
+        "409":
+          description: The version is not editable in its current status.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
+  /versions/{id}/assumptions:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      tags: [Planning]
+      summary: Create or update a planning assumption
+      description: |
+        The business key is (version, code, validFrom), so re-sending the same
+        assumption updates it rather than adding a duplicate.
+      operationId: saveAssumption
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlanAssumption" }
+      responses:
+        "200":
+          description: The stored assumption.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlanAssumption" }
+
+  /versions/{id}/product-mix:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      tags: [Planning]
+      summary: Create or update a product mix line
+      operationId: saveProductMix
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProductMixEntry" }
+      responses:
+        "200":
+          description: The stored mix line.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductMixEntry" }
+
+  /versions/{id}/product-mix/{mixId}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: mixId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Planning]
+      summary: Remove a product mix line
+      operationId: deleteProductMix
+      responses:
+        "204": { description: Removed. }
+
+  /versions/{id}/generate:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Planning]
+      summary: Generate the daily plan from the assumptions and product mix
+      description: |
+        Rebuilds cane, production, stock ledger and shipment rows in a single
+        transaction. Warnings such as a capacity breach or a raw sugar shortfall
+        are returned rather than silently accepted.
+      operationId: generatePlan
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                replace:
+                  type: boolean
+                  description: Required to overwrite an existing daily plan.
+                nonWorkingDays:
+                  type: array
+                  description: Dates excluded from crushing; the campaign is extended, not shortened.
+                  items: { type: string, format: date }
+      responses:
+        "200":
+          description: The generated summary and warnings.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GenerateResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409":
+          description: The version is locked, or already has a plan and `replace` was not sent.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
+  /versions/{id}/copy:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Planning]
+      summary: Copy a version into a new scenario
+      description: |
+        Copies the assumptions and product mix, optionally the daily rows, and
+        applies any assumption overrides. This is how a what-if scenario is
+        created.
+      operationId: copyVersion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CopyRequest" }
+      responses:
+        "201":
+          description: The new version.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlanVersion" }
+
+  /versions/compare:
+    post:
+      tags: [Planning]
+      summary: Compare two versions
+      operationId: compareVersions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [baseVersionId, otherVersionId]
+              properties:
+                baseVersionId: { type: string, format: uuid }
+                otherVersionId: { type: string, format: uuid }
+                dimension:
+                  type: string
+                  enum: [DATE, PROCESS, PRODUCT, WAREHOUSE, CHANNEL]
+                  default: DATE
+                from: { type: string, format: date }
+                to: { type: string, format: date }
+      responses:
+        "200":
+          description: Rows, totals and the assumptions that differ.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CompareResult" }
+
+  /versions/{id}/transition:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Workflow]
+      summary: Apply a workflow action
+      description: |
+        Valid transitions are DRAFT→IN_REVIEW→APPROVED→RELEASED, with REJECT,
+        RECALL, SUPERSEDE, CLOSE and REOPEN. REJECT, CLOSE, SUPERSEDE and REOPEN
+        require a reason, which is written to the audit trail. The submitter of a
+        plan cannot approve it.
+      operationId: transitionVersion
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [SUBMIT, RECALL, APPROVE, REJECT, RELEASE, SUPERSEDE, CLOSE, REOPEN]
+                reason: { type: string }
+                lockThrough:
+                  type: string
+                  format: date
+                  description: On RELEASE, dates up to and including this become read-only.
+      responses:
+        "200":
+          description: The version in its new status.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlanVersion" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          description: The action is not available in the current status.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
+  /versions/{id}/cane:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Planning]
+      summary: List daily cane rows
+      operationId: listCane
+      parameters:
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - $ref: "#/components/parameters/Series"
+      responses:
+        "200":
+          description: The rows.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+    post:
+      tags: [Planning]
+      summary: Bulk create or update daily cane rows
+      description: |
+        Rows are matched on their natural key, so re-sending a day replaces it.
+        By default the batch is all-or-nothing; send `partial: true` to accept
+        the valid rows and receive the rest as issues.
+      operationId: upsertCane
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rows]
+              properties:
+                partial: { type: boolean, default: false }
+                rows:
+                  type: array
+                  maxItems: 20000
+                  items: { $ref: "#/components/schemas/DailyCanePlan" }
+      responses:
+        "200":
+          description: The write result.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UpsertResult" }
+        "400":
+          description: One or more rows were rejected; `errors[]` addresses them by row and field.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
+  /versions/{id}/production:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Planning]
+      summary: List daily production rows
+      operationId: listProduction
+      parameters:
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - $ref: "#/components/parameters/Series"
+        - name: productId
+          in: query
+          schema: { type: string }
+          description: Comma-separated product ids.
+      responses:
+        "200":
+          description: The rows.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+    post:
+      tags: [Planning]
+      summary: Bulk create or update daily production rows
+      operationId: upsertProduction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rows]
+              properties:
+                partial: { type: boolean }
+                rows:
+                  type: array
+                  items: { $ref: "#/components/schemas/DailyProductPlan" }
+      responses:
+        "200":
+          description: The write result.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UpsertResult" }
+
+  /versions/{id}/storage:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Planning]
+      summary: List stock ledger rows
+      operationId: listStorage
+      parameters:
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - $ref: "#/components/parameters/Series"
+        - name: warehouseId
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: The rows, each carrying its beginning and ending balance.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+    post:
+      tags: [Planning]
+      summary: Bulk create or update stock ledger rows
+      description: |
+        Writing a movement rebuilds the running balances of the affected
+        warehouse and product to the end of the plan, so the ledger stays
+        continuous.
+      operationId: upsertStorage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rows]
+              properties:
+                partial: { type: boolean }
+                rows:
+                  type: array
+                  items: { $ref: "#/components/schemas/DailyStoragePlan" }
+      responses:
+        "200":
+          description: The write result.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UpsertResult" }
+
+  /versions/{id}/shipments:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Planning]
+      summary: List daily shipment rows
+      operationId: listShipments
+      parameters:
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - $ref: "#/components/parameters/Series"
+        - name: channelId
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: The rows.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+    post:
+      tags: [Planning]
+      summary: Bulk create or update daily shipment rows
+      operationId: upsertShipments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rows]
+              properties:
+                partial: { type: boolean }
+                rows:
+                  type: array
+                  items: { $ref: "#/components/schemas/DailyShipmentPlan" }
+      responses:
+        "200":
+          description: The write result.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UpsertResult" }
+
+  /versions/{id}/material-requirements:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Materials]
+      summary: Packaging material requirements for a plan
+      operationId: materialRequirements
+      parameters:
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+      responses:
+        "200":
+          description: One row per material with cover, shortage and order dates.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+
+  /dashboard:
+    get:
+      tags: [Analytics]
+      summary: Executive dashboard for a season
+      operationId: getDashboard
+      parameters:
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: versionId
+          in: query
+          description: Defaults to the season's released baseline.
+          schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - name: asOf
+          in: query
+          description: Defaults to the last day with a recorded actual.
+          schema: { type: string, format: date }
+        - name: rollingWindow
+          in: query
+          schema: { type: integer, default: 7, minimum: 1, maximum: 90 }
+      responses:
+        "200":
+          description: KPIs, trends and alerts.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dashboard" }
+
+  /downtime:
+    get:
+      tags: [Analytics]
+      summary: List downtime events
+      operationId: listDowntime
+      parameters:
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - name: factoryId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: The events.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+    post:
+      tags: [Analytics]
+      summary: Record a downtime event
+      operationId: saveDowntime
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DowntimeEvent" }
+      responses:
+        "201":
+          description: The stored event.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DowntimeEvent" }
+
+  /reports:
+    get:
+      tags: [Reports]
+      summary: The report catalogue
+      operationId: listReports
+      responses:
+        "200":
+          description: Available reports with their parameters and formats.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+
+  /reports/{code}:
+    parameters:
+      - name: code
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+            - daily-plan
+            - target-vs-actual
+            - cane-crushing
+            - stock-ledger
+            - capacity-forecast
+            - shipment-plan
+            - material-requirements
+            - season-summary
+            - approval-history
+    get:
+      tags: [Reports]
+      summary: Run a report
+      description: |
+        Exports preserve the filters, units, totals and report metadata:
+        company, factory, season, plan version, generated date and generated-by
+        user appear in every format.
+      operationId: runReport
+      parameters:
+        - name: format
+          in: query
+          schema: { type: string, enum: [json, csv, xlsx, pdf], default: json }
+        - name: versionId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: seasonId
+          in: query
+          schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - name: warehouseId
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: The report.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportTable" }
+            text/csv:
+              schema: { type: string }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+            application/pdf:
+              schema: { type: string, format: binary }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /audit:
+    get:
+      tags: [Audit]
+      summary: Read the audit trail
+      description: Requires the `audit:read` permission. Records are append only.
+      operationId: listAudit
+      parameters:
+        - name: entity
+          in: query
+          schema: { type: string }
+        - name: entityId
+          in: query
+          schema: { type: string }
+        - name: actor
+          in: query
+          schema: { type: string }
+        - name: action
+          in: query
+          schema: { type: string }
+        - $ref: "#/components/parameters/Top"
+        - $ref: "#/components/parameters/Skip"
+      responses:
+        "200":
+          description: A page of audit events, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /openapi.yaml:
+    get:
+      tags: [Operations]
+      summary: This document
+      operationId: getOpenAPI
+      security: []
+      responses:
+        "200":
+          description: The specification.
+          content:
+            application/yaml:
+              schema: { type: string }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        An access token from the enterprise identity provider. Roles are read
+        from the configured claim and mapped onto application roles; the data
+        scope restricts the caller to their companies and factories.
+
+  parameters:
+    Top:
+      name: $top
+      in: query
+      description: Page size, capped at 1000.
+      schema: { type: integer, default: 100, minimum: 1, maximum: 1000 }
+    Skip:
+      name: $skip
+      in: query
+      schema: { type: integer, default: 0, minimum: 0 }
+    Search:
+      name: $search
+      in: query
+      description: Case-insensitive match on the entity's code and name.
+      schema: { type: string }
+    From:
+      name: from
+      in: query
+      description: Inclusive lower bound on the business date.
+      schema: { type: string, format: date }
+    To:
+      name: to
+      in: query
+      description: Inclusive upper bound on the business date.
+      schema: { type: string, format: date }
+    Series:
+      name: series
+      in: query
+      description: Restrict to planned values or recorded actuals.
+      schema: { type: string, enum: [PLAN, ACTUAL] }
+    IfMatch:
+      name: If-Match
+      in: header
+      description: The row version read earlier, as returned in the ETag.
+      schema: { type: string }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      description: A client-generated key; a repeat replays the first response.
+      schema: { type: string, maxLength: 128 }
+
+  headers:
+    ETag:
+      description: The record's row version, for optimistic concurrency.
+      schema: { type: string }
+
+  responses:
+    BadRequest:
+      description: The request was not valid.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Unauthenticated:
+      description: No usable access token was presented.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Forbidden:
+      description: The caller lacks the permission or the data scope.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    NotFound:
+      description: No such record.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Duplicate:
+      description: The business key already exists.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    VersionConflict:
+      description: The record was changed by somebody else.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+
+  schemas:
+    Problem:
+      type: object
+      description: RFC 9457 problem details, extended with field errors.
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        correlationId: { type: string }
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              row: { type: integer, description: Index of the offending row in a bulk request. }
+              field: { type: string }
+              code: { type: string }
+              message: { type: string }
+
+    Page:
+      type: object
+      properties:
+        value: { type: array, items: { type: object } }
+        count: { type: integer }
+        skip: { type: integer }
+        top: { type: integer }
+
+    Quantity:
+      type: number
+      description: An exact decimal quantity in tons, scale 3.
+      examples: [16788.321]
+
+    SessionProfile:
+      type: object
+      properties:
+        subject: { type: string }
+        username: { type: string }
+        displayName: { type: string }
+        email: { type: string }
+        roles: { type: array, items: { type: string } }
+        permissions: { type: array, items: { type: string } }
+        companies: { type: array, items: { type: string } }
+        factories: { type: array, items: { type: string } }
+
+    Season:
+      type: object
+      required: [companyId, factoryId, code, startDate]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        companyId: { type: string, format: uuid }
+        factoryId: { type: string, format: uuid }
+        code: { type: string, examples: ["2026-2027"] }
+        name: { type: string }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        plannedDays: { type: integer, examples: [137] }
+        status: { type: string, enum: [OPEN, CLOSED] }
+        rowVersion: { type: integer, readOnly: true }
+
+    PlanVersion:
+      type: object
+      required: [code, planType]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        seasonId: { type: string, format: uuid }
+        versionNo: { type: integer, readOnly: true }
+        code: { type: string, examples: ["V1"] }
+        description: { type: string }
+        planType:
+          type: string
+          enum: [BUDGET, FORECAST, REVISED, WHATIF, BASELINE, ACTUAL, LATEST_ESTIMATE]
+        status:
+          type: string
+          enum: [DRAFT, IN_REVIEW, APPROVED, RELEASED, SUPERSEDED, REJECTED, CLOSED]
+          readOnly: true
+        owner: { type: string }
+        sourceVersionId: { type: string, format: uuid }
+        effectiveFrom: { type: string, format: date }
+        effectiveTo: { type: string, format: date }
+        lockedThrough: { type: string, format: date }
+        approvedBy: { type: string, readOnly: true }
+        approvedAt: { type: string, format: date-time, readOnly: true }
+        releasedAt: { type: string, format: date-time, readOnly: true }
+        comment: { type: string }
+        rowVersion: { type: integer, readOnly: true }
+
+    VersionDetail:
+      type: object
+      properties:
+        version: { $ref: "#/components/schemas/PlanVersion" }
+        assumptions:
+          type: array
+          items: { $ref: "#/components/schemas/PlanAssumption" }
+        productMix:
+          type: array
+          items: { $ref: "#/components/schemas/ProductMixEntry" }
+        allowedActions:
+          type: array
+          description: Only the actions this caller could actually complete.
+          items: { type: string }
+        editable: { type: boolean }
+
+    PlanAssumption:
+      type: object
+      required: [code, value]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        versionId: { type: string, format: uuid, readOnly: true }
+        code:
+          type: string
+          description: |
+            A well-known code such as CANE_TARGET_TONS, RAW_RECOVERY_PCT,
+            REMELT_INPUT_FACTOR, QUOTA_SHIPMENT_TPD, or a site-defined one.
+          examples: ["RAW_RECOVERY_PCT"]
+        description: { type: string }
+        value: { type: number, examples: [11.0] }
+        uom: { type: string, examples: ["%"] }
+        validFrom: { type: string, format: date }
+        validTo: { type: string, format: date }
+
+    ProductMixEntry:
+      type: object
+      required: [productId]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        versionId: { type: string, format: uuid, readOnly: true }
+        productId: { type: string, format: uuid }
+        packagingId: { type: string, format: uuid }
+        warehouseId: { type: string, format: uuid }
+        lineId: { type: string, format: uuid }
+        seasonTons: { $ref: "#/components/schemas/Quantity" }
+        dailyRateTons:
+          allOf: [{ $ref: "#/components/schemas/Quantity" }]
+          description: |
+            Caps the daily output for this line. Zero spreads the season
+            tonnage evenly; a positive value runs at that rate until the
+            tonnage is used up, which is how jumbo bag packing is planned.
+
+    DailyCanePlan:
+      type: object
+      required: [businessDate]
+      properties:
+        businessDate: { type: string, format: date }
+        shiftId: { type: string, format: uuid }
+        series: { type: string, enum: [PLAN, ACTUAL], default: PLAN }
+        caneAvailable: { $ref: "#/components/schemas/Quantity" }
+        caneDelivered: { $ref: "#/components/schemas/Quantity" }
+        caneAccepted: { $ref: "#/components/schemas/Quantity" }
+        caneRejected: { $ref: "#/components/schemas/Quantity" }
+        caneDiverted: { $ref: "#/components/schemas/Quantity" }
+        caneCrushed: { $ref: "#/components/schemas/Quantity" }
+        crushRateTph: { type: number }
+        availableHours: { type: number, maximum: 24 }
+        stoppageHours: { type: number, maximum: 24 }
+        reasonCode: { type: string }
+        note: { type: string }
+
+    DailyProductPlan:
+      type: object
+      required: [businessDate, productId]
+      properties:
+        businessDate: { type: string, format: date }
+        lineId: { type: string, format: uuid }
+        shiftId: { type: string, format: uuid }
+        productId: { type: string, format: uuid }
+        packagingId: { type: string, format: uuid }
+        series: { type: string, enum: [PLAN, ACTUAL] }
+        quantity: { $ref: "#/components/schemas/Quantity" }
+        remeltInput: { $ref: "#/components/schemas/Quantity" }
+        processLoss: { $ref: "#/components/schemas/Quantity" }
+        rework: { $ref: "#/components/schemas/Quantity" }
+        rejected: { $ref: "#/components/schemas/Quantity" }
+        holdQty: { $ref: "#/components/schemas/Quantity" }
+        reasonCode: { type: string }
+
+    DailyStoragePlan:
+      type: object
+      required: [businessDate, warehouseId, productId]
+      properties:
+        businessDate: { type: string, format: date }
+        warehouseId: { type: string, format: uuid }
+        productId: { type: string, format: uuid }
+        series: { type: string, enum: [PLAN, ACTUAL] }
+        beginningBalance: { $ref: "#/components/schemas/Quantity" }
+        productionReceipt: { $ref: "#/components/schemas/Quantity" }
+        transferIn: { $ref: "#/components/schemas/Quantity" }
+        transferOut: { $ref: "#/components/schemas/Quantity" }
+        repackIn: { $ref: "#/components/schemas/Quantity" }
+        repackOut: { $ref: "#/components/schemas/Quantity" }
+        remeltIssue: { $ref: "#/components/schemas/Quantity" }
+        shipmentQty: { $ref: "#/components/schemas/Quantity" }
+        adjustment:
+          allOf: [{ $ref: "#/components/schemas/Quantity" }]
+          description: Signed. Every other movement is a magnitude.
+        processLoss: { $ref: "#/components/schemas/Quantity" }
+        holdQty: { $ref: "#/components/schemas/Quantity" }
+        endingBalance:
+          allOf: [{ $ref: "#/components/schemas/Quantity" }]
+          readOnly: true
+        physicalBalance:
+          allOf: [{ $ref: "#/components/schemas/Quantity" }]
+          description: A recorded stock count, used for reconciliation.
+
+    DailyShipmentPlan:
+      type: object
+      required: [businessDate, productId, channelId]
+      properties:
+        businessDate: { type: string, format: date }
+        warehouseId: { type: string, format: uuid }
+        productId: { type: string, format: uuid }
+        channelId: { type: string, format: uuid }
+        series: { type: string, enum: [PLAN, ACTUAL] }
+        quantity: { $ref: "#/components/schemas/Quantity" }
+        note: { type: string }
+
+    DowntimeEvent:
+      type: object
+      required: [factoryId, businessDate, startAt, endAt, reasonCode]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        factoryId: { type: string, format: uuid }
+        lineId: { type: string, format: uuid }
+        businessDate: { type: string, format: date }
+        shiftId: { type: string, format: uuid }
+        startAt: { type: string, format: date-time }
+        endAt: { type: string, format: date-time }
+        durationHours: { type: number, description: Derived from the period when omitted. }
+        planned: { type: boolean }
+        reasonCode: { type: string }
+        rootCause: { type: string }
+        team: { type: string }
+        correctiveAction: { type: string }
+
+    UpsertResult:
+      type: object
+      properties:
+        accepted: { type: integer }
+        rejected: { type: integer }
+        issues:
+          type: array
+          items:
+            type: object
+            properties:
+              row: { type: integer }
+              field: { type: string }
+              code: { type: string }
+              message: { type: string }
+
+    CopyRequest:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string }
+        description: { type: string }
+        planType:
+          type: string
+          enum: [BUDGET, FORECAST, REVISED, WHATIF, BASELINE, LATEST_ESTIMATE]
+          default: WHATIF
+        copyDailyRows: { type: boolean }
+        assumptionOverrides:
+          type: object
+          additionalProperties: { type: number }
+          description: Assumption code to new value.
+
+    GenerateResult:
+      type: object
+      properties:
+        summary:
+          type: object
+          properties:
+            caneTargetTons: { $ref: "#/components/schemas/Quantity" }
+            caneAllocatedTons: { $ref: "#/components/schemas/Quantity" }
+            rawSugarExpectedTons: { $ref: "#/components/schemas/Quantity" }
+            rawDirectToRefiningTons: { $ref: "#/components/schemas/Quantity" }
+            rawToStorageTons: { $ref: "#/components/schemas/Quantity" }
+            finishedGoodsTons: { $ref: "#/components/schemas/Quantity" }
+            remeltInputTons: { $ref: "#/components/schemas/Quantity" }
+            shipmentPlannedTons: { $ref: "#/components/schemas/Quantity" }
+            workingDays: { type: integer }
+        warnings:
+          type: array
+          items: { $ref: "#/components/schemas/Alert" }
+        rowCounts:
+          type: object
+          additionalProperties: { type: integer }
+        firstDate: { type: string, format: date }
+        lastDate: { type: string, format: date }
+
+    Alert:
+      type: object
+      properties:
+        code: { type: string, examples: ["CAPACITY_EXCEEDED"] }
+        severity: { type: string, enum: [INFO, SUCCESS, WARNING, ERROR] }
+        title: { type: string }
+        detail: { type: string }
+        entity: { type: string }
+        entityId: { type: string }
+        date: { type: string, format: date }
+
+    CompareResult:
+      type: object
+      properties:
+        baseVersion: { $ref: "#/components/schemas/PlanVersion" }
+        otherVersion: { $ref: "#/components/schemas/PlanVersion" }
+        dimension: { type: string }
+        rows: { type: array, items: { $ref: "#/components/schemas/CompareRow" } }
+        totals: { type: array, items: { $ref: "#/components/schemas/CompareRow" } }
+        assumptionDeltas:
+          type: array
+          description: The assumptions that differ, which is usually the explanation.
+          items: { $ref: "#/components/schemas/CompareRow" }
+
+    CompareRow:
+      type: object
+      properties:
+        key: { type: string }
+        label: { type: string }
+        measure: { type: string }
+        baseValue: { type: number }
+        otherValue: { type: number }
+        delta: { type: number }
+        deltaPct: { type: number }
+
+    Dashboard:
+      type: object
+      properties:
+        season: { $ref: "#/components/schemas/Season" }
+        planVersion: { $ref: "#/components/schemas/PlanVersion" }
+        actualVersion: { $ref: "#/components/schemas/PlanVersion" }
+        asOf: { type: string, format: date }
+        cane:
+          type: object
+          properties:
+            seasonTargetTons: { $ref: "#/components/schemas/Quantity" }
+            cumulativeTargetTons: { $ref: "#/components/schemas/Quantity" }
+            cumulativeActualTons: { $ref: "#/components/schemas/Quantity" }
+            remainingTons: { $ref: "#/components/schemas/Quantity" }
+            achievementPct: { type: number }
+            rollingAverageTonsPerDay: { type: number }
+            plannedEndDate: { type: string, format: date }
+            forecastEndDate: { type: string, format: date }
+            forecastReliable: { type: boolean }
+            daysBehindSchedule: { type: integer }
+        rawSugar:
+          type: object
+          properties:
+            targetTons: { $ref: "#/components/schemas/Quantity" }
+            actualTons: { $ref: "#/components/schemas/Quantity" }
+            targetRecoveryPct: { type: number }
+            actualRecoveryPct: { type: number }
+            recoveryVariancePct: { type: number }
+            verdict: { type: string, enum: [INFO, SUCCESS, WARNING, ERROR] }
+        products: { type: array, items: { type: object } }
+        storage: { type: array, items: { $ref: "#/components/schemas/StorageKPI" } }
+        shipments: { type: array, items: { type: object } }
+        downtime:
+          type: object
+          properties:
+            hours: { type: number }
+            lostTons: { $ref: "#/components/schemas/Quantity" }
+            eventCount: { type: integer }
+        alerts: { type: array, items: { $ref: "#/components/schemas/Alert" } }
+        caneTrend: { type: array, items: { $ref: "#/components/schemas/SeriesPoint" } }
+        caneRollingAverage: { type: array, items: { type: number } }
+
+    StorageKPI:
+      type: object
+      properties:
+        warehouseId: { type: string, format: uuid }
+        warehouseCode: { type: string }
+        warehouseName: { type: string }
+        storageClass: { type: string, enum: [RAW, FINISHED, MATERIAL] }
+        capacityTons: { $ref: "#/components/schemas/Quantity" }
+        usableCapacityTons: { $ref: "#/components/schemas/Quantity" }
+        balanceTons: { $ref: "#/components/schemas/Quantity" }
+        capacityUsePct: { type: number }
+        firstWarningDate: { type: string, format: date }
+        firstFullDate: { type: string, format: date }
+        requiredShipmentTonsPerDay:
+          type: number
+          description: The smallest constant daily rate that keeps the store inside its threshold.
+        severity: { type: string, enum: [INFO, SUCCESS, WARNING, ERROR] }
+
+    SeriesPoint:
+      type: object
+      properties:
+        date: { type: string, format: date }
+        target: { $ref: "#/components/schemas/Quantity" }
+        actual: { $ref: "#/components/schemas/Quantity" }
+        cumTarget: { $ref: "#/components/schemas/Quantity" }
+        cumActual: { $ref: "#/components/schemas/Quantity" }
+        variance: { $ref: "#/components/schemas/Quantity" }
+        cumVariance: { $ref: "#/components/schemas/Quantity" }
+        achievementPct: { type: number }
+        hasActual:
+          type: boolean
+          description: False for days with no recorded actual, so the curve can stop at today.
+
+    ReportTable:
+      type: object
+      properties:
+        code: { type: string }
+        title: { type: string }
+        metadata:
+          type: array
+          description: Company, factory, season, version, filters, generated at and by.
+          items: { type: string }
+        columns:
+          type: array
+          items:
+            type: object
+            properties:
+              header: { type: string }
+              align: { type: string, enum: [left, right, centre] }
+              numeric: { type: boolean }
+        rows:
+          type: array
+          items: { type: array, items: { type: string } }
+        totals: { type: array, items: { type: string } }
+        notes: { type: array, items: { type: string } }

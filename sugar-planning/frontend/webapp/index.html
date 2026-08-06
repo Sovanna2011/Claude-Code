@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sugar Production Planning</title>
+
+    <!--
+      SAPUI5 is loaded from the SAP CDN for development. For an on-premises
+      deployment, drop the SAP-delivered OpenUI5 distribution into
+      webapp/resources and point src at ./resources/sap-ui-core.js; nothing
+      else in the application changes.
+    -->
+    <script id="sap-ui-bootstrap"
+        src="https://ui5.sap.com/resources/sap-ui-core.js"
+        data-sap-ui-theme="sap_horizon"
+        data-sap-ui-resource-roots='{"sugarplan": "./"}'
+        data-sap-ui-on-init="module:sap/ui/core/ComponentSupport"
+        data-sap-ui-compat-version="edge"
+        data-sap-ui-async="true"
+        data-sap-ui-frame-options="trusted">
+    </script>
+</head>
+<body class="sapUiBody">
+    <div data-sap-ui-component
+         data-name="sugarplan"
+         data-id="container"
+         data-settings='{"id": "sugarplan"}'
+         data-height="100%"
+         style="height: 100%">
+    </div>
+</body>
+</html>

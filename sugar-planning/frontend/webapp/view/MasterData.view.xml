@@ -1,0 +1,24 @@
+<mvc:View controllerName="sugarplan.controller.MasterData" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" xmlns:core="sap.ui.core">
+	<Page id="masterDataPage" title="{i18n>masterDataTitle}" showNavButton="true" navButtonPress=".onNavBack">
+		<subHeader>
+			<OverflowToolbar>
+				<Label text="{i18n>entity}"/>
+				<Select selectedKey="{view>/selectedEntity}" change=".onEntityChange" width="18rem"
+					items="{path: 'view>/entities', templateShareable: false}">
+					<core:Item key="{view>key}" text="{view>text}"/>
+				</Select>
+				<ToolbarSpacer/>
+				<SearchField width="20rem" liveChange=".onSearch" placeholder="{i18n>searchMaster}"/>
+				<ObjectStatus text="{view>/count}"/>
+			</OverflowToolbar>
+		</subHeader>
+		<content>
+			<Table id="masterTable" mode="None" sticky="ColumnHeaders"
+				growing="true" growingThreshold="50" class="sugarTable sapUiSmallMargin">
+				<noData>
+					<IllustratedMessage illustrationType="sapIllus-NoEntries" title="{i18n>noRecords}"/>
+				</noData>
+			</Table>
+		</content>
+	</Page>
+</mvc:View>

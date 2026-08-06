@@ -1,0 +1,224 @@
+<mvc:View
+	controllerName="sugarplan.controller.PlanningBoard"
+	xmlns="sap.m"
+	xmlns:mvc="sap.ui.core.mvc"
+	xmlns:core="sap.ui.core">
+
+	<!--
+	  The daily planning board replaces the 86-column worksheet. Instead of one
+	  very wide sheet it shows one process at a time, a date range at a time,
+	  with the calculated columns clearly separated from the editable ones.
+	-->
+	<Page id="boardPage" title="{i18n>boardTitle}" showNavButton="true" navButtonPress=".onNavBack">
+		<headerContent>
+			<ObjectStatus text="{view>/version/code}" class="sapUiTinyMarginEnd"/>
+			<ObjectStatus text="{path: 'view>/version/status', formatter: '.formatter.statusText'}"
+				state="{path: 'view>/version/status', formatter: '.formatter.statusState'}" inverted="true"/>
+		</headerContent>
+
+		<subHeader>
+			<OverflowToolbar>
+				<SegmentedButton selectedKey="{view>/kind}" selectionChange=".onKindChange">
+					<items>
+						<SegmentedButtonItem key="cane" text="{i18n>boardCane}" icon="sap-icon://tree"/>
+						<SegmentedButtonItem key="production" text="{i18n>boardProduction}" icon="sap-icon://factory"/>
+						<SegmentedButtonItem key="storage" text="{i18n>boardStorage}" icon="sap-icon://warehouse"/>
+						<SegmentedButtonItem key="shipments" text="{i18n>boardShipments}" icon="sap-icon://shipping-status"/>
+					</items>
+				</SegmentedButton>
+				<ToolbarSeparator/>
+				<Label text="{i18n>from}"/>
+				<DatePicker value="{view>/from}" valueFormat="yyyy-MM-dd" displayFormat="yyyy-MM-dd"
+					change=".onRangeChange" width="9rem"/>
+				<Label text="{i18n>to}"/>
+				<DatePicker value="{view>/to}" valueFormat="yyyy-MM-dd" displayFormat="yyyy-MM-dd"
+					change=".onRangeChange" width="9rem"/>
+				<ToolbarSeparator/>
+				<Label text="{i18n>series}"/>
+				<Select selectedKey="{view>/series}" change=".onRangeChange" width="8rem">
+					<core:Item key="PLAN" text="{i18n>seriesPlan}"/>
+					<core:Item key="ACTUAL" text="{i18n>seriesActual}"/>
+				</Select>
+				<ToolbarSpacer/>
+				<ObjectStatus text="{i18n>unsavedChanges}" state="Warning" visible="{view>/dirty}"
+					class="sapUiTinyMarginEnd"/>
+				<Button text="{i18n>save}" type="Emphasized" icon="sap-icon://save"
+					press=".onSave" enabled="{view>/dirty}"/>
+				<Button text="{i18n>discard}" icon="sap-icon://undo" press=".onDiscard" enabled="{view>/dirty}"/>
+			</OverflowToolbar>
+		</subHeader>
+
+		<content>
+			<MessageStrip class="sapUiSmallMargin" showIcon="true" type="Warning"
+				visible="{view>/readOnly}" text="{view>/readOnlyReason}"/>
+
+			<!-- Cane crushing. -->
+			<Table id="caneTable" visible="{= ${view>/kind} === 'cane' }"
+				items="{path: 'rows>/cane', templateShareable: false}"
+				sticky="ColumnHeaders,HeaderToolbar" mode="None" growing="true" growingThreshold="60"
+				class="sugarTable sugarBoardTable">
+				<headerToolbar>
+					<OverflowToolbar>
+						<Title text="{i18n>boardCaneTitle}" level="H3"/>
+						<ToolbarSpacer/>
+						<Text text="{view>/rowCount} {i18n>days}"/>
+					</OverflowToolbar>
+				</headerToolbar>
+				<columns>
+					<Column width="8rem"><Text text="{i18n>date}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>caneDelivered}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>caneAccepted}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>caneRejected}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>caneCrushed}"/></Column>
+					<Column hAlign="End" minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>crushRate}"/></Column>
+					<Column hAlign="End" minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>stoppageHours}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>utilisation}"/></Column>
+				</columns>
+				<items>
+					<ColumnListItem>
+						<cells>
+							<Text text="{path: 'rows>businessDate', formatter: '.formatter.date'}"/>
+							<Input value="{rows>caneDelivered}" type="Number" textAlign="End"
+								editable="{= !${view>/readOnly} }" change=".onCellChange" class="sugarNumberInput"/>
+							<Input value="{rows>caneAccepted}" type="Number" textAlign="End"
+								editable="{= !${view>/readOnly} }" change=".onCellChange" class="sugarNumberInput"/>
+							<Input value="{rows>caneRejected}" type="Number" textAlign="End"
+								editable="{= !${view>/readOnly} }" change=".onCellChange" class="sugarNumberInput"/>
+							<Input value="{rows>caneCrushed}" type="Number" textAlign="End"
+								editable="{= !${view>/readOnly} }" change=".onCellChange" class="sugarNumberInput"/>
+							<Input value="{rows>crushRateTph}" type="Number" textAlign="End"
+								editable="{= !${view>/readOnly} }" change=".onCellChange" class="sugarNumberInput"/>
+							<Input value="{rows>stoppageHours}" type="Number" textAlign="End"
+								editable="{= !${view>/readOnly} }" change=".onCellChange" class="sugarNumberInput"/>
+							<!-- Calculated, never typed: shown read-only so the
+							     distinction is obvious at a glance. -->
+							<ObjectNumber number="{path: 'rows>utilisation', formatter: '.formatter.percent'}"
+								state="{path: 'rows>utilisation', formatter: '.formatter.achievementState'}"/>
+						</cells>
+					</ColumnListItem>
+				</items>
+				<noData>
+					<IllustratedMessage illustrationType="sapIllus-NoEntries"
+						title="{i18n>noRows}" description="{i18n>noRowsHint}"/>
+				</noData>
+			</Table>
+
+			<!-- Finished goods production. -->
+			<Table id="productionTable" visible="{= ${view>/kind} === 'production' }"
+				items="{path: 'rows>/production', templateShareable: false}"
+				sticky="ColumnHeaders,HeaderToolbar" mode="None" growing="true" growingThreshold="60"
+				class="sugarTable sugarBoardTable">
+				<headerToolbar>
+					<OverflowToolbar>
+						<Title text="{i18n>boardProductionTitle}" level="H3"/>
+						<ToolbarSpacer/>
+						<Text text="{view>/rowCount} {i18n>rows}"/>
+					</OverflowToolbar>
+				</headerToolbar>
+				<columns>
+					<Column width="8rem"><Text text="{i18n>date}"/></Column>
+					<Column><Text text="{i18n>product}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>quantity}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>remeltInput}"/></Column>
+					<Column hAlign="End" minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>processLoss}"/></Column>
+					<Column hAlign="End" minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>rework}"/></Column>
+					<Column hAlign="End" minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>holdQty}"/></Column>
+				</columns>
+				<items>
+					<ColumnListItem>
+						<cells>
+							<Text text="{path: 'rows>businessDate', formatter: '.formatter.date'}"/>
+							<Text text="{rows>productName}"/>
+							<Input value="{rows>quantity}" type="Number" textAlign="End"
+								editable="{= !${view>/readOnly} }" change=".onCellChange" class="sugarNumberInput"/>
+							<Input value="{rows>remeltInput}" type="Number" textAlign="End"
+								editable="{= !${view>/readOnly} }" change=".onCellChange" class="sugarNumberInput"/>
+							<Input value="{rows>processLoss}" type="Number" textAlign="End"
+								editable="{= !${view>/readOnly} }" change=".onCellChange" class="sugarNumberInput"/>
+							<Input value="{rows>rework}" type="Number" textAlign="End"
+								editable="{= !${view>/readOnly} }" change=".onCellChange" class="sugarNumberInput"/>
+							<Input value="{rows>holdQty}" type="Number" textAlign="End"
+								editable="{= !${view>/readOnly} }" change=".onCellChange" class="sugarNumberInput"/>
+						</cells>
+					</ColumnListItem>
+				</items>
+			</Table>
+
+			<!-- Stock ledger. Balances are calculated by the server. -->
+			<Table id="storageTable" visible="{= ${view>/kind} === 'storage' }"
+				items="{path: 'rows>/storage', templateShareable: false}"
+				sticky="ColumnHeaders,HeaderToolbar" mode="None" growing="true" growingThreshold="60"
+				class="sugarTable sugarBoardTable">
+				<headerToolbar>
+					<OverflowToolbar>
+						<Title text="{i18n>boardStorageTitle}" level="H3"/>
+						<ToolbarSpacer/>
+						<Text text="{view>/rowCount} {i18n>rows}"/>
+					</OverflowToolbar>
+				</headerToolbar>
+				<columns>
+					<Column width="8rem"><Text text="{i18n>date}"/></Column>
+					<Column><Text text="{i18n>warehouse}"/></Column>
+					<Column><Text text="{i18n>product}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>beginningBalance}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>receipt}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>remeltIssue}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>shipment}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>adjustment}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>endingBalance}"/></Column>
+				</columns>
+				<items>
+					<ColumnListItem>
+						<cells>
+							<Text text="{path: 'rows>businessDate', formatter: '.formatter.date'}"/>
+							<Text text="{rows>warehouseName}"/>
+							<Text text="{rows>productName}"/>
+							<ObjectNumber number="{path: 'rows>beginningBalance', formatter: '.formatter.tons'}"/>
+							<Input value="{rows>productionReceipt}" type="Number" textAlign="End"
+								editable="{= !${view>/readOnly} }" change=".onCellChange" class="sugarNumberInput"/>
+							<Input value="{rows>remeltIssue}" type="Number" textAlign="End"
+								editable="{= !${view>/readOnly} }" change=".onCellChange" class="sugarNumberInput"/>
+							<Input value="{rows>shipmentQty}" type="Number" textAlign="End"
+								editable="{= !${view>/readOnly} }" change=".onCellChange" class="sugarNumberInput"/>
+							<Input value="{rows>adjustment}" type="Number" textAlign="End"
+								editable="{= !${view>/readOnly} }" change=".onCellChange" class="sugarNumberInput"/>
+							<ObjectNumber number="{path: 'rows>endingBalance', formatter: '.formatter.tons'}"
+								emphasized="true"/>
+						</cells>
+					</ColumnListItem>
+				</items>
+			</Table>
+
+			<!-- Shipments by channel. -->
+			<Table id="shipmentTable" visible="{= ${view>/kind} === 'shipments' }"
+				items="{path: 'rows>/shipments', templateShareable: false}"
+				sticky="ColumnHeaders,HeaderToolbar" mode="None" growing="true" growingThreshold="60"
+				class="sugarTable sugarBoardTable">
+				<headerToolbar>
+					<OverflowToolbar>
+						<Title text="{i18n>boardShipmentTitle}" level="H3"/>
+						<ToolbarSpacer/>
+						<Text text="{view>/rowCount} {i18n>rows}"/>
+					</OverflowToolbar>
+				</headerToolbar>
+				<columns>
+					<Column width="8rem"><Text text="{i18n>date}"/></Column>
+					<Column><Text text="{i18n>channel}"/></Column>
+					<Column><Text text="{i18n>product}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>quantity}"/></Column>
+				</columns>
+				<items>
+					<ColumnListItem>
+						<cells>
+							<Text text="{path: 'rows>businessDate', formatter: '.formatter.date'}"/>
+							<Text text="{rows>channelName}"/>
+							<Text text="{rows>productName}"/>
+							<Input value="{rows>quantity}" type="Number" textAlign="End"
+								editable="{= !${view>/readOnly} }" change=".onCellChange" class="sugarNumberInput"/>
+						</cells>
+					</ColumnListItem>
+				</items>
+			</Table>
+		</content>
+	</Page>
+</mvc:View>

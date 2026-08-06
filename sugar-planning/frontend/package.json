@@ -1,0 +1,19 @@
+{
+  "name": "sugarplan-frontend",
+  "version": "1.0.0",
+  "description": "SAPUI5 application for sugar production planning",
+  "private": true,
+  "scripts": {
+    "start": "ui5 serve --open index.html",
+    "build": "ui5 build --clean-dest --all",
+    "lint": "eslint webapp",
+    "test": "ui5 serve & sleep 3 && echo 'open http://localhost:8080/test/unit/unitTests.qunit.html'"
+  },
+  "devDependencies": {
+    "@ui5/cli": "^3.9.0",
+    "eslint": "^8.57.0"
+  },
+  "ui5": {
+    "dependencies": []
+  }
+}

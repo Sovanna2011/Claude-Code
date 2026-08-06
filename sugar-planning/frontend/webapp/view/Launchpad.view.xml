@@ -1,0 +1,111 @@
+<mvc:View
+	controllerName="sugarplan.controller.Launchpad"
+	xmlns="sap.m"
+	xmlns:mvc="sap.ui.core.mvc"
+	xmlns:f="sap.f"
+	xmlns:data="sap.ui.core:CustomData">
+
+	<!--
+	  The launchpad answers one question first: is the season on track today?
+	  The tiles below it are the entry points into the application areas.
+	-->
+	<Page id="launchpadPage" showHeader="false" class="sapUiContentPadding">
+		<content>
+			<VBox class="sapUiSmallMargin">
+				<Title text="{i18n>launchpadTitle}" level="H1"/>
+				<Text text="{i18n>launchpadSubtitle}" class="sapUiSmallMarginBottom"/>
+
+				<!-- Today's position, so the home page is useful in itself. -->
+				<HBox wrap="Wrap" class="sapUiSmallMarginBottom">
+					<GenericTile class="sugarTile" header="{i18n>kpiCane}"
+						subheader="{= ${kpi>/asOf} ? ${i18n>asOf} + ' ' + ${kpi>/asOf} : ${i18n>notStarted} }"
+						press=".onOpenOverview" frameType="TwoByOne">
+						<TileContent unit="t">
+							<NumericContent
+								value="{path: 'kpi>/cane/cumulativeActualTons', formatter: '.formatter.tons0'}"
+								valueColor="{path: 'kpi>/cane/achievementPct', formatter: '.formatter.achievementColor'}"
+								indicator="{= ${kpi>/cane/achievementPct} >= 100 ? 'Up' : 'Down' }"
+								withMargin="false"/>
+						</TileContent>
+					</GenericTile>
+
+					<GenericTile class="sugarTile" header="{i18n>kpiAchievement}"
+						subheader="{i18n>kpiAchievementSub}" press=".onOpenOverview" frameType="OneByOne">
+						<TileContent unit="%">
+							<NumericContent
+								value="{path: 'kpi>/cane/achievementPct', formatter: '.formatter.percent'}"
+								valueColor="{path: 'kpi>/cane/achievementPct', formatter: '.formatter.achievementColor'}"
+								withMargin="false"/>
+						</TileContent>
+					</GenericTile>
+
+					<GenericTile class="sugarTile" header="{i18n>kpiRecovery}"
+						subheader="{i18n>kpiRecoverySub}" press=".onOpenOverview" frameType="OneByOne">
+						<TileContent unit="%">
+							<NumericContent
+								value="{path: 'kpi>/rawSugar/actualRecoveryPct', formatter: '.formatter.percent'}"
+								valueColor="{path: 'kpi>/rawSugar/verdict', formatter: '.formatter.severityColor'}"
+								withMargin="false"/>
+						</TileContent>
+					</GenericTile>
+
+					<GenericTile class="sugarTile" header="{i18n>kpiCompletion}"
+						subheader="{kpi>/cane/forecastEndDate}" press=".onOpenOverview" frameType="OneByOne">
+						<TileContent>
+							<NumericContent
+								value="{path: 'kpi>/cane/daysBehindSchedule', formatter: '.formatter.daysLabel'}"
+								valueColor="{path: 'kpi>/cane/daysBehindSchedule', formatter: '.formatter.daysColor'}"
+								withMargin="false"/>
+						</TileContent>
+					</GenericTile>
+
+					<GenericTile class="sugarTile" header="{i18n>kpiAlerts}"
+						subheader="{i18n>kpiAlertsSub}" press=".onOpenOverview" frameType="OneByOne">
+						<TileContent>
+							<NumericContent value="{kpi>/alertCount}"
+								valueColor="{= ${kpi>/alertCount} > 0 ? 'Error' : 'Good' }"
+								icon="sap-icon://alert" withMargin="false"/>
+						</TileContent>
+					</GenericTile>
+				</HBox>
+
+				<!-- Application areas. -->
+				<Title text="{i18n>launchpadAreas}" level="H3" class="sapUiSmallMarginTop"/>
+				<HBox wrap="Wrap" class="sapUiSmallMarginTop">
+					<GenericTile class="sugarTile" header="{i18n>navOverview}"
+						subheader="{i18n>tileOverviewSub}" press=".onNavigate" data:route="overview">
+						<TileContent><ImageContent src="sap-icon://business-objects-experience"/></TileContent>
+					</GenericTile>
+					<GenericTile class="sugarTile" header="{i18n>navPlans}"
+						subheader="{i18n>tilePlansSub}" press=".onNavigate" data:route="plans">
+						<TileContent><ImageContent src="sap-icon://document-text"/></TileContent>
+					</GenericTile>
+					<GenericTile class="sugarTile" header="{i18n>navWarehouse}"
+						subheader="{i18n>tileWarehouseSub}" press=".onNavigate" data:route="warehouse">
+						<TileContent><ImageContent src="sap-icon://warehouse"/></TileContent>
+					</GenericTile>
+					<GenericTile class="sugarTile" header="{i18n>navShipments}"
+						subheader="{i18n>tileShipmentsSub}" press=".onNavigate" data:route="shipments">
+						<TileContent><ImageContent src="sap-icon://shipping-status"/></TileContent>
+					</GenericTile>
+					<GenericTile class="sugarTile" header="{i18n>navMaterials}"
+						subheader="{i18n>tileMaterialsSub}" press=".onNavigate" data:route="materials">
+						<TileContent><ImageContent src="sap-icon://sales-order-item"/></TileContent>
+					</GenericTile>
+					<GenericTile class="sugarTile" header="{i18n>navReports}"
+						subheader="{i18n>tileReportsSub}" press=".onNavigate" data:route="reports">
+						<TileContent><ImageContent src="sap-icon://list"/></TileContent>
+					</GenericTile>
+					<GenericTile class="sugarTile" header="{i18n>navMasterData}"
+						subheader="{i18n>tileMasterDataSub}" press=".onNavigate" data:route="masterdata">
+						<TileContent><ImageContent src="sap-icon://database"/></TileContent>
+					</GenericTile>
+					<GenericTile class="sugarTile" header="{i18n>navAudit}"
+						subheader="{i18n>tileAuditSub}" press=".onNavigate" data:route="audit">
+						<TileContent><ImageContent src="sap-icon://history"/></TileContent>
+					</GenericTile>
+				</HBox>
+			</VBox>
+		</content>
+	</Page>
+</mvc:View>

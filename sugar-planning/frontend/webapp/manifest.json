@@ -1,0 +1,92 @@
+{
+  "_version": "1.60.0",
+  "sap.app": {
+    "id": "sugarplan",
+    "type": "application",
+    "i18n": "i18n/i18n.properties",
+    "title": "{{appTitle}}",
+    "description": "{{appDescription}}",
+    "applicationVersion": { "version": "1.0.0" },
+    "dataSources": {
+      "sugarApi": {
+        "uri": "/api/v1/",
+        "type": "JSON",
+        "settings": { "odataVersion": "" }
+      }
+    }
+  },
+  "sap.ui": {
+    "technology": "UI5",
+    "deviceTypes": { "desktop": true, "tablet": true, "phone": true }
+  },
+  "sap.ui5": {
+    "rootView": {
+      "viewName": "sugarplan.view.App",
+      "type": "XML",
+      "id": "app",
+      "async": true
+    },
+    "dependencies": {
+      "minUI5Version": "1.120.0",
+      "libs": {
+        "sap.ui.core": {},
+        "sap.m": {},
+        "sap.f": {},
+        "sap.ui.layout": {},
+        "sap.tnt": {}
+      }
+    },
+    "handleValidation": true,
+    "contentDensities": { "compact": true, "cozy": true },
+    "models": {
+      "i18n": {
+        "type": "sap.ui.model.resource.ResourceModel",
+        "settings": {
+          "bundleName": "sugarplan.i18n.i18n",
+          "supportedLocales": ["", "km", "th"],
+          "fallbackLocale": ""
+        }
+      }
+    },
+    "resources": {
+      "css": [{ "uri": "css/style.css" }]
+    },
+    "routing": {
+      "config": {
+        "routerClass": "sap.m.routing.Router",
+        "viewType": "XML",
+        "viewPath": "sugarplan.view",
+        "controlId": "appContainer",
+        "controlAggregation": "pages",
+        "transition": "slide",
+        "async": true
+      },
+      "routes": [
+        { "pattern": "", "name": "launchpad", "target": "launchpad" },
+        { "pattern": "overview", "name": "overview", "target": "overview" },
+        { "pattern": "plans", "name": "plans", "target": "plans" },
+        { "pattern": "plans/{versionId}", "name": "planDetail", "target": "planDetail" },
+        { "pattern": "board/{versionId}", "name": "board", "target": "board" },
+        { "pattern": "warehouse", "name": "warehouse", "target": "warehouse" },
+        { "pattern": "shipments", "name": "shipments", "target": "shipments" },
+        { "pattern": "materials", "name": "materials", "target": "materials" },
+        { "pattern": "reports", "name": "reports", "target": "reports" },
+        { "pattern": "masterdata", "name": "masterdata", "target": "masterdata" },
+        { "pattern": "audit", "name": "audit", "target": "audit" }
+      ],
+      "targets": {
+        "launchpad": { "viewName": "Launchpad", "viewLevel": 1 },
+        "overview": { "viewName": "Overview", "viewLevel": 2 },
+        "plans": { "viewName": "SeasonPlans", "viewLevel": 2 },
+        "planDetail": { "viewName": "PlanDetail", "viewLevel": 3 },
+        "board": { "viewName": "PlanningBoard", "viewLevel": 3 },
+        "warehouse": { "viewName": "Warehouse", "viewLevel": 2 },
+        "shipments": { "viewName": "Shipments", "viewLevel": 2 },
+        "materials": { "viewName": "Materials", "viewLevel": 2 },
+        "reports": { "viewName": "Reports", "viewLevel": 2 },
+        "masterdata": { "viewName": "MasterData", "viewLevel": 2 },
+        "audit": { "viewName": "Audit", "viewLevel": 2 }
+      }
+    }
+  }
+}

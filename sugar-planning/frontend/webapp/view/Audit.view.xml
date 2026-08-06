@@ -1,0 +1,65 @@
+<mvc:View controllerName="sugarplan.controller.Audit" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" xmlns:core="sap.ui.core">
+	<Page id="auditPage" title="{i18n>auditTitle}" showNavButton="true" navButtonPress=".onNavBack">
+		<content>
+			<VBox class="sapUiSmallMargin">
+				<MessageStrip class="sapUiSmallMarginBottom" type="Warning" showIcon="true"
+					visible="{= !${view>/canRead} }" text="{i18n>auditForbidden}"/>
+
+				<Toolbar visible="{view>/canRead}" class="sapUiSmallMarginBottom">
+					<Label text="{i18n>entity}"/>
+					<Select selectedKey="{view>/entity}" change=".onFilterChange" width="14rem">
+						<core:Item key="" text="{i18n>allEntities}"/>
+						<core:Item key="plan_version" text="Plan version"/>
+						<core:Item key="season" text="Season"/>
+						<core:Item key="daily_cane_plan" text="Daily cane plan"/>
+						<core:Item key="daily_product_plan" text="Daily production plan"/>
+						<core:Item key="daily_storage_plan" text="Stock ledger"/>
+						<core:Item key="plan_assumption" text="Assumption"/>
+					</Select>
+					<Label text="{i18n>action}"/>
+					<Select selectedKey="{view>/action}" change=".onFilterChange" width="12rem">
+						<core:Item key="" text="{i18n>allActions}"/>
+						<core:Item key="CREATE" text="Create"/>
+						<core:Item key="UPDATE" text="Update"/>
+						<core:Item key="UPSERT" text="Upsert"/>
+						<core:Item key="GENERATE" text="Generate"/>
+						<core:Item key="SUBMIT" text="Submit"/>
+						<core:Item key="APPROVE" text="Approve"/>
+						<core:Item key="RELEASE" text="Release"/>
+						<core:Item key="REOPEN" text="Reopen"/>
+					</Select>
+					<ToolbarSpacer/>
+					<Text text="{i18n>auditAppendOnly}"/>
+				</Toolbar>
+
+				<Table items="{path: 'view>/events', templateShareable: false}" mode="None"
+					visible="{view>/canRead}" sticky="ColumnHeaders" growing="true" growingThreshold="50"
+					class="sugarTable">
+					<columns>
+						<Column width="13rem"><Text text="{i18n>when}"/></Column>
+						<Column><Text text="{i18n>action}"/></Column>
+						<Column><Text text="{i18n>entity}"/></Column>
+						<Column><Text text="{i18n>actor}"/></Column>
+						<Column><Text text="{i18n>reason}"/></Column>
+						<Column minScreenWidth="Desktop" demandPopin="true"><Text text="{i18n>correlationId}"/></Column>
+					</columns>
+					<items>
+						<ColumnListItem>
+							<cells>
+								<Text text="{path: 'view>occurredAt', formatter: '.formatter.dateTime'}"/>
+								<ObjectStatus text="{view>action}" state="Information" inverted="true"/>
+								<Text text="{view>entity}"/>
+								<Text text="{view>actor}"/>
+								<Text text="{view>reason}"/>
+								<Text text="{view>correlationId}"/>
+							</cells>
+						</ColumnListItem>
+					</items>
+					<noData>
+						<IllustratedMessage illustrationType="sapIllus-NoEntries" title="{i18n>noAuditEvents}"/>
+					</noData>
+				</Table>
+			</VBox>
+		</content>
+	</Page>
+</mvc:View>

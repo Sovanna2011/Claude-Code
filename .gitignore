@@ -29,3 +29,14 @@ Thumbs.db
 *.log
 appsettings.*.local.json
 .env
+
+# ---- Go (sugar-planning) ----
+*.exe
+*.out
+coverage.out
+sugar-planning/backend/server
+sugar-planning/backend/migrate
+
+# ---- local environment ----
+deploy/.env
+sugar-planning/deploy/.env
