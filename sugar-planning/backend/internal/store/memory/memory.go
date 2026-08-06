@@ -63,6 +63,10 @@ type data struct {
 	exchangeRates map[string]domain.ExchangeRate
 	costRuns      map[string]domain.CostRun
 
+	importMappings map[string]domain.ImportMapping
+	importJobs     map[string]domain.ImportJob
+	importRows     map[string][]domain.ImportRow
+
 	batches      map[string]domain.Batch
 	packagingBOM map[string]domain.PackagingBOMLine
 
@@ -90,27 +94,30 @@ func newData() *data {
 		assumptions: map[string]domain.PlanAssumption{}, mix: map[string]domain.ProductMixEntry{},
 		cane: map[string]domain.DailyCanePlan{}, prodPlans: map[string]domain.DailyProductPlan{},
 		storage: map[string]domain.DailyStoragePlan{}, shipments: map[string]domain.DailyShipmentPlan{},
-		downtime:      map[string]domain.DowntimeEvent{},
-		batches:       map[string]domain.Batch{},
-		packagingBOM:  map[string]domain.PackagingBOMLine{},
-		outbox:        map[string]domain.OutboxEvent{},
-		jobs:          map[string]domain.JobRun{},
-		jobLeases:     map[string]time.Time{},
-		costElements:  map[string]domain.CostElement{},
-		costRates:     map[string]domain.CostRate{},
-		exchangeRates: map[string]domain.ExchangeRate{},
-		costRuns:      map[string]domain.CostRun{},
-		orders:        map[string]domain.ProductionOrder{},
-		confirmations: map[string]domain.ProductionConfirmation{},
-		documents:     map[string]domain.InventoryDocument{},
-		positions:     map[string]domain.StockPosition{},
-		qualityParams: map[string]domain.QualityParameter{},
-		qualitySpecs:  map[string]domain.QualitySpec{},
-		samples:       map[string]domain.QualitySample{},
-		results:       map[string][]domain.QualityResult{},
-		holds:         map[string]domain.QualityHold{},
-		maintenance:   map[string]domain.MaintenanceWindow{},
-		idem:          map[string][]byte{},
+		downtime:       map[string]domain.DowntimeEvent{},
+		batches:        map[string]domain.Batch{},
+		importMappings: map[string]domain.ImportMapping{},
+		importJobs:     map[string]domain.ImportJob{},
+		importRows:     map[string][]domain.ImportRow{},
+		packagingBOM:   map[string]domain.PackagingBOMLine{},
+		outbox:         map[string]domain.OutboxEvent{},
+		jobs:           map[string]domain.JobRun{},
+		jobLeases:      map[string]time.Time{},
+		costElements:   map[string]domain.CostElement{},
+		costRates:      map[string]domain.CostRate{},
+		exchangeRates:  map[string]domain.ExchangeRate{},
+		costRuns:       map[string]domain.CostRun{},
+		orders:         map[string]domain.ProductionOrder{},
+		confirmations:  map[string]domain.ProductionConfirmation{},
+		documents:      map[string]domain.InventoryDocument{},
+		positions:      map[string]domain.StockPosition{},
+		qualityParams:  map[string]domain.QualityParameter{},
+		qualitySpecs:   map[string]domain.QualitySpec{},
+		samples:        map[string]domain.QualitySample{},
+		results:        map[string][]domain.QualityResult{},
+		holds:          map[string]domain.QualityHold{},
+		maintenance:    map[string]domain.MaintenanceWindow{},
+		idem:           map[string][]byte{},
 	}
 }
 
@@ -146,13 +153,16 @@ func (d *data) clone() *data {
 		holds: cloneMap(d.holds), maintenance: cloneMap(d.maintenance),
 		costElements: cloneMap(d.costElements), costRates: cloneMap(d.costRates),
 		exchangeRates: cloneMap(d.exchangeRates), costRuns: cloneRuns(d.costRuns),
-		batches:      cloneMap(d.batches),
-		packagingBOM: cloneMap(d.packagingBOM),
-		outbox:       cloneMap(d.outbox),
-		jobs:         cloneMap(d.jobs),
-		jobLeases:    cloneMap(d.jobLeases),
-		audit:        append([]domain.AuditEvent(nil), d.audit...),
-		idem:         cloneMap(d.idem),
+		batches:        cloneMap(d.batches),
+		importMappings: cloneMap(d.importMappings),
+		importJobs:     cloneMap(d.importJobs),
+		importRows:     cloneRows(d.importRows),
+		packagingBOM:   cloneMap(d.packagingBOM),
+		outbox:         cloneMap(d.outbox),
+		jobs:           cloneMap(d.jobs),
+		jobLeases:      cloneMap(d.jobLeases),
+		audit:          append([]domain.AuditEvent(nil), d.audit...),
+		idem:           cloneMap(d.idem),
 	}
 }
 
@@ -183,6 +193,16 @@ func cloneResults(m map[string][]domain.QualityResult) map[string][]domain.Quali
 	out := make(map[string][]domain.QualityResult, len(m))
 	for k, v := range m {
 		out[k] = append([]domain.QualityResult(nil), v...)
+	}
+	return out
+}
+
+// cloneRows deep-copies the staged import rows, so a rolled-back commit leaves
+// the staging area as it was.
+func cloneRows(m map[string][]domain.ImportRow) map[string][]domain.ImportRow {
+	out := make(map[string][]domain.ImportRow, len(m))
+	for k, v := range m {
+		out[k] = append([]domain.ImportRow(nil), v...)
 	}
 	return out
 }

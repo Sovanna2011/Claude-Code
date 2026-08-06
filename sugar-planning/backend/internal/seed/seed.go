@@ -253,6 +253,50 @@ func Load(ctx context.Context, s store.Store, planning *service.Planning) (Resul
 
 	res.Packaging, res.Materials = packagingIDs, materialIDs
 
+	// A mapping template for the daily sheet the mill already keeps, so the
+	// import can be tried without anybody first designing a template. The
+	// headings are the ones a Cambodian mill's spreadsheet actually uses, and
+	// the date format is day-first because that is how it is written there.
+	for _, m := range []domain.ImportMapping{
+		{
+			Code: "CANE-DAILY", Name: "Daily cane sheet", Kind: domain.ImportCane,
+			HeaderRow: 1, DateFormat: "02/01/2006", Validity: active(),
+			Note: "The shift sheet from the weighbridge office.",
+			Columns: []domain.ColumnMapping{
+				{Field: "businessDate", Header: "Date"},
+				{Field: "caneDelivered", Header: "Delivered (MT)"},
+				{Field: "caneAccepted", Header: "Accepted (MT)"},
+				{Field: "caneRejected", Header: "Rejected (MT)"},
+				{Field: "caneCrushed", Header: "Crushed (MT)"},
+				{Field: "crushRateTph", Header: "Rate (TPH)"},
+				{Field: "availableHours", Header: "Hours available", Default: "24"},
+				{Field: "stoppageHours", Header: "Hours stopped", Default: "0"},
+				{Field: "note", Header: "Remarks"},
+			},
+		},
+		{
+			Code: "PROD-DAILY", Name: "Daily production sheet", Kind: domain.ImportProduction,
+			HeaderRow: 1, DateFormat: "02/01/2006", Validity: active(),
+			Note: "Packed output by product, from the packing hall.",
+			Columns: []domain.ColumnMapping{
+				{Field: "businessDate", Header: "Date"},
+				{Field: "productCode", Header: "Product"},
+				{Field: "packagingCode", Header: "Pack"},
+				{Field: "quantity", Header: "Good output (MT)"},
+				{Field: "remeltInput", Header: "Raw used (MT)"},
+				{Field: "processLoss", Header: "Loss (MT)"},
+				{Field: "rework", Header: "Rework (MT)"},
+				{Field: "holdQty", Header: "On hold (MT)"},
+				{Field: "note", Header: "Remarks"},
+			},
+		},
+	} {
+		if _, err := s.Imports().SaveMapping(ctx, m, Actor); err != nil &&
+			!errors.Is(err, domain.ErrDuplicate) {
+			return res, fmt.Errorf("import mapping %s: %w", m.Code, err)
+		}
+	}
+
 	// --- warehouses ---------------------------------------------------------
 	// The workbook states nominal capacities; usable capacity is set to 100 %
 	// here so the seeded figures reconcile exactly with the source document.

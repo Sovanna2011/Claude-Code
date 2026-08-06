@@ -66,6 +66,11 @@ tags:
     description: Planned outages, which remove crushing days once approved.
   - name: Costing
     description: Cost structure, rates, and what a ton of sugar costs.
+  - name: Imports
+    description: |
+      The controlled import: mapping templates, a staging area, a preview with
+      row-level errors, and a commit that goes through the ordinary planning
+      service.
   - name: Interfaces
     description: |
       The transactional outbox this system publishes from, and the two readings
@@ -1238,6 +1243,317 @@ paths:
               schema: { $ref: "#/components/schemas/CostRun" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+
+  /import-fields:
+    get:
+      tags: [Imports]
+      summary: What each kind of file may contain
+      description: |
+        Requires `plan:read`. The catalogue a mapping screen builds itself from:
+        the fields of each kind of import, which are required, and which make up
+        the key that decides whether two rows are the same row.
+      operationId: listImportFields
+      responses:
+        "200":
+          description: One entry per kind.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  value:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        kind: { $ref: "#/components/schemas/ImportKind" }
+                        fields:
+                          type: array
+                          items: { $ref: "#/components/schemas/ImportField" }
+                        keys:
+                          type: array
+                          description: The fields that identify a row within its kind.
+                          items: { type: string }
+                  count: { type: integer }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /import-mappings:
+    get:
+      tags: [Imports]
+      summary: The mapping templates
+      description: |
+        Requires `plan:read`. A template says which column of which shape of file
+        holds which field, and how the dates and numbers in it are written. It is
+        master data because it is the thing a site gets right once: an import
+        that asked for the column positions on every upload would be re-entering
+        the mapping every time, which is where a mistake gets made.
+      operationId: listImportMappings
+      parameters:
+        - name: kind
+          in: query
+          schema: { $ref: "#/components/schemas/ImportKind" }
+      responses:
+        "200":
+          description: The templates.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  value:
+                    type: array
+                    items: { $ref: "#/components/schemas/ImportMapping" }
+                  count: { type: integer }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    put:
+      tags: [Imports]
+      summary: Create or change a mapping template
+      description: |
+        Requires `masterdata:write`. A mapping decides what a column means, and
+        somebody who can change that can change what every future import records
+        without touching a single figure.
+
+        A template that could not work is refused here rather than when a file is
+        uploaded: a field mapped twice, a required field not mapped at all, data
+        starting above the headings, or a date format written as `dd/mm/yyyy`
+        rather than as an example of 2 January 2006.
+      operationId: saveImportMapping
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ImportMapping" }
+      responses:
+        "200":
+          description: The stored template.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportMapping" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Duplicate" }
+        "412": { $ref: "#/components/responses/VersionConflict" }
+
+  /imports:
+    post:
+      tags: [Imports]
+      summary: Upload a file and stage it
+      description: |
+        The body is the file itself - `.csv`, `.tsv` or `.xlsx` - and everything
+        else is a query parameter, so a nightly export can be posted with curl
+        without building a multipart form.
+
+        **Nothing is written to the plan here.** The file is read through its
+        mapping, every row is validated, business codes are resolved, and the
+        result is held for review. What comes back is what *would* be written,
+        with every problem attached to the line of the file it is on.
+
+        Three things are reported that are not errors and matter anyway: columns
+        of the file that the mapping ignores, mapped columns the file does not
+        have, and rows whose key already exists in the plan and would therefore
+        be replaced. A renamed column looks exactly like an absent one, and a
+        default quietly standing in for it is how a wrong figure gets imported
+        without anybody noticing.
+
+        The permission the commit will need is checked *now*, so nobody uploads a
+        file and reads a preview of figures they may not post. `series=ACTUAL`
+        needs the posting permission for that kind; `PLAN` needs `plan:write`.
+
+        Send an `Idempotency-Key`: a client that retried because the connection
+        dropped must not stage the same file twice.
+      operationId: stageImport
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: mapping
+          in: query
+          description: The mapping template's code. Give this or `mappingId`.
+          schema: { type: string }
+        - name: mappingId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: versionId
+          in: query
+          required: true
+          description: The plan version the rows will be written to.
+          schema: { type: string, format: uuid }
+        - name: series
+          in: query
+          description: |
+            Whether the file holds plan or actual figures. Asked for rather than
+            inferred: a file of actuals loaded into the plan would overwrite the
+            baseline somebody is measuring against.
+          schema: { type: string, enum: [PLAN, ACTUAL], default: PLAN }
+        - name: fileName
+          in: query
+          description: Falls back to the `Content-Disposition` filename.
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          text/csv:
+            schema: { type: string }
+          application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+            schema: { type: string, format: binary }
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        "200":
+          description: The staged job, its rows and what did not line up.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportPreview" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Locked" }
+    get:
+      tags: [Imports]
+      summary: The import history
+      description: |
+        Requires `plan:read`. Every upload is kept, including the ones that were
+        refused: what somebody tried to import and could not is part of the
+        record.
+      operationId: listImports
+      parameters:
+        - name: kind
+          in: query
+          schema: { $ref: "#/components/schemas/ImportKind" }
+        - name: status
+          in: query
+          schema: { type: string, enum: [PENDING, VALIDATED, COMMITTED, FAILED, CANCELLED] }
+        - name: versionId
+          in: query
+          schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/Top"
+        - $ref: "#/components/parameters/Skip"
+      responses:
+        "200":
+          description: A page of jobs, newest first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/ImportJob" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /imports/{id}:
+    get:
+      tags: [Imports]
+      summary: Read a staged import
+      description: |
+        Requires `plan:read`. `errorsOnly=true` narrows the rows to the ones that
+        failed, which is what the preview screen shows when a file is mostly
+        sound.
+      operationId: getImport
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - name: errorsOnly
+          in: query
+          schema: { type: boolean }
+        - $ref: "#/components/parameters/Top"
+        - $ref: "#/components/parameters/Skip"
+      responses:
+        "200":
+          description: The job and a page of its staged rows.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportPreview" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /imports/{id}/errors:
+    get:
+      tags: [Imports]
+      summary: Download the rows that failed
+      description: |
+        Requires `plan:read`. A CSV of row, field, problem and value, to be
+        opened next to the file that was uploaded. The row number is the first
+        column because it is the line in that spreadsheet, and fixing an import
+        means going to those lines.
+      operationId: downloadImportErrors
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: The error rows.
+          content:
+            text/csv:
+              schema: { type: string }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /imports/{id}/commit:
+    post:
+      tags: [Imports]
+      summary: Write a staged import into the plan
+      description: |
+        The commit goes through the ordinary planning service, so an imported row
+        meets the same validation, the same period locking, the same
+        authorisation and the same audit trail as a row somebody types into the
+        grid. An import that could write what a person could not would be a hole
+        in every rule above it.
+
+        The default is **all or nothing**, which is what section 22 asks for: a
+        file with any bad row is refused whole, and the sound rows are committed
+        only when the caller asks for that explicitly with `partial: true`.
+
+        Rows whose key already exists are replaced rather than added, and the
+        count of those is reported back.
+      operationId: commitImport
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                partial:
+                  type: boolean
+                  description: Commit the sound rows and leave the rest.
+      responses:
+        "200":
+          description: What was written.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportCommitResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: The import has already been committed or cancelled.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
+  /imports/{id}/cancel:
+    post:
+      tags: [Imports]
+      summary: Abandon a staged import
+      description: |
+        Requires `plan:read`. The job and its rows stay: what was uploaded and
+        refused is part of the record.
+      operationId: cancelImport
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: The cancelled job.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportJob" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: The import is already committed or cancelled.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
 
   /integration/events:
     get:
@@ -2543,6 +2859,12 @@ components:
       content:
         application/problem+json:
           schema: { $ref: "#/components/schemas/Problem" }
+    Locked:
+      description: |
+        The period or the plan version is locked, so it cannot be written to.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
     Upstream:
       description: |
         A connected system refused or could not be reached. This system did its
@@ -2565,13 +2887,18 @@ components:
         correlationId: { type: string }
         errors:
           type: array
-          items:
-            type: object
-            properties:
-              row: { type: integer, description: Index of the offending row in a bulk request. }
-              field: { type: string }
-              code: { type: string }
-              message: { type: string }
+          items: { $ref: "#/components/schemas/FieldError" }
+
+    FieldError:
+      type: object
+      description: |
+        One problem, addressed by the row and field it is about so a table can
+        highlight the control that caused it.
+      properties:
+        row: { type: integer, description: Index of the offending row in a bulk request. }
+        field: { type: string }
+        code: { type: string }
+        message: { type: string }
 
     Page:
       type: object
@@ -3410,6 +3737,162 @@ components:
           type: array
           description: Parameter codes with no specification in force.
           items: { type: string }
+
+    ImportKind:
+      type: string
+      description: What a file is a file of. Each maps onto a service that already exists.
+      enum: [DAILY_CANE, DAILY_PRODUCTION, DAILY_SHIPMENT, DAILY_STORAGE]
+
+    ImportField:
+      type: object
+      description: One field a kind of file may carry.
+      properties:
+        name: { type: string }
+        type: { type: string, enum: [DATE, DECIMAL, TEXT, CODE] }
+        label: { type: string }
+        required: { type: boolean }
+        entity:
+          type: string
+          description: What a CODE field is resolved against.
+        note: { type: string }
+
+    ImportMapping:
+      type: object
+      description: |
+        The controlled template: which column holds which field, and how the
+        dates and numbers in the file are written.
+      required: [code, kind, columns]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        kind: { $ref: "#/components/schemas/ImportKind" }
+        columns:
+          type: array
+          items:
+            type: object
+            required: [field]
+            properties:
+              field: { type: string }
+              header:
+                type: string
+                description: |
+                  The column heading to look for, matched case-insensitively and
+                  ignoring surrounding space.
+              column:
+                type: integer
+                description: A zero-based position, for a sheet with no headings.
+              default:
+                type: string
+                description: |
+                  Fills a cell the file leaves blank. Applied before validation,
+                  so a required field with a default is satisfied.
+        headerRow:
+          type: integer
+          description: The one-based row the headings are on. Zero means none.
+        firstDataRow:
+          type: integer
+          description: The one-based row the data starts on. Zero means the row after the headings.
+        delimiter:
+          type: string
+          description: The CSV separator, one character. Empty means comma.
+        dateFormat:
+          type: string
+          description: |
+            Written as an example of 2 January 2006 - `02/01/2006`, `2006-01-02`.
+            Empty accepts the ISO form and the two common written ones.
+          examples: ["02/01/2006"]
+        decimalComma:
+          type: boolean
+          description: |
+            The file writes 1.234,56 rather than 1,234.56. Getting this wrong
+            turns a thousand tons into one, so it is a setting rather than a
+            guess made per cell.
+        note: { type: string }
+        active: { type: boolean }
+        rowVersion: { type: integer, format: int64 }
+
+    ImportJob:
+      type: object
+      description: |
+        One upload: what was read, what was wrong with it, and whether anybody
+        has committed it.
+      properties:
+        id: { type: string, format: uuid }
+        kind: { $ref: "#/components/schemas/ImportKind" }
+        mappingId: { type: string, format: uuid }
+        versionId: { type: string, format: uuid }
+        factoryId: { type: string, format: uuid }
+        fileName: { type: string }
+        status: { type: string, enum: [PENDING, VALIDATED, COMMITTED, FAILED, CANCELLED] }
+        totalRows: { type: integer }
+        validRows: { type: integer }
+        errorRows: { type: integer }
+        errors:
+          type: array
+          description: Problems that belong to the file rather than to a row.
+          items: { $ref: "#/components/schemas/FieldError" }
+        note:
+          type: string
+          description: The series the file was staged as.
+        committedAt: { type: string, format: date-time }
+        committedBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        createdBy: { type: string }
+
+    ImportRow:
+      type: object
+      description: One row of a file after it has been read through the mapping.
+      properties:
+        rowNo:
+          type: integer
+          description: |
+            The one-based line in the file, so an error names what somebody sees
+            in Excel rather than an offset into an array.
+        values:
+          type: object
+          additionalProperties: { type: string }
+          description: |
+            The mapped fields. Dates are normalised to ISO and numbers to a plain
+            decimal; a resolved code appears alongside as `<field>Id`.
+        errors:
+          type: array
+          items: { $ref: "#/components/schemas/FieldError" }
+        duplicate:
+          type: boolean
+          description: This row's key repeats a row earlier in the same file.
+        replaces:
+          type: boolean
+          description: |
+            The key already exists in the plan, so committing overwrites rather
+            than adds. Not an error - re-importing a corrected sheet is the
+            normal case - but worth seeing before the button is pressed.
+
+    ImportPreview:
+      type: object
+      properties:
+        job: { $ref: "#/components/schemas/ImportJob" }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/ImportRow" }
+        unmapped:
+          type: array
+          description: Columns of the file the mapping ignores.
+          items: { type: string }
+        missing:
+          type: array
+          description: Mapped headings the file does not have.
+          items: { type: string }
+
+    ImportCommitResult:
+      type: object
+      properties:
+        job: { $ref: "#/components/schemas/ImportJob" }
+        written: { type: integer }
+        skipped: { type: integer }
+        replaced:
+          type: integer
+          description: Rows that overwrote an existing row rather than adding one.
 
     Topic:
       type: string

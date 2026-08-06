@@ -120,6 +120,10 @@
 						subheader="{i18n>tileMasterDataSub}" press=".onNavigate" data:route="masterdata">
 						<TileContent><ImageContent src="sap-icon://database"/></TileContent>
 					</GenericTile>
+					<GenericTile class="sugarTile" header="{i18n>navImport}"
+						subheader="{i18n>tileImportSub}" press=".onNavigate" data:route="import">
+						<TileContent><ImageContent src="sap-icon://upload-to-cloud"/></TileContent>
+					</GenericTile>
 					<GenericTile class="sugarTile" header="{i18n>navInterfaces}"
 						subheader="{i18n>tileInterfacesSub}" press=".onNavigate" data:route="interfaces">
 						<TileContent><ImageContent src="sap-icon://connected"/></TileContent>

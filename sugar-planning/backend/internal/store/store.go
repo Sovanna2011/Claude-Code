@@ -312,6 +312,37 @@ type OutboxFilter struct {
 	Top       int
 }
 
+// Imports is the repository for the mapping templates and the staging area.
+//
+// The rows are held rather than the file. A file kept on disk would need a
+// storage layer, a retention policy and a backup of its own; the rows as they
+// were parsed are what a preview shows, what an error download lists and what a
+// commit applies, and they are already in the database everything else is in.
+type Imports interface {
+	ListMappings(ctx context.Context, kind string) ([]domain.ImportMapping, error)
+	GetMapping(ctx context.Context, id string) (domain.ImportMapping, error)
+	MappingByCode(ctx context.Context, code string) (domain.ImportMapping, error)
+	SaveMapping(ctx context.Context, m domain.ImportMapping, actor string) (domain.ImportMapping, error)
+
+	ListJobs(ctx context.Context, f ImportFilter) (Page[domain.ImportJob], error)
+	GetJob(ctx context.Context, id string) (domain.ImportJob, error)
+	SaveJob(ctx context.Context, j domain.ImportJob, actor string) (domain.ImportJob, error)
+
+	// SaveRows replaces a job's staged rows.
+	SaveRows(ctx context.Context, jobID string, rows []domain.ImportRow) error
+	// Rows returns the staged rows. errorsOnly is what the error download uses.
+	Rows(ctx context.Context, jobID string, errorsOnly bool, skip, top int) (Page[domain.ImportRow], error)
+}
+
+// ImportFilter selects import jobs.
+type ImportFilter struct {
+	Kind      string
+	Status    string
+	VersionID string
+	Skip      int
+	Top       int
+}
+
 // Jobs is the lease the background scheduler runs behind, and the record of
 // what each job last did.
 //
@@ -371,6 +402,7 @@ type Store interface {
 	Costing() Costing
 	Outbox() Outbox
 	Jobs() Jobs
+	Imports() Imports
 	Audit() Audit
 	Idempotency() Idempotency
 	// InTx runs fn inside a database transaction. Every posting that touches

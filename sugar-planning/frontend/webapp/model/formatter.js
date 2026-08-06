@@ -350,6 +350,69 @@ sap.ui.define([], function () {
 		},
 
 		// ------------------------------------------------------------------
+		// Imports
+		// ------------------------------------------------------------------
+
+		/** importState colours a staged job by how far through it is. */
+		importState: function (sStatus) {
+			switch (sStatus) {
+				case "COMMITTED": return "Success";
+				case "FAILED": return "Error";
+				case "CANCELLED": return "None";
+				case "VALIDATED": return "Warning";
+				default: return "Information";
+			}
+		},
+
+		/** rowOutcome says in one word what will happen to a staged row. */
+		rowOutcome: function (oRow) {
+			if (!oRow) {
+				return "";
+			}
+			if (oRow.errors && oRow.errors.length) {
+				return "Refused";
+			}
+			// Replacing is the normal case when a corrected sheet is re-imported,
+			// so it is stated rather than warned about.
+			return oRow.replaces ? "Replaces" : "New";
+		},
+
+		rowOutcomeState: function (oRow) {
+			if (!oRow) {
+				return "None";
+			}
+			if (oRow.errors && oRow.errors.length) {
+				return "Error";
+			}
+			return oRow.replaces ? "Warning" : "Success";
+		},
+
+		/** importValues renders a staged row for the preview.
+		 *
+		 * The resolved ids are left out: somebody checking an import is reading
+		 * the codes and figures they typed, and a column of uuids would bury
+		 * them. */
+		importValues: function (oValues) {
+			if (!oValues) {
+				return "";
+			}
+			return Object.keys(oValues).filter(function (sKey) {
+				return !/Id$/.test(sKey);
+			}).sort().map(function (sKey) {
+				return sKey + " " + oValues[sKey];
+			}).join(", ");
+		},
+
+		importProblems: function (aErrors) {
+			if (!aErrors || !aErrors.length) {
+				return "";
+			}
+			return aErrors.map(function (oError) {
+				return oError.message;
+			}).join("; ");
+		},
+
+		// ------------------------------------------------------------------
 		// Interfaces
 		// ------------------------------------------------------------------
 

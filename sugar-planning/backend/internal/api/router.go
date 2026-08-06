@@ -28,10 +28,13 @@ type Server struct {
 	// integration is the interface layer: the outbox dispatcher and the
 	// weighbridge and laboratory adapters.
 	integration *service.Integration
-	verifier    auth.Verifier
-	authCfg     auth.Config
-	logger      *slog.Logger
-	version     string
+	// imports is the controlled file import: mapping templates, staging,
+	// preview and commit.
+	imports  *service.Imports
+	verifier auth.Verifier
+	authCfg  auth.Config
+	logger   *slog.Logger
+	version  string
 	// now is injected so that a default business date in a request is
 	// deterministic in tests.
 	now func() time.Time
@@ -53,6 +56,7 @@ type Options struct {
 	// Integration is optional: without it the server builds one that logs its
 	// deliveries, so an outbox is never left with nobody to drain it.
 	Integration *service.Integration
+	Imports     *service.Imports
 	Verifier    auth.Verifier
 	AuthCfg     auth.Config
 	Logger      *slog.Logger
@@ -72,6 +76,7 @@ func NewServer(o Options) http.Handler {
 	s := &Server{
 		store: o.Store, planning: o.Planning, analytics: o.Analytics, materials: o.Materials,
 		execution: o.Execution, costing: o.Costing, integration: o.Integration,
+		imports:  o.Imports,
 		verifier: o.Verifier, authCfg: o.AuthCfg, logger: o.Logger,
 		version: o.Version, staticDir: o.StaticDir, now: o.Now,
 	}
@@ -83,6 +88,9 @@ func NewServer(o Options) http.Handler {
 	}
 	if s.costing == nil {
 		s.costing = service.NewCosting(o.Store, o.Planning, s.now)
+	}
+	if s.imports == nil {
+		s.imports = service.NewImports(o.Store, o.Planning, s.now)
 	}
 	if s.integration == nil {
 		s.integration = service.NewIntegration(o.Store, s.execution, o.Planning,
@@ -260,6 +268,17 @@ func (s *Server) routes(mux *http.ServeMux) {
 	s.handle(mux, "POST /api/v1/costing/runs", s.handleCostRun)
 	s.handle(mux, "GET /api/v1/costing/runs", s.handleListCostRuns)
 	s.handle(mux, "GET /api/v1/costing/runs/{id}", s.handleGetCostRun)
+
+	// --- imports ------------------------------------------------------------
+	s.handle(mux, "GET /api/v1/import-mappings", s.handleListImportMappings)
+	s.handle(mux, "PUT /api/v1/import-mappings", s.handleSaveImportMapping)
+	s.handle(mux, "GET /api/v1/import-fields", s.handleImportFields)
+	s.handle(mux, "POST /api/v1/imports", s.handleStageImport)
+	s.handle(mux, "GET /api/v1/imports", s.handleListImports)
+	s.handle(mux, "GET /api/v1/imports/{id}", s.handleGetImport)
+	s.handle(mux, "GET /api/v1/imports/{id}/errors", s.handleImportErrors)
+	s.handle(mux, "POST /api/v1/imports/{id}/commit", s.handleCommitImport)
+	s.handle(mux, "POST /api/v1/imports/{id}/cancel", s.handleCancelImport)
 
 	// --- interfaces ---------------------------------------------------------
 	s.handle(mux, "GET /api/v1/integration/events", s.handleListEvents)

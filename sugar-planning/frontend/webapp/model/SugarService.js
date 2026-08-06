@@ -58,6 +58,11 @@ sap.ui.define([
 			if (oOpts.body !== undefined) {
 				oHeaders["Content-Type"] = "application/json";
 			}
+			// A raw body is the file itself - an import upload - rather than a
+			// JSON document, so it is sent unchanged with its own content type.
+			if (oOpts.rawBody !== undefined) {
+				oHeaders["Content-Type"] = oOpts.contentType || "application/octet-stream";
+			}
 			if (oOpts.etag) {
 				oHeaders["If-Match"] = oOpts.etag;
 			}
@@ -69,7 +74,8 @@ sap.ui.define([
 			return fetch(sUrl, {
 				method: sMethod,
 				headers: oHeaders,
-				body: oOpts.body !== undefined ? JSON.stringify(oOpts.body) : undefined,
+				body: oOpts.rawBody !== undefined ? oOpts.rawBody
+					: (oOpts.body !== undefined ? JSON.stringify(oOpts.body) : undefined),
 				credentials: "same-origin"
 			}).then(function (oResponse) {
 				var sEtag = oResponse.headers.get("ETag");
@@ -469,6 +475,66 @@ sap.ui.define([
 				}
 			});
 			return this.get("/audit?" + aQuery.join("&"));
+		},
+
+		// ------------------------------------------------------------------
+		// Imports
+		// ------------------------------------------------------------------
+
+		/** listImportMappings returns the templates a site has set up. */
+		listImportMappings: function (sKind) {
+			return this.get("/import-mappings" + (sKind ? "?kind=" + encodeURIComponent(sKind) : ""));
+		},
+
+		/**
+		 * stageImport uploads a file.
+		 *
+		 * The body is the file itself, so nothing here builds a multipart form:
+		 * the mapping, the version and the series are query parameters, and the
+		 * browser sends the bytes it read from disk unchanged.
+		 */
+		stageImport: function (oFile, oParams) {
+			var aQuery = [];
+			Object.keys(oParams || {}).forEach(function (sKey) {
+				if (oParams[sKey]) {
+					aQuery.push(encodeURIComponent(sKey) + "=" + encodeURIComponent(oParams[sKey]));
+				}
+			});
+			aQuery.push("fileName=" + encodeURIComponent(oFile.name));
+			return this.request("POST", "/imports?" + aQuery.join("&"), {
+				rawBody: oFile,
+				contentType: oFile.type || "application/octet-stream"
+			});
+		},
+
+		/** getImport reads a staged job back, optionally only its failed rows. */
+		getImport: function (sId, bErrorsOnly) {
+			return this.get("/imports/" + encodeURIComponent(sId) +
+				"?$top=500" + (bErrorsOnly ? "&errorsOnly=true" : ""));
+		},
+
+		listImports: function () {
+			return this.get("/imports?$top=50");
+		},
+
+		commitImport: function (sId, bPartial) {
+			return this.post("/imports/" + encodeURIComponent(sId) + "/commit",
+				{ partial: !!bPartial });
+		},
+
+		cancelImport: function (sId) {
+			return this.post("/imports/" + encodeURIComponent(sId) + "/cancel", null);
+		},
+
+		/** downloadImportErrors fetches the row-level error file. */
+		downloadImportErrors: function (sId, sFileName) {
+			return this.request("GET", "/imports/" + encodeURIComponent(sId) + "/errors",
+				{ raw: true }).then(function (oBlob) {
+					// The uploaded name already carries an extension; a second
+					// one would give "cane.csv.csv".
+					var sBase = (sFileName || sId).replace(/\.[^.]+$/, "");
+					this._save(oBlob, "errors-" + sBase + ".csv");
+				}.bind(this));
 		},
 
 		// ------------------------------------------------------------------
