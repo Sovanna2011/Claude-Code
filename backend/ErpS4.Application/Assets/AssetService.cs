@@ -79,6 +79,11 @@ public sealed class AssetService(
             {
                 BusinessPartner = request.VendorPartnerNumber,
                 BaselineDate = request.VendorPartnerNumber is null ? null : request.PostingDate,
+
+                // The offsetting line needs the profit centre too. A company
+                // code that makes it mandatory refuses the whole document
+                // otherwise, and the asset line having one is not enough.
+                ProfitCenter = asset.ProfitCenter,
                 Text = request.Text ?? "Asset acquisition",
             });
 
@@ -236,6 +241,7 @@ public sealed class AssetService(
             {
                 BusinessPartner = request.CustomerPartnerNumber,
                 BaselineDate = request.CustomerPartnerNumber is null ? null : request.PostingDate,
+                ProfitCenter = asset.ProfitCenter,
                 Text = "Proceeds from asset sale",
             });
         }
@@ -248,6 +254,7 @@ public sealed class AssetService(
             {
                 Asset = request.AssetNumber,
                 AssetSubNumber = request.AssetSubNumber,
+                ProfitCenter = asset.ProfitCenter,
                 Text = "Accumulated depreciation removed",
             });
         }
@@ -368,18 +375,19 @@ public sealed class AssetService(
             .FirstAsync(c => c.TenantId == TenantId && c.CompanyCodeKey == request.CompanyCode,
                 cancellationToken);
 
-        // A planned run happens once per period. Re-running needs RunType
-        // Repeat, which is a deliberate act, not a double click.
-        var previous = await context.Query<DepreciationRun>()
-            .AnyAsync(
-                r => r.TenantId == TenantId
-                     && r.CompanyCodeId == companyCode.Id
-                     && r.FiscalYear == request.FiscalYear
-                     && r.FiscalPeriod == request.FiscalPeriod
-                     && r.Status == "Completed",
-                cancellationToken);
+        // Every run this period, whatever became of it. The guard used to look
+        // only for Status = 'Completed', which let a failed or still-running
+        // one through to collide with the unique key and surface as a
+        // DbUpdateException rather than as a violation.
+        var runsThisPeriod = await context.Query<DepreciationRun>()
+            .Where(r => r.TenantId == TenantId
+                        && r.CompanyCodeId == companyCode.Id
+                        && r.FiscalYear == request.FiscalYear
+                        && r.FiscalPeriod == request.FiscalPeriod)
+            .Select(r => r.RunNumber)
+            .ToListAsync(cancellationToken);
 
-        if (previous && request.RunType == "Planned")
+        if (runsThisPeriod.Count > 0 && request.RunType == "Planned")
         {
             return new DepreciationRunResult
             {
@@ -406,6 +414,10 @@ public sealed class AssetService(
             CompanyCodeId = companyCode.Id,
             FiscalYear = request.FiscalYear,
             FiscalPeriod = request.FiscalPeriod,
+            // 1 for the planned run, then 2, 3 ... for each repeat, which is
+            // what makes a repeat expressible at all: the key is per run, not
+            // per period.
+            RunNumber = runsThisPeriod.Count == 0 ? 1 : runsThisPeriod.Max() + 1,
             RunType = request.RunType,
             IsTestRun = false,
             Status = "Running",
@@ -572,12 +584,19 @@ public sealed class AssetService(
                 Text = $"Depreciation {charge.AssetNumber}",
             });
 
+            // Posting key 75, not 50: accumulated depreciation is the asset
+            // reconciliation account, and the engine refuses a plain G/L
+            // posting to one - correctly, because that is how a subledger and
+            // its reconciliation account drift apart. 70 debits an asset, 75
+            // credits one, exactly as the retirement path does.
             draft.AddLine(new JournalEntryDraftLine(
-                "50", accounts.AccumulatedDepreciation,
+                "75", accounts.AccumulatedDepreciation,
                 new Money(-charge.Amount, companyCode.LocalCurrencyCode))
             {
                 Asset = charge.AssetNumber,
                 AssetSubNumber = charge.AssetSubNumber,
+                CostCenter = asset.CostCenter,
+                ProfitCenter = asset.ProfitCenter,
                 Text = $"Depreciation {charge.AssetNumber}",
             });
         }

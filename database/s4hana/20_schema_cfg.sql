@@ -19,7 +19,7 @@ BEGIN
         [TenantId]          int NOT NULL,                                                                             -- Owning tenant - every query is filtered by it
         [ChartOfAccountsId] bigint NOT NULL,                                                                          -- Chart of accounts
         [TransactionKey]    nvarchar(4) NOT NULL,                                                                     -- Key, e.g. MWS, VST, KDF, BSX, BIL
-        [AccountModifier]   nvarchar(4) NULL,                                                                         -- Additional differentiation
+        [AccountModifier]   nvarchar(8) NULL,                                                                         -- Account determination key - joined to fin.AssetClass.AccountDeterminationKey, so it has to be as wide as that column
         [CompanyCodeId]     bigint NULL,                                                                              -- Company code (null = all)
         [CurrencyCode]      nvarchar(5) NULL,                                                                         -- Currency-specific rule
         [DebitGLAccountId]  bigint NULL,                                                                              -- Debit account

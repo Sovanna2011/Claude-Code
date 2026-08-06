@@ -652,7 +652,7 @@ VALUES
 (1, N'cfg', N'AccountDeterminationRule', N'TenantId', 2, N'int', 0, 1, 0, 0, N'Owning tenant - every query is filtered by it'),
 (1, N'cfg', N'AccountDeterminationRule', N'ChartOfAccountsId', 3, N'bigint', 0, 1, 0, 0, N'Chart of accounts'),
 (1, N'cfg', N'AccountDeterminationRule', N'TransactionKey', 4, N'nvarchar(4)', 0, 1, 0, 0, N'Key, e.g. MWS, VST, KDF, BSX, BIL'),
-(1, N'cfg', N'AccountDeterminationRule', N'AccountModifier', 5, N'nvarchar(4)', 0, 0, 0, 0, N'Additional differentiation'),
+(1, N'cfg', N'AccountDeterminationRule', N'AccountModifier', 5, N'nvarchar(8)', 0, 0, 0, 0, N'Account determination key - joined to fin.AssetClass.AccountDeterminationKey, so it has to be as wide as that column'),
 (1, N'cfg', N'AccountDeterminationRule', N'CompanyCodeId', 6, N'bigint', 0, 0, 0, 0, N'Company code (null = all)'),
 (1, N'cfg', N'AccountDeterminationRule', N'CurrencyCode', 7, N'nvarchar(5)', 0, 0, 0, 0, N'Currency-specific rule'),
 (1, N'cfg', N'AccountDeterminationRule', N'DebitGLAccountId', 8, N'bigint', 0, 0, 0, 0, N'Debit account'),
@@ -2840,22 +2840,23 @@ VALUES
 (1, N'fin', N'DepreciationRun', N'CompanyCodeId', 3, N'bigint', 0, 1, 0, 0, N'Company code'),
 (1, N'fin', N'DepreciationRun', N'FiscalYear', 4, N'smallint', 0, 1, 0, 0, N'Fiscal year'),
 (1, N'fin', N'DepreciationRun', N'FiscalPeriod', 5, N'tinyint', 0, 1, 0, 0, N'Period posted'),
-(1, N'fin', N'DepreciationRun', N'RunType', 6, N'nvarchar(20)', 0, 1, 0, 0, N'Planned, Repeat, Restart, Unplanned'),
-(1, N'fin', N'DepreciationRun', N'IsTestRun', 7, N'bit', 0, 1, 0, 0, N'Test run - no postings created'),
-(1, N'fin', N'DepreciationRun', N'Status', 8, N'nvarchar(20)', 0, 1, 0, 0, N'Scheduled, Running, Completed, Failed, Cancelled'),
-(1, N'fin', N'DepreciationRun', N'AssetsProcessed', 9, N'int', 0, 0, 0, 0, N'Number of assets processed'),
-(1, N'fin', N'DepreciationRun', N'TotalDepreciationAmount', 10, N'decimal(19,4)', 0, 0, 0, 0, N'Total depreciation posted'),
-(1, N'fin', N'DepreciationRun', N'ErrorCount', 11, N'int', 0, 0, 0, 0, N'Number of errors'),
-(1, N'fin', N'DepreciationRun', N'StartedAt', 12, N'datetime2(3)', 0, 1, 0, 0, N'Start timestamp (UTC)'),
-(1, N'fin', N'DepreciationRun', N'CompletedAt', 13, N'datetime2(3)', 0, 0, 0, 0, N'Completion timestamp (UTC)'),
-(1, N'fin', N'DepreciationRun', N'ExecutedBy', 14, N'nvarchar(64)', 0, 1, 0, 0, N'Executing user or job'),
-(1, N'fin', N'DepreciationRun', N'LogText', 15, N'nvarchar(max)', 0, 0, 0, 0, N'Run log'),
-(1, N'fin', N'DepreciationRun', N'CreatedAt', 16, N'datetime2(3)', 0, 1, 0, 0, N'Creation timestamp (UTC)'),
-(1, N'fin', N'DepreciationRun', N'CreatedBy', 17, N'nvarchar(64)', 0, 1, 0, 0, N'Creating user name'),
-(1, N'fin', N'DepreciationRun', N'ModifiedAt', 18, N'datetime2(3)', 0, 0, 0, 0, N'Last change timestamp (UTC)'),
-(1, N'fin', N'DepreciationRun', N'ModifiedBy', 19, N'nvarchar(64)', 0, 0, 0, 0, N'Last changing user name'),
-(1, N'fin', N'DepreciationRun', N'RowVersion', 20, N'rowversion', 0, 1, 0, 0, N'Optimistic concurrency token'),
-(1, N'fin', N'DepreciationRun', N'IsActive', 21, N'bit', 0, 1, 0, 0, N'Soft-delete / active flag (master + config only)'),
+(1, N'fin', N'DepreciationRun', N'RunNumber', 6, N'int', 0, 1, 0, 0, N'1 for the planned run, then 2, 3 ? for each repeat. Without it the key would allow one run per period and forbid the repeats this table defines'),
+(1, N'fin', N'DepreciationRun', N'RunType', 7, N'nvarchar(20)', 0, 1, 0, 0, N'Planned, Repeat, Restart, Unplanned'),
+(1, N'fin', N'DepreciationRun', N'IsTestRun', 8, N'bit', 0, 1, 0, 0, N'Test run - no postings created'),
+(1, N'fin', N'DepreciationRun', N'Status', 9, N'nvarchar(20)', 0, 1, 0, 0, N'Scheduled, Running, Completed, Failed, Cancelled'),
+(1, N'fin', N'DepreciationRun', N'AssetsProcessed', 10, N'int', 0, 0, 0, 0, N'Number of assets processed'),
+(1, N'fin', N'DepreciationRun', N'TotalDepreciationAmount', 11, N'decimal(19,4)', 0, 0, 0, 0, N'Total depreciation posted'),
+(1, N'fin', N'DepreciationRun', N'ErrorCount', 12, N'int', 0, 0, 0, 0, N'Number of errors'),
+(1, N'fin', N'DepreciationRun', N'StartedAt', 13, N'datetime2(3)', 0, 1, 0, 0, N'Start timestamp (UTC)'),
+(1, N'fin', N'DepreciationRun', N'CompletedAt', 14, N'datetime2(3)', 0, 0, 0, 0, N'Completion timestamp (UTC)'),
+(1, N'fin', N'DepreciationRun', N'ExecutedBy', 15, N'nvarchar(64)', 0, 1, 0, 0, N'Executing user or job'),
+(1, N'fin', N'DepreciationRun', N'LogText', 16, N'nvarchar(max)', 0, 0, 0, 0, N'Run log'),
+(1, N'fin', N'DepreciationRun', N'CreatedAt', 17, N'datetime2(3)', 0, 1, 0, 0, N'Creation timestamp (UTC)'),
+(1, N'fin', N'DepreciationRun', N'CreatedBy', 18, N'nvarchar(64)', 0, 1, 0, 0, N'Creating user name'),
+(1, N'fin', N'DepreciationRun', N'ModifiedAt', 19, N'datetime2(3)', 0, 0, 0, 0, N'Last change timestamp (UTC)'),
+(1, N'fin', N'DepreciationRun', N'ModifiedBy', 20, N'nvarchar(64)', 0, 0, 0, 0, N'Last changing user name'),
+(1, N'fin', N'DepreciationRun', N'RowVersion', 21, N'rowversion', 0, 1, 0, 0, N'Optimistic concurrency token'),
+(1, N'fin', N'DepreciationRun', N'IsActive', 22, N'bit', 0, 1, 0, 0, N'Soft-delete / active flag (master + config only)'),
 (1, N'fin', N'DocumentAttachment', N'Id', 1, N'bigint', 1, 1, 1, 0, N'Surrogate key'),
 (1, N'fin', N'DocumentAttachment', N'TenantId', 2, N'int', 0, 1, 0, 0, N'Owning tenant - every query is filtered by it'),
 (1, N'fin', N'DocumentAttachment', N'ObjectType', 3, N'nvarchar(40)', 0, 1, 0, 0, N'JournalEntry, CustomerInvoice, VendorInvoice, Payment, Asset'),
@@ -3024,8 +3025,7 @@ VALUES
 (1, N'fin', N'JournalEntryLine', N'PartnerSegmentId', 31, N'bigint', 0, 0, 0, 0, N'Partner segment'),
 (1, N'fin', N'JournalEntryLine', N'PartnerCompanyCodeId', 32, N'bigint', 0, 0, 0, 0, N'Partner company code (intercompany)'),
 (1, N'fin', N'JournalEntryLine', N'TradingPartnerCompany', 33, N'nvarchar(6)', 0, 0, 0, 0, N'Trading partner for consolidation'),
-(1, N'fin', N'JournalEntryLine', N'PlantId', 34, N'bigint', 0, 0, 0, 0, N'Plant'),
-(1, N'fin', N'JournalEntryLine', N'BranchId', 35, N'bigint', 0, 0, 0, 0, N'Branch');
+(1, N'fin', N'JournalEntryLine', N'PlantId', 34, N'bigint', 0, 0, 0, 0, N'Plant');
 GO
 
 INSERT INTO #DictionaryField
@@ -3033,6 +3033,7 @@ INSERT INTO #DictionaryField
      FieldPosition, SqlType, IsKey, IsRequired, IsIdentity, IsMasked,
      ShortDescription)
 VALUES
+(1, N'fin', N'JournalEntryLine', N'BranchId', 35, N'bigint', 0, 0, 0, 0, N'Branch'),
 (1, N'fin', N'JournalEntryLine', N'ProjectId', 36, N'bigint', 0, 0, 0, 0, N'Project / WBS element (future module)'),
 (1, N'fin', N'JournalEntryLine', N'DocumentCurrencyCode', 37, N'nvarchar(5)', 0, 1, 0, 0, N'Document currency'),
 (1, N'fin', N'JournalEntryLine', N'AmountInDocumentCurrency', 38, N'decimal(19,4)', 0, 1, 0, 0, N'Amount in document currency (signed)'),
@@ -3931,8 +3932,7 @@ VALUES
 (1, N'wf', N'WorkflowDefinition', N'EscalationHours', 11, N'int', 0, 0, 0, 0, N'Hours before escalation'),
 (1, N'wf', N'WorkflowDefinition', N'ReminderHours', 12, N'int', 0, 0, 0, 0, N'Hours before a reminder is sent'),
 (1, N'wf', N'WorkflowDefinition', N'IsActive', 13, N'bit', 0, 1, 0, 0, N'Active version'),
-(1, N'wf', N'WorkflowDefinition', N'EffectiveFrom', 14, N'date', 0, 1, 0, 0, N'First day this version applies'),
-(1, N'wf', N'WorkflowDefinition', N'CreatedAt', 15, N'datetime2(3)', 0, 1, 0, 0, N'Creation timestamp (UTC)');
+(1, N'wf', N'WorkflowDefinition', N'EffectiveFrom', 14, N'date', 0, 1, 0, 0, N'First day this version applies');
 GO
 
 INSERT INTO #DictionaryField
@@ -3940,6 +3940,7 @@ INSERT INTO #DictionaryField
      FieldPosition, SqlType, IsKey, IsRequired, IsIdentity, IsMasked,
      ShortDescription)
 VALUES
+(1, N'wf', N'WorkflowDefinition', N'CreatedAt', 15, N'datetime2(3)', 0, 1, 0, 0, N'Creation timestamp (UTC)'),
 (1, N'wf', N'WorkflowDefinition', N'CreatedBy', 16, N'nvarchar(64)', 0, 1, 0, 0, N'Creating user name'),
 (1, N'wf', N'WorkflowDefinition', N'ModifiedAt', 17, N'datetime2(3)', 0, 0, 0, 0, N'Last change timestamp (UTC)'),
 (1, N'wf', N'WorkflowDefinition', N'ModifiedBy', 18, N'nvarchar(64)', 0, 0, 0, 0, N'Last changing user name'),

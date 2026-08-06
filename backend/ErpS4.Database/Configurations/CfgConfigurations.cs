@@ -24,7 +24,7 @@ public sealed class AccountDeterminationRuleConfiguration : IEntityTypeConfigura
         builder.Property(e => e.TenantId).IsRequired();
         builder.Property(e => e.ChartOfAccountsId).IsRequired();
         builder.Property(e => e.TransactionKey).HasMaxLength(4).IsUnicode().IsRequired();
-        builder.Property(e => e.AccountModifier).HasMaxLength(4).IsUnicode();
+        builder.Property(e => e.AccountModifier).HasMaxLength(8).IsUnicode();
         builder.Property(e => e.CurrencyCode).HasMaxLength(5).IsUnicode();
         builder.Property(e => e.Description).HasMaxLength(60).IsUnicode();
         builder.Property(e => e.ValidFrom).HasColumnType("date").IsRequired();

@@ -600,6 +600,7 @@ BEGIN
         [CompanyCodeId]           bigint NOT NULL,                                                                    -- Company code
         [FiscalYear]              smallint NOT NULL,                                                                  -- Fiscal year
         [FiscalPeriod]            tinyint NOT NULL,                                                                   -- Period posted
+        [RunNumber]               int NOT NULL,                                                                       -- 1 for the planned run, then 2, 3 ? for each repeat. Without it the key would allow one run per period and forbid the repeats this table defines
         [RunType]                 nvarchar(20) NOT NULL,                                                              -- Planned, Repeat, Restart, Unplanned
         [IsTestRun]               bit NOT NULL CONSTRAINT [DF_fin_DepreciationRun_IsTestRun] DEFAULT (0),             -- Test run - no postings created
         [Status]                  nvarchar(20) NOT NULL,                                                              -- Scheduled, Running, Completed, Failed, Cancelled
@@ -617,7 +618,7 @@ BEGIN
         [RowVersion]              rowversion NOT NULL,                                                                -- Optimistic concurrency token
         [IsActive]                bit NOT NULL CONSTRAINT [DF_fin_DepreciationRun_IsActive] DEFAULT (1),              -- Soft-delete / active flag (master + config only)
         CONSTRAINT [PK_fin_DepreciationRun] PRIMARY KEY CLUSTERED ([Id]),
-        CONSTRAINT [UQ_fin_DepreciationRun] UNIQUE ([TenantId], [CompanyCodeId], [FiscalYear], [FiscalPeriod])
+        CONSTRAINT [UQ_fin_DepreciationRun] UNIQUE ([TenantId], [CompanyCodeId], [FiscalYear], [FiscalPeriod], [RunNumber])
     );
 END
 GO

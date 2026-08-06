@@ -731,7 +731,7 @@ currencies, tax, payment terms, ledgers and account determination.
 | *include* | `#TENANT` | | | Tenant discriminator |
 | `ChartOfAccountsId` | `bigint` | AK,FK | no | Chart of accounts |
 | `TransactionKey` | `nvarchar(4)` | AK | no | Key, e.g. `MWS`, `VST`, `KDF`, `BSX`, `BIL` |
-| `AccountModifier` | `nvarchar(4)` | AK | yes | Additional differentiation |
+| `AccountModifier` | `nvarchar(8)` | AK | yes | Account determination key - joined to `fin.AssetClass.AccountDeterminationKey`, so it has to be as wide as that column |
 | `CompanyCodeId` | `bigint` | AK,FK | yes | Company code (null = all) |
 | `CurrencyCode` | `nvarchar(5)` | AK,FK | yes | Currency-specific rule |
 | `DebitGLAccountId` | `bigint` | FK | yes | Debit account |

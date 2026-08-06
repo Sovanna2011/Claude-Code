@@ -920,7 +920,7 @@ cfg,AccountDeterminationRule,cfg.AccountDeterminationRule,1,Id,bigint,PK,no,Surr
 cfg,AccountDeterminationRule,cfg.AccountDeterminationRule,2,TenantId,int,"FK,IX",no,Owning tenant — every query is filtered by it,"Automatic account determination (tax, gain/loss, clearing, retained earnings)",T030,02_configuration.md
 cfg,AccountDeterminationRule,cfg.AccountDeterminationRule,3,ChartOfAccountsId,bigint,"AK,FK",no,Chart of accounts,"Automatic account determination (tax, gain/loss, clearing, retained earnings)",T030,02_configuration.md
 cfg,AccountDeterminationRule,cfg.AccountDeterminationRule,4,TransactionKey,nvarchar(4),AK,no,"Key, e.g. `MWS`, `VST`, `KDF`, `BSX`, `BIL`","Automatic account determination (tax, gain/loss, clearing, retained earnings)",T030,02_configuration.md
-cfg,AccountDeterminationRule,cfg.AccountDeterminationRule,5,AccountModifier,nvarchar(4),AK,yes,Additional differentiation,"Automatic account determination (tax, gain/loss, clearing, retained earnings)",T030,02_configuration.md
+cfg,AccountDeterminationRule,cfg.AccountDeterminationRule,5,AccountModifier,nvarchar(8),AK,yes,"Account determination key - joined to `fin.AssetClass.AccountDeterminationKey`, so it has to be as wide as that column","Automatic account determination (tax, gain/loss, clearing, retained earnings)",T030,02_configuration.md
 cfg,AccountDeterminationRule,cfg.AccountDeterminationRule,6,CompanyCodeId,bigint,"AK,FK",yes,Company code (null = all),"Automatic account determination (tax, gain/loss, clearing, retained earnings)",T030,02_configuration.md
 cfg,AccountDeterminationRule,cfg.AccountDeterminationRule,7,CurrencyCode,nvarchar(5),"AK,FK",yes,Currency-specific rule,"Automatic account determination (tax, gain/loss, clearing, retained earnings)",T030,02_configuration.md
 cfg,AccountDeterminationRule,cfg.AccountDeterminationRule,8,DebitGLAccountId,bigint,FK,yes,Debit account,"Automatic account determination (tax, gain/loss, clearing, retained earnings)",T030,02_configuration.md
@@ -2999,22 +2999,23 @@ fin,DepreciationRun,fin.DepreciationRun,2,TenantId,int,"FK,IX",no,Owning tenant 
 fin,DepreciationRun,fin.DepreciationRun,3,CompanyCodeId,bigint,"AK,FK",no,Company code,Depreciation posting run (AFAB),,06_asset_accounting.md
 fin,DepreciationRun,fin.DepreciationRun,4,FiscalYear,smallint,AK,no,Fiscal year,Depreciation posting run (AFAB),,06_asset_accounting.md
 fin,DepreciationRun,fin.DepreciationRun,5,FiscalPeriod,tinyint,AK,no,Period posted,Depreciation posting run (AFAB),,06_asset_accounting.md
-fin,DepreciationRun,fin.DepreciationRun,6,RunType,nvarchar(20),,no,"`Planned`, `Repeat`, `Restart`, `Unplanned`",Depreciation posting run (AFAB),,06_asset_accounting.md
-fin,DepreciationRun,fin.DepreciationRun,7,IsTestRun,bit,,no,Test run — no postings created,Depreciation posting run (AFAB),,06_asset_accounting.md
-fin,DepreciationRun,fin.DepreciationRun,8,Status,nvarchar(20),,no,"`Scheduled`, `Running`, `Completed`, `Failed`, `Cancelled`",Depreciation posting run (AFAB),,06_asset_accounting.md
-fin,DepreciationRun,fin.DepreciationRun,9,AssetsProcessed,int,,yes,Number of assets processed,Depreciation posting run (AFAB),,06_asset_accounting.md
-fin,DepreciationRun,fin.DepreciationRun,10,TotalDepreciationAmount,"decimal(19,4)",,yes,Total depreciation posted,Depreciation posting run (AFAB),,06_asset_accounting.md
-fin,DepreciationRun,fin.DepreciationRun,11,ErrorCount,int,,yes,Number of errors,Depreciation posting run (AFAB),,06_asset_accounting.md
-fin,DepreciationRun,fin.DepreciationRun,12,StartedAt,datetime2(3),,no,Start timestamp (UTC),Depreciation posting run (AFAB),,06_asset_accounting.md
-fin,DepreciationRun,fin.DepreciationRun,13,CompletedAt,datetime2(3),,yes,Completion timestamp (UTC),Depreciation posting run (AFAB),,06_asset_accounting.md
-fin,DepreciationRun,fin.DepreciationRun,14,ExecutedBy,nvarchar(64),,no,Executing user or job,Depreciation posting run (AFAB),,06_asset_accounting.md
-fin,DepreciationRun,fin.DepreciationRun,15,LogText,nvarchar(max),,yes,Run log,Depreciation posting run (AFAB),,06_asset_accounting.md
-fin,DepreciationRun,fin.DepreciationRun,16,CreatedAt,datetime2(3),,no,Creation timestamp (UTC),Depreciation posting run (AFAB),,06_asset_accounting.md
-fin,DepreciationRun,fin.DepreciationRun,17,CreatedBy,nvarchar(64),,no,Creating user name,Depreciation posting run (AFAB),,06_asset_accounting.md
-fin,DepreciationRun,fin.DepreciationRun,18,ModifiedAt,datetime2(3),,yes,Last change timestamp (UTC),Depreciation posting run (AFAB),,06_asset_accounting.md
-fin,DepreciationRun,fin.DepreciationRun,19,ModifiedBy,nvarchar(64),,yes,Last changing user name,Depreciation posting run (AFAB),,06_asset_accounting.md
-fin,DepreciationRun,fin.DepreciationRun,20,RowVersion,rowversion,,no,Optimistic concurrency token,Depreciation posting run (AFAB),,06_asset_accounting.md
-fin,DepreciationRun,fin.DepreciationRun,21,IsActive,bit,,no,Soft-delete / active flag (master + config only),Depreciation posting run (AFAB),,06_asset_accounting.md
+fin,DepreciationRun,fin.DepreciationRun,6,RunNumber,int,AK,no,"1 for the planned run, then 2, 3 … for each repeat. Without it the key would allow one run per period and forbid the repeats this table defines",Depreciation posting run (AFAB),,06_asset_accounting.md
+fin,DepreciationRun,fin.DepreciationRun,7,RunType,nvarchar(20),,no,"`Planned`, `Repeat`, `Restart`, `Unplanned`",Depreciation posting run (AFAB),,06_asset_accounting.md
+fin,DepreciationRun,fin.DepreciationRun,8,IsTestRun,bit,,no,Test run — no postings created,Depreciation posting run (AFAB),,06_asset_accounting.md
+fin,DepreciationRun,fin.DepreciationRun,9,Status,nvarchar(20),,no,"`Scheduled`, `Running`, `Completed`, `Failed`, `Cancelled`",Depreciation posting run (AFAB),,06_asset_accounting.md
+fin,DepreciationRun,fin.DepreciationRun,10,AssetsProcessed,int,,yes,Number of assets processed,Depreciation posting run (AFAB),,06_asset_accounting.md
+fin,DepreciationRun,fin.DepreciationRun,11,TotalDepreciationAmount,"decimal(19,4)",,yes,Total depreciation posted,Depreciation posting run (AFAB),,06_asset_accounting.md
+fin,DepreciationRun,fin.DepreciationRun,12,ErrorCount,int,,yes,Number of errors,Depreciation posting run (AFAB),,06_asset_accounting.md
+fin,DepreciationRun,fin.DepreciationRun,13,StartedAt,datetime2(3),,no,Start timestamp (UTC),Depreciation posting run (AFAB),,06_asset_accounting.md
+fin,DepreciationRun,fin.DepreciationRun,14,CompletedAt,datetime2(3),,yes,Completion timestamp (UTC),Depreciation posting run (AFAB),,06_asset_accounting.md
+fin,DepreciationRun,fin.DepreciationRun,15,ExecutedBy,nvarchar(64),,no,Executing user or job,Depreciation posting run (AFAB),,06_asset_accounting.md
+fin,DepreciationRun,fin.DepreciationRun,16,LogText,nvarchar(max),,yes,Run log,Depreciation posting run (AFAB),,06_asset_accounting.md
+fin,DepreciationRun,fin.DepreciationRun,17,CreatedAt,datetime2(3),,no,Creation timestamp (UTC),Depreciation posting run (AFAB),,06_asset_accounting.md
+fin,DepreciationRun,fin.DepreciationRun,18,CreatedBy,nvarchar(64),,no,Creating user name,Depreciation posting run (AFAB),,06_asset_accounting.md
+fin,DepreciationRun,fin.DepreciationRun,19,ModifiedAt,datetime2(3),,yes,Last change timestamp (UTC),Depreciation posting run (AFAB),,06_asset_accounting.md
+fin,DepreciationRun,fin.DepreciationRun,20,ModifiedBy,nvarchar(64),,yes,Last changing user name,Depreciation posting run (AFAB),,06_asset_accounting.md
+fin,DepreciationRun,fin.DepreciationRun,21,RowVersion,rowversion,,no,Optimistic concurrency token,Depreciation posting run (AFAB),,06_asset_accounting.md
+fin,DepreciationRun,fin.DepreciationRun,22,IsActive,bit,,no,Soft-delete / active flag (master + config only),Depreciation posting run (AFAB),,06_asset_accounting.md
 fin,DepreciationPosting,fin.DepreciationPosting,1,Id,bigint,PK,no,Surrogate key,"Depreciation posted per asset, area and period",ANLP,06_asset_accounting.md
 fin,DepreciationPosting,fin.DepreciationPosting,2,TenantId,int,"FK,IX",no,Owning tenant — every query is filtered by it,"Depreciation posted per asset, area and period",ANLP,06_asset_accounting.md
 fin,DepreciationPosting,fin.DepreciationPosting,3,DepreciationRunId,bigint,"FK,IX",no,Run that produced the posting,"Depreciation posted per asset, area and period",ANLP,06_asset_accounting.md

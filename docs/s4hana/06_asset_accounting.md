@@ -296,6 +296,7 @@ group depreciation to differ without duplicating the asset master.
 | `CompanyCodeId` | `bigint` | AK,FK | no | Company code |
 | `FiscalYear` | `smallint` | AK | no | Fiscal year |
 | `FiscalPeriod` | `tinyint` | AK | no | Period posted |
+| `RunNumber` | `int` | AK | no | 1 for the planned run, then 2, 3 … for each repeat. Without it the key would allow one run per period and forbid the repeats this table defines |
 | `RunType` | `nvarchar(20)` | | no | `Planned`, `Repeat`, `Restart`, `Unplanned` |
 | `IsTestRun` | `bit` | | no | Test run — no postings created |
 | `Status` | `nvarchar(20)` | | no | `Scheduled`, `Running`, `Completed`, `Failed`, `Cancelled` |

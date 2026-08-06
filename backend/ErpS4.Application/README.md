@@ -41,14 +41,14 @@ ErpS4.Application/
 
 ErpS4.Database/               (existing) + IErpDataContext, NumberRangeService
 ErpS4.Tests/                  123 tests, no database required
-ErpS4.IntegrationTests/       8 tests against a real SQL Server
+ErpS4.IntegrationTests/       15 tests against a real SQL Server
 ```
 
 The two suites answer different questions. The unit tests ask whether the rules
 are right and run in milliseconds over lists. The integration tests ask whether
 the model maps — whether a column is wide enough, whether a query translates,
 whether `UPDATE … OUTPUT` really serialises under eight concurrent posts. Only
-a database can fail in those ways, and it did: see the four bugs below.
+a database can fail in those ways, and it did: see the eight bugs below.
 
 ## What the engine enforces
 
@@ -184,7 +184,7 @@ join was a null reference the moment it ran over objects rather than SQL, and
 the number-range mask produced document numbers two characters wider than the
 column that stores them.
 
-*Running* it against a database cost four more, and these are the ones worth
+*Running* it against a database cost eight more, and these are the ones worth
 dwelling on, because every one of them passed the unit tests:
 
 * **A posted document could not be reversed.** `ReverseAsync` built the mirror
@@ -206,6 +206,30 @@ dwelling on, because every one of them passed the unit tests:
 * **`co.ControllingPosting.ControllingDocumentNumber` was too narrow.** The CO
   number is the FI number plus a `-CO###` suffix, so 20 characters could never
   hold it.
+* **No payment could be posted in a company code that requires a profit
+  centre.** `ClearingService` built its document without one. The profit centre
+  lives on the ledger line the open item points at, so it is read from there and
+  carried onto every line of the payment.
+* **The same gap in asset accounting**, on the offsetting line of an
+  acquisition, the proceeds and accumulated-depreciation lines of a retirement,
+  and the credit line of a depreciation run.
+* **Depreciation posted to a reconciliation account directly.** The credit to
+  accumulated depreciation used posting key 50 - a plain G/L posting - where
+  accumulated depreciation is the asset reconciliation account. The engine
+  refused it, correctly: posting straight to a reconciliation account is how a
+  subledger and the general ledger drift apart. It is posting key 75 now, an
+  asset credit, as the retirement path already used.
+* **The depreciation run could not repeat.** `fin.DepreciationRun` was unique on
+  (company code, year, period) while the same table defines `Repeat` and
+  `Restart` run types - a key that forbade the feature beside it. There is a
+  `RunNumber` in the key now. The duplicate check also looked only for
+  `Status = 'Completed'`, so a failed run let the next one through to collide
+  with the constraint and surface as a `DbUpdateException` instead of a
+  violation.
+* **Asset account determination could never match.**
+  `cfg.AccountDeterminationRule.AccountModifier` was `nvarchar(4)` and
+  `fin.AssetClass.AccountDeterminationKey`, the column it is joined to, was
+  `nvarchar(8)`. Two columns that must compare equal, with different widths.
 
 ## Not built yet
 

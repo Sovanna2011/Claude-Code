@@ -1147,6 +1147,7 @@ public sealed class DepreciationRunConfiguration : IEntityTypeConfiguration<Depr
         builder.Property(e => e.CompanyCodeId).IsRequired();
         builder.Property(e => e.FiscalYear).IsRequired();
         builder.Property(e => e.FiscalPeriod).IsRequired();
+        builder.Property(e => e.RunNumber).IsRequired();
         builder.Property(e => e.RunType).HasMaxLength(20).IsUnicode().IsRequired();
         builder.Property(e => e.IsTestRun).IsRequired();
         builder.Property(e => e.Status).HasMaxLength(20).IsUnicode().IsRequired();
@@ -1162,7 +1163,7 @@ public sealed class DepreciationRunConfiguration : IEntityTypeConfiguration<Depr
         builder.Property(e => e.RowVersion).IsRowVersion();
         builder.Property(e => e.IsActive).IsRequired();
 
-        builder.HasIndex(e => new { e.TenantId, e.CompanyCodeId, e.FiscalYear, e.FiscalPeriod })
+        builder.HasIndex(e => new { e.TenantId, e.CompanyCodeId, e.FiscalYear, e.FiscalPeriod, e.RunNumber })
                .IsUnique()
                .HasDatabaseName("UQ_fin_DepreciationRun");
 

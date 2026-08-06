@@ -764,7 +764,7 @@ VALUES (@Tenant, @Asset1, '2026-01-15', @Never, @CcProd, @PcSugar, @SegSugar, @P
 INSERT INTO [cfg].[AccountDeterminationRule]
     (TenantId, ChartOfAccountsId, TransactionKey, AccountModifier, CompanyCodeId,
      DebitGLAccountId, CreditGLAccountId, Description, ValidFrom, ValidTo, CreatedBy)
-SELECT @Tenant, @Coa, t.TransactionKey, N'0001', NULL, a.Id, a.Id, t.Description,
+SELECT @Tenant, @Coa, t.TransactionKey, N'20000', NULL, a.Id, a.Id, t.Description,
        @Open, @Never, @By
 FROM  (VALUES
         (N'ANL', N'150000', N'Asset balance sheet account'),
@@ -949,10 +949,10 @@ VALUES (@Tenant, @Kh01, @Asset1, 2026, N'AS-2026-0000000001', 1, @Area01, @TtAcq
         120000.0000, 1.000000, @BpMekong, @H6, @Doc6, N'Boiler acquisition (tax area)', @By);
 
 INSERT INTO [fin].[DepreciationRun]
-    (TenantId, CompanyCodeId, FiscalYear, FiscalPeriod, RunType, IsTestRun, Status,
-     AssetsProcessed, TotalDepreciationAmount, ErrorCount, StartedAt, CompletedAt,
+    (TenantId, CompanyCodeId, FiscalYear, FiscalPeriod, RunNumber, RunType, IsTestRun,
+     Status, AssetsProcessed, TotalDepreciationAmount, ErrorCount, StartedAt, CompletedAt,
      ExecutedBy, CreatedBy)
-VALUES (@Tenant, @Kh01, 2026, 1, N'Planned', 0, N'Completed', 1, 1000.0000, 0,
+VALUES (@Tenant, @Kh01, 2026, 1, 1, N'Planned', 0, N'Completed', 1, 1000.0000, 0,
         '2026-01-31T16:00:00', '2026-01-31T16:10:00', N'AFAB', @By);
 
 DECLARE @DepRun bigint =

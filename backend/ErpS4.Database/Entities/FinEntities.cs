@@ -1291,6 +1291,9 @@ public class DepreciationRun : ITenantScoped
     /// <summary>Period posted</summary>
     public byte FiscalPeriod { get; set; }
 
+    /// <summary>1 for the planned run, then 2, 3 … for each repeat. Without it the key would allow one run per period and forbid the repeats this table defines</summary>
+    public int RunNumber { get; set; }
+
     /// <summary>Planned, Repeat, Restart, Unplanned</summary>
     public string RunType { get; set; } = null!;
 

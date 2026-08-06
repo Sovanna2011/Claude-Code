@@ -359,7 +359,20 @@ public sealed class ClearingService(
                 continue;
             }
 
-            loaded.Add(new LoadedItem(item, allocation, partner, reconciliationAccount));
+            // The profit centre lives on the ledger line, not on the open item,
+            // so it is read through the line the item points at. A company code
+            // that makes it mandatory refuses a payment without one, so a
+            // payment built without it could not be posted at all.
+            var profitCenter = await (
+                from line in context.Query<JournalEntryLine>().AsNoTracking()
+                join center in context.Query<ProfitCenter>().AsNoTracking()
+                    on line.ProfitCenterId equals center.Id
+                where line.Id == item.JournalEntryLineId
+                select center.ProfitCenterCode
+            ).FirstOrDefaultAsync(cancellationToken);
+
+            loaded.Add(new LoadedItem(
+                item, allocation, partner, reconciliationAccount, profitCenter));
         }
 
         return loaded;
@@ -396,6 +409,13 @@ public sealed class ClearingService(
 
         // Bank moves by the amount actually transferred; the discount never
         // touches the bank.
+        // The bank and discount lines take the profit centre of the first item
+        // settled. Splitting one bank line across the profit centres of several
+        // items is what document splitting does, and this engine does not do it
+        // yet; taking the first is at least deterministic and, for the usual
+        // case of one payment against one item, exactly right.
+        var profitCenter = items.Select(i => i.ProfitCenter).FirstOrDefault(p => p is not null);
+
         draft.AddLine(new JournalEntryDraftLine(
             incoming ? "40" : "50",
             request.BankAccount,
@@ -403,6 +423,7 @@ public sealed class ClearingService(
         {
             Assignment = request.Reference,
             Text = draft.HeaderText,
+            ProfitCenter = profitCenter,
         });
 
         if (discount > 0m && request.CashDiscountAccount is not null)
@@ -414,6 +435,7 @@ public sealed class ClearingService(
             {
                 Assignment = request.Reference,
                 Text = incoming ? "Cash discount granted" : "Cash discount received",
+                ProfitCenter = profitCenter,
             });
         }
 
@@ -429,6 +451,7 @@ public sealed class ClearingService(
                 BusinessPartner = item.Partner.PartnerNumber,
                 Assignment = item.OpenItem.AssignmentReference,
                 Text = $"Settles {item.Allocation.DocumentNumber}",
+                ProfitCenter = item.ProfitCenter,
             });
         }
 
@@ -729,11 +752,13 @@ public sealed class ClearingService(
     /// <param name="ReconciliationAccount">
     /// The item's own reconciliation account - never a different one.
     /// </param>
+    /// <param name="ProfitCenter">Profit centre of the item being settled, if it has one.</param>
     private sealed record LoadedItem(
         OpenItem OpenItem,
         ClearingAllocation Allocation,
         BusinessPartner Partner,
-        string ReconciliationAccount)
+        string ReconciliationAccount,
+        string? ProfitCenter)
     {
         /// <summary>True when this clearing leaves something open on the item.</summary>
         public bool IsPartial =>

@@ -24,7 +24,7 @@ public class AccountDeterminationRule : ITenantScoped
     /// <summary>Key, e.g. MWS, VST, KDF, BSX, BIL</summary>
     public string TransactionKey { get; set; } = null!;
 
-    /// <summary>Additional differentiation</summary>
+    /// <summary>Account determination key - joined to fin.AssetClass.AccountDeterminationKey, so it has to be as wide as that column</summary>
     public string? AccountModifier { get; set; }
 
     /// <summary>Company code (null = all)</summary>
