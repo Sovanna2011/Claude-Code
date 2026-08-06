@@ -234,3 +234,73 @@ func (h *harness) lineID(t *testing.T, code string) string {
 	t.Fatalf("no line %q is seeded", code)
 	return ""
 }
+
+// TestTheCumulativeShareDoesNotOvershoot is the demonstration scenario's own
+// downtime, which is what found this: 18, 7, 2 and 2 hours of 29 round to
+// shares of 62.069, 24.138, 6.897 and 6.897, and those add up to 100.001.
+//
+// The cumulative share has to come from the running hours rather than from a
+// sum of rounded percentages. A Pareto whose line finishes past 100 % is
+// visibly wrong to the one person in the room who checks.
+func TestTheCumulativeShareDoesNotOvershoot(t *testing.T) {
+	h := newHarness(t, 0)
+	ctx := h.as(auth.RoleShiftSupervisor)
+	mill := h.lineID(t, "MILL-1")
+
+	for i, e := range []struct {
+		reason string
+		hours  int
+	}{
+		{"DT-BOILER", 18}, {"DT-RAIN", 7}, {"DT-MILL", 2}, {"DT-POWER", 2},
+	} {
+		date := domain.BusinessDate("2026-12-0" + string(rune('1'+i)))
+		day, err := time.Parse("2006-01-02", string(date))
+		if err != nil {
+			t.Fatalf("parse %s: %v", date, err)
+		}
+		if _, err := h.store.Planning().SaveDowntime(ctx, domain.DowntimeEvent{
+			FactoryID: h.seeded.FactoryID, LineID: mill, BusinessDate: date,
+			StartAt: day, EndAt: day.Add(time.Duration(e.hours) * time.Hour),
+			DurationHrs: domain.DI(int64(e.hours)), ReasonCode: e.reason,
+		}, "test"); err != nil {
+			t.Fatalf("save downtime: %v", err)
+		}
+	}
+
+	dash, err := h.analytics.Dashboard(h.as(auth.RoleExecutiveViewer),
+		service.DashboardRequest{SeasonID: h.seeded.SeasonID})
+	if err != nil {
+		t.Fatalf("dashboard: %v", err)
+	}
+
+	ranked := dash.Downtime.ByReason
+	if len(ranked) != 4 {
+		t.Fatalf("four reasons, got %d", len(ranked))
+	}
+
+	// The rounded shares really do overshoot, which is the point of the test:
+	// if they ever stop doing so this case is no longer exercising anything.
+	naive := domain.Zero
+	for _, r := range ranked {
+		naive = naive.Add(r.SharePct)
+	}
+	if naive.Equal(domain.DI(100)) {
+		t.Fatal("this case no longer exercises the rounding overshoot")
+	}
+
+	if last := ranked[len(ranked)-1].CumSharePct; !last.Equal(domain.DI(100)) {
+		t.Errorf("the cumulative share ends at %s, want exactly 100 (the rounded shares sum to %s)",
+			last, naive)
+	}
+	// And it never runs backwards or past 100 on the way there.
+	previous := domain.Zero
+	for _, r := range ranked {
+		if r.CumSharePct.LessThan(previous) {
+			t.Errorf("the cumulative share fell at %s", r.ReasonCode)
+		}
+		if r.CumSharePct.GreaterThan(domain.DI(100)) {
+			t.Errorf("%s: cumulative share %s is past 100", r.ReasonCode, r.CumSharePct)
+		}
+		previous = r.CumSharePct
+	}
+}

@@ -826,10 +826,14 @@ func (a *Analytics) downtimeKPIs(ctx context.Context, season domain.Season, req 
 		}
 		return k.ByReason[i].ReasonCode < k.ByReason[j].ReasonCode
 	})
+	// The cumulative share is calculated from the running hours, not by adding
+	// up the rounded percentages. Four reasons at 62.069, 24.138, 6.897 and
+	// 6.897 sum to 100.001, and a Pareto whose line finishes past 100 % is
+	// visibly wrong to the one person in the room who checks.
 	running := domain.Zero
 	for i := range k.ByReason {
-		running = running.Add(k.ByReason[i].SharePct)
-		k.ByReason[i].CumSharePct = domain.RoundPct(running)
+		running = running.Add(k.ByReason[i].Hours)
+		k.ByReason[i].CumSharePct = domain.RoundPct(domain.SafePct(running, k.Hours))
 	}
 	return k, nil
 }

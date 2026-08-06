@@ -68,6 +68,10 @@ services:
 
       SEED_DEMO: ${SEED_DEMO:-true}
       SEED_ACTUAL_DAYS: ${SEED_ACTUAL_DAYS:-14}
+      # Also plays a fortnight of factory life through the plan: orders,
+      # stoppages, stock movements, laboratory results, a cost run and the
+      # alerts they raise. Set it false for the planning half alone.
+      SEED_EXECUTION: ${SEED_EXECUTION:-true}
       FACTORY_TIMEZONE: ${FACTORY_TIMEZONE:-Asia/Phnom_Penh}
     ports:
       - "${HTTP_PORT:-8080}:8080"

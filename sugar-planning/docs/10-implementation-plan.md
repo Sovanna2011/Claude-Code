@@ -270,6 +270,34 @@ asserting the decisions rather than the pixels.
 
 ---
 
+## The demonstration system
+
+`./demo.sh` — Go and nothing else — loads the reference scenario and plays a
+fortnight of factory life through it, so every screen has something on it rather
+than only the planning half. It is built by driving the services, never the
+store: a demonstration assembled by writing rows would skip the validation, the
+audit trail and the permission checks, and the first figure anybody questioned
+would turn out not to reconcile.
+
+[11-demonstration-scenario.md](11-demonstration-scenario.md) has the walkthrough
+and the figures to check it against.
+
+Building it found two defects that the tests had not, which is the argument for
+running a thing rather than only testing it:
+
+- The downtime Pareto's cumulative share reached **100.001 %**. Each reason's
+  share was rounded to three places and then added up; 62.069 + 24.138 + 6.897 +
+  6.897 overshoots. It is now calculated from the running hours.
+- The scenario reported eight inventory documents and the ledger held **ten**:
+  placing a quality hold and releasing it are each their own document, which is
+  right and which the hand-kept tally did not know. The count is read back from
+  the ledger now.
+
+And one it found about itself: the first version was not idempotent, so a
+container restart tripled the stoppages and the orders.
+
+---
+
 ## Testing status
 
 | Suite | State |
@@ -294,6 +322,7 @@ asserting the decisions rather than the pixels.
 | SAPUI5 formatter and chart unit tests (`npm test`, 18) | ✅ passing |
 | Saved views: ownership, sharing, defaults, both stores | ✅ passing |
 | Metrics: route labelling, no business data in the exposition | ✅ passing |
+| The demonstration scenario: contents, idempotency, reconciliation with the dashboard | ✅ passing |
 | OPA5 end-to-end journeys in a browser | ⏳ still open |
 | Load and performance at ten years of data | ⏳ still open |
 | Backup and restore rehearsal | ⏳ deployment task; runbook written |

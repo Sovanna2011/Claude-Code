@@ -80,6 +80,7 @@ its job only until the lease expires, not until somebody notices.
 | --- | --- | --- |
 | `SEED_DEMO` | `false` | Loads the Kampong Speu scenario. Refused in production |
 | `SEED_ACTUAL_DAYS` | `14` | Days of demonstration actuals |
+| `SEED_EXECUTION` | `true` | Also plays a fortnight of factory life through the plan: stoppages, orders, stock movements, laboratory results, a cost run and the alerts they raise. Only read when `SEED_DEMO` is on. Idempotent: a restart finds the data and leaves it alone |
 
 ---
 

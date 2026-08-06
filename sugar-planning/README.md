@@ -15,22 +15,45 @@ Go 1.25  ·  PostgreSQL 16  ·  SAPUI5 1.120  ·  OpenAPI 3.1  ·  Docker
 
 ## Try it in one command
 
-No database, no identity provider, no configuration:
+Go, and nothing else. No database to install, no identity provider to configure,
+no build step:
 
 ```bash
-cd backend
-STORE=memory AUTH_MODE=dev AUTH_DEV_SECRET=local-development-secret \
-SEED_DEMO=true HTTP_STATIC_DIR=../frontend/webapp \
-go run ./cmd/server
+./demo.sh
 ```
 
-Open <http://localhost:8080> and sign in as **Sokha Planner**. The Kampong Speu
-2026–2027 season is already there: 2,300,000 t of cane over 137 days, generated
-through exactly the same code path a planner uses.
+Open <http://localhost:8080> and sign in as **Sokha Planner**.
 
-Other accounts show the role model — `approver` can release a plan and `planner`
-cannot; `auditor` can read the audit trail and nobody else can; `executive` can
-read everything and change nothing.
+What is loaded is the Kampong Speu 2026–2027 season — 2,300,000 t of cane over
+137 days — generated through exactly the code path a planner uses, plus a
+fortnight of actuals and the factory life that goes with them:
+
+| Screen | What is on it |
+| --- | --- |
+| Executive overview | Two real capacity warnings, and eight charts |
+| Downtime | Seven stoppages; the Pareto is 62 % boiler |
+| Production orders | Five, one closed 60 t short with the reason it needed |
+| Warehouse and stock | Ten documents: receipts, a transfer, a stock correction and its reversal |
+| Quality | Three samples: a pass, a failure that blocked 240 t, and its release |
+| Costing | A saved run over the recorded fortnight |
+| Reports | Fifteen, in CSV, Excel and PDF |
+
+Every row of it is produced by driving the services, so nothing on any screen is
+data written past the rules that guard it. It is deterministic — the same dates,
+quantities and failures every time — and idempotent: restarting the container
+does not double it.
+
+```bash
+./demo.sh --port 9000              # somewhere else
+./demo.sh --postgres "$DSN"        # against a real database
+./demo.sh --plan-only              # the plan without the factory life
+```
+
+The accounts show the role model, and the difference between them is enforced by
+the server rather than hidden by the screen: `approver` can release a plan and
+`planner` cannot; `warehouse` posts stock and cannot touch the plan; `auditor`
+can read the audit trail and nobody else can; `executive` reads everything and
+changes nothing.
 
 With Docker instead:
 
@@ -125,6 +148,7 @@ periods are locked, and the trail is append-only.
 | [8. UI sitemap](docs/08-ui-sitemap.md) | Pages, wireframes, UX rules |
 | [9. Workflow diagrams](docs/09-workflow-diagrams.md) | State machines and transitions |
 | [10. Implementation plan](docs/10-implementation-plan.md) | Phases, status, acceptance criteria |
+| [11. Demonstration scenario](docs/11-demonstration-scenario.md) | What `./demo.sh` loads, and a walkthrough of it |
 | [Runbook](docs/runbook.md) | Environment variables, deployment, backup and restore, troubleshooting |
 
 The API contract is `backend/internal/api/openapi.yaml`, served live at

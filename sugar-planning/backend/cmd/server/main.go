@@ -92,14 +92,38 @@ func run() error {
 
 	if cfg.SeedDemo {
 		logger.Info("loading the demonstration scenario")
-		res, err := seed.LoadWithActuals(ctx, st, planning, cfg.SeedActualDays)
-		if err != nil {
-			return fmt.Errorf("seed demonstration data: %w", err)
+		if cfg.SeedExecution {
+			// The full demonstration: the plan, a fortnight of actuals, and the
+			// factory life that goes with them. It is built by driving the same
+			// services a person uses, so every figure on every screen is one
+			// the system produced rather than one written into the tables.
+			demo, err := seed.LoadDemo(ctx, st, planning, analytics, cfg.SeedActualDays)
+			if err != nil {
+				return fmt.Errorf("seed demonstration data: %w", err)
+			}
+			logger.Info("demonstration scenario ready",
+				"season", demo.SeasonID, "version", demo.BudgetID,
+				"caneTons", demo.Generated.Summary.CaneAllocated.String(),
+				"days", demo.Generated.Summary.WorkingDays)
+			if demo.AlreadyPlayed {
+				logger.Info("demonstration execution data already present, left alone")
+			} else {
+				logger.Info("demonstration execution data",
+					"stoppages", demo.Downtime, "orders", demo.Orders,
+					"confirmations", demo.Confirmations, "stockDocuments", demo.Documents,
+					"samples", demo.Samples, "holds", demo.Holds,
+					"costRuns", demo.CostRuns, "alerts", demo.Alerts, "savedViews", demo.Views)
+			}
+		} else {
+			res, err := seed.LoadWithActuals(ctx, st, planning, cfg.SeedActualDays)
+			if err != nil {
+				return fmt.Errorf("seed demonstration data: %w", err)
+			}
+			logger.Info("demonstration scenario ready",
+				"season", res.SeasonID, "version", res.BudgetID,
+				"caneTons", res.Generated.Summary.CaneAllocated.String(),
+				"days", res.Generated.Summary.WorkingDays)
 		}
-		logger.Info("demonstration scenario ready",
-			"season", res.SeasonID, "version", res.BudgetID,
-			"caneTons", res.Generated.Summary.CaneAllocated.String(),
-			"days", res.Generated.Summary.WorkingDays)
 	}
 
 	// --- authentication -----------------------------------------------------

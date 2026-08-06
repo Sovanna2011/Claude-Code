@@ -47,6 +47,11 @@ type Config struct {
 	// production, because demonstration data must never appear in a real plant.
 	SeedDemo       bool
 	SeedActualDays int
+	// SeedExecution also plays a fortnight of factory life through the plan:
+	// orders, stoppages, stock movements, laboratory results, a cost run and
+	// the alerts they raise. Without it the execution screens are empty, which
+	// demonstrates the planning half of the system and none of the rest.
+	SeedExecution bool
 
 	// Integration configures the outbound interface. With no endpoint set the
 	// dispatcher publishes to the application log, which is a real destination
@@ -97,6 +102,7 @@ func Load() (Config, error) {
 
 		SeedDemo:       envBool("SEED_DEMO", false),
 		SeedActualDays: envInt("SEED_ACTUAL_DAYS", 14),
+		SeedExecution:  envBool("SEED_EXECUTION", true),
 
 		IntegrationEndpoint:   env("INTEGRATION_ENDPOINT", ""),
 		IntegrationAuthHeader: env("INTEGRATION_AUTH_HEADER", ""),
