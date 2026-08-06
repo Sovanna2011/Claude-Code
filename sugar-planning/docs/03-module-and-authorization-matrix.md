@@ -191,7 +191,28 @@ and is what the tests assert.
 | Is this series allowed in this version? | `domain.CheckWritable` | `TestActualsCannotBePostedToAPlanVersion` |
 | Per-row permission on a bulk write | `Planning.checkRow` | `TestOperatorPermissionsAreEnforcedPerSeries` |
 
-## 3.6 The one thing that needs no permission
+## 3.6 Where CSRF does not apply
+
+Section 19 asks for "CSRF protection where applicable". It is not applicable
+here, and this is why rather than an oversight.
+
+Cross-site request forgery works because a browser attaches an ambient
+credential — a cookie — to a request the user did not intend to make. This API
+carries no ambient credential. Authentication is an `Authorization: Bearer`
+header that the SAPUI5 client sets explicitly on every call from a token held in
+memory; a form posted from another origin cannot set it, and a cross-origin
+`fetch` that tried would be stopped by the CORS policy, which is same-origin by
+default and an explicit allow-list otherwise.
+
+A token is deliberately not put in a cookie. The moment it is, CSRF becomes
+applicable and a token mechanism has to be added to defend against it — which
+is a defence against a problem the cookie introduced. If a future deployment
+needs cookie sessions, that is when a CSRF token belongs here, and this section
+is the note to say so.
+
+---
+
+## 3.7 The one thing that needs no permission
 
 Saved views carry no permission check, and that is a decision rather than an
 omission.

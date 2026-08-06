@@ -44,6 +44,11 @@ type Scheduler struct {
 	logger *slog.Logger
 	now    func() time.Time
 	jobs   []Job
+	// observe is called with the outcome of every run, for metrics. It is a
+	// function rather than a dependency on the API package, which would be the
+	// wrong way round: a scheduler that imported the HTTP layer could not be
+	// run without one.
+	observe func(job, result string, took time.Duration)
 
 	mu      sync.Mutex
 	started bool
@@ -78,6 +83,17 @@ func New(s store.Store, owner string, logger *slog.Logger, now func() time.Time,
 		seen[j.Name] = true
 	}
 	return &Scheduler{store: s, owner: owner, logger: logger, now: now, jobs: jobs}, nil
+}
+
+// Observe registers a callback for the outcome of every run.
+//
+// It is how the metrics registry learns that the outbox dispatcher has started
+// failing - which is the thing an operator pages on, and which is invisible in
+// a request rate because nobody makes a request for it.
+func (s *Scheduler) Observe(fn func(job, result string, took time.Duration)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.observe = fn
 }
 
 // Start begins the tickers. It returns immediately; Stop waits for the jobs in
@@ -162,8 +178,10 @@ func (s *Scheduler) attempt(ctx context.Context, job Job) {
 	}
 
 	runCtx, cancel := context.WithTimeout(ctx, lease)
+	startedAt := s.now()
 	detail, runErr := job.Run(runCtx)
 	cancel()
+	took := s.now().Sub(startedAt)
 
 	status := domain.JobOK
 	if runErr != nil {
@@ -176,6 +194,10 @@ func (s *Scheduler) attempt(ctx context.Context, job Job) {
 	// The outcome is recorded even when the process is shutting down: a run that
 	// happened and was not recorded looks, on the operations screen, exactly
 	// like a scheduler that has stopped.
+	if s.observe != nil {
+		s.observe(job.Name, string(status), took)
+	}
+
 	finishCtx, finishCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer finishCancel()
 	if err := s.store.Jobs().Finish(finishCtx, job.Name, s.owner, s.now(), status, detail); err != nil {

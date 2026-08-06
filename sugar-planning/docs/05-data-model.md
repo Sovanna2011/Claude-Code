@@ -191,6 +191,19 @@ what their roles and their scope entitle them to see. It is also the better
 answer operationally: an alert addressed to a person who has left is an alert
 nobody owns.
 
+### Where this differs from the table list in section 17
+
+Section 17 names table groups rather than a schema, and five of the names it
+uses are modelled differently here. Each is a decision, not an omission.
+
+| Named in section 17 | Here | Why |
+| --- | --- | --- |
+| `silos` | `warehouses.is_silo` | A silo *is* a store with a capacity and a stock balance. Two tables would need two ledgers, two capacity checks and two sets of alerts, and the first question anyone asks — "how much room is left" — would have two answers |
+| `work_calendars` | `work_calendar_days` | A calendar is only ever read one day at a time. The row is the day |
+| `users` | `app_users` | Named to make clear it is not an identity store: it holds the subject claim, the display name and what audit attribution needs, and no password hash |
+| `stock_adjustments` | An `ADJUSTMENT` inventory document | Every stock movement goes through one posting engine, so an adjustment is reversed, audited and balanced by exactly the same code as a receipt. A separate table would be a second way to move stock, and the second way is the one that gets the rules wrong |
+| `production_confirmation_items` | `material_consumptions` | The items of a confirmation *are* what it consumed. The name says which |
+
 ### Saved views (migration 0011, 1 table)
 
 `saved_views`: a named set of filters, sorts and column choices for one screen.

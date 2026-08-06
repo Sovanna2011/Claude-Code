@@ -35,7 +35,11 @@ type Server struct {
 	notifications *service.Notifications
 	// views is variant management: the named filter sets behind saved views
 	// and personalization.
-	views    *service.Views
+	views *service.Views
+	// metrics is the Prometheus registry. It is on the server rather than a
+	// package global so two servers in one process - which the tests build -
+	// do not count each other's requests.
+	metrics  *Metrics
 	verifier auth.Verifier
 	authCfg  auth.Config
 	logger   *slog.Logger
@@ -63,11 +67,15 @@ type Options struct {
 	Integration   *service.Integration
 	Imports       *service.Imports
 	Notifications *service.Notifications
-	Verifier      auth.Verifier
-	AuthCfg       auth.Config
-	Logger        *slog.Logger
-	Version       string
-	StaticDir     string
+	// Metrics is optional. Pass one to share the registry with the job
+	// scheduler, so that a scrape carries both the request rates and the
+	// outcome of the background work; without it the server builds its own.
+	Metrics   *Metrics
+	Verifier  auth.Verifier
+	AuthCfg   auth.Config
+	Logger    *slog.Logger
+	Version   string
+	StaticDir string
 	// Now overrides the clock. Leave it nil outside tests.
 	Now func() time.Time
 	// AllowedOrigins is empty for a same-origin deployment.
@@ -83,6 +91,7 @@ func NewServer(o Options) http.Handler {
 		store: o.Store, planning: o.Planning, analytics: o.Analytics, materials: o.Materials,
 		execution: o.Execution, costing: o.Costing, integration: o.Integration,
 		imports:  o.Imports,
+		metrics:  o.Metrics,
 		verifier: o.Verifier, authCfg: o.AuthCfg, logger: o.Logger,
 		version: o.Version, staticDir: o.StaticDir, now: o.Now,
 	}
@@ -100,6 +109,9 @@ func NewServer(o Options) http.Handler {
 	}
 	if s.views == nil {
 		s.views = service.NewViews(o.Store)
+	}
+	if s.metrics == nil {
+		s.metrics = NewMetrics(s.now)
 	}
 	if s.imports == nil {
 		s.imports = service.NewImports(o.Store, o.Planning, s.now)
@@ -134,6 +146,9 @@ func NewServer(o Options) http.Handler {
 	}
 
 	var h http.Handler = mux
+	// Innermost, so the pattern the mux matched is what a request is counted
+	// against and a request refused by the rate limiter is still counted.
+	h = Instrumentation(s.metrics, mux)(h)
 	h = limiter.Middleware(h)
 	h = Authentication(s.verifier, protected)(h)
 	h = Timeout(timeout)(h)
@@ -165,6 +180,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 	// --- operations ---------------------------------------------------------
 	mux.HandleFunc("GET /healthz", s.handleHealth)
 	mux.HandleFunc("GET /readyz", s.handleReady)
+	mux.HandleFunc("GET /metrics", s.handleMetrics)
 	s.handle(mux, "GET /api/v1/openapi.yaml", s.handleOpenAPI)
 
 	// --- session ------------------------------------------------------------

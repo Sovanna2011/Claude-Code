@@ -22,8 +22,10 @@ second catches the quieter failure, an endpoint added and never written down.
 | Timestamps | ISO 8601, stored in UTC |
 | Business dates | ISO calendar dates in the factory time zone, no time component |
 | Numbers | Exact decimals carried as **JSON strings**, for example `"16788.321"`. A JSON number would be read back as a binary float by most clients, and 2,300,000 t split across 137 days does not survive that. A request may send either form; a response is always a string |
-| Lists | `$top`, `$skip`, `$search`; response `{ value, count, skip, top }` |
+| Lists | `$top`, `$skip`, `$search`, `$orderby`; response `{ value, count, skip, top }` |
 | Filtering | Documented, allow-listed query parameters only. No client-supplied query language |
+| Sorting | `$orderby` on master-data lists, against an allow-listed column set. Transaction lists carry a fixed, meaningful order instead — a stock ledger sorted by tonnage is not a ledger |
+| Field selection | Not offered. See below |
 | Concurrency | `ETag` on read, `If-Match` on write; mismatch is `412` |
 | Idempotency | `Idempotency-Key` on posting endpoints; a repeat replays the first response |
 | Errors | RFC 9457 problem documents, served as `application/problem+json`, with `errors[]` addressed by `row` and `field` |
@@ -571,6 +573,23 @@ Worth stating so nobody looks for it:
 
 - **No client-supplied query language.** Filters are named parameters on an
   allow-list. There is no `$filter` expression evaluator to escape from.
+### Why there is no field selection
+
+Section 16 asks for "pagination, filter, sorting, and field-selection rules".
+Three of those exist; the fourth is a deliberate absence, and this is the rule.
+
+A `$select` would let a client drop `rowVersion` from a response and then be
+unable to write the record back, because `If-Match` needs it — a footgun that
+looks like an optimisation. It would also make every response shape variable,
+which the SAPUI5 client would then have to defend against, and it would put a
+client-supplied column list into the SQL, which is exactly the class of thing
+the allow-listed filtering above exists to avoid.
+
+The payloads it would trim are small: a master-data row is a few hundred bytes,
+and the one genuinely large response — the dashboard — is a computed aggregate
+whose whole content is the point. Where a caller really does want less, there is
+a narrower endpoint rather than a narrower projection.
+
 - **No unbounded lists.** `$top` is capped at 1,000; daily-row queries are
   bounded by their date range.
 - **No unknown fields.** A payload with a misspelled field is rejected rather

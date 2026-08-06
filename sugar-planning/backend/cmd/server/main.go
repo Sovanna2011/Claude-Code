@@ -121,10 +121,14 @@ func run() error {
 	}
 
 	// --- HTTP ---------------------------------------------------------------
+	// One registry, shared between the request path and the scheduler, so a
+	// single scrape carries both the traffic and the background work.
+	metrics := api.NewMetrics(nil)
 	handler := api.NewServer(api.Options{
 		Store: st, Planning: planning, Analytics: analytics, Materials: materials,
 		Execution: execution, Costing: costing, Integration: interfaces,
 		Imports: imports, Notifications: notifications,
+		Metrics:  metrics,
 		Verifier: verifier, AuthCfg: cfg.Auth, Logger: logger, Version: cfg.Version,
 		StaticDir: cfg.StaticDir, AllowedOrigins: cfg.AllowedOrigins,
 		RequestTimeout: cfg.RequestTimeout, RateLimit: cfg.RateLimit, RateInterval: cfg.RateInterval,
@@ -136,6 +140,7 @@ func run() error {
 		return err
 	}
 	if scheduler != nil {
+		scheduler.Observe(metrics.RecordJob)
 		defer scheduler.Stop()
 	}
 

@@ -234,6 +234,70 @@ only real once it has been measured.
 
 ## 4. Monitoring
 
+### Scraping
+
+`GET /metrics` serves the Prometheus text exposition format. Like the health
+probes it sits outside `/api/v1` and outside authentication, because that is
+where a scrape expects it and because it carries nothing worth protecting:
+route patterns, counts and latencies, and no business data at all. A deployment
+that wants it closed binds it to an internal interface or blocks the path at
+the ingress.
+
+```
+scrape_configs:
+  - job_name: sugarplan
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["sugarplan:8080"]
+```
+
+Four instruments:
+
+| Metric | Type | Labels |
+| --- | --- | --- |
+| `sugarplan_http_requests_total` | counter | `route`, `method`, `status` |
+| `sugarplan_http_request_duration_seconds` | histogram | `route` |
+| `sugarplan_job_runs_total` | counter | `job`, `result` |
+| `sugarplan_job_last_duration_ms` | gauge | `job` |
+
+`route` is the **route pattern the mux matched**, not the path: every season a
+planner opens is `GET /api/v1/seasons/{id}`, one series. Anything that matched
+no route — a scanner probing for `/wp-admin` — is counted under `(unmatched)`.
+A metric labelled with the raw path is the standard way to take down a
+Prometheus server, and this is a system where the ids are uuids.
+
+The histogram buckets are chosen around the targets below: there is a `le="0.5"`
+bucket for the list target and a `le="2"` bucket for the dashboard one, so the
+two alerts are one query each.
+
+```
+# p95 list latency
+histogram_quantile(0.95,
+  sum by (le) (rate(sugarplan_http_request_duration_seconds_bucket{route!~".*dashboard.*"}[10m])))
+
+# a job that has started failing
+increase(sugarplan_job_runs_total{result="FAILED"}[15m]) > 0
+```
+
+Each instance keeps its own counters in memory, which is what a scrape expects:
+they reset when a pod restarts, and `rate()` handles that. Nothing is stored in
+the database for this — the job *outcomes* are, and remain readable through
+`GET /api/v1/integration/jobs` for an operator who is looking at one instance
+rather than at a dashboard.
+
+### Tracing
+
+There is no OpenTelemetry exporter. What exists instead is a correlation id:
+`X-Correlation-Id` is accepted from the caller or minted, echoed on the
+response, attached to every log line of the request, and stored on every audit
+record the request produced. In a single-service deployment — which this is,
+and is designed to remain until it is split — that answers the question a trace
+is usually opened to answer: what else happened as part of this, and who did it.
+
+Adding an exporter is a small change in `Observability`; it is not here because
+an on-premises deployment that has no collector would be carrying the
+dependency for nothing.
+
 ### Signals
 
 | Signal | Alert when |
