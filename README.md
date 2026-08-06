@@ -40,7 +40,7 @@ The catalogue drives both physical artefacts, so they cannot drift from it:
 
 | | |
 |---|---|
-| **[`backend/ErpS4.Application/`](backend/ErpS4.Application/README.md)** | Posting engine, Business Partner synchronisation, clearing, assets, approval workflow, and the SE11 / SE16N back ends — 123 unit tests over the rules, 20 integration tests against a real server |
+| **[`backend/ErpS4.Application/`](backend/ErpS4.Application/README.md)** | Posting engine, Business Partner synchronisation, clearing, assets, approval workflow, and the SE11 / SE16N back ends — 123 unit tests over the rules, 32 integration tests against a real server |
 | **[`backend/ErpS4.Api/`](backend/ErpS4.Api/README.md)** | .NET 10 minimal API — journal entries, business partners, payments, assets, approvals, data dictionary and table browser, permission policies resolved from the security tables, RFC 7807 problems, capped paging |
 | **[`database/s4hana/`](database/s4hana/)** | SQL Server DDL — 228 tables, 837 foreign keys, 172 indexes, the SE11 dictionary seed (authorization groups and masked fields included), and a sample dataset (2 companies, 3 company codes, customer/vendor/dual-role partners, an asset, an intercompany pair, a KHR invoice, and a two-step approval workflow) |
 | **[`backend/ErpS4.Database/`](backend/ErpS4.Database/README.md)** | .NET 10 / EF Core 10 model — 228 entities and configurations, tenant query filters, audit stamping, append-only enforcement |
@@ -52,7 +52,7 @@ python3 tools/validate_generated_sql.py                    # six checks before s
 dotnet test backend/ErpS4.Tests                            # 123 tests, no database
 ./tools/start_test_database.sh                             # SQL Server 2025 + schema
 ERPS4_TEST_CONNECTION='Server=...;Database=ErpS4;...' \
-  dotnet test backend/ErpS4.IntegrationTests               # 20 tests, real SQL Server
+  dotnet test backend/ErpS4.IntegrationTests               # 32 tests, real SQL Server
 ```
 
 The integration tests skip rather than fail when `ERPS4_TEST_CONNECTION` is

@@ -41,14 +41,14 @@ ErpS4.Application/
 
 ErpS4.Database/               (existing) + IErpDataContext, NumberRangeService
 ErpS4.Tests/                  123 tests, no database required
-ErpS4.IntegrationTests/       20 tests against a real SQL Server
+ErpS4.IntegrationTests/       32 tests against a real SQL Server
 ```
 
 The two suites answer different questions. The unit tests ask whether the rules
 are right and run in milliseconds over lists. The integration tests ask whether
 the model maps — whether a column is wide enough, whether a query translates,
 whether `UPDATE … OUTPUT` really serialises under eight concurrent posts. Only
-a database can fail in those ways, and it did: see the twelve bugs below.
+a database can fail in those ways, and it did: see the fifteen bugs below.
 
 ## What the engine enforces
 
@@ -247,6 +247,25 @@ dwelling on, because every one of them passed the unit tests:
   every rule and then raised `NullReferenceException` inside the transaction —
   the same bug as before, in the second of the two places that build a
   configuration.
+* **A browser query by an unknown user crashed after succeeding.** The query
+  log has a foreign key to `sec.User`, and the service wrote `UserId = 0` when
+  it could not find the caller — so the rows came back and the insert then blew
+  up, turning a good answer into a 500. A query that cannot be attributed to a
+  user is now refused before it runs, which is the right answer anyway: the log
+  is the point.
+* **BP_SYNC failed on every healthy partner.** `SynchronizeAsync` walks a
+  partner's existing roles and calls `AssignRoleAsync` without a company code,
+  and that demanded one before checking whether the data already existed. Any
+  partner holding a company-code-dependent role — which is most of them —
+  reported `COMPANY_CODE_REQUIRED` instead of "nothing to repair".
+* **The dictionary seed could not be installed twice.** It deleted
+  `cfg.DictionaryTable` before the indexes and foreign keys that point at it,
+  so the second install stopped on a foreign key violation. Children go first
+  now.
+* **The sample data had a partner segment with no matching role.** The
+  intercompany partner carried a customer company code segment without the
+  customer role that segment belongs to — precisely the inconsistency BP_CHECK
+  exists to report, shipped in the demo data.
 
 ## Not built yet
 

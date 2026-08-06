@@ -371,7 +371,18 @@ def write_dictionary_seed(tables: list[Table]) -> str:
         "END\n"
         "GO\n"
         "\n"
-        "/* Re-runnable: clear the generated dictionary rows for tenant 1 first. */\n"
+        "/* Re-runnable: clear the generated dictionary rows for tenant 1 first.\n"
+        "   Children before parents - an index or a foreign key still pointing at\n"
+        "   a dictionary table stops that table being deleted, which is what a\n"
+        "   second install used to run into. */\n"
+        "DELETE ff FROM [cfg].[DictionaryForeignKeyField] AS ff\n"
+        "JOIN   [cfg].[DictionaryForeignKey] AS fk ON fk.Id = ff.DictionaryForeignKeyId\n"
+        "WHERE  fk.TenantId = 1;\n"
+        "DELETE FROM [cfg].[DictionaryForeignKey] WHERE TenantId = 1;\n"
+        "DELETE inf FROM [cfg].[DictionaryIndexField] AS inf\n"
+        "JOIN   [cfg].[DictionaryIndex] AS ix ON ix.Id = inf.DictionaryIndexId\n"
+        "WHERE  ix.TenantId = 1;\n"
+        "DELETE FROM [cfg].[DictionaryIndex] WHERE TenantId = 1;\n"
         "DELETE f FROM [cfg].[DictionaryTableField] AS f\n"
         "JOIN   [cfg].[DictionaryTable] AS t ON t.Id = f.DictionaryTableId\n"
         "WHERE  t.TenantId = 1;\n"
@@ -512,16 +523,8 @@ def dictionary_relationship_seed(tables: list[Table]) -> list[str]:
     foreign_keys, _ = resolve_foreign_keys(tables)
 
     parts = [
-        "/* Relationships and indexes, from the same catalogue as the constraints. */\n"
-        "DELETE ff FROM [cfg].[DictionaryForeignKeyField] AS ff\n"
-        "JOIN   [cfg].[DictionaryForeignKey] AS fk ON fk.Id = ff.DictionaryForeignKeyId\n"
-        "WHERE  fk.TenantId = 1;\n"
-        "DELETE FROM [cfg].[DictionaryForeignKey] WHERE TenantId = 1;\n"
-        "DELETE inf FROM [cfg].[DictionaryIndexField] AS inf\n"
-        "JOIN   [cfg].[DictionaryIndex] AS ix ON ix.Id = inf.DictionaryIndexId\n"
-        "WHERE  ix.TenantId = 1;\n"
-        "DELETE FROM [cfg].[DictionaryIndex] WHERE TenantId = 1;\n"
-        "GO\n"
+        "/* Relationships and indexes, from the same catalogue as the constraints.\n"
+        "   The rows they replace were removed with the tables above. */\n"
     ]
 
     key_rows = [

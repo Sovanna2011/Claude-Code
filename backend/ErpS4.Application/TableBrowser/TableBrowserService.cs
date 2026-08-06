@@ -131,6 +131,25 @@ public sealed class TableBrowserService(
             };
         }
 
+        // Every query is logged against the user who ran it, and the log has a
+        // foreign key to sec.User. A caller the security tables do not know
+        // cannot be logged, and a browser query that cannot be attributed is
+        // one that should not run - so it is refused here rather than running
+        // and then failing on the insert, which turned a successful query into
+        // a 500.
+        var userId = await context.Query<User>()
+            .AsNoTracking()
+            .Where(u => u.TenantId == TenantId && u.UserName == currentUser.UserName)
+            .Select(u => (long?)u.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (userId is null)
+        {
+            return Refused(request, BrowserErrorCodes.UserUnknown,
+                $"{currentUser.UserName} is not a user of this tenant, so a browser query " +
+                "cannot be attributed to anyone.");
+        }
+
         var limit = Math.Min(
             Math.Min(request.MaxRows <= 0 ? 100 : request.MaxRows, AbsoluteRowLimit),
             authorizationGroup?.MaxRowsPerQuery ?? AbsoluteRowLimit);
@@ -146,8 +165,8 @@ public sealed class TableBrowserService(
             .Select(row => Format(row, selected))
             .ToList();
 
-        await LogAsync(request, table, selected, filters, rows.Count, limit, wasTruncated,
-            (int)stopwatch.ElapsedMilliseconds, cancellationToken);
+        await LogAsync(request, table, selected, filters, userId.Value, rows.Count, limit,
+            wasTruncated, (int)stopwatch.ElapsedMilliseconds, cancellationToken);
 
         logger.LogInformation(
             "Browser query on {Schema}.{Table} by {User} returned {Rows} rows in {Duration} ms",
@@ -614,18 +633,13 @@ public sealed class TableBrowserService(
         DictionaryTable table,
         IReadOnlyList<DictionaryTableField> selected,
         IReadOnlyList<ValidatedFilter> filters,
+        long userId,
         int rowsReturned,
         int limit,
         bool wasTruncated,
         int durationMilliseconds,
         CancellationToken cancellationToken)
     {
-        var userId = await context.Query<User>()
-            .AsNoTracking()
-            .Where(u => u.TenantId == TenantId && u.UserName == currentUser.UserName)
-            .Select(u => (long?)u.Id)
-            .FirstOrDefaultAsync(cancellationToken);
-
         // The filter is logged with masked values redacted: the log must not
         // become the leak the masking prevented.
         var filterJson = JsonSerializer.Serialize(filters.Select(f => new
@@ -640,7 +654,7 @@ public sealed class TableBrowserService(
         context.Add(new BrowserQueryLog
         {
             TenantId = TenantId,
-            UserId = userId ?? 0,
+            UserId = userId,
             ExecutedAt = timeProvider.GetUtcNow().UtcDateTime,
             SchemaName = table.SchemaName,
             ObjectName = table.TableName,

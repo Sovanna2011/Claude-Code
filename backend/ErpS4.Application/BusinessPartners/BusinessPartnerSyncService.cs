@@ -454,6 +454,24 @@ public sealed class BusinessPartnerSyncService(
     {
         if (request.CompanyCode is null)
         {
+            // A caller who names no company code may still have nothing to do:
+            // BP_SYNC walks a partner's existing roles to repair whatever is
+            // missing, and demanding a company code up front made it fail on
+            // every partner whose data was already complete - which is to say,
+            // on every healthy partner.
+            var hasSegment = await context.Query<BusinessPartnerCompanyCode>()
+                .AsNoTracking()
+                .AnyAsync(
+                    s => s.TenantId == TenantId
+                         && s.BusinessPartnerId == partner.Id
+                         && s.RoleCategory == roleCategory,
+                    cancellationToken);
+
+            if (hasSegment)
+            {
+                return false;
+            }
+
             violations.Add(new RuleViolation(
                 BusinessPartnerErrorCodes.CompanyCodeRequired,
                 "This role needs company code data; supply a company code and a " +

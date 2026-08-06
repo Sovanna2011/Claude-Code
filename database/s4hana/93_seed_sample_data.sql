@@ -514,7 +514,12 @@ VALUES (@Tenant, @BpAngkor,  @RoleGeneral,      1, N'Completed', @Open, @Never, 
        (@Tenant, @BpSopheak, @RoleGeneral,      1, N'Completed', @Open, @Never, @By),
        (@Tenant, @BpSopheak, @RoleEmployee,     1, N'Completed', @Open, @Never, @By),
        (@Tenant, @BpSiam,    @RoleGeneral,      1, N'Completed', @Open, @Never, @By),
-       (@Tenant, @BpSiam,    @RoleIntercompany, 1, N'Completed', @Open, @Never, @By);
+       (@Tenant, @BpSiam,    @RoleIntercompany, 1, N'Completed', @Open, @Never, @By),
+       -- The intercompany partner has a customer company code segment, so it
+       -- needs the customer role that segment belongs to. Data without the
+       -- matching role is exactly what BP_CHECK reports as an inconsistency.
+       (@Tenant, @BpSiam,    @RoleCust,         1, N'Completed', @Open, @Never, @By),
+       (@Tenant, @BpSiam,    @RoleFiCust,       1, N'Completed', @Open, @Never, @By);
 
 INSERT INTO [mdm].[Address]
     (TenantId, AddressNumber, Name1, Street, HouseNumber, District, City, PostalCode,

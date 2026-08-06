@@ -25,7 +25,18 @@ BEGIN
 END
 GO
 
-/* Re-runnable: clear the generated dictionary rows for tenant 1 first. */
+/* Re-runnable: clear the generated dictionary rows for tenant 1 first.
+   Children before parents - an index or a foreign key still pointing at
+   a dictionary table stops that table being deleted, which is what a
+   second install used to run into. */
+DELETE ff FROM [cfg].[DictionaryForeignKeyField] AS ff
+JOIN   [cfg].[DictionaryForeignKey] AS fk ON fk.Id = ff.DictionaryForeignKeyId
+WHERE  fk.TenantId = 1;
+DELETE FROM [cfg].[DictionaryForeignKey] WHERE TenantId = 1;
+DELETE inf FROM [cfg].[DictionaryIndexField] AS inf
+JOIN   [cfg].[DictionaryIndex] AS ix ON ix.Id = inf.DictionaryIndexId
+WHERE  ix.TenantId = 1;
+DELETE FROM [cfg].[DictionaryIndex] WHERE TenantId = 1;
 DELETE f FROM [cfg].[DictionaryTableField] AS f
 JOIN   [cfg].[DictionaryTable] AS t ON t.Id = f.DictionaryTableId
 WHERE  t.TenantId = 1;
@@ -4738,16 +4749,8 @@ GO
 DROP TABLE #DictionaryField;
 GO
 
-/* Relationships and indexes, from the same catalogue as the constraints. */
-DELETE ff FROM [cfg].[DictionaryForeignKeyField] AS ff
-JOIN   [cfg].[DictionaryForeignKey] AS fk ON fk.Id = ff.DictionaryForeignKeyId
-WHERE  fk.TenantId = 1;
-DELETE FROM [cfg].[DictionaryForeignKey] WHERE TenantId = 1;
-DELETE inf FROM [cfg].[DictionaryIndexField] AS inf
-JOIN   [cfg].[DictionaryIndex] AS ix ON ix.Id = inf.DictionaryIndexId
-WHERE  ix.TenantId = 1;
-DELETE FROM [cfg].[DictionaryIndex] WHERE TenantId = 1;
-GO
+/* Relationships and indexes, from the same catalogue as the constraints.
+   The rows they replace were removed with the tables above. */
 
 INSERT INTO [cfg].[DictionaryForeignKey]
     (TenantId, ForeignKeyName, SourceSchemaName, SourceTableName,

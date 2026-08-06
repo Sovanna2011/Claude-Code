@@ -139,6 +139,7 @@ public sealed record BrowsableTable(
 public static class BrowserErrorCodes
 {
     public const string TableUnknown = "SE16N.TABLE_UNKNOWN";
+    public const string UserUnknown = "SE16N.USER_UNKNOWN";
     public const string TableProtected = "SE16N.TABLE_PROTECTED";
     public const string NotAuthorizedForTable = "SE16N.TABLE_NOT_AUTHORIZED";
     public const string FieldUnknown = "SE16N.FIELD_UNKNOWN";
