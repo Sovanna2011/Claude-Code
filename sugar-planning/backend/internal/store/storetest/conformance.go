@@ -670,6 +670,27 @@ func testIdempotency(t *testing.T, newStore Factory) {
 	if !fresh {
 		t.Error("the key is scoped to the endpoint")
 	}
+
+	// A posting claims its key before doing the work and attaches the response
+	// afterwards, so a retry replays the document rather than an acknowledgement.
+	fresh, _, err = idem.Remember(ctx, "key-2", "/api/v1/inventory/documents", nil)
+	must(t, err, "claim a posting key")
+	if !fresh {
+		t.Fatal("a new key must be fresh")
+	}
+	must(t, idem.Complete(ctx, "key-2", "/api/v1/inventory/documents", []byte(`{"documentNo":"MD-1"}`)),
+		"complete the key")
+
+	_, prev, err = idem.Remember(ctx, "key-2", "/api/v1/inventory/documents", nil)
+	must(t, err, "retry the posting")
+	if string(prev) != `{"documentNo":"MD-1"}` {
+		t.Errorf("the retry must replay the first response, got %s", prev)
+	}
+
+	// Completing a key nobody claimed would defeat the claim, so it is refused.
+	if err := idem.Complete(ctx, "never-claimed", "/api/v1/inventory/documents", nil); !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("completing an unclaimed key must be not found, got %v", err)
+	}
 }
 
 func codes[T any](items []T) []string {

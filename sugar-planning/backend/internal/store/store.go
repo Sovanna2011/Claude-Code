@@ -243,9 +243,17 @@ type Audit interface {
 // Idempotency records the keys of posting requests that have already been
 // processed, so a retried import or confirmation does not post twice.
 type Idempotency interface {
-	// Remember stores the key and returns false when it was already present,
-	// together with the response body captured the first time.
+	// Remember claims the key and returns false when it was already present,
+	// together with the response body captured the first time. Claiming happens
+	// before the work is done, which is what makes two concurrent retries safe:
+	// only one of them can be the fresh one.
 	Remember(ctx context.Context, key, endpoint string, response []byte) (fresh bool, previous []byte, err error)
+	// Complete attaches the response to a key that has already been claimed, so
+	// that a later retry replays the document the first request produced rather
+	// than a bare acknowledgement. A key that was never claimed is not created:
+	// the claim is what reserves the request, and completing one that does not
+	// exist would defeat that.
+	Complete(ctx context.Context, key, endpoint string, response []byte) error
 }
 
 // Store is the whole persistence surface.

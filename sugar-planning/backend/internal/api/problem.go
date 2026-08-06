@@ -90,7 +90,16 @@ func writeProblem(w http.ResponseWriter, r *http.Request, err error) {
 		logError(r, err)
 	}
 
-	writeJSONStatus(w, p.Status, p)
+	// RFC 9457 gives problem documents their own media type, and clients are
+	// entitled to branch on it: a generic error handler needs to know it has a
+	// problem document without first parsing the body to find out.
+	w.Header().Set("Content-Type", "application/problem+json; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(p.Status)
+	if err := json.NewEncoder(w).Encode(p); err != nil {
+		// The status line is already sent; all that is left is to record it.
+		logError(r, err)
+	}
 }
 
 // cleanMessage strips the sentinel prefix so the client sees the explanation

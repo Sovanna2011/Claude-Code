@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"fmt"
 	"sort"
 
 	"github.com/google/uuid"
@@ -71,4 +72,15 @@ func (i idempotency) Remember(_ context.Context, key, endpoint string, response 
 	}
 	i.s.d.idem[k] = response
 	return true, nil, nil
+}
+
+func (i idempotency) Complete(_ context.Context, key, endpoint string, response []byte) error {
+	i.s.lock()
+	defer i.s.unlock()
+	k := endpoint + "|" + key
+	if _, ok := i.s.d.idem[k]; !ok {
+		return fmt.Errorf("%w: idempotency key %s was never claimed", domain.ErrNotFound, key)
+	}
+	i.s.d.idem[k] = response
+	return nil
 }

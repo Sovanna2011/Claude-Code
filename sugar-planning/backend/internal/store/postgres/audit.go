@@ -119,3 +119,17 @@ func (i idempotency) Remember(ctx context.Context, key, endpoint string, respons
 	}
 	return false, previous, nil
 }
+
+// Complete attaches the response to a key that has already been claimed.
+func (i idempotency) Complete(ctx context.Context, key, endpoint string, response []byte) error {
+	tag, err := i.s.q.Exec(ctx,
+		"UPDATE idempotency_keys SET response = $1 WHERE endpoint = $2 AND key = $3",
+		response, endpoint, key)
+	if err != nil {
+		return mapError("idempotency key", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("%w: idempotency key %s was never claimed", domain.ErrNotFound, key)
+	}
+	return nil
+}

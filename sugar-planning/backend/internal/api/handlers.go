@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -261,9 +262,21 @@ func (s *Server) handleGenerate(w http.ResponseWriter, r *http.Request) {
 	}
 	// Generating a season plan is expensive and repeatable; an idempotency key
 	// makes a retried request return the first result instead of rebuilding.
-	if key := r.Header.Get("Idempotency-Key"); key != "" {
-		fresh, previous, err := s.store.Idempotency().Remember(
-			r.Context(), key, r.URL.Path, nil)
+	s.postOnce(w, r, func() (any, error) {
+		return s.planning.Generate(r.Context(), r.PathValue("id"), req)
+	})
+}
+
+// postOnce runs a write, honouring the Idempotency-Key header.
+//
+// The key is claimed before the work starts, so two concurrent retries of the
+// same request cannot both do it; the response is attached afterwards, so a
+// later retry replays the document the first request produced rather than a
+// bare acknowledgement. A request without the header is simply run.
+func (s *Server) postOnce(w http.ResponseWriter, r *http.Request, run func() (any, error)) {
+	key := r.Header.Get("Idempotency-Key")
+	if key != "" {
+		fresh, previous, err := s.store.Idempotency().Remember(r.Context(), key, r.URL.Path, nil)
 		if err != nil {
 			writeProblem(w, r, err)
 			return
@@ -282,12 +295,27 @@ func (s *Server) handleGenerate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	result, err := s.planning.Generate(r.Context(), r.PathValue("id"), req)
+	result, err := run()
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeJSON(w, result)
+
+	body, marshalErr := json.Marshal(result)
+	if key != "" && marshalErr == nil {
+		// Failing to record the response is not a reason to fail a posting that
+		// has already been committed. The key stays claimed either way, so the
+		// retry is still refused; it just replays the acknowledgement.
+		if err := s.store.Idempotency().Complete(r.Context(), key, r.URL.Path, body); err != nil {
+			logError(r, err)
+		}
+	}
+	if marshalErr != nil {
+		writeProblem(w, r, marshalErr)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_, _ = w.Write(body)
 }
 
 func (s *Server) handleTransition(w http.ResponseWriter, r *http.Request) {

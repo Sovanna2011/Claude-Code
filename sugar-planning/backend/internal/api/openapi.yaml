@@ -12,9 +12,13 @@ info:
     * Every path is prefixed `/api/v1`.
     * Timestamps are ISO 8601 and stored in UTC. Business dates are calendar
       days in the factory time zone and carry no time component.
-    * Quantities, rates and percentages are transported as JSON numbers with a
-      fixed scale and are held as exact decimals server-side. Clients must not
-      round-trip them through binary floating point.
+    * Quantities, rates and percentages are transported as **JSON strings**
+      holding a decimal literal, for example `"16788.321"`, and are held as
+      exact decimals server-side. A JSON number would be read back as a binary
+      float by most clients, and 2,300,000 t of cane split across 137 days does
+      not survive that. Clients must parse them with a decimal type and must
+      never round-trip them through binary floating point. A request may send
+      either a string or a number; a response is always a string.
     * List endpoints accept `$top`, `$skip` and `$search`, and return
       `{ value, count, skip, top }`.
     * Filtering uses documented, allow-listed query parameters only.
@@ -52,6 +56,14 @@ tags:
     description: Dashboard aggregates and capacity forecasting.
   - name: Materials
     description: Packaging requirement planning.
+  - name: Inventory
+    description: Stock positions and the document-based ledger that moves them.
+  - name: Production
+    description: Production orders, confirmations and their reversals.
+  - name: Quality
+    description: Parameters, effective-dated specifications, samples and holds.
+  - name: Maintenance
+    description: Planned outages, which remove crushing days once approved.
   - name: Reports
     description: Report catalogue and exports.
   - name: Audit
@@ -911,6 +923,788 @@ paths:
               schema: { type: string, format: binary }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  # --------------------------------------------------------------------------
+  # Execution: stock, postings, production orders, quality, maintenance
+  # --------------------------------------------------------------------------
+
+  /stock:
+    get:
+      tags: [Inventory]
+      summary: Current stock positions
+      description: |
+        The balance of every product in the warehouses the caller may see, with
+        the held quantity and what is therefore available to ship. Requires
+        `plan:read`.
+      operationId: listStock
+      parameters:
+        - name: warehouseId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: productId
+          in: query
+          description: One id or a comma separated list.
+          schema: { type: string }
+      responses:
+        "200":
+          description: One line per warehouse and product.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/StockLine" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /inventory/documents:
+    get:
+      tags: [Inventory]
+      summary: List postings
+      operationId: listInventoryDocuments
+      parameters:
+        - $ref: "#/components/parameters/FactoryId"
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - name: warehouseId
+          in: query
+          description: Restrict to documents with a line touching this warehouse.
+          schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/Top"
+        - $ref: "#/components/parameters/Skip"
+      responses:
+        "200":
+          description: A page of documents, newest business date first, each with its lines.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/InventoryDocument" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      tags: [Inventory]
+      summary: Move stock
+      description: |
+        Posts a receipt, issue, transfer, adjustment, count, hold, release or
+        shipment. Requires `actual:stock`.
+
+        Quantities are entered unsigned; the document type gives them their
+        sign. A transfer names the receiving warehouse and becomes a pair of
+        signed lines, so both balances move together or neither does.
+
+        The posting is refused, with the offending line named in `errors[]`, if
+        it would drive a balance below zero, move stock that quality has held,
+        or take a store past its usable capacity. The overrides in the request
+        need the `capacity:override` permission and are recorded on the audit
+        event.
+      operationId: postInventoryDocument
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PostingRequest" }
+      responses:
+        "200":
+          description: The posted document with its lines and assigned number.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InventoryDocument" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Duplicate" }
+
+  /inventory/documents/{id}:
+    get:
+      tags: [Inventory]
+      summary: Read one posting
+      operationId: getInventoryDocument
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: The document with its lines.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InventoryDocument" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /inventory/documents/{id}/reverse:
+    post:
+      tags: [Inventory]
+      summary: Reverse a posting
+      description: |
+        Posts the counter-document and flags the original. Nothing is deleted
+        and nothing is edited: both documents stay in the ledger. A document may
+        be reversed once.
+
+        A reversal restores a position the original moved away from, and the
+        stock may have moved on since, so it is allowed to take a balance below
+        zero: leaving a posting standing that everybody agrees never happened is
+        worse than a balance that shows the truth.
+      operationId: reverseInventoryDocument
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                businessDate: { type: string, format: date, description: Defaults to the original's date. }
+                reason: { type: string, description: Required; it is what the audit trail records. }
+      responses:
+        "200":
+          description: The reversal document.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InventoryDocument" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /production-orders:
+    get:
+      tags: [Production]
+      summary: List production orders
+      operationId: listProductionOrders
+      parameters:
+        - $ref: "#/components/parameters/FactoryId"
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - name: lineId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: productId
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          description: One status or a comma separated list.
+          schema: { type: string }
+        - name: openOnly
+          in: query
+          description: Only orders that are not completed, closed or cancelled.
+          schema: { type: boolean }
+        - $ref: "#/components/parameters/Top"
+        - $ref: "#/components/parameters/Skip"
+      responses:
+        "200":
+          description: A page of orders.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/ProductionOrder" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      tags: [Production]
+      summary: Create one order by hand
+      description: Requires `actual:production`. The order number is issued by the server.
+      operationId: createProductionOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [factoryId, businessDate, productId, plannedQty]
+              properties:
+                factoryId: { type: string, format: uuid }
+                lineId: { type: string, format: uuid }
+                versionId: { type: string, format: uuid }
+                businessDate: { type: string, format: date }
+                shiftId: { type: string, format: uuid }
+                productId: { type: string, format: uuid }
+                packagingId: { type: string, format: uuid }
+                plannedQty: { $ref: "#/components/schemas/Quantity" }
+                priority: { type: integer, minimum: 1, maximum: 9 }
+                team: { type: string }
+      responses:
+        "201":
+          description: The created order.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductionOrder" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /production-orders/{id}:
+    get:
+      tags: [Production]
+      summary: Read one order with its confirmations
+      operationId: getProductionOrder
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: The order, its confirmations and what may be done to it next.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  order: { $ref: "#/components/schemas/ProductionOrder" }
+                  confirmations:
+                    type: array
+                    items: { $ref: "#/components/schemas/ProductionConfirmation" }
+                  openQty: { $ref: "#/components/schemas/Quantity" }
+                  variancePct: { $ref: "#/components/schemas/Decimal" }
+                  allowedActions:
+                    type: array
+                    items: { type: string, enum: [RELEASE, CONFIRM, COMPLETE, TECHNICALLY_CLOSE, CANCEL] }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /production-orders/{id}/action:
+    post:
+      tags: [Production]
+      summary: Move an order through its life cycle
+      description: |
+        `PLANNED` releases or cancels; a confirmed order completes or is
+        technically closed. Closing an order whose confirmed quantity is more
+        than the tolerance away from its plan needs a `varianceReason` that is a
+        configured reason code, and the caller must hold `plan:approve`.
+      operationId: actOnProductionOrder
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [RELEASE, COMPLETE, TECHNICALLY_CLOSE, CANCEL] }
+                reason: { type: string }
+                varianceReason: { type: string, description: A reason code, required when closing outside tolerance. }
+                rowVersion: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: The order in its new status.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductionOrder" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          description: The action is not legal in the order's current status.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "412": { $ref: "#/components/responses/VersionConflict" }
+
+  /production-orders/{id}/confirm:
+    post:
+      tags: [Production]
+      summary: Record what a shift produced
+      description: |
+        Writes the confirmation, receipts the good output into the named
+        warehouse, advances the order's confirmed quantity and status, and
+        records the audit event - all in one transaction. Scrap and rework are
+        recorded but not receipted: scrap has left the process and rework has
+        not finished it.
+
+        Omitting `warehouseId` records the production without moving stock,
+        which is what a site keeping its inventory elsewhere wants.
+      operationId: confirmProductionOrder
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ConfirmRequest" }
+      responses:
+        "200":
+          description: The confirmation, the updated order and the goods receipt.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  confirmation: { $ref: "#/components/schemas/ProductionConfirmation" }
+                  order: { $ref: "#/components/schemas/ProductionOrder" }
+                  document: { $ref: "#/components/schemas/InventoryDocument" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          description: The order cannot be confirmed in its current status.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
+  /confirmations/{id}/reverse:
+    post:
+      tags: [Production]
+      summary: Undo a confirmation
+      description: |
+        Reverses the goods receipt, brings the order's confirmed quantity back
+        down and flags the confirmation. Both records stay in place.
+      operationId: reverseConfirmation
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                businessDate: { type: string, format: date }
+                reason: { type: string }
+      responses:
+        "200":
+          description: The reversed confirmation, the updated order and the counter-posting.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  confirmation: { $ref: "#/components/schemas/ProductionConfirmation" }
+                  order: { $ref: "#/components/schemas/ProductionOrder" }
+                  document: { $ref: "#/components/schemas/InventoryDocument" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /versions/{id}/production-orders:
+    post:
+      tags: [Production]
+      summary: Create orders from the released plan
+      description: |
+        Turns the daily production plan of a **released** version into orders. A
+        draft may not be used: an order is an instruction to the floor, and
+        instructions do not come from a plan somebody is still editing.
+
+        A day and product that already has an order is skipped and reported
+        rather than duplicated, so the run can be repeated as the season
+        advances.
+      operationId: createOrdersFromPlan
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [from, to]
+              properties:
+                from: { type: string, format: date }
+                to: { type: string, format: date }
+                products:
+                  type: array
+                  items: { type: string, format: uuid }
+      responses:
+        "200":
+          description: The orders created and the planned rows that were skipped.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created:
+                    type: array
+                    items: { $ref: "#/components/schemas/ProductionOrder" }
+                  skipped:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        businessDate: { type: string, format: date }
+                        productId: { type: string, format: uuid }
+                        reason: { type: string }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          description: The version is not released.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
+  /quality/parameters:
+    get:
+      tags: [Quality]
+      summary: List measurable properties
+      operationId: listQualityParameters
+      responses:
+        "200":
+          description: The parameter catalogue.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/QualityParameter" } }
+    put:
+      tags: [Quality]
+      summary: Create or update a parameter
+      description: Requires `masterdata:write`. The code is the business key, so a repeat updates in place.
+      operationId: saveQualityParameter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/QualityParameter" }
+      responses:
+        "200":
+          description: The saved parameter.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QualityParameter" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /quality/specs:
+    get:
+      tags: [Quality]
+      summary: Specifications in force for a product on a date
+      operationId: listQualitySpecs
+      parameters:
+        - name: productId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: on
+          in: query
+          description: The date the limits are read for. Defaults to today.
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: The effective specifications.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/QualitySpec" } }
+    put:
+      tags: [Quality]
+      summary: Create or update a specification
+      description: |
+        Limits are effective dated, so tightening one does not retrospectively
+        fail last season's production. The business key is the product, the
+        parameter and the start date; changing a limit already in force means
+        ending the current specification and starting a new one.
+      operationId: saveQualitySpec
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/QualitySpec" }
+      responses:
+        "200":
+          description: The saved specification.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QualitySpec" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /quality/samples:
+    get:
+      tags: [Quality]
+      summary: List samples
+      operationId: listQualitySamples
+      parameters:
+        - $ref: "#/components/parameters/FactoryId"
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - name: productId
+          in: query
+          schema: { type: string }
+        - $ref: "#/components/parameters/Top"
+        - $ref: "#/components/parameters/Skip"
+      responses:
+        "200":
+          description: A page of samples with their results.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/QualitySample" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      tags: [Quality]
+      summary: Open a sample
+      description: Requires `quality:write`. The sample number is issued by the server.
+      operationId: createQualitySample
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId, factoryId, businessDate]
+              properties:
+                productId: { type: string, format: uuid }
+                batchId: { type: string, format: uuid }
+                factoryId: { type: string, format: uuid }
+                businessDate: { type: string, format: date }
+                shiftId: { type: string, format: uuid }
+                comment: { type: string }
+      responses:
+        "201":
+          description: The open sample.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QualitySample" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /quality/samples/{id}:
+    get:
+      tags: [Quality]
+      summary: Read one sample with its results
+      operationId: getQualitySample
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: The sample.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QualitySample" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /quality/samples/{id}/results:
+    post:
+      tags: [Quality]
+      summary: Enter the laboratory sheet
+      description: |
+        Judges each measurement against the specification in force on the
+        sample's business date and copies the limits onto the result, so a
+        result keeps saying what it was judged against even after somebody edits
+        the specification.
+
+        A measurement whose parameter has no specification in force is recorded
+        and reported in `unspecified`: it judges nothing, and an unspecified
+        parameter is a configuration gap rather than a quality event.
+
+        A completed sheet whose verdict is `FAIL` blocks the quantity named in
+        `holdQuantity`, posting the HOLD document that moves the held quantity
+        on the balance.
+      operationId: recordQualityResults
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [results]
+              properties:
+                results:
+                  type: array
+                  items:
+                    type: object
+                    required: [parameterId, value]
+                    properties:
+                      parameterId: { type: string, format: uuid }
+                      value: { $ref: "#/components/schemas/Decimal" }
+                      uom: { type: string }
+                      comment: { type: string }
+                complete: { type: boolean, description: Closes the sample and produces a verdict. }
+                holdWarehouse: { type: string, format: uuid }
+                holdQuantity: { $ref: "#/components/schemas/Quantity" }
+      responses:
+        "200":
+          description: The sample, its verdict, any hold placed and the unspecified parameters.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sample: { $ref: "#/components/schemas/QualitySample" }
+                  verdict: { type: string, enum: [PASS, WARNING, FAIL] }
+                  hold: { $ref: "#/components/schemas/QualityHold" }
+                  unspecified:
+                    type: array
+                    description: Parameter codes with no specification in force.
+                    items: { type: string }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409":
+          description: The sample is already complete and takes no more results.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
+  /quality/holds:
+    get:
+      tags: [Quality]
+      summary: List holds on stock
+      operationId: listQualityHolds
+      parameters:
+        - name: warehouseId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: productId
+          in: query
+          schema: { type: string }
+        - name: openOnly
+          in: query
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: The holds.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/QualityHold" } }
+    post:
+      tags: [Quality]
+      summary: Block stock by hand
+      description: |
+        Requires `quality:write`. The hold record and the HOLD posting that
+        moves the held quantity are written together, so a hold on the quality
+        record and a balance that still shows the sugar as available cannot
+        drift apart.
+      operationId: placeQualityHold
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [warehouseId, productId, quantity, placedOn, reason]
+              properties:
+                warehouseId: { type: string, format: uuid }
+                productId: { type: string, format: uuid }
+                batchId: { type: string, format: uuid }
+                sampleId: { type: string, format: uuid }
+                quantity: { $ref: "#/components/schemas/Quantity" }
+                placedOn: { type: string, format: date }
+                reason: { type: string }
+      responses:
+        "200":
+          description: The hold.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QualityHold" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /quality/holds/{id}/release:
+    post:
+      tags: [Quality]
+      summary: Free held stock
+      description: |
+        Requires `quality:release`, which is a different permission from the one
+        that places a hold, so a site can put the two in different hands. Posts
+        the RELEASE document that frees the held quantity.
+      operationId: releaseQualityHold
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                releasedOn: { type: string, format: date, description: Defaults to today. }
+                reason: { type: string }
+                rowVersion: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: The released hold.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QualityHold" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "412": { $ref: "#/components/responses/VersionConflict" }
+
+  /maintenance:
+    get:
+      tags: [Maintenance]
+      summary: The outage calendar
+      operationId: listMaintenance
+      parameters:
+        - $ref: "#/components/parameters/FactoryId"
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - name: status
+          in: query
+          description: One status or a comma separated list.
+          schema: { type: string }
+      responses:
+        "200":
+          description: The windows overlapping the range.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/MaintenanceWindow" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    put:
+      tags: [Maintenance]
+      summary: Create, amend or approve a window
+      description: |
+        Writing a window needs `downtime:write`. Setting the status to
+        `APPROVED` needs `plan:approve` as well, because an approved,
+        factory-wide window lengthens the campaign: the plan generator treats
+        its days as non-working and the season's end date moves. A line-specific
+        window does not stop the mill and never removes a crushing day.
+      operationId: saveMaintenance
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MaintenanceWindow" }
+      responses:
+        "200":
+          description: The saved window.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MaintenanceWindow" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "412": { $ref: "#/components/responses/VersionConflict" }
+
   /audit:
     get:
       tags: [Audit]
@@ -965,6 +1759,16 @@ components:
         scope restricts the caller to their companies and factories.
 
   parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    FactoryId:
+      name: factoryId
+      in: query
+      description: Restrict to one factory. A caller with more than one in scope should always send it.
+      schema: { type: string, format: uuid }
     Top:
       name: $top
       in: query
@@ -1072,9 +1876,18 @@ components:
         top: { type: integer }
 
     Quantity:
-      type: number
-      description: An exact decimal quantity in tons, scale 3.
-      examples: [16788.321]
+      type: string
+      description: |
+        An exact decimal quantity in tons, scale 3, carried as a string so that
+        no client turns it into a binary float on the way past.
+      pattern: '^-?[0-9]+(\.[0-9]+)?$'
+      examples: ["16788.321"]
+
+    Decimal:
+      type: string
+      description: An exact decimal, carried as a string. Rates use scale 3, factors scale 6.
+      pattern: '^-?[0-9]+(\.[0-9]+)?$'
+      examples: ["11.000"]
 
     SessionProfile:
       type: object
@@ -1441,6 +2254,286 @@ components:
         hasActual:
           type: boolean
           description: False for days with no recorded actual, so the curve can stop at today.
+
+    StockLine:
+      type: object
+      description: The balance of one product in one warehouse.
+      properties:
+        warehouseId: { type: string, format: uuid }
+        warehouseCode: { type: string }
+        warehouseName: { type: string }
+        productId: { type: string, format: uuid }
+        productCode: { type: string }
+        productName: { type: string }
+        quantity: { $ref: "#/components/schemas/Quantity" }
+        holdQuantity: { $ref: "#/components/schemas/Quantity" }
+        available:
+          allOf: [{ $ref: "#/components/schemas/Quantity" }]
+          description: What may actually be issued - what is there, less what quality has blocked.
+        capacity: { $ref: "#/components/schemas/Quantity" }
+        utilisedPct: { $ref: "#/components/schemas/Decimal" }
+        uom: { type: string }
+
+    PostingRequest:
+      type: object
+      required: [docType, businessDate, factoryId, lines]
+      properties:
+        docType:
+          type: string
+          enum: [RECEIPT, ISSUE, TRANSFER, ADJUSTMENT, COUNT, HOLD, RELEASE, SHIPMENT]
+          description: A reversal is posted through the reverse endpoint, never by hand.
+        businessDate: { type: string, format: date }
+        factoryId: { type: string, format: uuid }
+        reference: { type: string }
+        reasonCode: { type: string }
+        note: { type: string }
+        allowNegativeStock:
+          type: boolean
+          description: Needs `capacity:override`. Recorded on the audit event.
+        capacityOverride:
+          type: boolean
+          description: Needs `capacity:override`. Recorded on the audit event.
+        lines:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [warehouseId, productId, quantity]
+            properties:
+              warehouseId: { type: string, format: uuid }
+              toWarehouse:
+                type: string
+                format: uuid
+                description: Required on a transfer; the receiving warehouse.
+              productId: { type: string, format: uuid }
+              batchId: { type: string, format: uuid }
+              quantity:
+                allOf: [{ $ref: "#/components/schemas/Quantity" }]
+                description: |
+                  Unsigned; the document type gives it its sign. An adjustment
+                  or a count carries its own sign, because a correction can go
+                  either way.
+              uom: { type: string, description: Defaults to the product's base unit. }
+
+    InventoryDocument:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        documentNo: { type: string, examples: ["MD-F1-2026-00017"] }
+        docType:
+          type: string
+          enum: [RECEIPT, ISSUE, TRANSFER, ADJUSTMENT, COUNT, HOLD, RELEASE, SHIPMENT, REVERSAL]
+        businessDate: { type: string, format: date }
+        postedAt: { type: string, format: date-time }
+        factoryId: { type: string, format: uuid }
+        reference: { type: string }
+        reversalOf: { type: string, format: uuid }
+        reversed: { type: boolean }
+        reasonCode: { type: string }
+        note: { type: string }
+        createdAt: { type: string, format: date-time }
+        createdBy: { type: string }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              documentId: { type: string, format: uuid }
+              lineNo: { type: integer }
+              warehouseId: { type: string, format: uuid }
+              productId: { type: string, format: uuid }
+              batchId: { type: string, format: uuid }
+              quantity:
+                allOf: [{ $ref: "#/components/schemas/Quantity" }]
+                description: Signed. A receipt is positive, an issue negative.
+              uom: { type: string }
+              toWarehouse: { type: string, format: uuid }
+
+    ProductionOrder:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        orderNo: { type: string, examples: ["PO-F1-2026-00042"] }
+        companyId: { type: string, format: uuid }
+        factoryId: { type: string, format: uuid }
+        lineId: { type: string, format: uuid }
+        versionId: { type: string, format: uuid, description: The plan the order came from. }
+        businessDate: { type: string, format: date }
+        shiftId: { type: string, format: uuid }
+        productId: { type: string, format: uuid }
+        packagingId: { type: string, format: uuid }
+        plannedQty: { $ref: "#/components/schemas/Quantity" }
+        confirmedQty: { $ref: "#/components/schemas/Quantity" }
+        batchId: { type: string, format: uuid }
+        bomVersion: { type: string }
+        priority: { type: integer, minimum: 1, maximum: 9 }
+        status:
+          type: string
+          enum: [PLANNED, RELEASED, IN_PROCESS, PARTIALLY_CONFIRMED, COMPLETED, TECHNICALLY_CLOSED, CANCELLED]
+        team: { type: string }
+        varianceReason: { type: string }
+        rowVersion: { type: integer, format: int64 }
+        createdAt: { type: string, format: date-time }
+        createdBy: { type: string }
+        updatedAt: { type: string, format: date-time }
+        updatedBy: { type: string }
+
+    ConfirmRequest:
+      type: object
+      properties:
+        businessDate: { type: string, format: date, description: Defaults to the order's date. }
+        shiftId: { type: string, format: uuid }
+        yieldQty:
+          allOf: [{ $ref: "#/components/schemas/Quantity" }]
+          description: The good output. This is what is receipted into stock.
+        scrapQty: { $ref: "#/components/schemas/Quantity" }
+        reworkQty: { $ref: "#/components/schemas/Quantity" }
+        labourHours: { $ref: "#/components/schemas/Decimal" }
+        machineHours: { $ref: "#/components/schemas/Decimal" }
+        batchId: { type: string, format: uuid }
+        reasonCode: { type: string }
+        warehouseId:
+          type: string
+          format: uuid
+          description: Receives the yield. Omit to record production without moving stock.
+        consumptions:
+          type: array
+          items:
+            type: object
+            required: [materialId, quantity]
+            properties:
+              materialId: { type: string, format: uuid }
+              quantity: { $ref: "#/components/schemas/Quantity" }
+              uom: { type: string }
+        overrides:
+          type: object
+          properties:
+            capacityOverride: { type: boolean, description: Needs `capacity:override`. }
+
+    ProductionConfirmation:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        orderId: { type: string, format: uuid }
+        confirmationNo: { type: string, examples: ["CF-F1-2026-00108"] }
+        businessDate: { type: string, format: date }
+        shiftId: { type: string, format: uuid }
+        yieldQty: { $ref: "#/components/schemas/Quantity" }
+        scrapQty: { $ref: "#/components/schemas/Quantity" }
+        reworkQty: { $ref: "#/components/schemas/Quantity" }
+        labourHours: { $ref: "#/components/schemas/Decimal" }
+        machineHours: { $ref: "#/components/schemas/Decimal" }
+        batchId: { type: string, format: uuid }
+        reversalOf: { type: string, format: uuid }
+        reversed: { type: boolean }
+        reasonCode: { type: string }
+        rowVersion: { type: integer, format: int64 }
+        consumptions:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              confirmationId: { type: string, format: uuid }
+              materialId: { type: string, format: uuid }
+              quantity: { $ref: "#/components/schemas/Quantity" }
+              uom: { type: string }
+
+    QualityParameter:
+      type: object
+      required: [code, name]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string, examples: ["POL"] }
+        name: { type: string, examples: ["Polarisation"] }
+        uom: { type: string }
+        testMethod: { type: string }
+        active: { type: boolean }
+        rowVersion: { type: integer, format: int64 }
+
+    QualitySpec:
+      type: object
+      required: [productId, parameterId, validFrom]
+      description: |
+        The limits for one parameter of one product. At least one limit must be
+        set: a specification with none cannot fail anything.
+      properties:
+        id: { type: string, format: uuid }
+        productId: { type: string, format: uuid }
+        parameterId: { type: string, format: uuid }
+        lowerLimit: { $ref: "#/components/schemas/Decimal" }
+        upperLimit: { $ref: "#/components/schemas/Decimal" }
+        warnLower: { $ref: "#/components/schemas/Decimal" }
+        warnUpper: { $ref: "#/components/schemas/Decimal" }
+        validFrom: { type: string, format: date }
+        validTo: { type: string, format: date }
+        rowVersion: { type: integer, format: int64 }
+
+    QualitySample:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        sampleNo: { type: string, examples: ["QS-F1-2026-00311"] }
+        productId: { type: string, format: uuid }
+        batchId: { type: string, format: uuid }
+        factoryId: { type: string, format: uuid }
+        businessDate: { type: string, format: date }
+        shiftId: { type: string, format: uuid }
+        takenAt: { type: string, format: date-time }
+        labUser: { type: string }
+        status: { type: string, enum: [OPEN, COMPLETE, CANCELLED] }
+        comment: { type: string }
+        rowVersion: { type: integer, format: int64 }
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              sampleId: { type: string, format: uuid }
+              parameterId: { type: string, format: uuid }
+              value: { $ref: "#/components/schemas/Decimal" }
+              uom: { type: string }
+              lowerLimit:
+                allOf: [{ $ref: "#/components/schemas/Decimal" }]
+                description: The limit the result was judged against, copied onto the record.
+              upperLimit: { $ref: "#/components/schemas/Decimal" }
+              status: { type: string, enum: [PASS, WARNING, FAIL] }
+              comment: { type: string }
+
+    QualityHold:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        warehouseId: { type: string, format: uuid }
+        productId: { type: string, format: uuid }
+        batchId: { type: string, format: uuid }
+        sampleId: { type: string, format: uuid }
+        quantity: { $ref: "#/components/schemas/Quantity" }
+        placedOn: { type: string, format: date }
+        releasedOn: { type: string, format: date, description: Absent while the hold is blocking stock. }
+        releasedBy: { type: string }
+        reason: { type: string }
+        rowVersion: { type: integer, format: int64 }
+
+    MaintenanceWindow:
+      type: object
+      required: [factoryId, startDate, endDate, description]
+      properties:
+        id: { type: string, format: uuid }
+        factoryId: { type: string, format: uuid }
+        lineId:
+          type: string
+          format: uuid
+          description: A line outage does not stop the mill and never removes a crushing day.
+        equipmentId: { type: string, format: uuid }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        description: { type: string }
+        status: { type: string, enum: [PLANNED, APPROVED, DONE, CANCELLED] }
+        approvedBy: { type: string }
+        rowVersion: { type: integer, format: int64 }
 
     ReportTable:
       type: object

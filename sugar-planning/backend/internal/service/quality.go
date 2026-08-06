@@ -650,13 +650,17 @@ func (e *Execution) ListMaintenance(ctx context.Context, f store.ExecutionFilter
 
 // SaveMaintenance creates or amends a maintenance window.
 //
-// Approving one is a separate act with its own permission, because an approved
-// window silently lengthens the campaign: the generator treats its days as
-// non-working, and the season's end date moves.
+// Two permissions meet here. Writing a window at all needs downtime:write,
+// which is the engineering role. Approving one needs plan:approve as well,
+// because an approved window lengthens the campaign: the generator treats its
+// days as non-working and the season's end date moves. An approver may
+// therefore save a window without holding the engineering permission - that is
+// the whole of what approving is - but nobody approves on the engineering
+// permission alone.
 func (e *Execution) SaveMaintenance(ctx context.Context, m domain.MaintenanceWindow) (domain.MaintenanceWindow, error) {
 	caller := auth.FromContext(ctx)
-	if err := caller.Require(domain.PermDowntimeWrite); err != nil {
-		return domain.MaintenanceWindow{}, err
+	if !caller.Can(domain.PermDowntimeWrite) && !caller.Can(domain.PermPlanApprove) {
+		return domain.MaintenanceWindow{}, caller.Require(domain.PermDowntimeWrite)
 	}
 	if err := caller.RequireFactory(m.FactoryID); err != nil {
 		return domain.MaintenanceWindow{}, err

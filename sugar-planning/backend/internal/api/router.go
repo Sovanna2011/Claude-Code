@@ -21,13 +21,19 @@ type Server struct {
 	planning  *service.Planning
 	analytics *service.Analytics
 	materials *service.Materials
+	execution *service.Execution
 	verifier  auth.Verifier
 	authCfg   auth.Config
 	logger    *slog.Logger
 	version   string
+	// now is injected so that a default business date in a request is
+	// deterministic in tests.
+	now func() time.Time
 	// staticDir serves the SAPUI5 application when the API also hosts the UI,
 	// which is the on-premises single-container deployment.
 	staticDir string
+	// patterns is every route registered, in registration order.
+	patterns []string
 }
 
 // Options configures the server.
@@ -36,11 +42,14 @@ type Options struct {
 	Planning  *service.Planning
 	Analytics *service.Analytics
 	Materials *service.Materials
+	Execution *service.Execution
 	Verifier  auth.Verifier
 	AuthCfg   auth.Config
 	Logger    *slog.Logger
 	Version   string
 	StaticDir string
+	// Now overrides the clock. Leave it nil outside tests.
+	Now func() time.Time
 	// AllowedOrigins is empty for a same-origin deployment.
 	AllowedOrigins []string
 	RequestTimeout time.Duration
@@ -52,8 +61,14 @@ type Options struct {
 func NewServer(o Options) http.Handler {
 	s := &Server{
 		store: o.Store, planning: o.Planning, analytics: o.Analytics, materials: o.Materials,
-		verifier: o.Verifier, authCfg: o.AuthCfg, logger: o.Logger,
-		version: o.Version, staticDir: o.StaticDir,
+		execution: o.Execution, verifier: o.Verifier, authCfg: o.AuthCfg, logger: o.Logger,
+		version: o.Version, staticDir: o.StaticDir, now: o.Now,
+	}
+	if s.now == nil {
+		s.now = func() time.Time { return time.Now().UTC() }
+	}
+	if s.execution == nil {
+		s.execution = service.NewExecution(o.Store, s.now)
 	}
 
 	mux := http.NewServeMux()
@@ -97,17 +112,25 @@ func orDefault(d, fallback time.Duration) time.Duration {
 	return d
 }
 
+// handle registers one endpoint and remembers its pattern, so that a test can
+// hold the OpenAPI document to the routing table rather than to a list somebody
+// has to keep up to date by hand.
+func (s *Server) handle(mux *http.ServeMux, pattern string, h http.HandlerFunc) {
+	s.patterns = append(s.patterns, pattern)
+	mux.HandleFunc(pattern, h)
+}
+
 // routes registers every endpoint. Go 1.22 method patterns keep the routing
 // table readable and make the API surface visible in one place.
 func (s *Server) routes(mux *http.ServeMux) {
 	// --- operations ---------------------------------------------------------
 	mux.HandleFunc("GET /healthz", s.handleHealth)
 	mux.HandleFunc("GET /readyz", s.handleReady)
-	mux.HandleFunc("GET /api/v1/openapi.yaml", s.handleOpenAPI)
+	s.handle(mux, "GET /api/v1/openapi.yaml", s.handleOpenAPI)
 
 	// --- session ------------------------------------------------------------
-	mux.HandleFunc("POST /api/v1/auth/dev-login", s.handleDevLogin)
-	mux.HandleFunc("GET /api/v1/session", s.handleSession)
+	s.handle(mux, "POST /api/v1/auth/dev-login", s.handleDevLogin)
+	s.handle(mux, "GET /api/v1/session", s.handleSession)
 
 	// --- master data --------------------------------------------------------
 	// Every master entity is exposed through the same four routes, generated
@@ -129,48 +152,79 @@ func (s *Server) routes(mux *http.ServeMux) {
 	registerMasterData(mux, "reason-codes", md.ReasonCodes())
 
 	// --- seasons and versions ----------------------------------------------
-	mux.HandleFunc("GET /api/v1/seasons", s.handleListSeasons)
-	mux.HandleFunc("POST /api/v1/seasons", s.handleCreateSeason)
-	mux.HandleFunc("GET /api/v1/seasons/{id}", s.handleGetSeason)
-	mux.HandleFunc("PUT /api/v1/seasons/{id}", s.handleUpdateSeason)
-	mux.HandleFunc("GET /api/v1/seasons/{id}/versions", s.handleListVersions)
-	mux.HandleFunc("POST /api/v1/seasons/{id}/versions", s.handleCreateVersion)
+	s.handle(mux, "GET /api/v1/seasons", s.handleListSeasons)
+	s.handle(mux, "POST /api/v1/seasons", s.handleCreateSeason)
+	s.handle(mux, "GET /api/v1/seasons/{id}", s.handleGetSeason)
+	s.handle(mux, "PUT /api/v1/seasons/{id}", s.handleUpdateSeason)
+	s.handle(mux, "GET /api/v1/seasons/{id}/versions", s.handleListVersions)
+	s.handle(mux, "POST /api/v1/seasons/{id}/versions", s.handleCreateVersion)
 
-	mux.HandleFunc("GET /api/v1/versions/{id}", s.handleGetVersion)
-	mux.HandleFunc("PUT /api/v1/versions/{id}", s.handleUpdateVersion)
-	mux.HandleFunc("POST /api/v1/versions/{id}/copy", s.handleCopyVersion)
-	mux.HandleFunc("POST /api/v1/versions/{id}/generate", s.handleGenerate)
-	mux.HandleFunc("POST /api/v1/versions/{id}/transition", s.handleTransition)
-	mux.HandleFunc("POST /api/v1/versions/compare", s.handleCompare)
+	s.handle(mux, "GET /api/v1/versions/{id}", s.handleGetVersion)
+	s.handle(mux, "PUT /api/v1/versions/{id}", s.handleUpdateVersion)
+	s.handle(mux, "POST /api/v1/versions/{id}/copy", s.handleCopyVersion)
+	s.handle(mux, "POST /api/v1/versions/{id}/generate", s.handleGenerate)
+	s.handle(mux, "POST /api/v1/versions/{id}/transition", s.handleTransition)
+	s.handle(mux, "POST /api/v1/versions/compare", s.handleCompare)
 
-	mux.HandleFunc("PUT /api/v1/versions/{id}/assumptions", s.handleSaveAssumption)
-	mux.HandleFunc("PUT /api/v1/versions/{id}/product-mix", s.handleSaveMix)
-	mux.HandleFunc("DELETE /api/v1/versions/{id}/product-mix/{mixId}", s.handleDeleteMix)
+	s.handle(mux, "PUT /api/v1/versions/{id}/assumptions", s.handleSaveAssumption)
+	s.handle(mux, "PUT /api/v1/versions/{id}/product-mix", s.handleSaveMix)
+	s.handle(mux, "DELETE /api/v1/versions/{id}/product-mix/{mixId}", s.handleDeleteMix)
 
 	// --- daily plan rows ----------------------------------------------------
-	mux.HandleFunc("GET /api/v1/versions/{id}/cane", s.handleListCane)
-	mux.HandleFunc("POST /api/v1/versions/{id}/cane", s.handleUpsertCane)
-	mux.HandleFunc("GET /api/v1/versions/{id}/production", s.handleListProduction)
-	mux.HandleFunc("POST /api/v1/versions/{id}/production", s.handleUpsertProduction)
-	mux.HandleFunc("GET /api/v1/versions/{id}/storage", s.handleListStorage)
-	mux.HandleFunc("POST /api/v1/versions/{id}/storage", s.handleUpsertStorage)
-	mux.HandleFunc("GET /api/v1/versions/{id}/shipments", s.handleListShipments)
-	mux.HandleFunc("POST /api/v1/versions/{id}/shipments", s.handleUpsertShipments)
+	s.handle(mux, "GET /api/v1/versions/{id}/cane", s.handleListCane)
+	s.handle(mux, "POST /api/v1/versions/{id}/cane", s.handleUpsertCane)
+	s.handle(mux, "GET /api/v1/versions/{id}/production", s.handleListProduction)
+	s.handle(mux, "POST /api/v1/versions/{id}/production", s.handleUpsertProduction)
+	s.handle(mux, "GET /api/v1/versions/{id}/storage", s.handleListStorage)
+	s.handle(mux, "POST /api/v1/versions/{id}/storage", s.handleUpsertStorage)
+	s.handle(mux, "GET /api/v1/versions/{id}/shipments", s.handleListShipments)
+	s.handle(mux, "POST /api/v1/versions/{id}/shipments", s.handleUpsertShipments)
 
 	// --- analytics and materials -------------------------------------------
-	mux.HandleFunc("GET /api/v1/dashboard", s.handleDashboard)
-	mux.HandleFunc("GET /api/v1/versions/{id}/material-requirements", s.handleMaterialRequirements)
+	s.handle(mux, "GET /api/v1/dashboard", s.handleDashboard)
+	s.handle(mux, "GET /api/v1/versions/{id}/material-requirements", s.handleMaterialRequirements)
 
-	// --- downtime -----------------------------------------------------------
-	mux.HandleFunc("GET /api/v1/downtime", s.handleListDowntime)
-	mux.HandleFunc("POST /api/v1/downtime", s.handleSaveDowntime)
+	// --- downtime and maintenance -------------------------------------------
+	s.handle(mux, "GET /api/v1/downtime", s.handleListDowntime)
+	s.handle(mux, "POST /api/v1/downtime", s.handleSaveDowntime)
+	s.handle(mux, "GET /api/v1/maintenance", s.handleListMaintenance)
+	s.handle(mux, "PUT /api/v1/maintenance", s.handleSaveMaintenance)
+
+	// --- stock and inventory postings ---------------------------------------
+	s.handle(mux, "GET /api/v1/stock", s.handleStock)
+	s.handle(mux, "GET /api/v1/inventory/documents", s.handleListDocuments)
+	s.handle(mux, "POST /api/v1/inventory/documents", s.handlePostDocument)
+	s.handle(mux, "GET /api/v1/inventory/documents/{id}", s.handleGetDocument)
+	s.handle(mux, "POST /api/v1/inventory/documents/{id}/reverse", s.handleReverseDocument)
+
+	// --- production orders --------------------------------------------------
+	s.handle(mux, "GET /api/v1/production-orders", s.handleListOrders)
+	s.handle(mux, "POST /api/v1/production-orders", s.handleCreateOrder)
+	s.handle(mux, "GET /api/v1/production-orders/{id}", s.handleGetOrder)
+	s.handle(mux, "POST /api/v1/production-orders/{id}/action", s.handleOrderAction)
+	s.handle(mux, "POST /api/v1/production-orders/{id}/confirm", s.handleConfirmOrder)
+	s.handle(mux, "POST /api/v1/versions/{id}/production-orders", s.handleOrdersFromPlan)
+	s.handle(mux, "POST /api/v1/confirmations/{id}/reverse", s.handleReverseConfirmation)
+
+	// --- quality ------------------------------------------------------------
+	s.handle(mux, "GET /api/v1/quality/parameters", s.handleListQualityParameters)
+	s.handle(mux, "PUT /api/v1/quality/parameters", s.handleSaveQualityParameter)
+	s.handle(mux, "GET /api/v1/quality/specs", s.handleListQualitySpecs)
+	s.handle(mux, "PUT /api/v1/quality/specs", s.handleSaveQualitySpec)
+	s.handle(mux, "GET /api/v1/quality/samples", s.handleListSamples)
+	s.handle(mux, "POST /api/v1/quality/samples", s.handleCreateSample)
+	s.handle(mux, "GET /api/v1/quality/samples/{id}", s.handleGetSample)
+	s.handle(mux, "POST /api/v1/quality/samples/{id}/results", s.handleRecordResults)
+	s.handle(mux, "GET /api/v1/quality/holds", s.handleListHolds)
+	s.handle(mux, "POST /api/v1/quality/holds", s.handlePlaceHold)
+	s.handle(mux, "POST /api/v1/quality/holds/{id}/release", s.handleReleaseHold)
 
 	// --- reports ------------------------------------------------------------
-	mux.HandleFunc("GET /api/v1/reports", s.handleListReports)
-	mux.HandleFunc("GET /api/v1/reports/{code}", s.handleRunReport)
+	s.handle(mux, "GET /api/v1/reports", s.handleListReports)
+	s.handle(mux, "GET /api/v1/reports/{code}", s.handleRunReport)
 
 	// --- audit --------------------------------------------------------------
-	mux.HandleFunc("GET /api/v1/audit", s.handleAudit)
+	s.handle(mux, "GET /api/v1/audit", s.handleAudit)
 
 	// --- static SAPUI5 application -----------------------------------------
 	if s.staticDir != "" {
