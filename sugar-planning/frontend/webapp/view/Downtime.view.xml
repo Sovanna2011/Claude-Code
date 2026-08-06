@@ -1,0 +1,84 @@
+<mvc:View controllerName="sugarplan.controller.Downtime" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc"
+	xmlns:core="sap.ui.core">
+
+	<Page id="downtimePage" title="{i18n>downtimeTitle}" showNavButton="true"
+		navButtonPress=".onNavBack">
+		<headerContent>
+			<Button icon="sap-icon://add" text="{i18n>downtimeNew}" type="Emphasized"
+				enabled="{view>/canWrite}" press=".onNewEvent"/>
+			<Button icon="sap-icon://refresh" press=".onFilterChange" tooltip="{i18n>refresh}"/>
+		</headerContent>
+
+		<content>
+			<VBox class="sapUiSmallMargin">
+				<MessageStrip class="sapUiSmallMarginBottom" type="Information" showIcon="true"
+					text="{i18n>downtimeIntro}"/>
+
+				<Toolbar class="sapUiSmallMarginBottom">
+					<Label text="{i18n>colFrom}"/>
+					<DatePicker value="{view>/from}" valueFormat="yyyy-MM-dd"
+						displayFormat="dd MMM yyyy" change=".onFilterChange" width="11rem"/>
+					<Label text="{i18n>colTo}"/>
+					<DatePicker value="{view>/to}" valueFormat="yyyy-MM-dd"
+						displayFormat="dd MMM yyyy" change=".onFilterChange" width="11rem"/>
+					<Label text="{i18n>line}"/>
+					<Select selectedKey="{view>/lineId}" change=".onFilterChange" width="14rem"
+						items="{path: 'view>/lines', templateShareable: false}">
+						<core:Item key="" text="{i18n>allLines}"/>
+						<core:Item key="{view>id}" text="{view>code} {view>name}"/>
+					</Select>
+					<ToolbarSpacer/>
+					<ObjectNumber number="{path: 'view>/totalHours', formatter: '.formatter.tons'}"
+						unit="h" class="sapUiMediumMarginEnd"/>
+					<ObjectNumber number="{path: 'view>/totalLost', formatter: '.formatter.tons0'}"
+						unit="t lost" state="Warning"/>
+				</Toolbar>
+
+				<!-- The ranking describes the filtered list above it, so narrowing
+				     to one line answers "what stops this line" rather than
+				     repeating the season figure. -->
+				<Panel headerText="{i18n>downtimeByReason}" class="sapUiSmallMarginBottom"
+					expandable="true" expanded="true">
+					<core:HTML id="downtimePareto" content="{view>/paretoHtml}" sanitizeContent="false"/>
+				</Panel>
+
+				<Table id="downtimeTable" items="{path: 'view>/events', templateShareable: false}"
+					mode="None" sticky="ColumnHeaders" growing="true" growingThreshold="50"
+					class="sugarTable">
+					<columns>
+						<Column width="10rem"><Text text="{i18n>date}"/></Column>
+						<Column width="12rem"><Text text="{i18n>line}"/></Column>
+						<Column width="8rem"><Text text="{i18n>downtimeKind}"/></Column>
+						<Column><Text text="{i18n>downtimeReason}"/></Column>
+						<Column hAlign="End" width="7rem"><Text text="{i18n>downtimeHours}"/></Column>
+						<Column minScreenWidth="Tablet" demandPopin="true">
+							<Text text="{i18n>downtimeRootCause}"/>
+						</Column>
+						<Column minScreenWidth="Desktop" demandPopin="true">
+							<Text text="{i18n>downtimeAction}"/>
+						</Column>
+					</columns>
+					<items>
+						<ColumnListItem>
+							<cells>
+								<Text text="{path: 'view>businessDate', formatter: '.formatter.date'}"/>
+								<Text text="{view>lineName}"/>
+								<ObjectStatus
+									text="{= ${view>planned} ? ${i18n>downtimePlanned} : ${i18n>downtimeUnplanned} }"
+									state="{= ${view>planned} ? 'Information' : 'Warning' }"/>
+								<Text text="{view>reasonName}"/>
+								<Text text="{path: 'view>durationHours', formatter: '.formatter.tons'}"/>
+								<Text text="{view>rootCause}"/>
+								<Text text="{view>correctiveAction}"/>
+							</cells>
+						</ColumnListItem>
+					</items>
+					<noData>
+						<IllustratedMessage illustrationType="sapIllus-NoEntries"
+							title="{i18n>downtimeEmpty}" description="{i18n>downtimeEmptyDetail}"/>
+					</noData>
+				</Table>
+			</VBox>
+		</content>
+	</Page>
+</mvc:View>

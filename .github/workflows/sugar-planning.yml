@@ -161,6 +161,66 @@ jobs:
           sys.exit(1 if failed else 0)
           PY
 
+      - name: Every i18n key a view or controller asks for exists
+        # A missing key renders as the key itself, which reaches a user as
+        # "downtimeRootCause" in the middle of a table.
+        run: |
+          python3 - <<'PY'
+          import re, glob, sys
+          root = 'sugar-planning/frontend/webapp/'
+          keys = set()
+          for line in open(root + 'i18n/i18n.properties', encoding='utf-8'):
+              line = line.strip()
+              if line and not line.startswith('#') and '=' in line:
+                  keys.add(line.split('=', 1)[0].strip())
+          missing = set()
+          for f in glob.glob(root + 'view/**/*.xml', recursive=True):
+              for m in re.findall(r'i18n>([A-Za-z0-9_]+)', open(f, encoding='utf-8').read()):
+                  if m not in keys:
+                      missing.add((f, m))
+          for f in glob.glob(root + 'controller/*.js'):
+              for m in re.findall(r'getText\("([A-Za-z0-9_]+)"', open(f, encoding='utf-8').read()):
+                  if m not in keys:
+                      missing.add((f, m))
+          for f, k in sorted(missing):
+              print(f'{f}: no i18n key {k}')
+          sys.exit(1 if missing else 0)
+          PY
+
+      - name: Routes, targets, views and controllers agree
+        # A navTo to a route that does not exist fails silently at runtime.
+        run: |
+          python3 - <<'PY'
+          import json, os, re, glob, sys
+          app = 'sugar-planning/frontend/webapp/'
+          manifest = json.load(open(app + 'manifest.json', encoding='utf-8'))
+          routing = manifest['sap.ui5']['routing']
+          routes = {r['name']: r for r in routing['routes']}
+          targets = routing['targets']
+          bad = []
+          for name, r in routes.items():
+              if r['target'] not in targets:
+                  bad.append(f'route {name}: no target {r["target"]}')
+          for name, t in targets.items():
+              for suffix, kind in (('.view.xml', 'view'), ('.controller.js', 'controller')):
+                  folder = 'view/' if kind == 'view' else 'controller/'
+                  if not os.path.exists(app + folder + t['viewName'] + suffix):
+                      bad.append(f'target {name}: no {kind} for {t["viewName"]}')
+          for f in glob.glob(app + 'controller/*.js'):
+              src = open(f, encoding='utf-8').read()
+              for m in re.finditer(r'navTo\(\s*"([^"]+)"', src):
+                  if m.group(1) not in routes:
+                      bad.append(f'{os.path.basename(f)}: navTo("{m.group(1)}") has no route')
+              for m in re.finditer(r'navTo\(\s*"([^"]+)"[^;]*?query:', src, re.S):
+                  pattern = routes.get(m.group(1), {}).get('pattern', '')
+                  if ':?query:' not in pattern:
+                      bad.append(f'{os.path.basename(f)}: navTo("{m.group(1)}", {{query}}) '
+                                 'but its pattern takes no query')
+          for line in bad:
+              print(line)
+          sys.exit(1 if bad else 0)
+          PY
+
       - name: Install and lint
         working-directory: sugar-planning/frontend
         run: |

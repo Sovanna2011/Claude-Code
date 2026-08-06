@@ -448,3 +448,112 @@ func TestTheDowntimeReportPricesEachStoppage(t *testing.T) {
 		t.Errorf("an estimated figure must be labelled as one: %v", tb.Notes)
 	}
 }
+
+func TestAStoppageMustNameAReasonThatExplainsStoppages(t *testing.T) {
+	ts := newTestServer(t)
+	line := lineID(t, ts, "MILL-1")
+
+	event := func(reason string) map[string]any {
+		return map[string]any{
+			"factoryId": ts.seeded.FactoryID, "lineId": line,
+			"businessDate": "2026-12-04", "startAt": "2026-12-04T02:00:00Z",
+			"endAt": "2026-12-04T06:00:00Z", "reasonCode": reason,
+		}
+	}
+
+	// A code that matches no master record would become a bucket of one in the
+	// Pareto that nobody can name.
+	rec := ts.do(t, "supervisor", http.MethodPost, "/api/v1/downtime", event("DT-INVENTED"))
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("an unknown reason code: %d %s", rec.Code, rec.Body.String())
+	}
+
+	// A real code from the wrong family is a subtler mistake and is refused
+	// with the reason said out loud.
+	rec = ts.do(t, "supervisor", http.MethodPost, "/api/v1/downtime", event("RWK-REMELT"))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("a rework reason explaining a stoppage: %d %s", rec.Code, rec.Body.String())
+	}
+	// The message is addressed to the field, so a MessagePopover can put it on
+	// the control the operator has to change.
+	problem := decode(t, rec)
+	fieldErrors, _ := problem["errors"].([]any)
+	if len(fieldErrors) != 1 {
+		t.Fatalf("the refusal must name a field: %v", problem)
+	}
+	first := fieldErrors[0].(map[string]any)
+	if first["field"] != "reasonCode" {
+		t.Errorf("field = %v, want reasonCode", first["field"])
+	}
+	if msg, _ := first["message"].(string); !strings.Contains(msg, "rework") {
+		t.Errorf("the refusal must say what kind of reason it is: %q", msg)
+	}
+
+	rec = ts.do(t, "supervisor", http.MethodPost, "/api/v1/downtime", event("DT-BOILER"))
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("a downtime reason: %d %s", rec.Code, rec.Body.String())
+	}
+	// The duration is derived rather than taken from the caller, so two times
+	// and a duration cannot disagree.
+	if got := decode(t, rec)["durationHours"]; got != "4" {
+		t.Errorf("durationHours = %v, want 4 derived from the two times", got)
+	}
+
+	// A stoppage with no reason at all is allowed: an operator recording an
+	// outage at 3 a.m. may not yet know why, and refusing the record would lose
+	// the hours as well as the reason.
+	rec = ts.do(t, "supervisor", http.MethodPost, "/api/v1/downtime", event(""))
+	if rec.Code != http.StatusCreated {
+		t.Errorf("a stoppage with no reason yet: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestTheDowntimeParetoReachesTheDashboard(t *testing.T) {
+	ts := newTestServer(t)
+	line := lineID(t, ts, "MILL-1")
+
+	for _, e := range []struct{ date, start, end, reason string }{
+		{"2026-12-04", "02:00:00", "08:00:00", "DT-BOILER"},
+		{"2026-12-05", "01:00:00", "05:00:00", "DT-BOILER"},
+		{"2026-12-06", "03:00:00", "05:00:00", "DT-POWER"},
+	} {
+		rec := ts.do(t, "supervisor", http.MethodPost, "/api/v1/downtime", map[string]any{
+			"factoryId": ts.seeded.FactoryID, "lineId": line, "businessDate": e.date,
+			"startAt": e.date + "T" + e.start + "Z", "endAt": e.date + "T" + e.end + "Z",
+			"reasonCode": e.reason,
+		})
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("downtime %s: %d %s", e.date, rec.Code, rec.Body.String())
+		}
+	}
+
+	rec := ts.do(t, "executive", http.MethodGet,
+		"/api/v1/dashboard?seasonId="+ts.seeded.SeasonID, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("dashboard: %d %s", rec.Code, rec.Body.String())
+	}
+	downtime := decode(t, rec)["downtime"].(map[string]any)
+	byReason := downtime["byReason"].([]any)
+	if len(byReason) != 2 {
+		t.Fatalf("two reasons, got %v", byReason)
+	}
+
+	worst := byReason[0].(map[string]any)
+	if worst["reasonCode"] != "DT-BOILER" {
+		t.Errorf("the ranking must put the costliest reason first, got %v", worst["reasonCode"])
+	}
+	if worst["reasonName"] != "Boiler problem" {
+		t.Errorf("the reason must be named from master data, got %v", worst["reasonName"])
+	}
+	if worst["hours"] != "10" || worst["sharePct"] != "83.333" {
+		t.Errorf("boiler = %v h, %v %%", worst["hours"], worst["sharePct"])
+	}
+	// 10 h at the mill's rated 700 t/h.
+	if worst["lostTons"] != "7000" {
+		t.Errorf("lost tons = %v, want 7000", worst["lostTons"])
+	}
+	last := byReason[len(byReason)-1].(map[string]any)
+	if last["cumulativeSharePct"] != "100" {
+		t.Errorf("the cumulative share must reach 100, got %v", last["cumulativeSharePct"])
+	}
+}

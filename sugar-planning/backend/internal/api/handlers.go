@@ -2,8 +2,10 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/kss/sugarplan/internal/auth"
@@ -654,6 +656,33 @@ func (s *Server) handleSaveDowntime(w http.ResponseWriter, r *http.Request) {
 		// float, so 8 hours 20 minutes is 8.333 and not 8.333333333333334.
 		minutes := int64(e.EndAt.Sub(e.StartAt) / time.Minute)
 		e.DurationHrs = domain.RoundRate(domain.DI(minutes).Div(domain.DI(60)))
+	}
+	// The reason is what the Pareto ranks by, so a typed-in code that matches no
+	// master record would become a bucket of one that nobody can name. It is
+	// checked here rather than left to the chart to cope with.
+	if e.ReasonCode != "" {
+		// The error is addressed to the field so a MessagePopover can put the
+		// message on the control the operator has to change.
+		reject := func(code, msg string) {
+			writeProblem(w, r, &domain.ValidationError{Errors: []domain.FieldError{
+				{Field: "reasonCode", Code: code, Message: msg},
+			}})
+		}
+		rc, err := s.store.MasterData().ReasonCodes().GetByCode(r.Context(), e.ReasonCode)
+		if err != nil {
+			if errors.Is(err, domain.ErrNotFound) {
+				reject("UNKNOWN_REASON", fmt.Sprintf("%q is not a reason code", e.ReasonCode))
+				return
+			}
+			writeProblem(w, r, err)
+			return
+		}
+		if rc.Category != "DOWNTIME" {
+			reject("WRONG_REASON_CATEGORY", fmt.Sprintf(
+				"reason %s is a %s reason and cannot explain a stoppage",
+				rc.Code, strings.ToLower(rc.Category)))
+			return
+		}
 	}
 	saved, err := s.store.Planning().SaveDowntime(r.Context(), e, caller.Username)
 	if err != nil {

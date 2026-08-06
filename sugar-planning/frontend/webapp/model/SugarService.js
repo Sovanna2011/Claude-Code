@@ -404,6 +404,14 @@ sap.ui.define([
 				oPayload, { etag: sEtag });
 		},
 
+		listDowntime: function (oParams) {
+			return this.get("/downtime" + this.query(oParams));
+		},
+
+		saveDowntime: function (oEvent) {
+			return this.post("/downtime", oEvent);
+		},
+
 		listMaintenance: function (oParams) {
 			return this.get("/maintenance" + this.query(oParams));
 		},

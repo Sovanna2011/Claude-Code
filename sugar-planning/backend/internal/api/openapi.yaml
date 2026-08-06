@@ -954,6 +954,10 @@ paths:
         - name: factoryId
           in: query
           schema: { type: string, format: uuid }
+        - name: lineId
+          in: query
+          description: Comma-separated production line ids.
+          schema: { type: string }
       responses:
         "200":
           description: The events.
@@ -963,6 +967,19 @@ paths:
     post:
       tags: [Analytics]
       summary: Record a downtime event
+      description: |
+        Requires `downtime:write` and data scope over the factory.
+
+        The duration is derived from `startAt` and `endAt` when it is not
+        supplied, from whole minutes rather than through a float, so eight hours
+        and twenty minutes is recorded as 8.333. A stoppage that ran past
+        midnight keeps the business date of the shift that began it, so `endAt`
+        may fall on the following calendar day.
+
+        `reasonCode` is checked against the reason codes of category `DOWNTIME`.
+        An unknown code, or a real code from another family, is refused with a
+        field error addressed to `reasonCode`; the code may be omitted entirely
+        when the shift does not yet know why the line stopped.
       operationId: saveDowntime
       requestBody:
         required: true
@@ -975,6 +992,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/DowntimeEvent" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
 
   # --------------------------------------------------------------------------
   # Costing

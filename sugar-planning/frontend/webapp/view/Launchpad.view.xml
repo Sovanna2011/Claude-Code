@@ -96,6 +96,10 @@
 						subheader="{i18n>tileQualitySub}" press=".onNavigate" data:route="quality">
 						<TileContent><ImageContent src="sap-icon://lab"/></TileContent>
 					</GenericTile>
+					<GenericTile class="sugarTile" header="{i18n>navDowntime}"
+						subheader="{i18n>tileDowntimeSub}" press=".onNavigate" data:route="downtime">
+						<TileContent><ImageContent src="sap-icon://stop"/></TileContent>
+					</GenericTile>
 					<GenericTile class="sugarTile" header="{i18n>navMaintenance}"
 						subheader="{i18n>tileMaintenanceSub}" press=".onNavigate" data:route="maintenance">
 						<TileContent><ImageContent src="sap-icon://wrench"/></TileContent>

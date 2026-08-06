@@ -93,6 +93,75 @@ sap.ui.define([
 				chart.downtimePareto((oDashboard.downtime || {}).byReason || []));
 		},
 
+		/**
+		 * onDrillDown opens the daily transactions behind a KPI.
+		 *
+		 * Every headline figure on this page is a sum of stored daily rows, and
+		 * a number nobody can get behind is a number nobody can check. The
+		 * target is named on the control rather than worked out here, so the
+		 * link a reader sees and the page it opens are declared in one place.
+		 *
+		 * The window travels with the navigation: landing on the season's first
+		 * fortnight when the tile was describing December would make the reader
+		 * find the period again by hand.
+		 */
+		onDrillDown: function (oEvent) {
+			var oSource = oEvent.getSource();
+			var sTarget = oSource.data("target");
+			var oDashboard = this.getView().getModel("dash").getData() || {};
+			var oContext = oSource.getBindingContext("dash");
+			var oRow = oContext ? oContext.getObject() : {};
+
+			var sActualId = (oDashboard.actualVersion || {}).id || "";
+			var sAsOf = oDashboard.asOf || "";
+			var oWindow = { from: this._windowStart(sAsOf), to: sAsOf };
+
+			switch (sTarget) {
+				case "cane":
+					this.navTo("board", { versionId: sActualId,
+						query: Object.assign({ kind: "cane", series: "ACTUAL" }, oWindow) });
+					break;
+				case "production":
+					this.navTo("board", { versionId: sActualId,
+						query: Object.assign({ kind: "production", series: "ACTUAL" }, oWindow) });
+					break;
+				case "storage":
+					// The warehouse page is the ledger: beginning balance,
+					// movements, ending balance, day by day.
+					this.navTo("warehouse", { query: { warehouseId: oRow.warehouseId || "" } });
+					break;
+				case "shipment":
+					// The daily dispatch rows, not the shipments summary page:
+					// the summary is another view of the same KPI, and drilling
+					// from a total to a total is not drilling down.
+					this.navTo("board", { versionId: sActualId,
+						query: Object.assign({ kind: "shipments", series: "ACTUAL" }, oWindow) });
+					break;
+				case "downtime":
+					this.navTo("downtime", { query: oWindow });
+					break;
+				default:
+					// A tile with no target must not silently do nothing; that
+					// reads as a broken link rather than as one that is absent.
+					this.showToast(this.getText("drillDownUnavailable"));
+			}
+		},
+
+		/**
+		 * _windowStart is a fortnight before the as-of date.
+		 *
+		 * A drill-down that opened all 137 days would be a page nobody can read;
+		 * one that opened a single day would hide the run that led to it.
+		 */
+		_windowStart: function (sAsOf) {
+			if (!sAsOf) {
+				return "";
+			}
+			var oDate = new Date(sAsOf + "T00:00:00Z");
+			oDate.setUTCDate(oDate.getUTCDate() - 13);
+			return oDate.toISOString().slice(0, 10);
+		},
+
 		onVersionChange: function () {
 			var sSeasonId = this.getAppModel().getProperty("/selectedSeasonId");
 			var sVersionId = this.getView().getModel("view").getProperty("/versionId");

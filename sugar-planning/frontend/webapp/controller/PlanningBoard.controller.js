@@ -38,8 +38,21 @@ sap.ui.define([
 		},
 
 		_onDisplay: function (oEvent) {
-			this._sVersionId = oEvent.getParameter("arguments").versionId;
+			var oArgs = oEvent.getParameter("arguments") || {};
+			this._sVersionId = oArgs.versionId;
 			this._dirtyKeys = {};
+
+			// A drill-down from a KPI arrives with the grid it meant: which set
+			// of rows, which series, and the fortnight it was describing. Landing
+			// on the season's first fortnight instead would make the reader
+			// reproduce a filter they had already expressed by clicking.
+			var oQuery = oArgs["?query"] || {};
+			var oView = this.getView().getModel("view");
+			["kind", "series", "from", "to"].forEach(function (sField) {
+				if (oQuery[sField]) {
+					oView.setProperty("/" + sField, oQuery[sField]);
+				}
+			});
 
 			var that = this;
 			this.setBusy(true);

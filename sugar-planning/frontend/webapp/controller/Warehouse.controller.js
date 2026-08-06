@@ -18,18 +18,32 @@ sap.ui.define([
 			this.onContextRefresh(this._onDisplay);
 		},
 
-		_onDisplay: function () {
+		_onDisplay: function (oEvent) {
 			var sSeasonId = this.requireSeason();
 			if (!sSeasonId) {
 				return;
 			}
+			// A drill-down from the dashboard names the store it was describing,
+			// so the ledger opens on it rather than making the reader find the
+			// same row again.
+			var sWanted = (oEvent && oEvent.getParameter("arguments")
+				&& oEvent.getParameter("arguments")["?query"]
+				&& oEvent.getParameter("arguments")["?query"].warehouseId) || "";
 			var that = this;
 			this.setBusy(true);
 
 			this.getService().dashboard(sSeasonId).then(function (oDashboard) {
 				that._sVersionId = (oDashboard.planVersion || {}).id;
-				that.getView().getModel("view").setProperty("/storage", oDashboard.storage || []);
+				var aStorage = oDashboard.storage || [];
+				that.getView().getModel("view").setProperty("/storage", aStorage);
 				that.setBusy(false);
+
+				var oWanted = aStorage.filter(function (oStore) {
+					return oStore.warehouseId === sWanted;
+				})[0];
+				if (oWanted) {
+					that._showLedger(oWanted);
+				}
 			}).catch(function (oProblem) {
 				if (oProblem && oProblem.status === 404) {
 					that.setBusy(false);
@@ -46,7 +60,12 @@ sap.ui.define([
 			if (!oItem) {
 				return;
 			}
-			var oStore = oItem.getBindingContext("view").getObject();
+			this._showLedger(oItem.getBindingContext("view").getObject());
+		},
+
+		/** _showLedger loads one store's daily ledger, whether the reader picked
+		 * it here or arrived from a KPI that named it. */
+		_showLedger: function (oStore) {
 			var oModel = this.getView().getModel("view");
 			var that = this;
 

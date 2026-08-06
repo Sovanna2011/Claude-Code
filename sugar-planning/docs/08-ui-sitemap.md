@@ -20,6 +20,7 @@ flowchart TD
     H --> ST[Stock]
     H --> PO[Production orders]
     H --> Q[Quality]
+    H --> DT[Downtime]
     H --> MN[Maintenance]
     H --> S[Shipments]
     H --> M[Materials]
@@ -215,6 +216,27 @@ certificate of analysis as a PDF — the document that goes in the envelope with
 consignment. It appears only once the sample is complete: a certificate is read
 as a guarantee, and an unfinished sheet is not one the laboratory has given yet.
 
+### Downtime
+
+The stoppage log: what actually stopped, when, why, and what it cost. Filters by
+date range and line; the ranking of reasons by hours lost sits above the list and
+describes the filtered rows, so narrowing to one line answers "what stops this
+line" rather than repeating the season figure.
+
+It is separate from the maintenance calendar on purpose. A maintenance window is
+a decision taken in advance that shortens the crushing season; a stoppage is a
+record of what happened, entered after the fact by the shift that lived through
+it. Mixing them would mean an unplanned boiler failure could quietly move the end
+of the campaign.
+
+Recording one asks for the two clock times rather than a duration, because a
+duration typed in beside two times is a third figure that can disagree with them;
+the server derives it from whole minutes. An end time earlier than the start is
+read as the next morning, so a night-shift stoppage is entered on the day the
+shift began. The reason must be one of the `DOWNTIME` reason codes — the list
+offered holds only those, and the server refuses anything else, because a reason
+nobody can name becomes a bucket of one in the ranking.
+
 ### Maintenance
 
 The outage calendar, with a standing warning at the top: an approved,
@@ -303,13 +325,30 @@ empty table.
 ## 8.3 UX rules applied throughout
 
 **Semantic colour means one thing.** Error is red, warning orange, success
-green, information blue, everywhere, driven by shared formatters. Note that
-`sap.m.ValueColor` (Good/Critical/Error/Neutral) and `sap.ui.core.ValueState`
-(Success/Warning/Error/Information) are different enumerations; each has its own
-formatter, because mixing them throws at render time.
+green, information blue, everywhere, driven by shared formatters. Note that there are three
+overlapping enumerations, not two: `sap.ui.core.ValueState`
+(Success/Warning/Error/Information) for ObjectStatus and ProgressIndicator,
+`sap.m.ValueColor` (Good/Critical/Error/Neutral) for NumericContent and the
+micro charts, and `sap.ui.core.IconColor`
+(Positive/Critical/Negative/Neutral) for `sap.ui.core.Icon`. Passing one where
+another is expected drops the colour, so each has its own formatter and a unit
+test that stops the three being consolidated into one.
 
-**Every KPI drills down.** A tile opens the overview; a warehouse row opens its
-ledger; a report row opens the transactions behind it.
+**Every KPI drills down to the daily rows behind it.** A figure nobody can get
+behind is a figure nobody can check, so each headline carries a link to the
+transactions it is a sum of, and the window travels with it: a tile describing
+December opens on December rather than on the season's first fortnight.
+
+| KPI | Opens |
+| --- | --- |
+| Cane crushed, remaining, forecast completion | The board's cane rows, actual series, the fortnight to the as-of date |
+| Raw sugar recovery | The board's production rows for the same fortnight |
+| A warehouse row | That store's daily ledger, with its balance drawn against the capacity lines |
+| A shipment channel | The board's daily dispatch rows — not the shipments summary, because drilling from a total to a total is not drilling down |
+| Downtime | The stoppage log for the same period |
+
+A target that does not exist says so rather than doing nothing, because a link
+that silently fails reads as broken rather than as absent.
 
 **Business-friendly display, exact storage.** Dates render in the user's locale
 and are stored as ISO. Quantities render with thousands separators and are

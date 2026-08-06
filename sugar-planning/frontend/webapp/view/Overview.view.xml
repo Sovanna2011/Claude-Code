@@ -3,7 +3,8 @@
 	xmlns="sap.m"
 	xmlns:mvc="sap.ui.core.mvc"
 	xmlns:core="sap.ui.core"
-	xmlns:l="sap.ui.layout">
+	xmlns:l="sap.ui.layout"
+	xmlns:app="http://schemas.sap.com/sapui5/extension/sap.ui.core.CustomData/1">
 
 	<Page id="overviewPage" title="{i18n>overviewTitle}" showNavButton="true" navButtonPress=".onNavBack">
 		<headerContent>
@@ -56,6 +57,7 @@
 							displayValue="{path: 'dash>/cane/achievementPct', formatter: '.formatter.percent'}"
 							state="{path: 'dash>/cane/achievementPct', formatter: '.formatter.achievementState'}"
 							class="sapUiTinyMarginTop"/>
+						<Link text="{i18n>drillDown}" press=".onDrillDown" app:target="cane" class="sapUiTinyMarginTop"/>
 					</VBox>
 
 					<VBox class="sugarKpiBox">
@@ -63,6 +65,7 @@
 						<ObjectNumber number="{path: 'dash>/cane/remainingTons', formatter: '.formatter.tons0'}"
 							unit="t" emphasized="true"/>
 						<Text class="sugarKpiFoot" text="{parts: ['i18n>kpiAtRate', 'dash>/cane/rollingAverageTonsPerDay'], formatter: '.formatAtRate'}"/>
+						<Link text="{i18n>drillDown}" press=".onDrillDown" app:target="cane" class="sapUiTinyMarginTop"/>
 					</VBox>
 
 					<VBox class="sugarKpiBox">
@@ -76,6 +79,7 @@
 						<ObjectStatus
 							text="{path: 'dash>/cane/daysBehindSchedule', formatter: '.formatter.daysLabel'}"
 							state="{path: 'dash>/cane/daysBehindSchedule', formatter: '.formatter.daysState'}"/>
+						<Link text="{i18n>drillDown}" press=".onDrillDown" app:target="cane" class="sapUiTinyMarginTop"/>
 					</VBox>
 
 					<VBox class="sugarKpiBox">
@@ -88,6 +92,7 @@
 							text="{parts: ['i18n>kpiTargetRecovery', 'dash>/rawSugar/targetRecoveryPct'], formatter: '.formatTargetRecovery'}"/>
 						<Text class="sugarKpiFoot"
 							text="{parts: ['i18n>kpiRawSugar', 'dash>/rawSugar/actualTons'], formatter: '.formatRawSugar'}"/>
+						<Link text="{i18n>drillDown}" press=".onDrillDown" app:target="production" class="sapUiTinyMarginTop"/>
 					</VBox>
 				</l:Grid>
 
@@ -142,7 +147,10 @@
 						<items>
 							<ColumnListItem>
 								<cells>
-									<ObjectIdentifier title="{dash>warehouseName}" text="{dash>warehouseCode}"/>
+									<VBox>
+										<ObjectIdentifier title="{dash>warehouseName}" text="{dash>warehouseCode}"/>
+										<Link text="{i18n>drillDownLedger}" press=".onDrillDown" app:target="storage"/>
+									</VBox>
 									<Text text="{path: 'dash>capacityTons', formatter: '.formatter.tons0'}"/>
 									<Text text="{path: 'dash>usableCapacityTons', formatter: '.formatter.tons0'}"/>
 									<ObjectNumber number="{path: 'dash>balanceTons', formatter: '.formatter.tons0'}"
@@ -198,7 +206,10 @@
 							<items>
 								<ColumnListItem>
 									<cells>
-										<ObjectIdentifier title="{dash>channelName}" text="{dash>channelCode}"/>
+										<VBox>
+											<ObjectIdentifier title="{dash>channelName}" text="{dash>channelCode}"/>
+											<Link text="{i18n>drillDownDispatches}" press=".onDrillDown" app:target="shipment"/>
+										</VBox>
 										<Text text="{path: 'dash>plannedTons', formatter: '.formatter.tons0'}"/>
 										<Text text="{path: 'dash>actualTons', formatter: '.formatter.tons0'}"/>
 										<ObjectNumber number="{path: 'dash>varianceTons', formatter: '.formatter.tons0'}"
@@ -219,7 +230,9 @@
 							unit="h" class="sapUiMediumMarginEnd"/>
 						<ObjectNumber number="{path: 'dash>/downtime/lostTons', formatter: '.formatter.tons0'}"
 							unit="t lost" state="Warning" class="sapUiMediumMarginEnd"/>
-						<ObjectNumber number="{dash>/downtime/eventCount}" unit="events"/>
+						<ObjectNumber number="{dash>/downtime/eventCount}" unit="events"
+							class="sapUiMediumMarginEnd"/>
+						<Link text="{i18n>drillDownDowntime}" press=".onDrillDown" app:target="downtime"/>
 					</HBox>
 					<core:HTML id="paretoChart" content="{view>/paretoHtml}" sanitizeContent="false"/>
 				</Panel>
