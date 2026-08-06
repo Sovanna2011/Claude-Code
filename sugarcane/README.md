@@ -11,7 +11,7 @@ plantation activity, tractor, equipment, material, workforce, location and sched
 | Persistence | **EF Core 10** → **Microsoft SQL Server** (migrations, row-version concurrency, soft delete) |
 | Identity | **ASP.NET Core Identity** with ten roles and seventeen permission policies |
 | Reporting | 22 reports with print preview, **PDF** (QuestPDF) and **Excel** (ClosedXML) export |
-| Tests | 180 automated tests (xUnit) — 66 unit, 97 integration, 17 against a real SQL Server |
+| Tests | 190 automated tests (xUnit) — 66 unit, 107 integration, 17 against a real SQL Server |
 
 The solution follows **Clean Architecture**: `Domain` has no dependencies, `Application`
 depends only on `Domain` + `Contracts`, `Infrastructure` implements the persistence
@@ -122,11 +122,11 @@ Configure master data
 ## Running the tests
 
 ```bash
-dotnet test                      # 163 tests, no database required
+dotnet test                      # 173 tests, no database required
 
 # The 17 SQL Server tests skip unless a server is configured. To run them:
 export SUGARCANE_TEST_SQLSERVER="Server=127.0.0.1,1433;User Id=sa;Password=…;TrustServerCertificate=True"
-dotnet test                      # 180 tests
+dotnet test                      # 190 tests
 ```
 
 Integration tests run the real service graph (projection → activity plan → MRP → scheduling →

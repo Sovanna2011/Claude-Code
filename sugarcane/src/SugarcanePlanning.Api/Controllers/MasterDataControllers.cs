@@ -274,7 +274,7 @@ public class LookupsController : ApiControllerBase
     public LookupsController(ILookupService service) => _service = service;
 
     /// <summary>kind = companies | estates | farms | zones | blocks | seasons | varieties | activities | materials | tractors | equipment | operators | workteams | projections.</summary>
-    [HttpGet("{kind}")]
+    [HttpGet("{kind}"), Authorize(Policy = Policies.View)]
     public async Task<ActionResult<IReadOnlyList<LookupDto>>> Get(string kind, [FromQuery] int? parentId, CancellationToken ct)
         => Ok(await _service.GetAsync(kind, parentId, ct));
 }

@@ -113,7 +113,12 @@ public class ProjectionsController : ApiControllerBase
         return NoContent();
     }
 
-    /// <summary>Submit / review / approve / reject / return / close (section 16).</summary>
+    /// <summary>
+    /// Submit / review / approve / reject / return / close (section 16). This is the one action
+    /// without a policy attribute: the permission required depends on the action in the body —
+    /// Submit, Approve, Reject, Revise and Close each map to a different one — so the check lives
+    /// in <c>ProjectionService.ExecuteWorkflowAsync</c>, which refuses before reading anything.
+    /// </summary>
     [HttpPost("{id:int}/workflow")]
     public async Task<ActionResult<ProjectionDetailDto>> Workflow(int id, [FromBody] WorkflowActionDto action, CancellationToken ct)
         => Ok(await _service.ExecuteWorkflowAsync(id, action, ct));

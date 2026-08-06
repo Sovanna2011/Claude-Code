@@ -5,7 +5,7 @@
 | Component | Version |
 |-----------|---------|
 | .NET SDK | 10.0 |
-| SQL Server | 2019 or later (Azure SQL and LocalDB also work) |
+| SQL Server | 2019 or later; verified against **SQL Server 2025** (17.0, RTM-CU7) and 2022 (Azure SQL and LocalDB also work) |
 | dotnet-ef | `dotnet tool install --global dotnet-ef --version 10.*` (only to regenerate migrations) |
 
 ## 1. Database
@@ -84,11 +84,11 @@ the header and every exported report is saved as `report.pdf` rather than its re
 ```bash
 dotnet restore
 dotnet build -c Release
-dotnet test  -c Release                      # 163 tests
+dotnet test  -c Release                      # 173 tests
 
 # Optional: also run the 17 tests that need a real SQL Server.
 export SUGARCANE_TEST_SQLSERVER="Server=127.0.0.1,1433;User Id=sa;Password=…;TrustServerCertificate=True"
-dotnet test  -c Release                      # 180 tests
+dotnet test  -c Release                      # 190 tests
 
 dotnet publish src/SugarcanePlanning.Api    -c Release -o ./publish/api
 dotnet publish src/SugarcanePlanning.Client -c Release -o ./publish/client

@@ -105,6 +105,17 @@ the body back into `ApiException` so screens can show the real reason.
 truth, used to register the ASP.NET Core policies, to answer `ICurrentUser.HasPolicy` inside
 services, and to drive what the Blazor client offers.
 
+All 123 endpoints declare the permission they need as an attribute, and `AuthorizationTests`
+enforces that by reflection: an action that forgets its attribute is authenticated-only, so any
+signed-in user could call it, and the test fails with its name. Three endpoints are allowed to
+be authenticated-only, each for a stated reason — `auth/me` and `auth/change-password` are
+self-scoped (both resolve the caller from their own token, and the password change requires the
+current password), and the projection workflow endpoint needs a permission that depends on the
+action in the request body, so `ProjectionService.ExecuteWorkflowAsync` checks it instead. That
+check runs *before* the document is loaded: doing it afterwards would answer 404 rather than 403
+for an unknown id, letting an unauthorized caller probe for valid ids. `AllowAnonymous` appears
+on exactly one action, `auth/login`, and the test pins that list too.
+
 ## Request flow
 
 ```
@@ -125,6 +136,11 @@ machine, revision and version comparison, and every one of the 22 reports.
 
 They also execute `DbSeeder.SeedTransactionsAsync` against a real service provider, so the
 start-up seeding path is verified on a machine with no SQL Server.
+
+`AuthorizationTests` checks the section-21 permission model from both ends: by reflection, that
+every endpoint declares a policy and that every policy name exists in the role map; and
+behaviourally, that a report viewer cannot submit, approve, reject, revise or close, that a
+planner may submit but not approve, and that an approver may approve but not submit.
 
 `SqlServerIntegrationTests` runs the same service graph against an actual SQL Server, creating
 a throw-away database and applying the real migration to it. `ConcurrencyTests` goes further and

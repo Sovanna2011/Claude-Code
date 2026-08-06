@@ -356,12 +356,15 @@ public class ProjectionService : ServiceBase, IProjectionService
 
     public async Task<ProjectionDetailDto> ExecuteWorkflowAsync(int id, WorkflowActionDto action, CancellationToken ct = default)
     {
+        // Authorisation first: the permission depends only on the requested action, so an
+        // unauthorised caller is refused before any document is read. Checking it after the load
+        // would let them probe for ids — a missing projection answers 404 instead of 403.
+        if (ActionPolicies.TryGetValue(action.Action, out var policy) && !User.HasPolicy(policy))
+            throw new ForbiddenException($"Your roles do not allow the action '{action.Action}'.");
+
         var projection = await LoadFullAsync(id, tracking: true, ct);
         if (projection.IsReadOnly)
             throw new BusinessRuleException("READ_ONLY", "This version is read-only; work on the current version instead.");
-
-        if (ActionPolicies.TryGetValue(action.Action, out var policy) && !User.HasPolicy(policy))
-            throw new ForbiddenException($"Your roles do not allow the action '{action.Action}'.");
 
         if (!Transitions.TryGetValue((projection.Status, action.Action), out var newStatus))
             throw new BusinessRuleException("INVALID_TRANSITION",
