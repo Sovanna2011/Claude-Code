@@ -230,6 +230,15 @@ func (e *Execution) CreateOrdersFromPlan(ctx context.Context, versionID string,
 			"%w: version %s is %s; only a released plan may be turned into production orders",
 			domain.ErrStateTransition, version.Code, version.Status)
 	}
+	// Every season has an actuals container, and it is released from the day it
+	// is created so operators can post to it. It is not a plan: it records what
+	// happened, so there is nothing in it to instruct the floor with.
+	if version.PlanType == domain.PlanTypeActual {
+		return OrdersFromPlanResult{}, fmt.Errorf(
+			"%w: %s is the actuals container, which records what happened rather than what to make; "+
+				"raise the orders from the released plan instead",
+			domain.ErrValidation, version.Code)
+	}
 	if !req.From.Valid() || !req.To.Valid() {
 		return OrdersFromPlanResult{}, fmt.Errorf(
 			"%w: the run needs a valid from and to date", domain.ErrValidation)

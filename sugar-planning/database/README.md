@@ -11,6 +11,7 @@ is the image that migrates the database, so the two can never be out of step.
 0003_execution.up.sql / .down.sql            orders, confirmations, inventory documents
 0004_quality_downtime.up.sql / .down.sql     specs, samples, holds, downtime, maintenance
 0005_security_governance.up.sql / .down.sql  identity, approvals, audit, outbox, jobs
+0006_negative_stock.up.sql / .down.sql       relax the stock_balances hold check
 ```
 
 ## Running them

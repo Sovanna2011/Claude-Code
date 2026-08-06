@@ -357,3 +357,39 @@ func TestExecutionEndpointsRefuseAnotherFactory(t *testing.T) {
 		}
 	}
 }
+
+// TestTheSignInListComesFromTheServer pins the reason the endpoint exists: the
+// application used to keep its own copy of the demonstration accounts, and the
+// copy drifted - the quality user was configured on the server and missing from
+// the sign-in page, so the laboratory role could not be demonstrated at all.
+func TestTheSignInListComesFromTheServer(t *testing.T) {
+	ts := newTestServer(t)
+
+	rec := ts.do(t, "", http.MethodGet, "/api/v1/auth/dev-users", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; the sign-in page has no token yet", rec.Code)
+	}
+	body := decode(t, rec)
+	users := body["value"].([]any)
+	if len(users) == 0 {
+		t.Fatal("no accounts were listed")
+	}
+
+	names := map[string]bool{}
+	for _, u := range users {
+		entry := u.(map[string]any)
+		names[entry["username"].(string)] = true
+		if entry["displayName"] == "" {
+			t.Errorf("%v has no display name", entry["username"])
+		}
+		if roles, ok := entry["roles"].([]any); !ok || len(roles) == 0 {
+			t.Errorf("%v has no roles", entry["username"])
+		}
+	}
+	// Every account the server can issue a token for must be offered.
+	for _, want := range []string{"planner", "approver", "supervisor", "keeper", "lab", "masterdata"} {
+		if !names[want] {
+			t.Errorf("%q is configured on the server but not offered on the sign-in page", want)
+		}
+	}
+}

@@ -79,6 +79,10 @@
 								<tnt:NavigationListItem text="{i18n>navOverview}" icon="sap-icon://business-objects-experience" key="overview"/>
 								<tnt:NavigationListItem text="{i18n>navPlans}" icon="sap-icon://document-text" key="plans"/>
 								<tnt:NavigationListItem text="{i18n>navWarehouse}" icon="sap-icon://warehouse" key="warehouse"/>
+								<tnt:NavigationListItem text="{i18n>navStock}" icon="sap-icon://inventory" key="stock"/>
+								<tnt:NavigationListItem text="{i18n>navOrders}" icon="sap-icon://factory" key="orders"/>
+								<tnt:NavigationListItem text="{i18n>navQuality}" icon="sap-icon://lab" key="quality"/>
+								<tnt:NavigationListItem text="{i18n>navMaintenance}" icon="sap-icon://wrench" key="maintenance"/>
 								<tnt:NavigationListItem text="{i18n>navShipments}" icon="sap-icon://shipping-status" key="shipments"/>
 								<tnt:NavigationListItem text="{i18n>navMaterials}" icon="sap-icon://sales-order-item" key="materials"/>
 								<tnt:NavigationListItem text="{i18n>navReports}" icon="sap-icon://list" key="reports"/>

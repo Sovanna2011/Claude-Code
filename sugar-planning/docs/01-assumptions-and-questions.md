@@ -139,6 +139,53 @@ reversible through configuration unless noted.
 | C5 | Master data is deactivated, never deleted. | Section 17. Referential history stays intact. |
 | C6 | Stock balances are stored on the daily row and recalculated forward whenever a movement changes. | A season is 137 days across several stores; replaying the ledger on every read would not meet the p95 targets. |
 
+### Execution
+
+**A quantity is entered unsigned and the document type gives it its sign.** That
+is how a warehouse keeper describes a movement — "issue 120", not "add minus
+120" — and it removes a class of sign errors that no amount of validation
+catches. Adjustments and counts are the exception, because a correction can go
+either way and forcing a choice of document type by the sign of the difference
+would be busy-work.
+
+**A negative balance is refused by default and permitted with authorisation.**
+Sites that book consumption before the matching receipt need it, and reversing a
+receipt whose stock has since shipped needs it. The database constraint was
+written to forbid negative stock outright, which contradicted this; migration
+0006 relaxes it to say only what it should — nothing may be held that is not
+there — and leaves the business decision to the domain, checked against the
+caller's permission and recorded on the audit event.
+
+**A confirmation receipts only its yield.** Scrap has left the process and rework
+has not finished it. Recording either as stock would put sugar in a shed that
+does not hold any. Both are still recorded on the confirmation, because they are
+what the shift produced.
+
+**Over-confirmation completes an order.** Factories make more than planned. The
+alternative — refusing the confirmation or leaving the order open — would make
+the operator lie about what they made.
+
+**Orders come only from a released plan.** An order is an instruction to the
+floor, and instructions do not come from a draft somebody is still editing. The
+actuals container is refused as a source too, even though it is released from the
+day it is created: it records what happened rather than what to make.
+
+**A quality result keeps the limits it was judged against.** Copying the limits
+onto the result rather than pointing at the specification is what lets somebody
+tighten a limit next season without retrospectively failing this one. Where two
+specifications for the same parameter are both in force, the later start date
+wins — leaving it to the order the repository returned would make a verdict
+depend on the storage engine.
+
+**A measurement with no specification in force is reported, not passed.** It
+judges nothing, and saying so is the point: an unspecified parameter is a
+configuration gap, and silence is how a limit goes years without being set.
+
+**Only approved, factory-wide maintenance removes a crushing day.** A window
+somebody is still thinking about must not quietly move the end of the season, and
+a line outage does not stop the mill. The season is extended rather than
+shortened: the same cane still has to be crushed.
+
 ### Security and operations
 
 | # | Decision | Reasoning |
@@ -192,13 +239,17 @@ responses and no unexplained TODOs.
 - Executive dashboard and nine reports, exported to CSV, Excel and PDF
 - PostgreSQL schema for every table group, with reversible migrations
 
-**Data model present, application logic scheduled for phase 4**
+- Inventory documents and reversals, production orders and confirmations,
+  quality samples, results and holds, and the maintenance calendar — with their
+  screens
+- Downtime recording, which feeds the dashboard's lost-tonnage figure
 
-Production orders and confirmations, inventory documents and reversals, quality
-samples/results/holds, and maintenance windows all have their tables, constraints
-and indexes in the migrations, and the domain enumerations exist. Their services
-and screens are phase 4. Downtime is the exception: it is recorded and it feeds
-the dashboard's lost-tonnage figure today.
+**Not built: the Excel migration**
+
+The importer is the one item of the original scope with nothing behind it. Its
+`import_jobs` table exists; the mapping does not, because the workbook it must
+read was never provided. Writing a column mapping against a file nobody has seen
+would be guesswork dressed as progress.
 
 **Not started**
 

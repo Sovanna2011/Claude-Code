@@ -57,9 +57,18 @@ On the reference figures it finds three real problems:
 - keeping it inside capacity needs **844 t/day** of shipment against the
   **500 t/day** planned.
 
-**Runs the day.** Operators record cane, production, stock movements, shipments
-and downtime by shift. Actuals live in their own container and can never
-overwrite an approved plan.
+**Runs the day.** Production orders come from the released plan; shifts confirm
+against them and the yield is receipted into a store in the same transaction.
+Stock moves only through documents — receipt, issue, transfer, adjustment, count,
+hold, release, shipment — and a mistake is corrected by a reversal that points
+back at the original, never by an edit. The laboratory judges samples against
+effective-dated limits and blocks the material that fails. Actuals live in their
+own container and can never overwrite an approved plan.
+
+**Refuses what should be refused, and says why.** A posting that would drive a
+balance below zero, ship quality-held sugar, or overfill a store is rejected with
+the offending line named and the figures quoted. Breaking one of those rules is
+possible, but it takes a second permission and it lands on the audit record.
 
 **Answers the capacity question.** When does this store fill? What shipment rate
 prevents it? What does a lower recovery do to the season? Each is a calculation,

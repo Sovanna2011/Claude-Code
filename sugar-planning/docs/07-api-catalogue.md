@@ -5,8 +5,11 @@ in the binary and served at `GET /api/v1/openapi.yaml`. It is OpenAPI 3.1 and
 carries request and response schemas, examples and error shapes. This document
 is the map.
 
-An API test parses the specification and asserts that every documented path is
-actually routed, so the document cannot quietly drift from the implementation.
+Two tests hold the document to the code, one in each direction: a public test
+parses the specification and asserts that every documented path is routed, and
+an internal one reads the router's own pattern list and asserts that every route
+is documented. The first catches a specification running ahead of the code; the
+second catches the quieter failure, an endpoint added and never written down.
 
 ---
 
@@ -18,12 +21,12 @@ actually routed, so the document cannot quietly drift from the implementation.
 | Authentication | `Authorization: Bearer <token>` on every path except the sign-in and the specification itself |
 | Timestamps | ISO 8601, stored in UTC |
 | Business dates | ISO calendar dates in the factory time zone, no time component |
-| Numbers | Exact decimals. Clients must not round-trip them through binary floating point |
+| Numbers | Exact decimals carried as **JSON strings**, for example `"16788.321"`. A JSON number would be read back as a binary float by most clients, and 2,300,000 t split across 137 days does not survive that. A request may send either form; a response is always a string |
 | Lists | `$top`, `$skip`, `$search`; response `{ value, count, skip, top }` |
 | Filtering | Documented, allow-listed query parameters only. No client-supplied query language |
 | Concurrency | `ETag` on read, `If-Match` on write; mismatch is `412` |
 | Idempotency | `Idempotency-Key` on posting endpoints; a repeat replays the first response |
-| Errors | RFC 9457 problem documents with `errors[]` addressed by `row` and `field` |
+| Errors | RFC 9457 problem documents, served as `application/problem+json`, with `errors[]` addressed by `row` and `field` |
 | Correlation | `X-Correlation-Id` echoed on every response and stored on the audit record |
 
 ### Status codes
@@ -221,9 +224,127 @@ Idempotency-Key: 4f2a-…
 A repeat with the same `Idempotency-Key` answers `Idempotent-Replay: true`
 rather than rebuilding.
 
+
 ---
 
-## 7.4 What the API does not do
+## 7.4 Execution
+
+The daily factory. Twenty-two endpoints across stock, production orders, quality
+and maintenance.
+
+### Stock and postings
+
+| Method | Path | Purpose | Permission |
+| --- | --- | --- | --- |
+| GET | `/stock` | Balance, held quantity, available and utilisation per warehouse and product | `plan:read` |
+| GET | `/inventory/documents` | The ledger, newest first, each document with its lines | `plan:read` |
+| POST | `/inventory/documents` | Move stock | `actual:stock` |
+| GET | `/inventory/documents/{id}` | One posting | `plan:read` |
+| POST | `/inventory/documents/{id}/reverse` | Post the counter-document | `actual:stock` |
+
+A posting request carries **unsigned** quantities; the document type gives them
+their sign. That is how a warehouse keeper thinks about it - an issue of 120 t is
+"issue 120", not "add minus 120" - and it removes a whole class of sign errors.
+An adjustment and a count are the exception: they carry their own sign, because
+a correction can go either way. A transfer names the receiving store and is
+expanded server-side into the pair of signed lines that move both balances, so
+the two halves can never be posted apart from one another.
+
+A posting is refused, with the offending line named in `errors[]`, when it would
+
+- drive a balance below zero,
+- move stock that quality has blocked, or
+- take a store past its usable capacity.
+
+`allowNegativeStock` and `capacityOverride` ask for the first and third to be
+waived. Both need `capacity:override`, both are refused rather than silently
+ignored when the caller lacks it, and both are recorded on the audit event.
+
+Every posting endpoint honours `Idempotency-Key`. The key is claimed before the
+work starts, so two concurrent retries cannot both post; the response is attached
+afterwards, so a later retry replays the document the first request produced
+rather than a bare acknowledgement.
+
+### Production orders
+
+| Method | Path | Purpose | Permission |
+| --- | --- | --- | --- |
+| GET | `/production-orders` | List, filtered by factory, date, line, product, status, or open only | `plan:read` |
+| POST | `/production-orders` | Create one by hand | `actual:production` |
+| GET | `/production-orders/{id}` | The order, its confirmations, and what may be done next | `plan:read` |
+| POST | `/production-orders/{id}/action` | Release, complete, technically close, cancel | `actual:production` |
+| POST | `/production-orders/{id}/confirm` | Record what a shift produced | `actual:production` |
+| POST | `/versions/{id}/production-orders` | Create orders from the released plan | `actual:production` |
+| POST | `/confirmations/{id}/reverse` | Undo a confirmation | `actual:production` |
+
+Orders may only be raised from a **released** plan: an order is an instruction to
+the floor, and instructions do not come from a draft somebody is still editing.
+The actuals container is refused too, even though it is released from the day it
+is created - it records what happened rather than what to make.
+
+Confirming writes the confirmation, receipts the good output into the named
+warehouse, advances the order's quantity and status, and records the audit event
+in one transaction. Scrap and rework are recorded but not receipted: scrap has
+left the process and rework has not finished it, and inventing a balance for
+either would put sugar in a shed that does not hold any. Omitting the warehouse
+records the production without moving stock.
+
+Closing an order whose confirmed quantity is more than the tolerance away from
+its plan needs a `varianceReason` that is a configured reason code, **and** a
+caller holding `plan:approve`. The tolerance defaults to 5% and is overridden per
+plan by the `CLOSE_VARIANCE_TOLERANCE_PCT` assumption.
+
+### Quality
+
+| Method | Path | Purpose | Permission |
+| --- | --- | --- | --- |
+| GET / PUT | `/quality/parameters` | The measurable properties | `masterdata:read` / `masterdata:write` |
+| GET / PUT | `/quality/specs` | Effective-dated limits for a product | `masterdata:read` / `masterdata:write` |
+| GET | `/quality/samples` | Samples with their results | `plan:read` |
+| POST | `/quality/samples` | Open a sample | `quality:write` |
+| GET | `/quality/samples/{id}` | One sample | `plan:read` |
+| POST | `/quality/samples/{id}/results` | Enter the laboratory sheet | `quality:write` |
+| GET | `/quality/holds` | Holds on stock | `plan:read` |
+| POST | `/quality/holds` | Block stock by hand | `quality:write` |
+| POST | `/quality/holds/{id}/release` | Free blocked stock | `quality:release` |
+
+Each measurement is judged against the specification in force on the **sample's**
+business date, and the limits are copied onto the result rather than pointed at,
+so a result keeps saying what it was judged against even after somebody edits the
+specification. Where two specifications for one parameter are both in force - a
+limit tightened without ending the older one - the later start date wins.
+
+A measurement whose parameter has no specification in force is recorded and
+reported back in `unspecified`. It judges nothing: an unspecified parameter is a
+configuration gap, and passing it silently is how a limit goes years without
+being set.
+
+A completed sheet whose verdict is `FAIL` blocks the quantity named on it. The
+hold record and the HOLD posting that moves the held quantity are written
+together, so a hold on the quality record and a balance that still shows the
+sugar as available cannot drift apart.
+
+Placing a hold sits behind `quality:write` and releasing one behind
+`quality:release`, so a site that wants the person who stops the sugar leaving to
+be a different person from the one who lets it go can arrange that by granting
+the two to different roles.
+
+### Maintenance
+
+| Method | Path | Purpose | Permission |
+| --- | --- | --- | --- |
+| GET | `/maintenance` | The outage calendar | `plan:read` |
+| PUT | `/maintenance` | Create, amend or approve a window | `downtime:write`, plus `plan:approve` to approve |
+
+Approving is a second permission because an approved, factory-wide window
+lengthens the campaign: the generator treats its days as non-working and the
+season's end date moves. A line-specific window does not stop the mill and never
+removes a crushing day. The generator reads the calendar itself, so nobody has to
+remember to type the dates into a generate request.
+
+---
+
+## 7.5 What the API does not do
 
 Worth stating so nobody looks for it:
 

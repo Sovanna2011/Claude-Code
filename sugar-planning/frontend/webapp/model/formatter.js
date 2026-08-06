@@ -214,6 +214,104 @@ sap.ui.define([], function () {
 				return "Success";
 			}
 			return iDays > 7 ? "Error" : "Warning";
+		},
+
+		// ------------------------------------------------------------------
+		// Execution
+		// ------------------------------------------------------------------
+
+		/** orderState colours an order by how far through its life it is. */
+		orderState: function (sStatus) {
+			switch (sStatus) {
+				case "COMPLETED":
+				case "TECHNICALLY_CLOSED": return "Success";
+				case "CANCELLED": return "Error";
+				case "PARTIALLY_CONFIRMED":
+				case "IN_PROCESS": return "Warning";
+				default: return "Information";
+			}
+		},
+
+		/** orderStatusLabel turns the stored status into a readable phrase. */
+		orderStatusLabel: function (sStatus) {
+			var mLabels = {
+				PLANNED: "Planned",
+				RELEASED: "Released",
+				IN_PROCESS: "In process",
+				PARTIALLY_CONFIRMED: "Partly confirmed",
+				COMPLETED: "Completed",
+				TECHNICALLY_CLOSED: "Closed",
+				CANCELLED: "Cancelled"
+			};
+			return mLabels[sStatus] || sStatus;
+		},
+
+		/** qualityState colours a laboratory verdict. */
+		qualityState: function (sStatus) {
+			switch (sStatus) {
+				case "FAIL": return "Error";
+				case "WARNING": return "Warning";
+				case "PASS": return "Success";
+				default: return "None";
+			}
+		},
+
+		/** docTypeLabel names a stock movement in the words a keeper uses. */
+		docTypeLabel: function (sType) {
+			var mLabels = {
+				RECEIPT: "Goods receipt",
+				ISSUE: "Goods issue",
+				TRANSFER: "Transfer",
+				ADJUSTMENT: "Adjustment",
+				COUNT: "Stock count",
+				HOLD: "Quality hold",
+				RELEASE: "Hold released",
+				SHIPMENT: "Shipment",
+				REVERSAL: "Reversal"
+			};
+			return mLabels[sType] || sType;
+		},
+
+		/** utilisationState warns before a store is full rather than after. */
+		utilisationState: function (vPercent) {
+			var fValue = parseFloat(vPercent);
+			if (isNaN(fValue)) {
+				return "None";
+			}
+			if (fValue >= 100) {
+				return "Error";
+			}
+			return fValue >= 90 ? "Warning" : "Success";
+		},
+
+		/** heldState draws attention to a store holding blocked stock. */
+		heldState: function (vHeld) {
+			return parseFloat(vHeld) > 0 ? "Warning" : "None";
+		},
+
+		/** holdStatus says in one word whether a hold is still blocking. */
+		holdStatus: function (sReleasedOn) {
+			return sReleasedOn ? "Released" : "Blocking";
+		},
+
+		holdState: function (sReleasedOn) {
+			return sReleasedOn ? "Success" : "Warning";
+		},
+
+		/** maintenanceState colours a window by whether it has been approved,
+		 * which is what decides if it costs the plan a crushing day. */
+		maintenanceState: function (sStatus) {
+			switch (sStatus) {
+				case "APPROVED": return "Warning";
+				case "DONE": return "Success";
+				case "CANCELLED": return "Error";
+				default: return "Information";
+			}
+		},
+
+		/** reversedLabel marks a document that has been undone. */
+		reversedLabel: function (bReversed) {
+			return bReversed ? "Reversed" : "";
 		}
 	};
 

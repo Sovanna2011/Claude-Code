@@ -110,6 +110,32 @@ explicitly and appears as such in the audit trail.
 permission at all. Auditor additionally holds `audit:read`, which nobody else
 but the administrator does.
 
+### How execution uses these permissions
+
+Three places in the execution layer need a second permission on top of the one
+that opens the screen, because the action costs somebody something:
+
+| Action | Base permission | Additional | Why |
+| --- | --- | --- | --- |
+| Post beyond a store's usable capacity, or below zero stock | `actual:stock` | `capacity:override` | Both break a rule the ledger otherwise enforces, and both are recorded on the audit event with the override named |
+| Technically close an order outside the variance tolerance | `actual:production` | `plan:approve`, and a configured reason code | An order that did not make what it was told to make is closed by somebody accountable for the explanation |
+| Approve a maintenance window | `downtime:write` | `plan:approve` | An approved factory-wide window removes crushing days and moves the end of the season |
+
+Two more follow the opposite principle - one permission is enough, because the
+stock movement is a *consequence* of the act rather than a separate act:
+
+- Confirming production receipts its own yield. A supervisor does not need the
+  keeper's permission to put the sugar they just made into a shed.
+- A failed quality sample blocks the material it covers. Blocking is part of
+  failing it, not a warehouse operation.
+
+Releasing a quality hold is deliberately a different permission
+(`quality:release`) from placing one (`quality:write`), so a site that wants the
+person who stops the sugar leaving to be a different person from the one who lets
+it go can arrange that by granting the two to different roles. The shipped
+Quality User role holds both; splitting them is a configuration decision, not a
+code change.
+
 ---
 
 ## 3.4 Data scope

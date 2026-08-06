@@ -84,6 +84,22 @@
 						subheader="{i18n>tileWarehouseSub}" press=".onNavigate" data:route="warehouse">
 						<TileContent><ImageContent src="sap-icon://warehouse"/></TileContent>
 					</GenericTile>
+					<GenericTile class="sugarTile" header="{i18n>navStock}"
+						subheader="{i18n>tileStockSub}" press=".onNavigate" data:route="stock">
+						<TileContent><ImageContent src="sap-icon://inventory"/></TileContent>
+					</GenericTile>
+					<GenericTile class="sugarTile" header="{i18n>navOrders}"
+						subheader="{i18n>tileOrdersSub}" press=".onNavigate" data:route="orders">
+						<TileContent><ImageContent src="sap-icon://factory"/></TileContent>
+					</GenericTile>
+					<GenericTile class="sugarTile" header="{i18n>navQuality}"
+						subheader="{i18n>tileQualitySub}" press=".onNavigate" data:route="quality">
+						<TileContent><ImageContent src="sap-icon://lab"/></TileContent>
+					</GenericTile>
+					<GenericTile class="sugarTile" header="{i18n>navMaintenance}"
+						subheader="{i18n>tileMaintenanceSub}" press=".onNavigate" data:route="maintenance">
+						<TileContent><ImageContent src="sap-icon://wrench"/></TileContent>
+					</GenericTile>
 					<GenericTile class="sugarTile" header="{i18n>navShipments}"
 						subheader="{i18n>tileShipmentsSub}" press=".onNavigate" data:route="shipments">
 						<TileContent><ImageContent src="sap-icon://shipping-status"/></TileContent>

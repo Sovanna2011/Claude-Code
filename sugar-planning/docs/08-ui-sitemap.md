@@ -17,6 +17,10 @@ flowchart TD
     PD --> B[Daily planning board]
     P --> B
     H --> W[Warehouse and silo]
+    H --> ST[Stock]
+    H --> PO[Production orders]
+    H --> Q[Quality]
+    H --> MN[Maintenance]
     H --> S[Shipments]
     H --> M[Materials]
     H --> R[Reports]
@@ -42,13 +46,17 @@ recover when they were mounted before sign-in finished.
 
 ### Sign in
 
-Selects a development account and signs in. In an OIDC deployment the list is
-empty and the button redirects to the identity provider; nothing else changes.
+Selects a development account and signs in. The account list is fetched from the
+server rather than kept in the browser, so an account added to the configuration
+and forgotten in the page cannot happen — which it once did: the quality user was
+configured on the server and missing from the page, and the laboratory role could
+not be demonstrated at all. In an OIDC deployment the list comes back empty and
+the button redirects to the identity provider; nothing else changes.
 
 ### Launchpad
 
 Five KPI tiles answering "is the season on track today" — cane crushed,
-achievement, recovery, forecast completion, open alerts — above eight
+achievement, recovery, forecast completion, open alerts — above twelve
 navigation tiles. Each KPI tile is coloured by the same semantic rules used
 everywhere else and drills into the overview.
 
@@ -151,6 +159,62 @@ percentage, first warning date, first full date, and the shipment rate that
 would prevent it. Selecting a store draws its balance against the capacity lines
 and lists the daily ledger.
 
+### Stock
+
+The warehouse keeper's page. The current position first — on hand, on hold,
+available, capacity and utilisation per store and product — and the movements
+that produced it below, because a keeper wants to know what is in the shed before
+they want to know how it got there.
+
+**Post a movement** opens one dialog for every movement type. The quantity is
+entered as a positive number and the movement type decides the sign; the
+receiving store appears only for a transfer. A refused posting leaves the dialog
+open with the offending line named, so the keeper corrects it rather than typing
+the whole movement again.
+
+**Reverse** posts the counter-document. Nothing is deleted and nothing is edited:
+both documents stay in the ledger, which is what lets somebody six months later
+see that a mistake was made and what was done about it.
+
+### Production orders
+
+What the floor has been told to make, and what it actually made. **Create from
+plan** raises orders for a range of days from the released plan and reports both
+numbers — created and already covered — because "nothing created" is a normal
+answer when the range is already done. The button is disabled when the season has
+no released plan, and the message strip says why.
+
+Selecting an order opens its detail: quantities, variance, its confirmations, and
+the actions its status allows. The buttons follow `allowedActions` from the API,
+so a button that would be refused is disabled rather than offered and then
+rejected.
+
+**Confirm** offers the open quantity as the default, so a shift that made what it
+was asked to make presses one button. Only the yield is receipted into the chosen
+store; scrap and rework are recorded but not.
+
+### Quality
+
+The laboratory. Samples above, holds on stock below.
+
+Selecting an open sample opens the laboratory sheet with one row per configured
+parameter. A parameter left blank was not measured and is not sent — an empty box
+is not a reading of zero. The sheet is judged server-side and the verdict comes
+back with it; a parameter with no limits in force is reported separately, because
+an unspecified parameter is a configuration gap rather than a quality event.
+
+A failed sheet blocks the quantity named on it. The holds table shows what is
+blocking and what has been released; releasing needs the quality release
+permission, which the keeper does not hold.
+
+### Maintenance
+
+The outage calendar, with a standing warning at the top: an approved,
+factory-wide window removes crushing days, and the season is extended rather than
+shortened, so the campaign ends later. Approving asks for confirmation and says
+how many days it will cost. Leaving the line unset means the whole factory stops,
+which is the case that moves the end of the season; a line outage does not.
+
 ### Shipments
 
 Planned against actual by channel, plus what the finished goods stores require:
@@ -246,3 +310,27 @@ development:
 - A negative value flagged in the field before it reaches the server
 - Master data, reports, materials and shipments rendering their real data
 - The audit trail correctly refusing a planner, who lacks `audit:read`
+
+The execution pages were walked the same way, as five different users:
+
+- A keeper posting a 500 t receipt and seeing the balance, capacity and
+  utilisation update
+- An issue of 900 t against 500 t on hand refused, with the offending line named
+  and the figures quoted, and the ledger left with only the receipt
+- A reversal posted, the balance returning to zero and both documents staying in
+  the ledger
+- A supervisor raising orders from the released plan for three days, then running
+  the same range again and getting "0 created, 6 already covered"
+- An order released and confirmed at 973.723 t against a plan of 973.723 t, the
+  status reaching COMPLETED and the goods receipt posted
+- The laboratory opening a sample and its sheet showing all five seeded
+  parameters
+- An approver planning a three-day outage, approving it after the warning, and
+  the next plan generation ending on 19 April instead of 16 April — 137 working
+  days either way
+
+Two defects the walkthrough found, both invisible from the code: a `sap.m.Select`
+bound to an empty key displays its first item while the model stays empty, so the
+dialog showed a warehouse chosen that the server never received; and the order
+list rendered raw product UUIDs, because an order carries the product's id and
+nothing had resolved it.

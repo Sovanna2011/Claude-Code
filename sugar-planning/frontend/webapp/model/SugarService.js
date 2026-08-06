@@ -273,6 +273,130 @@ sap.ui.define([
 			return this.get("/master/" + sEntity + "?" + aQuery.join("&"));
 		},
 
+		// ------------------------------------------------------------------
+		// Execution: stock, postings, orders, quality, maintenance
+		// ------------------------------------------------------------------
+
+		/** query builds a query string from the parameters that have a value,
+		 * so a caller never has to think about the first "?" or a stray "&". */
+		query: function (oParams) {
+			var aQuery = [];
+			Object.keys(oParams || {}).forEach(function (sKey) {
+				var vValue = oParams[sKey];
+				if (vValue !== undefined && vValue !== null && vValue !== "") {
+					aQuery.push(encodeURIComponent(sKey) + "=" + encodeURIComponent(vValue));
+				}
+			});
+			return aQuery.length ? "?" + aQuery.join("&") : "";
+		},
+
+		listStock: function (oParams) {
+			return this.get("/stock" + this.query(oParams));
+		},
+
+		listDocuments: function (oParams) {
+			return this.get("/inventory/documents" + this.query(oParams));
+		},
+
+		/**
+		 * postDocument moves stock.
+		 *
+		 * Every posting carries an idempotency key. A warehouse keeper on a bad
+		 * connection who presses the button twice, or a browser that retries the
+		 * request itself, must not move the balance twice; the key means the
+		 * second attempt replays the first document instead.
+		 */
+		postDocument: function (oPosting) {
+			return this.post("/inventory/documents", oPosting,
+				{ idempotencyKey: this.newIdempotencyKey() });
+		},
+
+		reverseDocument: function (sDocumentId, oPayload) {
+			return this.post("/inventory/documents/" + encodeURIComponent(sDocumentId) + "/reverse",
+				oPayload, { idempotencyKey: this.newIdempotencyKey() });
+		},
+
+		listOrders: function (oParams) {
+			return this.get("/production-orders" + this.query(oParams));
+		},
+
+		getOrder: function (sOrderId) {
+			return this.get("/production-orders/" + encodeURIComponent(sOrderId));
+		},
+
+		createOrder: function (oOrder) {
+			return this.post("/production-orders", oOrder);
+		},
+
+		ordersFromPlan: function (sVersionId, oPayload) {
+			return this.post("/versions/" + encodeURIComponent(sVersionId) + "/production-orders",
+				oPayload, { idempotencyKey: this.newIdempotencyKey() });
+		},
+
+		orderAction: function (sOrderId, oPayload, sEtag) {
+			return this.post("/production-orders/" + encodeURIComponent(sOrderId) + "/action",
+				oPayload, { etag: sEtag });
+		},
+
+		confirmOrder: function (sOrderId, oPayload) {
+			return this.post("/production-orders/" + encodeURIComponent(sOrderId) + "/confirm",
+				oPayload, { idempotencyKey: this.newIdempotencyKey() });
+		},
+
+		reverseConfirmation: function (sConfirmationId, oPayload) {
+			return this.post("/confirmations/" + encodeURIComponent(sConfirmationId) + "/reverse",
+				oPayload, { idempotencyKey: this.newIdempotencyKey() });
+		},
+
+		listQualityParameters: function () {
+			return this.get("/quality/parameters");
+		},
+
+		listQualitySpecs: function (sProductId, sOn) {
+			return this.get("/quality/specs" + this.query({ productId: sProductId, on: sOn }));
+		},
+
+		listSamples: function (oParams) {
+			return this.get("/quality/samples" + this.query(oParams));
+		},
+
+		getSample: function (sSampleId) {
+			return this.get("/quality/samples/" + encodeURIComponent(sSampleId));
+		},
+
+		createSample: function (oSample) {
+			return this.post("/quality/samples", oSample);
+		},
+
+		recordResults: function (sSampleId, oPayload) {
+			return this.post("/quality/samples/" + encodeURIComponent(sSampleId) + "/results", oPayload);
+		},
+
+		listHolds: function (oParams) {
+			return this.get("/quality/holds" + this.query(oParams));
+		},
+
+		releaseHold: function (sHoldId, oPayload, sEtag) {
+			return this.post("/quality/holds/" + encodeURIComponent(sHoldId) + "/release",
+				oPayload, { etag: sEtag });
+		},
+
+		listMaintenance: function (oParams) {
+			return this.get("/maintenance" + this.query(oParams));
+		},
+
+		saveMaintenance: function (oWindow, sEtag) {
+			return this.put("/maintenance", oWindow, { etag: sEtag });
+		},
+
+		/** newIdempotencyKey returns a key unique to one user action. */
+		newIdempotencyKey: function () {
+			if (window.crypto && window.crypto.randomUUID) {
+				return window.crypto.randomUUID();
+			}
+			return "k-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10);
+		},
+
 		listAudit: function (oParams) {
 			var aQuery = ["$top=200"];
 			Object.keys(oParams || {}).forEach(function (sKey) {

@@ -95,34 +95,87 @@ phase 4, where it is the first item.
 
 ---
 
-## Phase 4 — Execution, quality, downtime, materials ⏳ next
+## Phase 4 — Execution, quality, maintenance ✅ delivered
 
-**Already in place:** the complete schema for orders, confirmations, inventory
-documents, quality and maintenance; the downtime recording path and its
-lost-tonnage impact on the dashboard; packaging material requirement planning.
+**Delivered**
 
-**To build**
+- One posting door. Every stock movement in the application - hand-entered
+  corrections, production confirmations, quality holds, releases and reversals -
+  goes through `Execution.postChecked`, which reads the affected positions, asks
+  the domain whether the movement is allowed, and writes it. There is exactly
+  one place the rules can be applied and exactly one place they can be forgotten.
+- Inventory documents: receipt, issue, transfer, adjustment, count, hold,
+  release, shipment and reversal. Quantities are entered unsigned and given
+  their sign by the document type; a transfer becomes the pair of signed lines
+  that move both balances, so the halves cannot be posted apart.
+- Production orders: created by hand or from a released plan, released,
+  confirmed, reversed, technically closed. A day and product already covered is
+  skipped rather than duplicated, so the run repeats safely as the season
+  advances.
+- Quality: a parameter catalogue, effective-dated specifications, samples judged
+  against the limits in force on the sample's business date, and holds that move
+  the held quantity on the balance so blocked sugar cannot be shipped.
+- Maintenance windows that reach the plan generator on their own. An approved,
+  factory-wide window removes crushing days and the campaign is extended rather
+  than shortened.
+- Four SAPUI5 pages - Stock, Production orders, Quality, Maintenance - walked
+  through in a browser end to end.
+
+**Acceptance criteria — met**
+
+| Criterion | Evidence |
+| --- | --- |
+| An order is created from a released plan, confirmed, and posts a receipt atomically | `TestOrdersAreCreatedFromTheReleasedPlanAndNotDuplicated`, `TestConfirmingReceiptsTheYieldAndAdvancesTheOrder` |
+| A confirmation is reversed by a document; nothing is deleted | `TestReversingAConfirmationUndoesBothTheOrderAndTheStock` |
+| An order closes only after reconciliation or with an authorised variance reason | `TestClosingAnOrderOutsideToleranceNeedsAnAuthorisedReason` |
+| Quality-held stock cannot be shipped or consumed | `TestAFailedSampleBlocksTheStockItCovers` |
+| An approved maintenance window reduces planned capacity without being re-entered | `TestApprovedMaintenanceLengthensTheCampaign`, `TestALineOutageDoesNotStopTheFactory` |
+| A refused posting writes nothing at all | `TestAnIssueBeyondTheBalanceIsRefusedWithTheFigures`, `InventoryRollback` in the store conformance suite |
+| A retried posting does not move the balance twice | `TestARetriedPostingReplaysInsteadOfPostingTwice` |
+| Both store implementations behave identically | the conformance suite, run against in-memory and PostgreSQL |
+
+**Defects the phase found and fixed**
+
+Four in code that already existed, all found by writing the tests rather than by
+reading the code:
+
+- `ListDocuments` built its aliased select list by text substitution, which
+  turned `factory_id` into `factory_d.id` and made the query unrunnable.
+- `PostDocument` moved balances with an upsert carrying the deltas. PostgreSQL
+  checks table constraints against the tuple an INSERT proposes before it
+  discovers the conflict, so a hold of 100 t against a stock of 380 t arrived as
+  "quantity 0, hold 100" and tripped the rule that nothing may be held that is
+  not there.
+- Row stamps were taken at nanosecond resolution and stored at the microsecond
+  resolution of a `timestamptz`, so the creation stamp an insert returned never
+  equalled the one a later update returned.
+- The `stock_balances` check forbade a negative balance outright, contradicting
+  the posting rules, where a negative balance is refused by default but permitted
+  for a caller holding the override. Migration 0006 relaxes it.
+
+Three more in the API and the demonstration data:
+
+- Problem documents were served as `application/json`; RFC 9457 gives them their
+  own media type.
+- The specification said quantities travel as JSON numbers. They travel as
+  strings, and should.
+- The sign-in page kept its own copy of the demonstration accounts, and the copy
+  had drifted: the quality user was configured on the server and missing from the
+  page, so the laboratory role could not be demonstrated at all. The list now
+  comes from the server.
+
+**Not delivered in phase 4: Excel migration.** It carries forward unchanged, and
+for the same reason: the workbook it must read was never provided. See
+[01-assumptions-and-questions.md](01-assumptions-and-questions.md).
+
+**Also outstanding from the phase-4 scope**
 
 | Item | Estimate |
 | --- | --- |
-| Excel import: mapping template, staging, preview, row-level errors, controlled commit, idempotency | 3 weeks — needs the workbook |
-| Production orders: create from a released plan, release, confirm, reverse, close | 3 weeks |
-| Inventory documents: receipt, issue, transfer, adjustment, count, hold, release, reversal | 3 weeks |
-| Quality: samples, results against effective-dated specs, holds blocking shipment, certificate of analysis | 2 weeks |
-| Maintenance windows feeding the generator's non-working days automatically | 1 week |
+| Excel import: mapping template, staging, preview, row-level errors, controlled commit | 3 weeks — needs the workbook |
+| Certificate of analysis as a printed document | 1 week |
+| Component consumption against a bill of materials rather than as entered | 1 week |
 | Background jobs: forecast recalculation, alert notification, scheduled exports | 1 week |
-
-**Acceptance criteria**
-
-- A production order is created from a released plan, confirmed, and posts a
-  warehouse receipt and component consumption atomically
-- A confirmation is reversed by a document; nothing is deleted
-- An order closes only after reconciliation or with an authorised variance reason
-- Quality-held stock cannot be shipped or consumed
-- An import identifies every error before commit and preserves source-row
-  traceability
-- An approved maintenance window reduces planned capacity without being
-  re-entered
 
 ---
 

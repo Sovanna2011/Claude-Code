@@ -256,8 +256,16 @@ func (e *Execution) RecordResults(ctx context.Context, sampleID string, req Resu
 	if err != nil {
 		return ResultsOutcome{}, err
 	}
+	// Two specifications for the same parameter can both be in force when a
+	// tighter limit was started without ending the older one. The later start
+	// date wins, because that is the one somebody most recently decided on;
+	// leaving it to the order the repository happened to return would make the
+	// verdict depend on the storage engine.
 	byParameter := map[string]domain.QualitySpec{}
 	for _, s := range specs {
+		if current, ok := byParameter[s.ParameterID]; ok && current.ValidFrom >= s.ValidFrom {
+			continue
+		}
 		byParameter[s.ParameterID] = s
 	}
 

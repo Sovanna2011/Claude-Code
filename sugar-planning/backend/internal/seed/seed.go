@@ -279,6 +279,70 @@ func Load(ctx context.Context, s store.Store, planning *service.Planning) (Resul
 		}
 	}
 
+	// --- quality catalogue --------------------------------------------------
+	// Without a parameter catalogue and limits in force, a laboratory sheet has
+	// nothing to judge against and a sample can never fail, so the execution
+	// side of the scenario would be unusable out of the box.
+	parameterIDs := map[string]string{}
+	for _, p := range []domain.QualityParameter{
+		{Code: "POL", Name: "Polarisation", UOM: "PCT", TestMethod: "ICUMSA GS1/2/3-1", Validity: active()},
+		{Code: "BRIX", Name: "Brix", UOM: "PCT", TestMethod: "Refractometer", Validity: active()},
+		{Code: "COLOUR", Name: "Colour", UOM: "IU", TestMethod: "ICUMSA GS1/3-7", Validity: active()},
+		{Code: "MOIST", Name: "Moisture", UOM: "PCT", TestMethod: "Oven drying", Validity: active()},
+		{Code: "ASH", Name: "Conductivity ash", UOM: "PCT", TestMethod: "ICUMSA GS2/3-17", Validity: active()},
+	} {
+		saved, err := s.Execution().SaveParameter(ctx, p, Actor)
+		if err != nil {
+			return res, fmt.Errorf("quality parameter %s: %w", p.Code, err)
+		}
+		parameterIDs[p.Code] = saved.ID
+	}
+
+	// The limits below are ordinary refinery figures for the three finished
+	// grades. They are effective from the first day of the season, so the whole
+	// campaign is judged by the same specification.
+	limit := func(v string) *domain.Dec { d := domain.D(v); return &d }
+	for _, spec := range []struct {
+		product, parameter                 string
+		lower, upper, warnLower, warnUpper string
+	}{
+		{"REF", "POL", "99.700", "", "99.800", ""},
+		{"REF", "COLOUR", "", "45", "", "35"},
+		{"REF", "MOIST", "", "0.040", "", "0.030"},
+		{"REF", "ASH", "", "0.015", "", "0.012"},
+		{"WHT", "POL", "99.500", "", "99.600", ""},
+		{"WHT", "COLOUR", "", "150", "", "120"},
+		{"WHT", "MOIST", "", "0.060", "", "0.050"},
+		{"SUP", "POL", "99.900", "", "99.930", ""},
+		{"SUP", "COLOUR", "", "25", "", "20"},
+		{"RAW", "POL", "97.000", "", "97.500", ""},
+		{"RAW", "BRIX", "98.000", "", "", ""},
+	} {
+		productID, ok := res.Products[spec.product]
+		if !ok {
+			continue
+		}
+		entry := domain.QualitySpec{
+			ProductID: productID, ParameterID: parameterIDs[spec.parameter],
+			ValidFrom: "2026-12-01",
+		}
+		if spec.lower != "" {
+			entry.LowerLimit = limit(spec.lower)
+		}
+		if spec.upper != "" {
+			entry.UpperLimit = limit(spec.upper)
+		}
+		if spec.warnLower != "" {
+			entry.WarnLower = limit(spec.warnLower)
+		}
+		if spec.warnUpper != "" {
+			entry.WarnUpper = limit(spec.warnUpper)
+		}
+		if _, err := s.Execution().SaveSpec(ctx, entry, Actor); err != nil {
+			return res, fmt.Errorf("quality specification %s/%s: %w", spec.product, spec.parameter, err)
+		}
+	}
+
 	// --- season, assumptions and mix ---------------------------------------
 	ctx = auth.WithPrincipal(ctx, seedPrincipal(company.ID, factory.ID))
 

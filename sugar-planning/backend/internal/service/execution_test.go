@@ -328,6 +328,19 @@ func TestOrdersAreCreatedFromTheReleasedPlanAndNotDuplicated(t *testing.T) {
 		t.Fatalf("only a released plan may become orders, got %v", err)
 	}
 
+	// The actuals container is released from the day it is created so that
+	// operators can post to it. It is not a plan, and raising orders from it
+	// would quietly produce nothing at all.
+	_, err = exec.CreateOrdersFromPlan(ctx, h.seeded.ActualID, service.OrdersFromPlanRequest{
+		From: "2026-12-01", To: "2026-12-03",
+	})
+	if !errors.Is(err, domain.ErrValidation) {
+		t.Fatalf("the actuals container may not become orders, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "actuals container") {
+		t.Errorf("the refusal must say why: %v", err)
+	}
+
 	released := releaseSeededPlan(t, h)
 
 	result, err := exec.CreateOrdersFromPlan(ctx, released, service.OrdersFromPlanRequest{
@@ -586,8 +599,10 @@ func TestAFailedSampleBlocksTheStockItCovers(t *testing.T) {
 		t.Fatalf("post receipt: %v", err)
 	}
 
+	// A parameter of the test's own, so the assertions are about the rules
+	// rather than about whatever limits the demonstration scenario ships.
 	pol, err := exec.SaveParameter(admin, domain.QualityParameter{
-		Code: "POL", Name: "Polarisation", UOM: "PCT", Validity: domain.Validity{Active: true},
+		Code: "TEST-PURITY", Name: "Purity", UOM: "PCT", Validity: domain.Validity{Active: true},
 	})
 	if err != nil {
 		t.Fatalf("save parameter: %v", err)
@@ -688,7 +703,7 @@ func TestAMeasurementWithNoSpecificationIsReportedRatherThanPassedQuietly(t *tes
 	product := h.seeded.Products["REF"]
 
 	colour, err := exec.SaveParameter(admin, domain.QualityParameter{
-		Code: "COLOUR", Name: "Colour", UOM: "IU", Validity: domain.Validity{Active: true},
+		Code: "TEST-TURBIDITY", Name: "Turbidity", UOM: "IU", Validity: domain.Validity{Active: true},
 	})
 	if err != nil {
 		t.Fatalf("save parameter: %v", err)
@@ -710,7 +725,7 @@ func TestAMeasurementWithNoSpecificationIsReportedRatherThanPassedQuietly(t *tes
 	if outcome.Verdict != domain.QualityPass {
 		t.Errorf("with no limits nothing can fail, verdict = %s", outcome.Verdict)
 	}
-	if len(outcome.Unspecified) != 1 || outcome.Unspecified[0] != "COLOUR" {
+	if len(outcome.Unspecified) != 1 || outcome.Unspecified[0] != "TEST-TURBIDITY" {
 		t.Errorf("the configuration gap must be reported, got %+v", outcome.Unspecified)
 	}
 }
@@ -721,7 +736,7 @@ func TestASampleTakesItsResultsOnlyOnce(t *testing.T) {
 	lab := h.as(auth.RoleQualityUser)
 
 	pol, err := exec.SaveParameter(admin, domain.QualityParameter{
-		Code: "POL", Name: "Polarisation", Validity: domain.Validity{Active: true},
+		Code: "TEST-POL", Name: "Polarisation", Validity: domain.Validity{Active: true},
 	})
 	if err != nil {
 		t.Fatalf("save parameter: %v", err)
@@ -925,4 +940,126 @@ func releaseSeededPlan(t *testing.T, h *harness) string {
 		t.Fatalf("version is %s, want RELEASED", version.Status)
 	}
 	return version.ID
+}
+
+// TestTheLatestSpecificationInForceWins pins how two overlapping limits are
+// resolved. Tightening a limit without ending the older specification leaves
+// both effective on the same day; the later start date is the one somebody most
+// recently decided on, and leaving the choice to the repository's row order
+// would make a verdict depend on the storage engine.
+func TestTheLatestSpecificationInForceWins(t *testing.T) {
+	h, exec := execHarness(t)
+	admin := h.as(auth.RoleMasterDataAdmin)
+	lab := h.as(auth.RoleQualityUser)
+	product := h.seeded.Products["REF"]
+
+	parameter, err := exec.SaveParameter(admin, domain.QualityParameter{
+		Code: "TEST-GRAIN", Name: "Grain size", UOM: "MM", Validity: domain.Validity{Active: true},
+	})
+	if err != nil {
+		t.Fatalf("save parameter: %v", err)
+	}
+
+	loose, tight := domain.D("0.900"), domain.D("0.500")
+	for _, spec := range []domain.QualitySpec{
+		{ProductID: product, ParameterID: parameter.ID, UpperLimit: &loose, ValidFrom: "2026-10-01"},
+		{ProductID: product, ParameterID: parameter.ID, UpperLimit: &tight, ValidFrom: "2026-11-01"},
+	} {
+		if _, err := exec.SaveSpec(admin, spec); err != nil {
+			t.Fatalf("save spec from %s: %v", spec.ValidFrom, err)
+		}
+	}
+
+	effective, err := exec.SpecsFor(admin, product, "2026-12-06")
+	if err != nil {
+		t.Fatalf("specs for the date: %v", err)
+	}
+	mine := 0
+	for _, spec := range effective {
+		if spec.ParameterID == parameter.ID {
+			mine++
+		}
+	}
+	if mine != 2 {
+		t.Fatalf("both specifications for the parameter are still in force, got %d", mine)
+	}
+
+	sample, err := exec.CreateSample(lab, service.SampleRequest{
+		ProductID: product, FactoryID: h.seeded.FactoryID, BusinessDate: "2026-12-06",
+	})
+	if err != nil {
+		t.Fatalf("create sample: %v", err)
+	}
+	// 0.7 mm passes the older limit of 0.9 and fails the newer one of 0.5.
+	outcome, err := exec.RecordResults(lab, sample.ID, service.ResultsRequest{
+		Results:  []service.ResultInput{{ParameterID: parameter.ID, Value: domain.D("0.700")}},
+		Complete: true,
+	})
+	if err != nil {
+		t.Fatalf("record results: %v", err)
+	}
+	if outcome.Verdict != domain.QualityFail {
+		t.Errorf("verdict = %s, want FAIL against the November limit of 0.5", outcome.Verdict)
+	}
+	if len(outcome.Sample.Results) != 1 || outcome.Sample.Results[0].UpperLimit == nil ||
+		!outcome.Sample.Results[0].UpperLimit.Equal(tight) {
+		t.Errorf("the result must record the limit it was judged against: %+v", outcome.Sample.Results)
+	}
+}
+
+// TestTheSeededScenarioCanJudgeASample proves the demonstration data is usable
+// for quality out of the box: without a parameter catalogue and limits in
+// force, a laboratory sheet has nothing to judge against and every sample
+// passes silently.
+func TestTheSeededScenarioCanJudgeASample(t *testing.T) {
+	h, exec := execHarness(t)
+	admin := h.as(auth.RoleMasterDataAdmin)
+	lab := h.as(auth.RoleQualityUser)
+
+	parameters, err := exec.ListParameters(admin)
+	if err != nil {
+		t.Fatalf("list parameters: %v", err)
+	}
+	byCode := map[string]domain.QualityParameter{}
+	for _, p := range parameters {
+		byCode[p.Code] = p
+	}
+	for _, code := range []string{"POL", "COLOUR", "MOIST"} {
+		if _, ok := byCode[code]; !ok {
+			t.Fatalf("the seed must ship a %s parameter, got %v", code, byCode)
+		}
+	}
+
+	specs, err := exec.SpecsFor(admin, h.seeded.Products["REF"], "2026-12-06")
+	if err != nil {
+		t.Fatalf("specs for refined sugar: %v", err)
+	}
+	if len(specs) < 3 {
+		t.Fatalf("refined sugar has %d specifications in force, want at least 3", len(specs))
+	}
+
+	sample, err := exec.CreateSample(lab, service.SampleRequest{
+		ProductID: h.seeded.Products["REF"], FactoryID: h.seeded.FactoryID,
+		BusinessDate: "2026-12-06",
+	})
+	if err != nil {
+		t.Fatalf("create sample: %v", err)
+	}
+	// Colour of 60 IU is well outside the 45 IU limit for refined sugar.
+	outcome, err := exec.RecordResults(lab, sample.ID, service.ResultsRequest{
+		Results: []service.ResultInput{
+			{ParameterID: byCode["POL"].ID, Value: domain.D("99.850")},
+			{ParameterID: byCode["COLOUR"].ID, Value: domain.D("60")},
+		},
+		Complete: true,
+	})
+	if err != nil {
+		t.Fatalf("record results: %v", err)
+	}
+	if outcome.Verdict != domain.QualityFail {
+		t.Errorf("verdict = %s, want FAIL on colour", outcome.Verdict)
+	}
+	if len(outcome.Unspecified) != 0 {
+		t.Errorf("both parameters are specified in the seed, got %v", outcome.Unspecified)
+	}
 }

@@ -1,0 +1,60 @@
+<core:FragmentDefinition
+	xmlns="sap.m"
+	xmlns:core="sap.ui.core"
+	xmlns:f="sap.ui.layout.form">
+
+	<!--
+	  A parameter left blank was not measured. It is not sent, because an empty
+	  box is not a reading of zero.
+	-->
+	<Dialog id="resultsDialog" title="{i18n>qualityResultsTitle}" contentWidth="36rem">
+		<content>
+			<MessageStrip class="sapUiSmallMargin" type="Information" showIcon="true"
+				text="{i18n>qualityJudgedHint}"/>
+
+			<Table items="{view>/sheet/results}" noDataText="{i18n>qualityNoParameters}">
+				<headerToolbar>
+					<Toolbar><Title text="{view>/sheet/sampleNo}" level="H4"/></Toolbar>
+				</headerToolbar>
+				<columns>
+					<Column><Text text="{i18n>colParameter}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>colValue}"/></Column>
+				</columns>
+				<items>
+					<ColumnListItem>
+						<cells>
+							<ObjectIdentifier title="{view>code}" text="{view>name}"/>
+							<Input value="{view>value}" description="{view>uom}" textAlign="End"/>
+						</cells>
+					</ColumnListItem>
+				</items>
+			</Table>
+
+			<f:SimpleForm editable="true" layout="ResponsiveGridLayout"
+				labelSpanM="5" columnsM="1" class="sapUiSmallMarginTop">
+				<f:content>
+					<Label text="{i18n>fieldComplete}"/>
+					<CheckBox selected="{view>/sheet/complete}" text="{i18n>qualityCompleteHint}"/>
+
+					<Label text="{i18n>fieldHoldWarehouse}"/>
+					<Select forceSelection="false" selectedKey="{view>/sheet/holdWarehouse}" width="100%"
+						items="{path: 'view>/warehouses', sorter: {path: 'code'}}">
+						<core:Item key="{view>id}" text="{view>code} — {view>name}"/>
+					</Select>
+
+					<Label text="{i18n>fieldHoldQuantity}"/>
+					<Input value="{view>/sheet/holdQuantity}" description="{i18n>unitTons}" width="100%"/>
+
+					<Label text=""/>
+					<Text text="{i18n>qualityHoldHint}"/>
+				</f:content>
+			</f:SimpleForm>
+		</content>
+		<beginButton>
+			<Button text="{i18n>save}" type="Emphasized" press=".onSubmitResults"/>
+		</beginButton>
+		<endButton>
+			<Button text="{i18n>cancel}" press=".onCancelResults"/>
+		</endButton>
+	</Dialog>
+</core:FragmentDefinition>

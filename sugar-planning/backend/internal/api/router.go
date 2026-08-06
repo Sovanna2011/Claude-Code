@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -84,6 +85,7 @@ func NewServer(o Options) http.Handler {
 	// because the browser must be able to load the sign-in page before it has
 	// one; the application shows nothing until the session endpoint answers.
 	openEndpoints := map[string]bool{
+		"/api/v1/auth/dev-users": true,
 		"/api/v1/auth/dev-login": true,
 		"/api/v1/openapi.yaml":   true,
 	}
@@ -129,6 +131,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 	s.handle(mux, "GET /api/v1/openapi.yaml", s.handleOpenAPI)
 
 	// --- session ------------------------------------------------------------
+	s.handle(mux, "GET /api/v1/auth/dev-users", s.handleDevUsers)
 	s.handle(mux, "POST /api/v1/auth/dev-login", s.handleDevLogin)
 	s.handle(mux, "GET /api/v1/session", s.handleSession)
 
@@ -286,6 +289,28 @@ func (s *Server) handleOpenAPI(w http.ResponseWriter, r *http.Request) {
 // handleDevLogin issues a token for one of the configured development
 // accounts. It exists only when authentication runs in dev mode; in oidc mode
 // it refuses, so an accidental production deployment cannot mint tokens.
+// handleDevUsers lists the demonstration accounts for the sign-in page.
+//
+// The list comes from the server's own configuration rather than from a copy
+// kept in the browser, so an account added to one and forgotten in the other
+// cannot happen. In oidc mode it is empty, and the sign-in page redirects to
+// the identity provider instead.
+func (s *Server) handleDevUsers(w http.ResponseWriter, r *http.Request) {
+	type devUser struct {
+		Username    string   `json:"username"`
+		DisplayName string   `json:"displayName"`
+		Roles       []string `json:"roles"`
+	}
+	out := []devUser{}
+	if s.verifier.Mode() == "dev" {
+		for name, u := range s.authCfg.DevUsers {
+			out = append(out, devUser{Username: name, DisplayName: u.DisplayName, Roles: u.Roles})
+		}
+		sort.Slice(out, func(i, j int) bool { return out[i].Username < out[j].Username })
+	}
+	writeJSON(w, pageResponse[devUser]{Value: out, Count: len(out)})
+}
+
 func (s *Server) handleDevLogin(w http.ResponseWriter, r *http.Request) {
 	if s.verifier.Mode() != "dev" {
 		writeProblem(w, r, wrapValidation(

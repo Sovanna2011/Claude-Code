@@ -13,22 +13,13 @@ sap.ui.define([
 		onInit: function () {
 			this.getView().addStyleClass(this.getOwnerComponent().getContentDensityClass());
 
-			// The development accounts, shown on the sign-in page. In an OIDC
-			// deployment this list is empty and the sign-in button redirects to
-			// the identity provider instead.
-			this.getView().setModel(this.getService().newModel({
-				users: [
-					{ username: "planner", displayName: "Sokha Planner", role: "Production Planner" },
-					{ username: "approver", displayName: "Dara Factory Manager", role: "Approver" },
-					{ username: "supervisor", displayName: "Vanna Shift Supervisor", role: "Shift Supervisor" },
-					{ username: "weighbridge", displayName: "Rithy Weighbridge", role: "Cane Operator" },
-					{ username: "warehouse", displayName: "Chanthou Warehouse", role: "Warehouse Operator" },
-					{ username: "shipping", displayName: "Sophea Shipment Planner", role: "Shipment Planner" },
-					{ username: "executive", displayName: "Bopha Executive", role: "Executive Viewer" },
-					{ username: "auditor", displayName: "Sovann Auditor", role: "Auditor" },
-					{ username: "admin", displayName: "System Administrator", role: "Administrator" }
-				]
-			}), "login");
+			// The development accounts are read from the server rather than
+			// listed here, so an account added to the configuration and
+			// forgotten in the browser cannot happen. In an OIDC deployment the
+			// list comes back empty and the sign-in button redirects to the
+			// identity provider instead.
+			this.getView().setModel(this.getService().newModel({ users: [] }), "login");
+			this._loadDevUsers();
 
 			// A token in session storage means the page was reloaded rather than
 			// opened fresh, so the session is resumed silently.
@@ -37,6 +28,31 @@ sap.ui.define([
 			}
 
 			this.getRouter().attachRouteMatched(this._onRouteMatched, this);
+		},
+
+		/** _loadDevUsers fills the sign-in list from the API. A failure is not
+		 * worth an error dialog on a page nobody has signed in to yet; the list
+		 * stays empty and the sign-in button says nothing is available. */
+		_loadDevUsers: function () {
+			var that = this;
+			this.getService().get("/auth/dev-users").then(function (oPage) {
+				that.getView().getModel("login").setProperty("/users", (oPage.value || []).map(function (oUser) {
+					return {
+						username: oUser.username,
+						displayName: oUser.displayName || oUser.username,
+						role: (oUser.roles || []).map(that._roleLabel).join(", ")
+					};
+				}));
+			}).catch(function () {
+				that.getView().getModel("login").setProperty("/users", []);
+			});
+		},
+
+		/** _roleLabel turns SHIFT_SUPERVISOR into "Shift Supervisor". */
+		_roleLabel: function (sRole) {
+			return String(sRole).toLowerCase().split("_").map(function (sWord) {
+				return sWord.charAt(0).toUpperCase() + sWord.slice(1);
+			}).join(" ");
 		},
 
 		/** _showPage switches the shell between the sign-in page and the
