@@ -167,12 +167,13 @@ mandatory:
 dotnet test backend/ErpS4.Tests
 ```
 
-> **Not compiled or run in this environment.** The .NET SDK could not be
-> installed here (`builds.dotnet.microsoft.com` is blocked by the network
-> policy), so this code is written against the generated model and checked
-> statically — balanced scopes, unique type names, property names verified
-> against the catalogue — but neither built nor executed. Run
-> `dotnet build` and `dotnet test` before relying on it.
+All 123 pass on .NET 10.0.110. Getting there cost four real bugs that static
+checking had not found, described in the repository history: a draft with mixed
+currencies threw out of `Validate` instead of reporting the mixture, a payment
+left its own open item dangling on the customer account, the SE11 field join
+was a null reference the moment it ran over objects rather than SQL, and the
+number-range mask produced document numbers two characters wider than the
+column that stores them.
 
 ## Not built yet
 

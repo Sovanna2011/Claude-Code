@@ -1324,7 +1324,7 @@ public class DictionaryForeignKey : ITenantScoped
     /// <summary>Owning tenant — every query is filtered by it</summary>
     public int TenantId { get; set; }
 
-    /// <summary>Constraint name</summary>
+    /// <summary>Constraint name (a SQL Server identifier)</summary>
     public string ForeignKeyName { get; set; } = null!;
 
     /// <summary>Source schema</summary>
@@ -1430,7 +1430,7 @@ public class DictionaryIndex : ITenantScoped
     /// <summary>Owning table</summary>
     public long DictionaryTableId { get; set; }
 
-    /// <summary>Index name</summary>
+    /// <summary>Index name (a SQL Server identifier)</summary>
     public string IndexName { get; set; } = null!;
 
     /// <summary>Purpose of the index</summary>

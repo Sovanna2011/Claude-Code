@@ -93,17 +93,62 @@ public sealed class DictionaryService(
         long tableId,
         CancellationToken cancellationToken)
     {
-        return await (
-            from field in context.Query<DictionaryTableField>().AsNoTracking()
-            join dataElement in context.Query<DictionaryDataElement>().AsNoTracking()
-                on field.DataElementId equals dataElement.Id into dataElements
-            from dataElement in dataElements.DefaultIfEmpty()
-            join domain in context.Query<DictionaryDomain>().AsNoTracking()
-                on dataElement.DictionaryDomainId equals domain.Id into domains
-            from domain in domains.DefaultIfEmpty()
-            where field.TenantId == TenantId && field.DictionaryTableId == tableId
-            orderby field.FieldPosition
-            select new FieldDefinition(
+        var fields = await context.Query<DictionaryTableField>()
+            .AsNoTracking()
+            .Where(f => f.TenantId == TenantId && f.DictionaryTableId == tableId)
+            .OrderBy(f => f.FieldPosition)
+            .ToListAsync(cancellationToken);
+
+        // Looked up by id rather than left-joined. A group join whose key
+        // selector reads through the optional side (dataElement.DomainId) is
+        // fine once EF turns it into SQL and a null reference the moment the
+        // same query runs over objects - the sort of difference that shows up
+        // only in one of the two.
+        var dataElementIds = fields
+            .Where(f => f.DataElementId is not null)
+            .Select(f => f.DataElementId!.Value)
+            .Distinct()
+            .ToList();
+
+        var dataElements = new Dictionary<long, DictionaryDataElement>();
+        if (dataElementIds.Count > 0)
+        {
+            dataElements = await context.Query<DictionaryDataElement>()
+                .AsNoTracking()
+                .Where(e => e.TenantId == TenantId && dataElementIds.Contains(e.Id))
+                .ToDictionaryAsync(e => e.Id, cancellationToken);
+        }
+
+        var domainIds = dataElements.Values
+            .Select(e => e.DictionaryDomainId)
+            .Distinct()
+            .ToList();
+
+        var domains = new Dictionary<long, DictionaryDomain>();
+        if (domainIds.Count > 0)
+        {
+            domains = await context.Query<DictionaryDomain>()
+                .AsNoTracking()
+                .Where(d => d.TenantId == TenantId && domainIds.Contains(d.Id))
+                .ToDictionaryAsync(d => d.Id, cancellationToken);
+        }
+
+        return fields.Select(field =>
+        {
+            DictionaryDataElement? dataElement = null;
+            if (field.DataElementId is { } dataElementId)
+            {
+                dataElements.TryGetValue(dataElementId, out dataElement);
+            }
+
+            string? domainName = null;
+            if (dataElement is not null
+                && domains.TryGetValue(dataElement.DictionaryDomainId, out var domain))
+            {
+                domainName = domain.DomainName;
+            }
+
+            return new FieldDefinition(
                 field.FieldPosition,
                 field.FieldName,
                 field.SqlType,
@@ -115,17 +160,17 @@ public sealed class DictionaryService(
                 field.IsMasked,
                 field.IsCustomField,
                 field.DefaultValue,
-                dataElement == null ? null : dataElement.DataElementName,
+                dataElement?.DataElementName,
 
                 // The field may name a domain directly; otherwise it inherits
                 // the one behind its data element.
-                field.DomainName ?? (domain == null ? null : domain.DomainName),
+                field.DomainName ?? domainName,
                 field.CheckTableName,
                 field.CurrencyReferenceField,
                 field.UnitReferenceField,
                 field.IncludeName,
-                field.ShortDescription)
-        ).ToListAsync(cancellationToken);
+                field.ShortDescription);
+        }).ToList();
     }
 
     private async Task<IReadOnlyList<IndexDefinition>> LoadIndexesAsync(

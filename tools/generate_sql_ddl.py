@@ -334,24 +334,24 @@ def write_dictionary_seed(tables: list[Table]) -> str:
         f"USE [{DATABASE}];\nGO\n",
         "/* Seed tenant 1. The dictionary rows below are tenant dependent and\n"
         "   carry a foreign key to org.Tenant, so it has to exist first. */\n"
-        "IF NOT EXISTS (SELECT 1 FROM org.Tenant WHERE Id = 1)\n"
+        "IF NOT EXISTS (SELECT 1 FROM [org].[Tenant] WHERE Id = 1)\n"
         "BEGIN\n"
-        "    SET IDENTITY_INSERT org.Tenant ON;\n"
-        "    INSERT INTO org.Tenant\n"
+        "    SET IDENTITY_INSERT [org].[Tenant] ON;\n"
+        "    INSERT INTO [org].[Tenant]\n"
         "        (Id, TenantCode, Name, DefaultLanguage, TimeZoneId, IsProduction,\n"
         "         AllowCustomizingChanges, ValidFrom, ValidTo, CreatedBy)\n"
         "    VALUES\n"
         "        (1, N'100', N'Default tenant', N'EN', N'Asia/Phnom_Penh', 0,\n"
         "         1, '2000-01-01', '9999-12-31', N'SYSTEM');\n"
-        "    SET IDENTITY_INSERT org.Tenant OFF;\n"
+        "    SET IDENTITY_INSERT [org].[Tenant] OFF;\n"
         "END\n"
         "GO\n"
         "\n"
         "/* Re-runnable: clear the generated dictionary rows for tenant 1 first. */\n"
-        "DELETE f FROM cfg.DictionaryTableField AS f\n"
-        "JOIN   cfg.DictionaryTable AS t ON t.Id = f.DictionaryTableId\n"
+        "DELETE f FROM [cfg].[DictionaryTableField] AS f\n"
+        "JOIN   [cfg].[DictionaryTable] AS t ON t.Id = f.DictionaryTableId\n"
         "WHERE  t.TenantId = 1;\n"
-        "DELETE FROM cfg.DictionaryTable WHERE TenantId = 1;\n"
+        "DELETE FROM [cfg].[DictionaryTable] WHERE TenantId = 1;\n"
         "GO\n",
     ]
 
@@ -363,7 +363,7 @@ def write_dictionary_seed(tables: list[Table]) -> str:
         "/* SE16N authorization groups. A table's group decides whether it can be\n"
         "   browsed at all, whether the result can be exported, and how many rows\n"
         "   one query may return. */\n"
-        "MERGE cfg.TableAuthorizationGroup AS target\n"
+        "MERGE [cfg].[TableAuthorizationGroup] AS target\n"
         "USING (VALUES\n" + group_rows + "\n"
         ") AS source (TenantId, AuthorizationGroup, Name, IsSystemProtected,\n"
         "             AllowExport, MaxRowsPerQuery, CreatedBy)\n"
@@ -404,7 +404,7 @@ def write_dictionary_seed(tables: list[Table]) -> str:
             f"N'{group}', N'{pk}', N'Active', N'SYSTEM')"
         )
     parts.append(
-        "INSERT INTO cfg.DictionaryTable\n"
+        "INSERT INTO [cfg].[DictionaryTable]\n"
         "    (TenantId, SchemaName, TableName, ShortDescription, TableCategory,\n"
         "     DeliveryClass, MaintenanceType, IsTenantDependent, IsCompanyCodeDependent,\n"
         "     SizeCategory, BufferingType, IsLogged, IsImmutable, AuthorizationGroup,\n"
@@ -451,7 +451,7 @@ def write_dictionary_seed(tables: list[Table]) -> str:
             "VALUES\n" + ",\n".join(chunk) + ";\nGO\n"
         )
     parts.append(
-        "INSERT INTO cfg.DictionaryTableField\n"
+        "INSERT INTO [cfg].[DictionaryTableField]\n"
         "    (TenantId, DictionaryTableId, FieldName, FieldPosition, SqlType,\n"
         "     IsKey, IsRequired, IsIdentity, IsCustomField, IsMasked, ShortDescription,\n"
         "     CreatedBy)\n"
@@ -459,16 +459,177 @@ def write_dictionary_seed(tables: list[Table]) -> str:
         "       s.IsKey, s.IsRequired, s.IsIdentity, 0, s.IsMasked, s.ShortDescription,\n"
         "       N'SYSTEM'\n"
         "FROM   #DictionaryField AS s\n"
-        "JOIN   cfg.DictionaryTable AS d\n"
+        "JOIN   [cfg].[DictionaryTable] AS d\n"
         "       ON  d.TenantId   = s.TenantId\n"
         "       AND d.SchemaName = s.SchemaName\n"
         "       AND d.TableName  = s.TableName;\n"
         "GO\n"
         "DROP TABLE #DictionaryField;\nGO\n"
     )
+
+    parts.extend(dictionary_relationship_seed(tables))
+
     write(name, "\n".join(parts))
     print(f"  {name}: {len(tables)} tables, {len(field_rows)} fields seeded")
     return name
+
+
+def dictionary_relationship_seed(tables: list[Table]) -> list[str]:
+    """
+    Seeds cfg.DictionaryForeignKey and cfg.DictionaryIndex from the same
+    catalogue that produced the constraints themselves.
+
+    Without this, SE11 shows a table with no relationships and its where-used
+    list comes back empty - a screen that looks like it works and answers
+    nothing. The rows are derived here rather than read back from
+    sys.foreign_keys so that the dictionary says what the catalogue says, and a
+    difference between the two is a difference worth seeing.
+    """
+    foreign_keys, _ = resolve_foreign_keys(tables)
+
+    parts = [
+        "/* Relationships and indexes, from the same catalogue as the constraints. */\n"
+        "DELETE ff FROM [cfg].[DictionaryForeignKeyField] AS ff\n"
+        "JOIN   [cfg].[DictionaryForeignKey] AS fk ON fk.Id = ff.DictionaryForeignKeyId\n"
+        "WHERE  fk.TenantId = 1;\n"
+        "DELETE FROM [cfg].[DictionaryForeignKey] WHERE TenantId = 1;\n"
+        "DELETE inf FROM [cfg].[DictionaryIndexField] AS inf\n"
+        "JOIN   [cfg].[DictionaryIndex] AS ix ON ix.Id = inf.DictionaryIndexId\n"
+        "WHERE  ix.TenantId = 1;\n"
+        "DELETE FROM [cfg].[DictionaryIndex] WHERE TenantId = 1;\n"
+        "GO\n"
+    ]
+
+    key_rows = [
+        f"(1, N'{fk.name}', N'{fk.table.schema}', N'{fk.table.name}', "
+        f"N'{fk.target_schema}', N'{fk.target_table}', N'N:1', "
+        f"N'{'Text' if fk.is_code_key else 'Key'}', 1, N'NO ACTION', N'Active', N'SYSTEM')"
+        for fk in foreign_keys
+    ]
+    for start in range(0, len(key_rows), 500):
+        parts.append(
+            "INSERT INTO [cfg].[DictionaryForeignKey]\n"
+            "    (TenantId, ForeignKeyName, SourceSchemaName, SourceTableName,\n"
+            "     TargetSchemaName, TargetTableName, Cardinality, ForeignKeyType,\n"
+            "     CheckRequired, OnDeleteAction, Status, CreatedBy)\n"
+            "VALUES\n" + ",\n".join(key_rows[start : start + 500]) + ";\nGO\n"
+        )
+
+    field_rows = [
+        f"(N'{fk.name}', N'{source}', N'{target}', {position})"
+        for fk in foreign_keys
+        for position, (source, target) in enumerate(
+            zip(fk.columns, fk.target_columns), start=1
+        )
+    ]
+    parts.append(
+        "CREATE TABLE #ForeignKeyField\n"
+        "(\n"
+        "    ForeignKeyName nvarchar(128), SourceFieldName nvarchar(64),\n"
+        "    TargetFieldName nvarchar(64), FieldPosition int\n"
+        ");\nGO\n"
+    )
+    for start in range(0, len(field_rows), 900):
+        parts.append(
+            "INSERT INTO #ForeignKeyField\n"
+            "    (ForeignKeyName, SourceFieldName, TargetFieldName, FieldPosition)\n"
+            "VALUES\n" + ",\n".join(field_rows[start : start + 900]) + ";\nGO\n"
+        )
+    parts.append(
+        "INSERT INTO [cfg].[DictionaryForeignKeyField]\n"
+        "    (TenantId, DictionaryForeignKeyId, SourceFieldName, TargetFieldName,\n"
+        "     FieldPosition, CreatedBy)\n"
+        "SELECT fk.TenantId, fk.Id, s.SourceFieldName, s.TargetFieldName,\n"
+        "       s.FieldPosition, N'SYSTEM'\n"
+        "FROM   #ForeignKeyField AS s\n"
+        "JOIN   [cfg].[DictionaryForeignKey] AS fk\n"
+        "       ON fk.TenantId = 1 AND fk.ForeignKeyName = s.ForeignKeyName;\n"
+        "GO\n"
+        "DROP TABLE #ForeignKeyField;\nGO\n"
+    )
+
+    indexes = [
+        (table, field)
+        for table in tables
+        for field in table.fields
+        if field.is_indexed and field.name != "TenantId"
+    ]
+
+    index_rows = [
+        f"(1, N'{t.schema}', N'{t.name}', N'IX_{t.schema}_{t.name}_{f.name}', "
+        f"N'{quote(clean(f.description))[:100]}', 0, 0, 0, N'Active', N'SYSTEM')"
+        for t, f in indexes
+    ]
+    parts.append(
+        "CREATE TABLE #DictionaryIndexStage\n"
+        "(\n"
+        "    TenantId int, SchemaName nvarchar(20), TableName nvarchar(64),\n"
+        "    IndexName nvarchar(128), ShortDescription nvarchar(255),\n"
+        "    IsUnique bit, IsClustered bit, IsColumnStore bit,\n"
+        "    Status nvarchar(20), CreatedBy nvarchar(64)\n"
+        ");\nGO\n"
+    )
+    for start in range(0, len(index_rows), 500):
+        parts.append(
+            "INSERT INTO #DictionaryIndexStage\n"
+            "    (TenantId, SchemaName, TableName, IndexName, ShortDescription,\n"
+            "     IsUnique, IsClustered, IsColumnStore, Status, CreatedBy)\n"
+            "VALUES\n" + ",\n".join(index_rows[start : start + 500]) + ";\nGO\n"
+        )
+    parts.append(
+        "INSERT INTO [cfg].[DictionaryIndex]\n"
+        "    (TenantId, DictionaryTableId, IndexName, ShortDescription, IsUnique,\n"
+        "     IsClustered, IsColumnStore, Status, CreatedBy)\n"
+        "SELECT s.TenantId, d.Id, s.IndexName, s.ShortDescription, s.IsUnique,\n"
+        "       s.IsClustered, s.IsColumnStore, s.Status, s.CreatedBy\n"
+        "FROM   #DictionaryIndexStage AS s\n"
+        "JOIN   [cfg].[DictionaryTable] AS d\n"
+        "       ON  d.TenantId   = s.TenantId\n"
+        "       AND d.SchemaName = s.SchemaName\n"
+        "       AND d.TableName  = s.TableName;\n"
+        "GO\n"
+    )
+
+    # Every one of these indexes leads with TenantId on a tenant-dependent
+    # table, so the dictionary records both columns in the order they appear.
+    index_field_rows = []
+    for table, field in indexes:
+        index_name = f"IX_{table.schema}_{table.name}_{field.name}"
+        position = 1
+        if table.has_tenant:
+            index_field_rows.append(f"(N'{index_name}', N'TenantId', 1)")
+            position = 2
+        index_field_rows.append(f"(N'{index_name}', N'{field.name}', {position})")
+
+    parts.append(
+        "CREATE TABLE #DictionaryIndexFieldStage\n"
+        "(\n"
+        "    IndexName nvarchar(128), FieldName nvarchar(64), FieldPosition int\n"
+        ");\nGO\n"
+    )
+    for start in range(0, len(index_field_rows), 900):
+        parts.append(
+            "INSERT INTO #DictionaryIndexFieldStage (IndexName, FieldName, FieldPosition)\n"
+            "VALUES\n" + ",\n".join(index_field_rows[start : start + 900]) + ";\nGO\n"
+        )
+    parts.append(
+        "INSERT INTO [cfg].[DictionaryIndexField]\n"
+        "    (TenantId, DictionaryIndexId, FieldName, FieldPosition, SortDirection,\n"
+        "     CreatedBy)\n"
+        "SELECT ix.TenantId, ix.Id, s.FieldName, s.FieldPosition, N'ASC', N'SYSTEM'\n"
+        "FROM   #DictionaryIndexFieldStage AS s\n"
+        "JOIN   [cfg].[DictionaryIndex] AS ix\n"
+        "       ON ix.TenantId = 1 AND ix.IndexName = s.IndexName;\n"
+        "GO\n"
+        "DROP TABLE #DictionaryIndexFieldStage;\nGO\n"
+        "DROP TABLE #DictionaryIndexStage;\nGO\n"
+    )
+
+    print(
+        f"  {len(foreign_keys)} foreign keys and {len(indexes)} indexes "
+        "described in the dictionary"
+    )
+    return parts
 
 
 def write_run_all(files: list[str]) -> None:

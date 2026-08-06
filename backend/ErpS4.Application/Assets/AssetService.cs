@@ -797,7 +797,7 @@ public sealed class AssetService(
             RetirementLoss = Account(AssetTransactionKeys.RetirementLoss),
             AcquisitionTransactionTypeId = await context.Query<AssetTransactionType>()
                 .AsNoTracking()
-                .Where(t => t.TenantId == TenantId && t.TransactionTypeCode == "100")
+                .Where(t => t.TenantId == TenantId && t.TransactionType == "100")
                 .Select(t => t.Id)
                 .FirstOrDefaultAsync(cancellationToken),
             Missing = missing,

@@ -11,12 +11,16 @@ public sealed class NumberRangeFormatTests
         var formatted = NumberRangeService.Format(
             number: 123,
             prefix: "KSS",
-            format: "{Prefix}-{Year}-{Type}-{Number:0000000000}",
-            numberLength: 10,
+            format: "{Prefix}-{Year}-{Type}-{Number:00000000}",
+            numberLength: 8,
             fiscalYear: 2026,
             documentType: "SA");
 
-        Assert.Equal("KSS-2026-SA-0000000123", formatted);
+        Assert.Equal("KSS-2026-SA-00000123", formatted);
+
+        // Exactly the width of the document number column. A mask that spills
+        // over it is a configuration error the service refuses at the draw.
+        Assert.Equal(NumberRangeService.MaxNumberLength, formatted.Length);
     }
 
     [Fact]

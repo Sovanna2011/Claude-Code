@@ -105,14 +105,36 @@ public sealed class NumberRangeService(ErpDbContext context, ITenantProvider ten
             throw new NumberRangeExhaustedException(numberRangeObject, numberRangeCode);
         }
 
-        return Format(
+        var formatted = Format(
             drawn[0],
             definition.Prefix,
             definition.NumberFormat,
             definition.NumberLength,
             fiscalYear,
             documentType);
+
+        // A prefix, year, type and padded number can easily add up past the
+        // column. Left alone, the first document of the year would fail on
+        // insert, or - worse - a T-SQL variable would truncate it silently and
+        // two documents would collide on the unique key. Better to refuse the
+        // configuration than to hand out a number that cannot be stored.
+        if (formatted.Length > MaxNumberLength)
+        {
+            throw new InvalidOperationException(
+                $"Number range {numberRangeObject}/{numberRangeCode} produced " +
+                $"'{formatted}' ({formatted.Length} characters); the document number " +
+                $"column holds {MaxNumberLength}. Shorten the prefix or the number " +
+                "length in cfg.NumberRangeObject.");
+        }
+
+        return formatted;
     }
+
+    /// <summary>
+    /// Width of the document-number columns, e.g.
+    /// <c>fin.JournalEntryHeader.DocumentNumber</c>.
+    /// </summary>
+    public const int MaxNumberLength = 20;
 
     /// <summary>
     /// Applies the format mask, e.g.

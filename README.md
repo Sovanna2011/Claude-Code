@@ -42,14 +42,20 @@ The catalogue drives both physical artefacts, so they cannot drift from it:
 |---|---|
 | **[`backend/ErpS4.Application/`](backend/ErpS4.Application/README.md)** | Posting engine, Business Partner synchronisation, clearing, assets, approval workflow, and the SE11 / SE16N back ends — 123 tests covering the mandatory rules |
 | **[`backend/ErpS4.Api/`](backend/ErpS4.Api/README.md)** | .NET 10 minimal API — journal entries, business partners, payments, assets, approvals, data dictionary and table browser, permission policies resolved from the security tables, RFC 7807 problems, capped paging |
-| **[`database/s4hana/`](database/s4hana/)** | SQL Server DDL — 228 tables, 838 foreign keys, 172 indexes, the SE11 dictionary seed (authorization groups and masked fields included), and a sample dataset (2 companies, 3 company codes, customer/vendor/dual-role partners, an asset, an intercompany pair, a KHR invoice) |
+| **[`database/s4hana/`](database/s4hana/)** | SQL Server DDL — 228 tables, 837 foreign keys, 172 indexes, the SE11 dictionary seed (authorization groups and masked fields included), and a sample dataset (2 companies, 3 company codes, customer/vendor/dual-role partners, an asset, an intercompany pair, a KHR invoice) |
 | **[`backend/ErpS4.Database/`](backend/ErpS4.Database/README.md)** | .NET 10 / EF Core 10 model — 228 entities and configurations, tenant query filters, audit stamping, append-only enforcement |
 
 ```bash
 cd database/s4hana && sqlcmd -S localhost -i run_all.sql   # install the schema
 python3 tools/generate_sql_ddl.py && python3 tools/generate_ef_core.py   # regenerate
-python3 tools/validate_generated_sql.py                    # check before shipping
+python3 tools/validate_generated_sql.py                    # six checks before shipping
+dotnet test backend/ErpS4.Tests                            # 123 tests
 ```
+
+Installed and exercised end to end on SQL Server 2025 and .NET 10: the schema
+loads from `run_all.sql`, the API serves the seeded documents, and SE16N refuses
+`sec.User`, masks IBANs, and turns `x'; DROP TABLE …` into a parameter that
+matches nothing.
 
 ## Try it in one command (demo)
 
@@ -84,9 +90,9 @@ Claude-Code/
 
 | Tool | Version | Used for |
 |------|---------|----------|
-| SQL Server | 2019+ (or Azure SQL / LocalDB) | database |
+| SQL Server | 2019+ (or Azure SQL / LocalDB); verified on **2025 / 17.0.4065.4** | database |
 | .NET SDK | 8.0 | HR module backend build/run |
-| .NET SDK | 10.0 | S/4HANA ERP database project (`backend/ErpS4.Database`) |
+| .NET SDK | 10.0 | S/4HANA ERP backend — built and tested on **10.0.110** |
 | Node.js | 18+ | UI5 dev server / build |
 
 ## 1. Database

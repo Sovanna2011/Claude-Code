@@ -2,6 +2,7 @@ using ErpS4.Application.Posting;
 using ErpS4.Application.Workflow;
 using ErpS4.Database;
 using ErpS4.Database.Entities;
+using ErpS4.Domain;
 using ErpS4.Tests.TestDoubles;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -23,7 +24,7 @@ public sealed class WorkflowTests
             scenario.Clock,
             NullLogger<WorkflowService>.Instance);
 
-    private static WorkflowScenario Configure(PostingScenario scenario, int steps = 1) =>
+    private static PostingScenario Configure(PostingScenario scenario, int steps = 1) =>
         WorkflowScenario.Configure(scenario, steps);
 
     [Fact]

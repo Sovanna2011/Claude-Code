@@ -96,6 +96,22 @@ posting endpoints refuse.
 | **Resilience** | `EnableRetryOnFailure` covers EF's own commands; the transaction helper and the browser's raw query both run *inside* the execution strategy, so a transient error retries rather than surfacing as a 500. |
 | **Connection** | `TrustServerCertificate=True` in the sample string — `Microsoft.Data.SqlClient` 4.0 and later default to `Encrypt=true`, so a local instance without a trusted certificate fails to connect without it. Remove it in production and install a real certificate. |
 
-> Not compiled or run: no .NET SDK is available in this environment
-> (`builds.dotnet.microsoft.com` is blocked by network policy). Run
-> `dotnet build backend/ErpS4.Api` before relying on it.
+## Verified against a real server
+
+Built with .NET SDK 10.0.110 and run against **SQL Server 2025 (17.0.4065.4)**
+with the schema installed from `database/s4hana/run_all.sql`. The endpoints were
+exercised with a JWT carrying `erp:tenant` and `erp:user`, and the permissions
+resolved out of `sec.Permission` as designed:
+
+```
+GET  /health                                          -> 200 {"status":"ok"}
+GET  /api/v1/table-browser/tables?search=JournalEntry -> the fin tables, FINC group
+POST /api/v1/table-browser/query   fin.JournalEntryHeader -> the 7 seeded documents
+POST /api/v1/table-browser/query   sec.User            -> 422 SE16N.TABLE_PROTECTED
+POST .../query  PostingDate GE 2026-02-01              -> 3 rows, DateOnly parameter
+POST .../query  PostingDate EQ 'not-a-date'            -> 422 SE16N.VALUE_INVALID
+POST .../query  DocumentNumber EQ "x'; DROP TABLE ..." -> 0 rows, table intact
+POST .../query  mdm.HouseBankAccount                   -> SELECT NULL AS [Iban] ...
+POST .../query  filter on Iban                         -> 422 SE16N.FIELD_MASKED
+GET  /api/v1/dictionary/tables/org/CompanyCode/where-used -> 46 referencing tables
+```

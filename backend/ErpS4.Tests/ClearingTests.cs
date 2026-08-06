@@ -80,11 +80,20 @@ public sealed class ClearingTests
         Assert.True(result.IsSuccess);
         Assert.Equal(1000m, result.TotalCleared);
 
-        var item = Assert.Single(scenario.Context.Set<OpenItem>());
+        var item = scenario.Context.Set<OpenItem>().Single(i => i.DocumentNumber == invoice);
         Assert.Equal("Cleared", item.Status);
         Assert.Equal(0m, item.OpenAmountInDocumentCurrency);
         Assert.Equal(1000m, item.ClearedAmountInDocumentCurrency);
         Assert.Equal(result.ClearingDocumentNumber, item.ClearingDocumentNumber);
+
+        // The payment's own receivable line is an open item too, and the same
+        // clearing settles it. Left open it would sit on the customer account
+        // as a credit nobody can explain.
+        var paymentItem = scenario.Context.Set<OpenItem>()
+            .Single(i => i.DocumentNumber == result.PaymentDocumentNumber);
+        Assert.Equal("Cleared", paymentItem.Status);
+        Assert.Equal(0m, paymentItem.OpenAmountInDocumentCurrency);
+        Assert.Equal(result.ClearingDocumentNumber, paymentItem.ClearingDocumentNumber);
 
         // The invoice line records the clearing without its amounts changing.
         var invoiceLine = scenario.Context.Set<JournalEntryLine>()
@@ -113,10 +122,14 @@ public sealed class ClearingTests
 
         Assert.True(result.IsSuccess);
 
-        var item = Assert.Single(scenario.Context.Set<OpenItem>());
+        var item = scenario.Context.Set<OpenItem>().Single(i => i.DocumentNumber == invoice);
         Assert.Equal("PartiallyCleared", item.Status);
         Assert.Equal(600m, item.OpenAmountInDocumentCurrency);
         Assert.Null(item.ClearingDocumentNumber);
+
+        // The payment itself is fully applied even though the invoice is not.
+        Assert.Equal("Cleared", scenario.Context.Set<OpenItem>()
+            .Single(i => i.DocumentNumber == result.PaymentDocumentNumber).Status);
     }
 
     [Fact]
@@ -131,15 +144,18 @@ public sealed class ClearingTests
         Assert.True(result.IsSuccess);
 
         var items = scenario.Context.Set<OpenItem>();
-        Assert.Equal(2, items.Count);
 
         var original = items.Single(i => i.DocumentNumber == invoice);
         Assert.Equal("Cleared", original.Status);
         Assert.Equal(0m, original.OpenAmountInDocumentCurrency);
 
-        var residual = items.Single(i => i.DocumentNumber == result.PaymentDocumentNumber);
-        Assert.Equal("Open", residual.Status);
+        // Three items on the payment document's side of the ledger: the
+        // payment's own line, settled, and the residual, which is the point.
+        var residual = items.Single(
+            i => i.DocumentNumber == result.PaymentDocumentNumber && i.Status == "Open");
         Assert.Equal(600m, residual.OpenAmountInDocumentCurrency);
+
+        Assert.Equal(600m, items.Sum(i => i.OpenAmountInDocumentCurrency));
 
         // The remainder ages from the payment, not from the original invoice.
         Assert.Equal(PaymentDate, residual.BaselineDate);
@@ -158,7 +174,7 @@ public sealed class ClearingTests
         Assert.True(result.IsSuccess);
         Assert.Equal(20m, result.TotalCashDiscount);
 
-        var item = Assert.Single(scenario.Context.Set<OpenItem>());
+        var item = scenario.Context.Set<OpenItem>().Single(i => i.DocumentNumber == invoice);
         Assert.Equal("Cleared", item.Status);
 
         var payment = scenario.Context.Set<JournalEntryLine>()
@@ -265,9 +281,10 @@ public sealed class ClearingTests
             PostingScenario.CompanyCodeKey, 2026, cleared.ClearingDocumentNumber!, "Wrong invoice"));
 
         Assert.True(reset.IsSuccess);
-        Assert.Equal(1, reset.ItemsReopened);
+        // Both sides go back to open: the invoice and the payment's own line.
+        Assert.Equal(2, reset.ItemsReopened);
 
-        var item = Assert.Single(scenario.Context.Set<OpenItem>());
+        var item = scenario.Context.Set<OpenItem>().Single(i => i.DocumentNumber == invoice);
         Assert.Equal("Open", item.Status);
         Assert.Equal(1000m, item.OpenAmountInDocumentCurrency);
         Assert.Equal(0m, item.ClearedAmountInDocumentCurrency);

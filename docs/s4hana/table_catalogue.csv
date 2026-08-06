@@ -1214,7 +1214,7 @@ cfg,DictionaryViewField,cfg.DictionaryViewField,15,RowVersion,rowversion,,no,Opt
 cfg,DictionaryViewField,cfg.DictionaryViewField,16,IsActive,bit,,no,Soft-delete / active flag (master + config only),Field of a view,,03_data_dictionary.md
 cfg,DictionaryForeignKey,cfg.DictionaryForeignKey,1,Id,bigint,PK,no,Surrogate key,Foreign key / check table relationship,,03_data_dictionary.md
 cfg,DictionaryForeignKey,cfg.DictionaryForeignKey,2,TenantId,int,"FK,IX",no,Owning tenant — every query is filtered by it,Foreign key / check table relationship,,03_data_dictionary.md
-cfg,DictionaryForeignKey,cfg.DictionaryForeignKey,3,ForeignKeyName,nvarchar(64),AK,no,Constraint name,Foreign key / check table relationship,,03_data_dictionary.md
+cfg,DictionaryForeignKey,cfg.DictionaryForeignKey,3,ForeignKeyName,nvarchar(128),AK,no,Constraint name (a SQL Server identifier),Foreign key / check table relationship,,03_data_dictionary.md
 cfg,DictionaryForeignKey,cfg.DictionaryForeignKey,4,SourceSchemaName,nvarchar(20),,no,Source schema,Foreign key / check table relationship,,03_data_dictionary.md
 cfg,DictionaryForeignKey,cfg.DictionaryForeignKey,5,SourceTableName,nvarchar(64),,no,Source (dependent) table,Foreign key / check table relationship,,03_data_dictionary.md
 cfg,DictionaryForeignKey,cfg.DictionaryForeignKey,6,TargetSchemaName,nvarchar(20),,no,Target schema,Foreign key / check table relationship,,03_data_dictionary.md
@@ -1246,7 +1246,7 @@ cfg,DictionaryForeignKeyField,cfg.DictionaryForeignKeyField,13,IsActive,bit,,no,
 cfg,DictionaryIndex,cfg.DictionaryIndex,1,Id,bigint,PK,no,Surrogate key,Secondary index definition,,03_data_dictionary.md
 cfg,DictionaryIndex,cfg.DictionaryIndex,2,TenantId,int,"FK,IX",no,Owning tenant — every query is filtered by it,Secondary index definition,,03_data_dictionary.md
 cfg,DictionaryIndex,cfg.DictionaryIndex,3,DictionaryTableId,bigint,"AK,FK",no,Owning table,Secondary index definition,,03_data_dictionary.md
-cfg,DictionaryIndex,cfg.DictionaryIndex,4,IndexName,nvarchar(64),AK,no,Index name,Secondary index definition,,03_data_dictionary.md
+cfg,DictionaryIndex,cfg.DictionaryIndex,4,IndexName,nvarchar(128),AK,no,Index name (a SQL Server identifier),Secondary index definition,,03_data_dictionary.md
 cfg,DictionaryIndex,cfg.DictionaryIndex,5,ShortDescription,nvarchar(255),,yes,Purpose of the index,Secondary index definition,,03_data_dictionary.md
 cfg,DictionaryIndex,cfg.DictionaryIndex,6,IsUnique,bit,,no,Unique index,Secondary index definition,,03_data_dictionary.md
 cfg,DictionaryIndex,cfg.DictionaryIndex,7,IsClustered,bit,,no,Clustered index,Secondary index definition,,03_data_dictionary.md

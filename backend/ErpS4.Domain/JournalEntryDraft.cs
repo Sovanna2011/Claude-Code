@@ -105,6 +105,18 @@ public sealed class JournalEntryDraft
             }
         }
 
+        // Only worth asking whether the document balances once every line is in
+        // the same currency. Adding USD to KHR throws by design, and the mixed
+        // currency has already been reported above - reporting "not balanced"
+        // on top of it would be a second message about the same mistake.
+        var isSingleCurrency = _lines.All(line =>
+            string.Equals(line.Amount.Currency, DocumentCurrency, StringComparison.Ordinal));
+
+        if (!isSingleCurrency)
+        {
+            return errors;
+        }
+
         var difference = Difference.Round(currencyDecimals);
         if (!difference.IsZero)
         {

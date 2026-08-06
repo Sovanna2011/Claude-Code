@@ -132,11 +132,11 @@ public sealed class ClearingService(
             reopened++;
         }
 
+        // A clearing document records its own reversal in ResetAt / ResetBy and
+        // carries no modification columns: nothing else about it ever changes.
         clearing.IsReset = true;
         clearing.ResetAt = now;
         clearing.ResetBy = user;
-        clearing.ModifiedAt = now;
-        clearing.ModifiedBy = user;
 
         await context.SaveChangesAsync(cancellationToken);
 
@@ -493,6 +493,18 @@ public sealed class ClearingService(
             .OrderBy(l => l.LineItemNumber)
             .ToListAsync(cancellationToken);
 
+        // Captured before the loop below, because a residual item is created
+        // out of the same payment line and must stay open. Identifying the
+        // payment's own items afterwards would sweep the residual up with them.
+        var paymentLineIds = paymentLines.Select(l => l.Id).ToList();
+        var paymentItemIds = await context.Query<OpenItem>()
+            .Where(o => o.TenantId == TenantId
+                        && o.DocumentNumber == posted.DocumentNumber
+                        && o.FiscalYear == posted.FiscalYear
+                        && paymentLineIds.Contains(o.JournalEntryLineId))
+            .Select(o => o.Id)
+            .ToListAsync(cancellationToken);
+
         var cleared = new List<ClearedItem>(items.Count);
 
         for (var index = 0; index < items.Count; index++)
@@ -559,6 +571,9 @@ public sealed class ClearingService(
                 residualDocument));
         }
 
+        await ClearPaymentItemsAsync(
+            paymentItemIds, clearing, clearingNumber, request, now, user, cancellationToken);
+
         await context.SaveChangesAsync(cancellationToken);
 
         logger.LogInformation(
@@ -573,6 +588,66 @@ public sealed class ClearingService(
             TotalCashDiscount = discount,
             ClearedItems = cleared,
         };
+    }
+
+    /// <summary>
+    /// Clears the payment document's own partner lines against the same
+    /// clearing document.
+    /// </summary>
+    /// <remarks>
+    /// The payment posts a credit to the reconciliation account, and the
+    /// posting engine opens an item for it like any other partner line. Left
+    /// alone it would sit on the customer account forever as a credit nobody
+    /// can explain, and the account would never age to nil however many
+    /// invoices were settled. A residual item is the exception: it was created
+    /// above out of the same payment line precisely to stay open.
+    /// </remarks>
+    private async Task ClearPaymentItemsAsync(
+        IReadOnlyList<long> paymentItemIds,
+        ClearingDocument clearing,
+        string clearingNumber,
+        ClearingRequest request,
+        DateTime now,
+        string user,
+        CancellationToken cancellationToken)
+    {
+        if (paymentItemIds.Count == 0)
+        {
+            return;
+        }
+
+        var paymentItems = await context.Query<OpenItem>()
+            .Where(o => paymentItemIds.Contains(o.Id) && o.Status == "Open")
+            .ToListAsync(cancellationToken);
+
+        foreach (var paymentItem in paymentItems)
+        {
+            context.Add(new ClearingItem
+            {
+                TenantId = TenantId,
+                ClearingDocumentId = clearing.Id,
+                OpenItemId = paymentItem.Id,
+                ClearedAmountInDocumentCurrency = paymentItem.OpenAmountInDocumentCurrency,
+                ClearedAmountInLocalCurrency = paymentItem.OpenAmountInLocalCurrency,
+                CashDiscountTaken = 0m,
+                IsPartialClearing = false,
+                CreatedAt = now,
+                CreatedBy = user,
+            });
+
+            paymentItem.ClearedAmountInDocumentCurrency +=
+                paymentItem.OpenAmountInDocumentCurrency;
+            paymentItem.OpenAmountInDocumentCurrency = 0m;
+            paymentItem.OpenAmountInLocalCurrency = 0m;
+            paymentItem.Status = "Cleared";
+            paymentItem.ClearingDocumentNumber = clearingNumber;
+            paymentItem.ClearingDate = request.PostingDate;
+            paymentItem.ModifiedAt = now;
+            paymentItem.ModifiedBy = user;
+
+            await UpdateSourceLineAsync(
+                paymentItem, clearingNumber, request.PostingDate, cancellationToken);
+        }
     }
 
     private void AddResidualItem(

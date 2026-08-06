@@ -246,7 +246,7 @@ reviewed migrations**; it never executes ad-hoc DDL from a browser session.
 |---|---|---|---|---|
 | `Id` | `bigint` | PK | no | Surrogate key |
 | *include* | `#TENANT` | | | Tenant discriminator |
-| `ForeignKeyName` | `nvarchar(64)` | AK | no | Constraint name |
+| `ForeignKeyName` | `nvarchar(128)` | AK | no | Constraint name (a SQL Server identifier) |
 | `SourceSchemaName` | `nvarchar(20)` | | no | Source schema |
 | `SourceTableName` | `nvarchar(64)` | | no | Source (dependent) table |
 | `TargetSchemaName` | `nvarchar(20)` | | no | Target schema |
@@ -284,7 +284,7 @@ reviewed migrations**; it never executes ad-hoc DDL from a browser session.
 | `Id` | `bigint` | PK | no | Surrogate key |
 | *include* | `#TENANT` | | | Tenant discriminator |
 | `DictionaryTableId` | `bigint` | AK,FK | no | Owning table |
-| `IndexName` | `nvarchar(64)` | AK | no | Index name |
+| `IndexName` | `nvarchar(128)` | AK | no | Index name (a SQL Server identifier) |
 | `ShortDescription` | `nvarchar(255)` | | yes | Purpose of the index |
 | `IsUnique` | `bit` | | no | Unique index |
 | `IsClustered` | `bit` | | no | Clustered index |

@@ -186,6 +186,77 @@ def value_tuples(text: str) -> list[str]:
     return tuples
 
 
+def select_list(text: str) -> str | None:
+    """
+    The projection of an INSERT ... SELECT, up to its FROM or terminator.
+
+    <paramref name="text"/> begins just after the SELECT keyword, which the
+    INSERT pattern has already consumed.
+    """
+    start = 0
+    depth = 0
+    index = start
+    while index < len(text):
+        character = text[index]
+        if character == "'":
+            index += 1
+            while index < len(text):
+                if text[index] == "'":
+                    if text[index + 1 : index + 2] == "'":
+                        index += 2
+                        continue
+                    break
+                index += 1
+        elif character == "(":
+            depth += 1
+        elif character == ")":
+            depth -= 1
+        elif depth == 0:
+            if character == ";":
+                return text[start:index]
+            if re.match(r"\bFROM\b", text[index:], re.IGNORECASE):
+                return text[start:index]
+        index += 1
+
+    return None
+
+
+def select_literal_problems(file_name, table, match, text) -> list[str]:
+    """
+    Checks the constant literals of an INSERT ... SELECT against their columns.
+
+    SQL Server catches an over-long literal here too - by raising error 2628
+    half way through the install, with the script already partly applied. The
+    point of this pass is to catch it before that.
+    """
+    projection = select_list(text[match.end() :])
+    if projection is None:
+        return []
+
+    columns = [c.strip().strip("[]") for c in match.group(3).split(",") if c.strip()]
+    expressions = split_top_level(projection)
+    if len(expressions) != len(columns):
+        return [
+            f"{file_name}: {table.full_name} selects {len(expressions)} expressions "
+            f"for {len(columns)} columns"
+        ]
+
+    problems: list[str] = []
+    for column_name, expression in zip(columns, expressions):
+        field = table.field(column_name)
+        literal = STRING_LITERAL.match(expression.strip())
+        if field is None or literal is None:
+            continue
+        limit = field.max_length
+        actual = len(literal.group(1).replace("''", "'"))
+        if limit is not None and actual > limit:
+            problems.append(
+                f"{file_name}: {table.full_name}.{column_name} is {field.sql_type} "
+                f"but the selected literal is {actual} characters"
+            )
+    return problems
+
+
 def check_insert_arity() -> list[str]:
     """Each VALUES row must supply exactly one value per column, and a string
     literal must fit the column it goes into."""
@@ -198,7 +269,10 @@ def check_insert_arity() -> list[str]:
             if table is None:
                 continue
             if not text[match.start() : match.end()].rstrip().upper().endswith("VALUES"):
-                continue  # INSERT ... SELECT: SQL Server checks those itself
+                problems.extend(
+                    select_literal_problems(path.name, table, match, text)
+                )
+                continue
             columns = [c.strip().strip("[]") for c in match.group(3).split(",") if c.strip()]
             for row_number, row in enumerate(
                 value_tuples(strip_comments(text[match.end() :])), start=1
@@ -240,12 +314,75 @@ def check_identifiers() -> list[str]:
     return problems
 
 
+# A schema-qualified table name written without brackets. sqlglot parses
+# sec.User happily; SQL Server does not, because User is a reserved word. The
+# cheapest defence is to require brackets everywhere rather than to keep a list
+# of which of the 228 table names happen to be keywords this release.
+BARE_REFERENCE = re.compile(
+    r"(?<![\[\w.'])(org|cfg|mdm|fin|co|wf|sec|audit|rpt|intg)\.([A-Za-z_][A-Za-z0-9_]*)"
+)
+
+
+def strip_strings_and_comments(text: str) -> str:
+    """Blanks out literals and comments so only executable code is scanned."""
+    out: list[str] = []
+    index = 0
+    length = len(text)
+    while index < length:
+        if text[index] == "'":
+            end = index + 1
+            while end < length:
+                if text[end] == "'":
+                    if text[end + 1 : end + 2] == "'":
+                        end += 2
+                        continue
+                    end += 1
+                    break
+                end += 1
+            out.append(" " * (end - index))
+            index = end
+        elif text[index : index + 2] == "--":
+            end = text.find("\n", index)
+            end = length if end < 0 else end
+            out.append(" " * (end - index))
+            index = end
+        elif text[index : index + 2] == "/*":
+            end = text.find("*/", index + 2)
+            end = length if end < 0 else end + 2
+            out.append(" " * (end - index))
+            index = end
+        else:
+            out.append(text[index])
+            index += 1
+    return "".join(out)
+
+
+def check_bracketing() -> list[str]:
+    tables = {(t.schema, t.name) for t in load_tables()}
+    problems: list[str] = []
+
+    for path in sorted(SQL_DIR.glob("*.sql")):
+        code = strip_strings_and_comments(path.read_text(encoding="utf-8-sig"))
+        bare = {
+            f"{m.group(1)}.{m.group(2)}"
+            for m in BARE_REFERENCE.finditer(code)
+            if (m.group(1), m.group(2)) in tables
+        }
+        problems.extend(
+            f"{path.name}: {name} is not bracketed - write [schema].[Table]"
+            for name in sorted(bare)
+        )
+
+    return problems
+
+
 def main() -> None:
     failures = 0
     for title, problems in (
         ("T-SQL parse", parse_batches()),
         ("references", check_references()),
         ("identifiers", check_identifiers()),
+        ("bracketing", check_bracketing()),
         ("seed inserts", check_inserts()),
         ("seed values", check_insert_arity()),
     ):

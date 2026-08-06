@@ -1025,7 +1025,7 @@ public sealed class DictionaryForeignKeyConfiguration : IEntityTypeConfiguration
 
         builder.Property(e => e.Id).IsRequired().ValueGeneratedOnAdd();
         builder.Property(e => e.TenantId).IsRequired();
-        builder.Property(e => e.ForeignKeyName).HasMaxLength(64).IsUnicode().IsRequired();
+        builder.Property(e => e.ForeignKeyName).HasMaxLength(128).IsUnicode().IsRequired();
         builder.Property(e => e.SourceSchemaName).HasMaxLength(20).IsUnicode().IsRequired();
         builder.Property(e => e.SourceTableName).HasMaxLength(64).IsUnicode().IsRequired();
         builder.Property(e => e.TargetSchemaName).HasMaxLength(20).IsUnicode().IsRequired();
@@ -1104,7 +1104,7 @@ public sealed class DictionaryIndexConfiguration : IEntityTypeConfiguration<Dict
         builder.Property(e => e.Id).IsRequired().ValueGeneratedOnAdd();
         builder.Property(e => e.TenantId).IsRequired();
         builder.Property(e => e.DictionaryTableId).IsRequired();
-        builder.Property(e => e.IndexName).HasMaxLength(64).IsUnicode().IsRequired();
+        builder.Property(e => e.IndexName).HasMaxLength(128).IsUnicode().IsRequired();
         builder.Property(e => e.ShortDescription).HasMaxLength(255).IsUnicode();
         builder.Property(e => e.IsUnique).IsRequired();
         builder.Property(e => e.IsClustered).IsRequired();

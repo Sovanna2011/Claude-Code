@@ -665,7 +665,7 @@ BEGIN
     (
         [Id]               bigint IDENTITY(1,1) NOT NULL,                                                             -- Surrogate key
         [TenantId]         int NOT NULL,                                                                              -- Owning tenant - every query is filtered by it
-        [ForeignKeyName]   nvarchar(64) NOT NULL,                                                                     -- Constraint name
+        [ForeignKeyName]   nvarchar(128) NOT NULL,                                                                    -- Constraint name (a SQL Server identifier)
         [SourceSchemaName] nvarchar(20) NOT NULL,                                                                     -- Source schema
         [SourceTableName]  nvarchar(64) NOT NULL,                                                                     -- Source (dependent) table
         [TargetSchemaName] nvarchar(20) NOT NULL,                                                                     -- Target schema
@@ -719,7 +719,7 @@ BEGIN
         [Id]                bigint IDENTITY(1,1) NOT NULL,                                                            -- Surrogate key
         [TenantId]          int NOT NULL,                                                                             -- Owning tenant - every query is filtered by it
         [DictionaryTableId] bigint NOT NULL,                                                                          -- Owning table
-        [IndexName]         nvarchar(64) NOT NULL,                                                                    -- Index name
+        [IndexName]         nvarchar(128) NOT NULL,                                                                   -- Index name (a SQL Server identifier)
         [ShortDescription]  nvarchar(255) NULL,                                                                       -- Purpose of the index
         [IsUnique]          bit NOT NULL CONSTRAINT [DF_cfg_DictionaryIndex_IsUnique] DEFAULT (0),                    -- Unique index
         [IsClustered]       bit NOT NULL CONSTRAINT [DF_cfg_DictionaryIndex_IsClustered] DEFAULT (0),                 -- Clustered index
