@@ -86,8 +86,45 @@ sap.ui.define([
 					oView.setProperty("/series", "ACTUAL");
 				}
 				that._applyEditability(oDetail);
+				that._initBoardVariants(!!(oQuery.kind || oQuery.from || oQuery.series));
 				return that._loadRows();
 			}).catch(function (oProblem) {
+				that.showError(oProblem);
+			});
+		},
+
+		/**
+		 * _initBoardVariants wires the saved views for this screen.
+		 *
+		 * The version is deliberately not part of what a view stores. A filter
+		 * that named a plan version would stop working the day that version was
+		 * superseded, and "the fortnight I look at, on the cane rows" is the
+		 * thing somebody wants back - not "that fortnight of last season's
+		 * budget".
+		 */
+		_initBoardVariants: function (bFromDrillDown) {
+			var oView = this.getView().getModel("view");
+			var that = this;
+			this.initVariants("board", {
+				collect: function () {
+					return {
+						kind: oView.getProperty("/kind"),
+						series: oView.getProperty("/series"),
+						from: oView.getProperty("/from"),
+						to: oView.getProperty("/to")
+					};
+				},
+				apply: function (oPayload) {
+					["kind", "series", "from", "to"].forEach(function (sField) {
+						if (oPayload[sField]) {
+							oView.setProperty("/" + sField, oPayload[sField]);
+						}
+					});
+					that._loadRows().catch(function (oProblem) { that.showError(oProblem); });
+				}
+			}, bFromDrillDown).catch(function (oProblem) {
+				// A variant list that cannot be read is not a reason to refuse
+				// the board: the filters still work without saved views.
 				that.showError(oProblem);
 			});
 		},
@@ -185,6 +222,9 @@ sap.ui.define([
 			var that = this;
 			this._guardUnsaved().then(function (bProceed) {
 				if (bProceed) {
+					// The variant no longer matches what is on screen, and the
+					// control has to say so before somebody saves over it.
+					that.onVariantChanged();
 					that._loadRows().catch(function (oProblem) { that.showError(oProblem); });
 				}
 			});
@@ -196,6 +236,7 @@ sap.ui.define([
 				if (!bProceed) {
 					return;
 				}
+				that.onVariantChanged();
 				// The series drives what may be edited, so re-evaluate it.
 				that.getService().getVersion(that._sVersionId).then(function (oDetail) {
 					that._applyEditability(oDetail);

@@ -191,6 +191,38 @@ what their roles and their scope entitle them to see. It is also the better
 answer operationally: an alert addressed to a person who has left is an alert
 nobody owns.
 
+### Saved views (migration 0011, 1 table)
+
+`saved_views`: a named set of filters, sorts and column choices for one screen.
+Variant management, saved views and personalization are the same thing stored.
+
+Two decisions worth recording.
+
+The payload is `jsonb` and deliberately not modelled. What a view holds is a
+property of the screen it belongs to — the planning board saves a date range and
+a series, the order list saves a status filter — and a table with a column per
+filter would need migrating every time a screen grew one. The server does not
+interpret it; it stores what the page sent and hands it back, bounded at 16 KiB
+so the endpoint cannot become arbitrary per-user storage.
+
+A view belongs to the person who made it: `owner` is the username from the
+token, not a foreign key, because identity lives in the identity provider.
+Shared views exist because a factory that has worked out the right filter for a
+morning review should not each rediscover it, but only the owner may change or
+delete one — a variant anybody can edit is a variant nobody can rely on. Reading
+somebody else's is not forbidden but *absent*: there is no operation that
+reaches it, so a request for one is a 404, the same shape as an inbox addressed
+to a role you do not hold.
+
+`saved_views_default_idx` is a partial unique index over `(owner, page) WHERE
+is_default`, which is what enforces "at most one default per person per page"
+rather than application code two tabs could race. It is worth knowing that a
+partial unique index cannot be deferred: the first implementation of
+`SetDefault` cleared the old default and set the new one in the branches of a
+single data-modifying CTE, and PostgreSQL refused it, because CTE branches see
+one snapshot and run in an unspecified order. Clearing has to happen in its own
+statement, before the set, inside the transaction.
+
 ---
 
 ## 5.4 Data dictionary: the tables that carry the numbers

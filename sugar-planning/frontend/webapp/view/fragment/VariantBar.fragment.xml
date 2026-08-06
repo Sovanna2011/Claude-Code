@@ -1,0 +1,38 @@
+<core:FragmentDefinition xmlns="sap.m" xmlns:core="sap.ui.core">
+
+	<!--
+	  The variant bar. Reused by every screen that has filters, so a saved view
+	  is offered the same way everywhere and a planner learns it once.
+
+	  The buttons are deliberately conditional rather than disabled: a variant
+	  somebody does not own cannot be changed, and offering a greyed-out Delete
+	  on a colleague's shared view invites a click that will only ever be
+	  refused.
+	-->
+	<HBox alignItems="Center" class="sapUiTinyMarginEnd">
+		<Label text="{i18n>variantLabel}" class="sapUiTinyMarginEnd"/>
+		<Select selectedKey="{variants>/selectedId}" change=".onVariantSelect"
+			width="15rem" forceSelection="false"
+			items="{path: 'variants>/items', templateShareable: false}"
+			tooltip="{i18n>variantTooltip}">
+			<core:Item key="" text="{i18n>variantNone}"/>
+			<core:Item key="{variants>id}"
+				text="{= ${variants>shared} ? ${variants>name} + ' · ' + ${variants>owner} : ${variants>name} }"/>
+		</Select>
+
+		<!-- Says the screen no longer matches the variant, so nobody saves over
+		     one thinking it already held what they are looking at. -->
+		<ObjectStatus text="{i18n>variantModified}" state="Warning"
+			class="sapUiTinyMarginBegin"
+			visible="{variants>/modified}"/>
+
+		<Button icon="sap-icon://save" type="Transparent" press=".onVariantSaveAs"
+			tooltip="{i18n>variantSaveAs}"/>
+		<Button icon="sap-icon://favorite" type="Transparent" press=".onVariantSetDefault"
+			tooltip="{i18n>variantSetDefault}"
+			visible="{variants>/owned}"/>
+		<Button icon="sap-icon://delete" type="Transparent" press=".onVariantDelete"
+			tooltip="{i18n>variantDelete}"
+			visible="{variants>/owned}"/>
+	</HBox>
+</core:FragmentDefinition>

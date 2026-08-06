@@ -350,6 +350,29 @@ December opens on December rather than on the season's first fortnight.
 A target that does not exist says so rather than doing nothing, because a link
 that silently fails reads as broken rather than as absent.
 
+**Saved views on every screen with filters.** Variant management, saved views
+and personalization are the same thing stored: what a page looked like when
+somebody had it the way they wanted, under a name they can find again. The bar
+sits in the filter toolbar and works the same everywhere, because the behaviour
+is in the base controller rather than in each page.
+
+A view belongs to whoever made it. Sharing offers it to everyone at the same
+factory, and only the owner may change or delete one — the Delete and Default
+buttons are hidden rather than disabled on a colleague's variant, since a
+greyed-out button invites a click that will only ever be refused. A "Changed"
+marker appears when the screen no longer matches the view it was set from, and
+it means exactly that: a page that re-applies the same filter has not modified
+anything, and a marker that cried wolf would be ignored.
+
+A default view is applied once per page visit, not on every refresh — a planner
+who has narrowed the dates and then pressed refresh means "show me that again",
+not "throw away what I just set up". A page arrived at through a drill-down
+keeps the filter that was clicked, because somebody who clicked through to a
+period meant that period.
+
+The version is deliberately not part of what a board view stores: a filter that
+named a plan version would stop working the day that version was superseded.
+
 **Business-friendly display, exact storage.** Dates render in the user's locale
 and are stored as ISO. Quantities render with thousands separators and are
 stored as exact decimals. Formatters are display-only; a formatted value is

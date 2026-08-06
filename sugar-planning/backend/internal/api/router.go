@@ -33,10 +33,13 @@ type Server struct {
 	imports *service.Imports
 	// notifications is the inbox and the alert evaluation behind it.
 	notifications *service.Notifications
-	verifier      auth.Verifier
-	authCfg       auth.Config
-	logger        *slog.Logger
-	version       string
+	// views is variant management: the named filter sets behind saved views
+	// and personalization.
+	views    *service.Views
+	verifier auth.Verifier
+	authCfg  auth.Config
+	logger   *slog.Logger
+	version  string
 	// now is injected so that a default business date in a request is
 	// deterministic in tests.
 	now func() time.Time
@@ -94,6 +97,9 @@ func NewServer(o Options) http.Handler {
 	}
 	if s.notifications == nil {
 		s.notifications = service.NewNotifications(o.Store, o.Analytics, s.now)
+	}
+	if s.views == nil {
+		s.views = service.NewViews(o.Store)
 	}
 	if s.imports == nil {
 		s.imports = service.NewImports(o.Store, o.Planning, s.now)
@@ -279,6 +285,12 @@ func (s *Server) routes(mux *http.ServeMux) {
 	s.handle(mux, "GET /api/v1/notifications", s.handleListNotifications)
 	s.handle(mux, "POST /api/v1/notifications/{id}/read", s.handleMarkNotificationRead)
 	s.handle(mux, "POST /api/v1/notifications/evaluate", s.handleEvaluateAlerts)
+
+	// --- saved views (variant management) -----------------------------------
+	s.handle(mux, "GET /api/v1/views", s.handleListViews)
+	s.handle(mux, "PUT /api/v1/views", s.handleSaveView)
+	s.handle(mux, "DELETE /api/v1/views/{id}", s.handleDeleteView)
+	s.handle(mux, "POST /api/v1/views/{id}/default", s.handleSetDefaultView)
 
 	// --- imports ------------------------------------------------------------
 	s.handle(mux, "GET /api/v1/import-mappings", s.handleListImportMappings)

@@ -68,6 +68,7 @@ type data struct {
 	importRows     map[string][]domain.ImportRow
 
 	notifications map[string]domain.Notification
+	savedViews    map[string]domain.SavedView
 
 	batches      map[string]domain.Batch
 	packagingBOM map[string]domain.PackagingBOMLine
@@ -99,6 +100,7 @@ func newData() *data {
 		downtime:       map[string]domain.DowntimeEvent{},
 		batches:        map[string]domain.Batch{},
 		notifications:  map[string]domain.Notification{},
+		savedViews:     map[string]domain.SavedView{},
 		importMappings: map[string]domain.ImportMapping{},
 		importJobs:     map[string]domain.ImportJob{},
 		importRows:     map[string][]domain.ImportRow{},

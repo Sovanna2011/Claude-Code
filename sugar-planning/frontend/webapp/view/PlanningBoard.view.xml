@@ -18,6 +18,8 @@
 
 		<subHeader>
 			<OverflowToolbar>
+				<core:Fragment fragmentName="sugarplan.view.fragment.VariantBar" type="XML"/>
+				<ToolbarSeparator/>
 				<SegmentedButton selectedKey="{view>/kind}" selectionChange=".onKindChange">
 					<items>
 						<SegmentedButtonItem key="cane" text="{i18n>boardCane}" icon="sap-icon://tree"/>

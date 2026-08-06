@@ -165,6 +165,243 @@ sap.ui.define([
 
 		can: function (sPermission) {
 			return this.getService().can(sPermission);
+		},
+
+		// --- variant management -------------------------------------------
+		//
+		// Section 15 asks for variant management, saved views and
+		// personalization. Stored, all three are the same thing: what a page
+		// looked like when somebody had it the way they wanted, under a name
+		// they can find again.
+		//
+		// The behaviour lives here rather than in each page because the parts
+		// that are easy to get subtly wrong - applying a default exactly once,
+		// not offering delete on somebody else's variant, keeping the
+		// "modified" marker honest - should be got right once. A page supplies
+		// two functions and gets the rest:
+		//
+		//     this.initVariants("board", {
+		//         collect: function () { ... return the current filter; },
+		//         apply:   function (oPayload) { ... put the page into it; }
+		//     });
+
+		/**
+		 * initVariants wires this page to its saved views.
+		 *
+		 * sPage is the route name, which is also what the server files the view
+		 * under, so a variant can never be offered on a screen that could not
+		 * apply it.
+		 */
+		initVariants: function (sPage, oHandlers, bSkipDefault) {
+			this._sVariantPage = sPage;
+			this._oVariantHandlers = oHandlers;
+			// A page arrived at through a drill-down carries the filter that was
+			// clicked, and a saved default must not overwrite it: somebody who
+			// clicked through to a period meant that period.
+			this._bVariantDefaultApplied = !!bSkipDefault;
+			this.getView().setModel(this.getService().newModel({
+				items: [], selectedId: "", selectedName: "", modified: false,
+				owned: false, canShare: false, name: "", shared: false, isDefault: false
+			}), "variants");
+			return this.reloadVariants();
+		},
+
+		/**
+		 * reloadVariants fetches the list and applies the default the first time.
+		 *
+		 * The default is applied once per page visit, not on every refresh: a
+		 * planner who has narrowed the dates and then pressed refresh means
+		 * "show me that again", not "throw away what I just set up".
+		 */
+		reloadVariants: function () {
+			var that = this;
+			return this.getService().listViews(this._sVariantPage).then(function (oPage) {
+				var aItems = oPage.value || [];
+				var oModel = that.getView().getModel("variants");
+				oModel.setProperty("/items", aItems);
+				// Sharing needs an account scoped to exactly one factory,
+				// because that is the factory a shared view is published to.
+				var oProfile = that.getService().getSessionProfile() || {};
+				oModel.setProperty("/canShare", (oProfile.factories || []).length === 1);
+
+				if (that._bVariantDefaultApplied) {
+					that._refreshVariantSelection();
+					return aItems;
+				}
+				that._bVariantDefaultApplied = true;
+				var oDefault = aItems.filter(function (oItem) { return oItem.isDefault; })[0];
+				if (oDefault) {
+					that._selectVariant(oDefault);
+				}
+				return aItems;
+			});
+		},
+
+		/** onVariantSelect applies the variant the user picked. */
+		onVariantSelect: function (oEvent) {
+			var sId = oEvent.getSource().getSelectedKey();
+			var aItems = this.getView().getModel("variants").getProperty("/items") || [];
+			var oItem = aItems.filter(function (o) { return o.id === sId; })[0];
+			if (!oItem) {
+				// The empty entry is "no variant": the page keeps whatever the
+				// user has set rather than being reset, because clearing a
+				// selection is not the same as asking for the defaults back.
+				this.getView().getModel("variants").setProperty("/selectedId", "");
+				this._markVariantModified();
+				return;
+			}
+			this._selectVariant(oItem);
+		},
+
+		_selectVariant: function (oItem) {
+			var oModel = this.getView().getModel("variants");
+			oModel.setProperty("/selectedId", oItem.id);
+			oModel.setProperty("/selectedName", oItem.name);
+			this._sVariantApplied = JSON.stringify(oItem.payload);
+			this._refreshVariantSelection();
+			this._oVariantHandlers.apply(oItem.payload);
+		},
+
+		/** _refreshVariantSelection keeps the buttons honest about what may be
+		 * done to the selected variant. */
+		_refreshVariantSelection: function () {
+			var oModel = this.getView().getModel("variants");
+			var sId = oModel.getProperty("/selectedId");
+			var oItem = (oModel.getProperty("/items") || []).filter(function (o) {
+				return o.id === sId;
+			})[0];
+			var oProfile = this.getService().getSessionProfile() || {};
+			// Only the owner may change or delete a variant; a shared one that
+			// anybody could edit is one nobody could rely on.
+			oModel.setProperty("/owned", !!oItem && oItem.owner === oProfile.username);
+			oModel.setProperty("/modified", false);
+		},
+
+		/**
+		 * onVariantChanged is called by a page when its filter moves, so the
+		 * control can say the variant no longer matches what is on screen.
+		 */
+		onVariantChanged: function () {
+			this._markVariantModified();
+		},
+
+		_markVariantModified: function () {
+			var oModel = this.getView().getModel("variants");
+			if (!oModel || !this._oVariantHandlers) {
+				return;
+			}
+			// "Modified" means what is on screen differs from the variant, not
+			// that an event fired: a page that re-applies the same filter has
+			// not modified anything, and a marker that cried wolf would be
+			// ignored.
+			var sNow = JSON.stringify(this._oVariantHandlers.collect());
+			oModel.setProperty("/modified",
+				!!oModel.getProperty("/selectedId") && sNow !== this._sVariantApplied);
+		},
+
+		/**
+		 * onVariantSaveAs opens the dialog to store the current filter.
+		 *
+		 * The dialog is seeded from the selected variant, when there is one you
+		 * own. Saving replaces the whole record, so a dialog that opened with
+		 * the boxes clear would quietly un-default and un-share a view every
+		 * time its owner adjusted the dates and pressed save.
+		 */
+		onVariantSaveAs: function () {
+			var oModel = this.getView().getModel("variants");
+			var sId = oModel.getProperty("/selectedId");
+			var oSelected = (oModel.getProperty("/items") || []).filter(function (o) {
+				return o.id === sId;
+			})[0];
+			var oProfile = this.getService().getSessionProfile() || {};
+			var bMine = !!oSelected && oSelected.owner === oProfile.username;
+
+			oModel.setProperty("/name", bMine ? oSelected.name : "");
+			oModel.setProperty("/shared", bMine && !!oSelected.shared);
+			oModel.setProperty("/isDefault", bMine && !!oSelected.isDefault);
+			this._dialog("sugarplan.view.fragment.VariantDialog").then(function (oDialog) {
+				oDialog.open();
+			});
+		},
+
+		onVariantCancel: function () {
+			this._closeDialog("sugarplan.view.fragment.VariantDialog");
+		},
+
+		onVariantSave: function () {
+			var oModel = this.getView().getModel("variants");
+			var sName = (oModel.getProperty("/name") || "").trim();
+			if (!sName) {
+				this.showToast(this.getText("variantNameRequired"));
+				return;
+			}
+			var that = this;
+			this.setBusy(true);
+			this.getService().saveView({
+				page: this._sVariantPage,
+				name: sName,
+				shared: !!oModel.getProperty("/shared"),
+				isDefault: !!oModel.getProperty("/isDefault"),
+				payload: this._oVariantHandlers.collect()
+			}).then(function (oSaved) {
+				that.setBusy(false);
+				that._closeDialog("sugarplan.view.fragment.VariantDialog");
+				that.showToast(that.getText("variantSaved", [oSaved.name]));
+				return that.reloadVariants().then(function () {
+					that._selectVariant(oSaved);
+				});
+			}).catch(function (oProblem) {
+				that.showError(oProblem);
+			});
+		},
+
+		onVariantDelete: function () {
+			var oModel = this.getView().getModel("variants");
+			var sId = oModel.getProperty("/selectedId");
+			var sName = oModel.getProperty("/selectedName");
+			if (!sId) {
+				return;
+			}
+			var that = this;
+			this.confirm(this.getText("variantDeleteConfirm", [sName]),
+				this.getText("variantDeleteTitle")).then(function (bYes) {
+				if (!bYes) {
+					return;
+				}
+				that.setBusy(true);
+				that.getService().deleteView(sId).then(function () {
+					that.setBusy(false);
+					oModel.setProperty("/selectedId", "");
+					oModel.setProperty("/selectedName", "");
+					that.showToast(that.getText("variantDeleted", [sName]));
+					return that.reloadVariants();
+				}).catch(function (oProblem) {
+					that.showError(oProblem);
+				});
+			});
+		},
+
+		/** onVariantSetDefault makes the selected variant the one this page
+		 * opens with. */
+		onVariantSetDefault: function () {
+			var oModel = this.getView().getModel("variants");
+			var sId = oModel.getProperty("/selectedId");
+			if (!sId) {
+				return;
+			}
+			var oItem = (oModel.getProperty("/items") || []).filter(function (o) {
+				return o.id === sId;
+			})[0];
+			var that = this;
+			this.setBusy(true);
+			this.getService().setDefaultView(sId, !(oItem && oItem.isDefault))
+				.then(function () {
+					that.setBusy(false);
+					that.showToast(that.getText("variantDefaultSet"));
+					return that.reloadVariants();
+				}).catch(function (oProblem) {
+					that.showError(oProblem);
+				});
 		}
 	});
 });

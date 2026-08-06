@@ -1267,6 +1267,132 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  # --------------------------------------------------------------------------
+  # Saved views (variant management)
+  # --------------------------------------------------------------------------
+
+  /views:
+    get:
+      tags: [Views]
+      summary: The saved views a caller may use
+      description: |
+        A view is a named set of filters, sorts and column choices for one
+        screen — variant management, saved views and personalization are the
+        same thing stored.
+
+        These endpoints carry no permission check. A view belongs to whoever
+        made it, the way a notification is addressed to a role, and there is no
+        operation here that reaches anybody else's. Gating personalization
+        behind a permission would mean a role that can open a screen could not
+        remember how they like to look at it.
+
+        The list is the caller's own views plus the shared ones from factories
+        within their data scope, own first and then by name.
+      operationId: listViews
+      parameters:
+        - name: page
+          in: query
+          description: Restrict to one screen. The value is a route name.
+          schema:
+            type: string
+            enum: [board, downtime, orders, quality, stock, shipments, warehouse,
+                   materials, audit, interfaces, import, reports]
+      responses:
+        "200":
+          description: The views, own first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value:
+                        type: array
+                        items: { $ref: "#/components/schemas/SavedView" }
+    put:
+      tags: [Views]
+      summary: Save a view
+      description: |
+        Saving over one of your own names replaces it, which is what "save" on a
+        variant control means.
+
+        The payload is stored and not read: what a view holds is a property of
+        the screen it belongs to, and modelling it here would mean changing the
+        API every time a screen grew a filter. It must be valid JSON and at most
+        16 KiB.
+
+        The factory a shared view is published to comes from the caller's data
+        scope, not from the request: letting a client name one would let
+        somebody publish a variant into a plant they cannot see. An account
+        scoped to more than one factory cannot share.
+      operationId: saveView
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SaveViewRequest" }
+      responses:
+        "200":
+          description: The stored view.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SavedView" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /views/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Views]
+      summary: Delete one of your own views
+      description: |
+        The owner is part of the match, so somebody else's variant is `404`
+        rather than `403`: who has which variants is not a question this answers
+        to a caller.
+      operationId: deleteView
+      responses:
+        "204": { description: Deleted. }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /views/{id}/default:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Views]
+      summary: Apply this view when the screen opens
+      description: |
+        At most one default per person per page; setting one clears the
+        previous in the same statement, so two tabs cannot both win.
+
+        A separate command rather than a field on the save, because setting a
+        default is a different act from changing a filter and should not require
+        re-sending a payload the caller may no longer have.
+      operationId: setDefaultView
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                default:
+                  type: boolean
+                  description: >
+                    Omit or send true to make this the default; send false to
+                    clear it.
+      responses:
+        "204": { description: Done. }
+        "404": { $ref: "#/components/responses/NotFound" }
+
   /notifications:
     get:
       tags: [Inbox]
@@ -3863,6 +3989,65 @@ components:
           type: array
           description: Parameter codes with no specification in force.
           items: { type: string }
+
+    SavedView:
+      type: object
+      description: >
+        A named set of filters, sorts and column choices for one screen. Variant
+        management, saved views and personalization are the same thing stored.
+      properties:
+        id: { type: string, format: uuid }
+        owner:
+          type: string
+          description: >
+            The username from the token. There is no user table here; identity
+            lives in the identity provider, and a view belongs to whoever made
+            it.
+        page:
+          type: string
+          description: The route name of the screen this view applies to.
+        name: { type: string, maxLength: 60 }
+        factoryId: { type: string, format: uuid }
+        shared:
+          type: boolean
+          description: >
+            Published to everyone at the same factory. Only the owner may change
+            or delete it: a variant anybody can edit is a variant nobody can
+            rely on.
+        isDefault:
+          type: boolean
+          description: Applied when the screen opens. At most one per person per page.
+        payload:
+          type: object
+          additionalProperties: true
+          description: >
+            What the screen sent. The server stores it and does not interpret
+            it; the screen is the only thing that can. At most 16 KiB.
+        createdAt: { type: string, format: date-time }
+        createdBy: { type: string }
+        updatedAt: { type: string, format: date-time }
+        updatedBy: { type: string }
+        rowVersion: { type: integer, format: int64 }
+
+    SaveViewRequest:
+      type: object
+      required: [page, name, payload]
+      properties:
+        page:
+          type: string
+          enum: [board, downtime, orders, quality, stock, shipments, warehouse,
+                 materials, audit, interfaces, import, reports]
+        name: { type: string, maxLength: 60 }
+        shared:
+          type: boolean
+          default: false
+          description: >
+            Requires an account scoped to exactly one factory, since that is the
+            factory the view is published to.
+        isDefault: { type: boolean, default: false }
+        payload:
+          type: object
+          additionalProperties: true
 
     Notification:
       type: object

@@ -334,6 +334,36 @@ type Notifications interface {
 	ExistsSince(ctx context.Context, key string, since time.Time) (bool, error)
 }
 
+// SavedViews stores the named filter sets behind variant management.
+type SavedViews interface {
+	// List returns the views a caller may see on one page: their own, plus the
+	// shared ones from factories within their scope.
+	List(ctx context.Context, f SavedViewFilter) ([]domain.SavedView, error)
+	Get(ctx context.Context, id string) (domain.SavedView, error)
+	// Save inserts, or replaces the caller's view of the same name on the same
+	// page. Saving over a name is what "save" on a variant means, so it is one
+	// operation rather than a read followed by a decision two tabs could race.
+	Save(ctx context.Context, v domain.SavedView) (domain.SavedView, error)
+	// Delete removes one view. The owner is part of the match, so somebody
+	// else's variant is not found rather than forbidden.
+	Delete(ctx context.Context, id, owner string) error
+	// SetDefault makes one view the caller's default for its page and clears
+	// any previous one, in a single statement so the "at most one" rule cannot
+	// be broken by two tabs racing.
+	SetDefault(ctx context.Context, id, owner string, on bool) error
+}
+
+// SavedViewFilter selects saved views.
+type SavedViewFilter struct {
+	// Owner is the caller. Empty matches nothing: a view belongs to somebody,
+	// and a caller who is nobody has none.
+	Owner string
+	Page  string
+	// Factories is the caller's data scope, which bounds the shared views they
+	// are offered.
+	Factories []string
+}
+
 // NotificationFilter selects notifications.
 type NotificationFilter struct {
 	// Recipients are the role codes the reader holds. Empty matches nothing:
@@ -439,6 +469,7 @@ type Store interface {
 	Jobs() Jobs
 	Imports() Imports
 	Notifications() Notifications
+	SavedViews() SavedViews
 	Audit() Audit
 	Idempotency() Idempotency
 	// InTx runs fn inside a database transaction. Every posting that touches

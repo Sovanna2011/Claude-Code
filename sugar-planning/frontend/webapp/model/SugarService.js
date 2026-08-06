@@ -588,6 +588,27 @@ sap.ui.define([
 
 		/** newModel wraps a payload in a JSONModel with a generous size limit,
 		 * because a season is 137 days across several dimensions. */
+		// ------------------------------------------------------------------
+		// Saved views (variant management)
+		// ------------------------------------------------------------------
+
+		listViews: function (sPage) {
+			return this.get("/views" + this.query({ page: sPage }));
+		},
+
+		saveView: function (oView) {
+			return this.put("/views", oView);
+		},
+
+		deleteView: function (sId) {
+			return this.del("/views/" + encodeURIComponent(sId));
+		},
+
+		setDefaultView: function (sId, bOn) {
+			return this.post("/views/" + encodeURIComponent(sId) + "/default",
+				{ "default": bOn !== false });
+		},
+
 		newModel: function (oData) {
 			var oModel = new JSONModel(oData);
 			oModel.setSizeLimit(100000);

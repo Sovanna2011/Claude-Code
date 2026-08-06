@@ -15,6 +15,7 @@
 					text="{i18n>downtimeIntro}"/>
 
 				<Toolbar class="sapUiSmallMarginBottom">
+					<core:Fragment fragmentName="sugarplan.view.fragment.VariantBar" type="XML"/>
 					<Label text="{i18n>colFrom}"/>
 					<DatePicker value="{view>/from}" valueFormat="yyyy-MM-dd"
 						displayFormat="dd MMM yyyy" change=".onFilterChange" width="11rem"/>

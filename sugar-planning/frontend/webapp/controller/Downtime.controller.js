@@ -76,6 +76,31 @@ sap.ui.define([
 				oModel.setProperty("/lineId", oQuery.lineId);
 			}
 
+			var that = this;
+			// A drill-down carries its own filter, so a saved default must not
+			// then overwrite it: somebody who clicked through to a period meant
+			// that period.
+			var bFromDrillDown = !!(oQuery.from || oQuery.to || oQuery.lineId);
+			this.initVariants("downtime", {
+				collect: function () {
+					return {
+						from: oModel.getProperty("/from"),
+						to: oModel.getProperty("/to"),
+						lineId: oModel.getProperty("/lineId")
+					};
+				},
+				apply: function (oPayload) {
+					oModel.setProperty("/from", oPayload.from || "");
+					oModel.setProperty("/to", oPayload.to || "");
+					oModel.setProperty("/lineId", oPayload.lineId || "");
+					that._load();
+				}
+			}, bFromDrillDown).catch(function (oProblem) {
+				// A variant list that cannot be read is not a reason to refuse
+				// the page: the filters still work without saved views.
+				that.showError(oProblem);
+			});
+
 			this._load();
 		},
 
@@ -206,6 +231,10 @@ sap.ui.define([
 		},
 
 		onFilterChange: function () {
+			// The variant control needs to know the screen no longer matches the
+			// view it was set from, so nobody saves over one thinking it already
+			// held what they are looking at.
+			this.onVariantChanged();
 			this._load();
 		},
 

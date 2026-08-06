@@ -191,6 +191,34 @@ and is what the tests assert.
 | Is this series allowed in this version? | `domain.CheckWritable` | `TestActualsCannotBePostedToAPlanVersion` |
 | Per-row permission on a bulk write | `Planning.checkRow` | `TestOperatorPermissionsAreEnforcedPerSeries` |
 
+## 3.6 The one thing that needs no permission
+
+Saved views carry no permission check, and that is a decision rather than an
+omission.
+
+A view belongs to whoever made it, the way a notification is addressed to a
+role. There is no operation that reaches somebody else's, so there is nothing to
+authorise beyond having signed in — and gating personalization behind a
+permission would mean a role that can open a screen could not remember how they
+like to look at it. An Executive Viewer, who may change nothing else in this
+system, may still save the filter they read the board with.
+
+What replaces the permission check is ownership, enforced in the store rather
+than above it:
+
+| Question | Answer |
+| --- | --- |
+| Whose views may I list? | Mine, plus shared ones from factories in my scope |
+| Whose may I change or delete? | Only mine — somebody else's is `404`, not `403` |
+| Which factory does a shared view reach? | The caller's, taken from their scope, never from the request |
+| May an account scoped to several factories share? | No: a shared view is published to one factory, and there would be no way to say which |
+
+`404` rather than `403` on somebody else's variant is the same shape as the
+inbox: who holds which variants is not a question this system answers to a
+caller.
+
+---
+
 Note what is *not* in that list: the UI. The SAPUI5 application hides actions
 the caller cannot perform, which is good manners, but every one of those checks
 runs again on the server. The API tests call the endpoints directly, with no
