@@ -32,10 +32,21 @@ sugarcane/
 │   └── SugarcanePlanning.IntegrationTests/full process over a real service graph
 ├── database/01_schema.sql                 idempotent SQL Server DDL (36 tables)
 ├── database/generate-schema.sh            regenerates it from the migrations
+├── test-system/                           docker compose stack: SQL Server + API + client
 └── docs/                                  architecture · data model · deployment · user guide
 ```
 
 ## Quick start
+
+The fastest way to see the whole thing running is the disposable test stack — SQL Server, the
+API and the client, seeded with demo data, nothing to install but Docker:
+
+```bash
+cd sugarcane/test-system
+docker compose up -d --build         # then open http://localhost:5150
+```
+
+See [test-system/README.md](test-system/README.md). To run it from source instead:
 
 ```bash
 cd sugarcane

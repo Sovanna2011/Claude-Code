@@ -29,7 +29,11 @@
 
     <script src="lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/app.js"></script>
-    <script src="_framework/blazor.webassembly.js"></script>
+    <!-- The #[.{fingerprint}] placeholder is required: publish renames this file to
+         blazor.webassembly.<hash>.js, and OverrideHtmlAssetPlaceholders rewrites the tag to
+         match. Hard-coding the plain name works under `dotnet run` but 404s in every published
+         deployment, leaving the app stuck on "Loading the planning workspace…". -->
+    <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
 </body>
 
 </html>

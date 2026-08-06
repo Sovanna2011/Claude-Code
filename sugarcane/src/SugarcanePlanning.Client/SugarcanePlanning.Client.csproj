@@ -5,6 +5,16 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+
+    <!--
+      Publish emits stable asset names. With fingerprinting on, `dotnet publish` renames the
+      runtime files to dotnet.<hash>.js while the published blazor.webassembly.js still imports
+      "dotnet.js" with no fingerprint map, so the published app 404s on start-up and never
+      leaves "Loading the planning workspace…". The dev server does not fingerprint, which is
+      why this only appears in a real deployment. Cache-busting is handled by the host instead:
+      no-store on index.html, revalidated caching for _framework (see docs/deployment.md).
+    -->
+    <WasmFingerprintAssets>false</WasmFingerprintAssets>
   </PropertyGroup>
 
   <ItemGroup>

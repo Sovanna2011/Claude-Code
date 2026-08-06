@@ -94,7 +94,22 @@ dotnet publish src/SugarcanePlanning.Api    -c Release -o ./publish/api
 dotnet publish src/SugarcanePlanning.Client -c Release -o ./publish/client
 ```
 
-The client publishes to `./publish/client/wwwroot` as static files.
+The client publishes to `./publish/client/wwwroot` as static files. Whatever serves them must:
+
+- **fall back to `index.html`** for unknown paths — `/projections` and `/schedule` are
+  client-side routes, so without the fallback a refresh or a deep link returns 404;
+- **serve `.wasm` as `application/wasm`** — as `application/octet-stream` it fails to
+  instantiate and the app never starts;
+- **send `no-store` for `index.html`** and merely revalidate the rest (`no-cache` still allows a
+  304, so nothing is re-downloaded unnecessarily). The published asset names are stable, so an
+  immutable `max-age` would keep serving the previous deployment's code.
+
+The client sets `WasmFingerprintAssets=false` deliberately. With fingerprinting on, publish
+renames the runtime to `dotnet.<hash>.js` while the published `blazor.webassembly.js` still
+imports `dotnet.js` with no fingerprint map — so the published app 404s on start-up and sits
+forever on *Loading the planning workspace…*. The dev server does not fingerprint, which is why
+this only ever appears in a real deployment. `test-system/` is the quickest way to confirm a
+publish still boots.
 
 ## 4. Hosting options
 

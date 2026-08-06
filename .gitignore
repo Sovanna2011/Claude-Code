@@ -33,3 +33,6 @@ Thumbs.db
 *.log
 appsettings.*.local.json
 .env
+
+# Site-specific CAs for the test-system build; see test-system/ca/.keep
+sugarcane/test-system/ca/*.crt

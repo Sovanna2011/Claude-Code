@@ -192,6 +192,16 @@ nothing re-checked at the moment a document was *committed*, two drafts written 
 submitted could both be submitted and both approved, double-booking the land. `Submit` now
 re-runs the rule against the stored lines under a lock on each block.
 
+**The published client never started.** Every browser check until now had run the dev server,
+which serves assets under their plain names. `dotnet publish` fingerprints them — `dotnet.js`
+becomes `dotnet.<hash>.js` — but the published `blazor.webassembly.js` still imports `dotnet.js`
+and carries no fingerprint map, so the very first module import 404s and the app sits on
+*Loading the planning workspace…* forever. It would have failed identically on IIS, nginx, a CDN
+or Docker: everything except the one way it had been tested. `index.html` also hard-coded the
+loader's own plain name, which publish had renamed. The client now publishes stable names and
+`index.html` uses the `#[.{fingerprint}]` placeholder, and `test-system/` runs the published
+output rather than the dev server, so a publish that does not boot fails visibly.
+
 **The schema script could never be applied.** `sqlcmd` connects with `QUOTED_IDENTIFIER` OFF,
 and SQL Server refuses to create filtered indexes in that state, so the documented
 `sqlcmd -i database/01_schema.sql` created one table and stopped with *Msg 1934*.
