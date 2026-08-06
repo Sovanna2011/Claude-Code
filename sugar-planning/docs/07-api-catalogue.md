@@ -329,6 +329,24 @@ Placing a hold sits behind `quality:write` and releasing one behind
 be a different person from the one who lets it go can arrange that by granting
 the two to different roles.
 
+### Certificate of analysis
+
+| Method | Path | Purpose | Permission |
+| --- | --- | --- | --- |
+| GET | `/quality/samples/{id}/certificate` | The document that goes with a consignment | `report:read` |
+
+`?format=pdf` is what is put in the envelope; `json` is what the screen shows.
+
+Only a **completed** sample can produce one. A certificate is read as a
+guarantee, and issuing one from a half-finished sheet would be a statement the
+laboratory has not made yet.
+
+The limits printed are those copied onto each result when the sample was
+completed, not the specification in force today. A limit tightened next season
+must not retrospectively change what a customer was told about sugar shipped
+this one — which is also why the limits are copied onto the result in the first
+place rather than pointed at.
+
 ### Maintenance
 
 | Method | Path | Purpose | Permission |
@@ -344,7 +362,36 @@ remember to type the dates into a generate request.
 
 ---
 
-## 7.5 Interfaces
+## 7.5 Materials
+
+| Method | Path | Purpose | Permission |
+| --- | --- | --- | --- |
+| GET | `/master/packaging-bom` | The packaging bill of materials | `masterdata:read` |
+| PUT | `/master/packaging-bom` | Add or change a line | `masterdata:write` |
+| DELETE | `/master/packaging-bom/{id}` | Remove a line | `masterdata:write` |
+
+What a package consumes besides its own bag: the liner inside the jumbo bag, the
+thread that sews it, the label on the consumer pack, a share of the pallet it is
+stacked on. The primary bag is not held here — a packaging type points at its own
+bag material — because a bag is one per package by definition, and giving it a
+quantity would invite somebody to set it to two.
+
+The business key is the pair of packaging type and material, so the same material
+cannot appear twice on one package. Quantities are scale 6: 0.0035 spools of
+thread per bag is a real figure, not a rounding error.
+
+Two things read it. Requirement planning (`/materials/requirements`) adds the
+components to the bags, so the report does not say the factory needs bags and
+nothing else. And a production confirmation that names no components takes them
+from here — because an operator confirming a shift is not going to key how many
+liners went into 300 jumbo bags, and a consumption nobody records is a stock
+figure that drifts until somebody counts the shed. An operator who counted what
+actually went out of the store can still send the real figures, and then only
+those are recorded.
+
+---
+
+## 7.6 Interfaces
 
 The two directions are deliberately different in kind. What leaves this system
 goes through an outbox and is delivered asynchronously; what arrives comes in
@@ -434,7 +481,7 @@ enter laboratory readings. It cannot move stock, release a hold or touch a plan.
 
 ---
 
-## 7.6 What the API does not do
+## 7.7 What the API does not do
 
 Worth stating so nobody looks for it:
 

@@ -10,6 +10,7 @@ package seed
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -30,6 +31,8 @@ type Result struct {
 	Warehouses map[string]string // code -> id
 	Products   map[string]string // code -> id
 	Channels   map[string]string // code -> id
+	Packaging  map[string]string // code -> id
+	Materials  map[string]string // code -> id
 }
 
 // Actor is the user recorded against seeded rows.
@@ -109,6 +112,9 @@ func Load(ctx context.Context, s store.Store, planning *service.Planning) (Resul
 		{Code: "KG", Name: "Kilogram", Dimension: "MASS", Decimals: 3, Validity: active()},
 		{Code: "EA", Name: "Each", Dimension: "COUNT", Decimals: 0, Validity: active()},
 		{Code: "HR", Name: "Hour", Dimension: "TIME", Decimals: 2, Validity: active()},
+		// Thread is bought and issued by the spool, not by the metre, so that is
+		// the unit the store keeps and the unit a consumption is recorded in.
+		{Code: "SPOOL", Name: "Spool", Dimension: "COUNT", Decimals: 3, Validity: active()},
 	} {
 		if _, err := upsert(ctx, md.UOMs(), u.Code, u); err != nil {
 			return res, fmt.Errorf("uom %s: %w", u.Code, err)
@@ -183,6 +189,12 @@ func Load(ctx context.Context, s store.Store, planning *service.Planning) (Resul
 		{Code: "PALLET", Name: "Wooden pallet", UOM: "EA",
 			SafetyStock: domain.D("1000"), LeadTimeDays: 20, ScrapPct: domain.Zero,
 			OnHand: domain.D("8000"), OnOrder: domain.Zero, Validity: active()},
+		{Code: "THREAD", Name: "Bag closing thread", UOM: "SPOOL",
+			SafetyStock: domain.D("500"), LeadTimeDays: 25, ScrapPct: domain.D("3"),
+			OnHand: domain.D("3000"), OnOrder: domain.D("1000"), Validity: active()},
+		{Code: "LABEL", Name: "Consumer pack label", UOM: "EA",
+			SafetyStock: domain.D("50000"), LeadTimeDays: 21, ScrapPct: domain.D("2"),
+			OnHand: domain.D("400000"), OnOrder: domain.Zero, Validity: active()},
 	} {
 		saved, err := upsert(ctx, md.Materials(), m.Code, m)
 		if err != nil {
@@ -208,6 +220,38 @@ func Load(ctx context.Context, s store.Store, planning *service.Planning) (Resul
 		}
 		packagingIDs[p.Code] = saved.ID
 	}
+
+	// The bill of materials for each packaging type: what goes into a package
+	// besides the bag itself. The figures are the ordinary ones for a bagging
+	// line - a liner in every large bag, thread to sew it, a pallet shared
+	// between the bags stacked on it, and a label on each consumer pack.
+	for _, line := range []struct {
+		packaging, material string
+		qtyPerPackage       string
+	}{
+		{"PJUMBO", "LINER", "1"},
+		{"PJUMBO", "THREAD", "0.004"},
+		// A pallet carries twenty 50 kg bags, so each bag consumes a twentieth
+		// of one. Fractional consumption is exactly why the column has six
+		// decimals.
+		{"P50KG", "PALLET", "0.05"},
+		{"P50KG", "THREAD", "0.0012"},
+		{"P1T", "LINER", "1"},
+		{"P1T", "THREAD", "0.004"},
+		{"P1KG", "LABEL", "1"},
+	} {
+		if _, err := md.SavePackagingBOM(ctx, domain.PackagingBOMLine{
+			PackagingID:   packagingIDs[line.packaging],
+			MaterialID:    materialIDs[line.material],
+			QtyPerPackage: domain.D(line.qtyPerPackage),
+			Validity:      active(),
+		}, Actor); err != nil && !errors.Is(err, domain.ErrDuplicate) {
+			return res, fmt.Errorf("packaging bill of materials %s/%s: %w",
+				line.packaging, line.material, err)
+		}
+	}
+
+	res.Packaging, res.Materials = packagingIDs, materialIDs
 
 	// --- warehouses ---------------------------------------------------------
 	// The workbook states nominal capacities; usable capacity is set to 100 %

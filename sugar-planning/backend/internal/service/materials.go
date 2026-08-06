@@ -124,25 +124,58 @@ func (m *Materials) Requirements(ctx context.Context, req RequirementsRequest) (
 		return r
 	}
 
-	for packagingID, tons := range tonsByPackaging {
-		pack, ok := packaging[packagingID]
-		if !ok || pack.MaterialID == "" {
+	// The bill of materials covers everything that is not the primary bag: the
+	// liner inside the jumbo bag, the thread that sews it, the label on it.
+	// Without it a requirement report says the factory needs bags and nothing
+	// else, which is the kind of answer that stops a line at two in the morning.
+	bom, err := m.store.MasterData().ListPackagingBOM(ctx, "")
+	if err != nil {
+		return nil, err
+	}
+	componentsOf := map[string][]domain.PackagingBOMLine{}
+	for _, line := range bom {
+		if !line.Active {
 			continue
 		}
-		mat, ok := materials[pack.MaterialID]
+		componentsOf[line.PackagingID] = append(componentsOf[line.PackagingID], line)
+	}
+
+	for packagingID, tons := range tonsByPackaging {
+		pack, ok := packaging[packagingID]
 		if !ok {
 			continue
 		}
-		packages := domain.RequiredPackages(tons, pack.NetWeightKg, mat.ScrapPct)
-		r := need(mat)
-		qty := domain.DI(packages)
-		r.GrossRequired = r.GrossRequired.Add(qty)
-		r.Sources = append(r.Sources, RequirementSource{
-			PackagingCode: pack.Code, PackagingName: pack.Name,
-			PackedTons: domain.RoundQty(tons), Packages: packages, Quantity: qty,
-		})
-		if d := firstDate[packagingID]; d != "" && (r.RequiredBy == "" || d < r.RequiredBy) {
-			r.RequiredBy = d
+
+		// The package count is set by the bag, so it is worked out from the bag's
+		// scrap rate and then shared by every component: a bag that tears is a
+		// bag that had a liner in it.
+		primary, hasPrimary := materials[pack.MaterialID]
+		packages := domain.RequiredPackages(tons, pack.NetWeightKg, primary.ScrapPct)
+		if packages <= 0 {
+			continue
+		}
+
+		record := func(mat domain.Material, qty domain.Dec) {
+			r := need(mat)
+			r.GrossRequired = r.GrossRequired.Add(qty)
+			r.Sources = append(r.Sources, RequirementSource{
+				PackagingCode: pack.Code, PackagingName: pack.Name,
+				PackedTons: domain.RoundQty(tons), Packages: packages, Quantity: qty,
+			})
+			if d := firstDate[packagingID]; d != "" && (r.RequiredBy == "" || d < r.RequiredBy) {
+				r.RequiredBy = d
+			}
+		}
+
+		if hasPrimary && pack.MaterialID != "" {
+			record(primary, domain.DI(packages))
+		}
+		for _, line := range componentsOf[packagingID] {
+			component, ok := materials[line.MaterialID]
+			if !ok {
+				continue
+			}
+			record(component, domain.ComponentQuantity(packages, line.QtyPerPackage, component.ScrapPct))
 		}
 	}
 

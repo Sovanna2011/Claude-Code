@@ -24,7 +24,9 @@ flowchart TD
     H --> S[Shipments]
     H --> M[Materials]
     H --> R[Reports]
+    H --> C[Costing]
     H --> MD[Master data]
+    H --> I[Interfaces]
     H --> A[Audit trail]
 ```
 
@@ -207,6 +209,11 @@ A failed sheet blocks the quantity named on it. The holds table shows what is
 blocking and what has been released; releasing needs the quality release
 permission, which the keeper does not hold.
 
+A completed sample carries a **Certificate** button that downloads the
+certificate of analysis as a PDF — the document that goes in the envelope with a
+consignment. It appears only once the sample is complete: a certificate is read
+as a guarantee, and an unfinished sheet is not one the laboratory has given yet.
+
 ### Maintenance
 
 The outage calendar, with a standing warning at the top: an approved,
@@ -238,6 +245,24 @@ server-side builder, so they cannot disagree.
 One generic screen for all fourteen entities. Because every master entity has
 the same API shape, the table is built from a column list per entity and a new
 entity needs no new page.
+
+### Interfaces
+
+What this system has told the connected systems, and what it has not managed to
+tell them yet. Three tiles — waiting, given up, delivered — and the outbox
+below, filterable by topic.
+
+The **given up** tile is the one that matters and the easiest to leave off a
+screen: those events stopped being retried after twenty-five attempts and are
+waiting for a person. They are not lost, and a red strip says so in words rather
+than leaving somebody to work it out from a count. **Send now** drains what is
+due, which is what somebody does after an outage rather than waiting for the next
+tick; **Retry** on a single row delivers it whatever its backoff says, which is
+what they do once the far end is fixed.
+
+Behind `integration:read`, which an administrator and an auditor hold. A retry
+that still fails shows the far end's own words, because that is what the operator
+pressed the button to find out.
 
 ### Audit trail
 

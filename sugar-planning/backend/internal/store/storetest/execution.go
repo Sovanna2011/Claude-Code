@@ -752,3 +752,68 @@ func testMaintenance(t *testing.T, newStore Factory) {
 		t.Errorf("a stale maintenance window must conflict, got %v", err)
 	}
 }
+
+// testBatches holds both stores to the same rules about lots: the code is
+// unique across the system, and it is what somebody holding a pallet card looks
+// a batch up by.
+func testBatches(t *testing.T, newStore Factory) {
+	ctx := context.Background()
+	s := newStore(t)
+	f := seedFixture(t, ctx, s)
+	exec := s.Execution()
+
+	saved, err := exec.SaveBatch(ctx, domain.Batch{
+		Code: "B-2026-12-05-A", ProductID: f.product, FactoryID: f.factory,
+		ProducedOn: "2026-12-05", Quantity: domain.D("330"),
+	}, "shift")
+	must(t, err, "save batch")
+	if saved.ID == "" || saved.Status != "OPEN" {
+		t.Fatalf("a new batch is open and has an id: %+v", saved)
+	}
+
+	byCode, err := exec.BatchByCode(ctx, "B-2026-12-05-A")
+	must(t, err, "batch by code")
+	if byCode.ID != saved.ID || !byCode.Quantity.Equal(domain.D("330")) {
+		t.Errorf("the code must find the same batch, got %+v", byCode)
+	}
+
+	// The code is the business key, and two lots with the same code could not be
+	// told apart on a certificate.
+	if _, err := exec.SaveBatch(ctx, domain.Batch{
+		Code: "B-2026-12-05-A", ProductID: f.product, FactoryID: f.factory,
+	}, "shift"); !errors.Is(err, domain.ErrDuplicate) {
+		t.Errorf("a duplicate batch code must be refused, got %v", err)
+	}
+
+	// A code nobody has used is not found rather than empty, so a caller cannot
+	// mistake "no such batch" for "a batch with no id".
+	if _, err := exec.BatchByCode(ctx, "B-NEVER-MADE"); !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("an unknown code must be not found, got %v", err)
+	}
+	if _, err := exec.GetBatch(ctx, "not-a-uuid"); !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("a malformed id must be not found rather than an error, got %v", err)
+	}
+
+	saved.Quantity, saved.Status = domain.D("300"), "RELEASED"
+	updated, err := exec.SaveBatch(ctx, saved, "supervisor")
+	must(t, err, "update batch")
+	if updated.RowVersion != saved.RowVersion+1 || updated.Status != "RELEASED" {
+		t.Errorf("the update must bump the row version and stick: %+v", updated)
+	}
+
+	page, err := exec.ListBatches(ctx, store.ExecutionFilter{FactoryID: f.factory})
+	must(t, err, "list batches")
+	if len(page.Items) != 1 {
+		t.Fatalf("one batch, got %d", len(page.Items))
+	}
+	page, err = exec.ListBatches(ctx, store.ExecutionFilter{Number: "B-2026-12-05-A"})
+	must(t, err, "list by code")
+	if len(page.Items) != 1 {
+		t.Errorf("filtering by code must find it, got %d", len(page.Items))
+	}
+	page, err = exec.ListBatches(ctx, store.ExecutionFilter{Statuses: []string{"OPEN"}})
+	must(t, err, "list by status")
+	if len(page.Items) != 0 {
+		t.Errorf("the batch is released, so no open batch matches, got %d", len(page.Items))
+	}
+}

@@ -1063,3 +1063,271 @@ func TestTheSeededScenarioCanJudgeASample(t *testing.T) {
 		t.Errorf("both parameters are specified in the seed, got %v", outcome.Unspecified)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Certificate of analysis
+// ---------------------------------------------------------------------------
+
+func TestACertificateCarriesTheLimitsTheMaterialWasJudgedAgainst(t *testing.T) {
+	h, exec := execHarness(t)
+	lab := h.as(auth.RoleQualityUser)
+
+	// A batch comes into existence when production makes it, so the batch is
+	// confirmed first and the sample then names it by the code on the pallet
+	// card - which is what a laboratory technician actually has.
+	order := releasedOrder(t, h, exec, "", domain.D("330"))
+	if _, err := exec.Confirm(h.as(auth.RoleProductionOperator, auth.RoleShiftSupervisor),
+		order.ID, service.ConfirmRequest{
+			BusinessDate: "2026-12-05", YieldQty: domain.D("330"), BatchCode: "B-2026-12-05-A",
+		}); err != nil {
+		t.Fatalf("confirm production of the batch: %v", err)
+	}
+
+	sample, err := exec.CreateSample(lab, service.SampleRequest{
+		ProductID: h.seeded.Products["REF"], FactoryID: h.seeded.FactoryID,
+		BusinessDate: "2026-12-05", BatchCode: "B-2026-12-05-A",
+	})
+	if err != nil {
+		t.Fatalf("create sample: %v", err)
+	}
+	parameters, err := exec.ListParameters(lab)
+	if err != nil {
+		t.Fatalf("list parameters: %v", err)
+	}
+	pol := parameterByCode(t, parameters, "POL")
+
+	// A pol of 99.9 passes the refined specification comfortably.
+	if _, err := exec.RecordResults(lab, sample.ID, service.ResultsRequest{
+		Results:  []service.ResultInput{{ParameterID: pol, Value: domain.D("99.9")}},
+		Complete: true,
+	}); err != nil {
+		t.Fatalf("record results: %v", err)
+	}
+
+	cert, err := exec.Certificate(h.as(auth.RoleExecutiveViewer), sample.ID)
+	if err != nil {
+		t.Fatalf("certificate: %v", err)
+	}
+	if cert.Verdict != domain.QualityPass {
+		t.Errorf("verdict = %s, want PASS", cert.Verdict)
+	}
+	if len(cert.Lines) != 1 {
+		t.Fatalf("one measurement, one line, got %d", len(cert.Lines))
+	}
+	line := cert.Lines[0]
+	if line.ParameterCode != "POL" || line.ParameterName == "" {
+		t.Errorf("the line must name the parameter: %+v", line)
+	}
+	if line.LowerLimit == nil {
+		t.Error("a certificate without the limit is a number with nothing to judge it by")
+	}
+	if cert.ProductCode != "REF" || cert.CompanyName == "" || cert.FactoryName == "" {
+		t.Errorf("the certificate must say whose material it is: %+v", cert)
+	}
+	// The certificate carries the batch, which is what ties it to a consignment.
+	batch, err := h.store.Execution().BatchByCode(context.Background(), "B-2026-12-05-A")
+	if err != nil {
+		t.Fatalf("the confirmation must have created the batch: %v", err)
+	}
+	if cert.Sample.BatchID != batch.ID {
+		t.Errorf("the certificate must name the batch, got %q want %q",
+			cert.Sample.BatchID, batch.ID)
+	}
+
+	// A batch nobody produced cannot be sampled: that would be a sample of
+	// nothing, and a certificate about nothing.
+	if _, err := exec.CreateSample(lab, service.SampleRequest{
+		ProductID: h.seeded.Products["REF"], FactoryID: h.seeded.FactoryID,
+		BusinessDate: "2026-12-05", BatchCode: "B-NEVER-MADE",
+	}); !errors.Is(err, domain.ErrValidation) {
+		t.Errorf("an unknown batch must be refused, got %v", err)
+	}
+
+	// Tightening the specification afterwards must not change what the customer
+	// was already told.
+	specs, err := exec.SpecsFor(lab, h.seeded.Products["REF"], "2026-12-05")
+	if err != nil {
+		t.Fatalf("specs: %v", err)
+	}
+	var polSpec domain.QualitySpec
+	for _, s := range specs {
+		if s.ParameterID == pol {
+			polSpec = s
+		}
+	}
+	tighter, warn := domain.D("99.95"), domain.D("99.97")
+	polSpec.ID, polSpec.LowerLimit, polSpec.WarnLower = "", &tighter, &warn
+	polSpec.ValidFrom = "2026-12-01"
+	if _, err := exec.SaveSpec(h.as(auth.RoleQualityUser, auth.RoleMasterDataAdmin), polSpec); err != nil {
+		t.Fatalf("tighten the specification: %v", err)
+	}
+
+	after, err := exec.Certificate(h.as(auth.RoleExecutiveViewer), sample.ID)
+	if err != nil {
+		t.Fatalf("certificate again: %v", err)
+	}
+	if after.Lines[0].LowerLimit.Equal(tighter) {
+		t.Error("a certificate must keep the limit the material was judged against, " +
+			"not the one in force today")
+	}
+	if after.Verdict != domain.QualityPass {
+		t.Errorf("the verdict must not change either, got %s", after.Verdict)
+	}
+}
+
+func TestAnUnfinishedSampleCannotBeCertified(t *testing.T) {
+	h, exec := execHarness(t)
+	lab := h.as(auth.RoleQualityUser)
+
+	sample, err := exec.CreateSample(lab, service.SampleRequest{
+		ProductID: h.seeded.Products["REF"], FactoryID: h.seeded.FactoryID,
+		BusinessDate: "2026-12-05",
+	})
+	if err != nil {
+		t.Fatalf("create sample: %v", err)
+	}
+	if _, err := exec.Certificate(lab, sample.ID); !errors.Is(err, domain.ErrValidation) {
+		t.Errorf("an open sample must not produce a certificate, got %v", err)
+	}
+
+	parameters, err := exec.ListParameters(lab)
+	if err != nil {
+		t.Fatalf("list parameters: %v", err)
+	}
+	// An interim sheet is still not a statement the laboratory has made.
+	if _, err := exec.RecordResults(lab, sample.ID, service.ResultsRequest{
+		Results: []service.ResultInput{{
+			ParameterID: parameterByCode(t, parameters, "POL"), Value: domain.D("99.9"),
+		}},
+	}); err != nil {
+		t.Fatalf("record interim results: %v", err)
+	}
+	if _, err := exec.Certificate(lab, sample.ID); !errors.Is(err, domain.ErrValidation) {
+		t.Errorf("an unfinished sheet must not produce a certificate, got %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Bill-of-materials driven consumption
+// ---------------------------------------------------------------------------
+
+func TestAConfirmationWithNoComponentsTakesThemFromTheBOM(t *testing.T) {
+	h, exec := execHarness(t)
+	ctx := h.as(auth.RoleProductionOperator, auth.RoleShiftSupervisor)
+
+	packaging, err := h.store.MasterData().PackagingTypes().GetByCode(context.Background(), "PJUMBO")
+	if err != nil {
+		t.Fatalf("packaging: %v", err)
+	}
+	order := releasedOrder(t, h, exec, packaging.ID, domain.D("330"))
+
+	// 330 t of jumbo bags at 1.10 t each is 300 bags, plus the bag's 1 % scrap
+	// allowance: 303.
+	result, err := exec.Confirm(ctx, order.ID, service.ConfirmRequest{
+		BusinessDate: order.BusinessDate, YieldQty: domain.D("330"),
+	})
+	if err != nil {
+		t.Fatalf("confirm: %v", err)
+	}
+
+	byCode := map[string]domain.Dec{}
+	for _, c := range result.Confirmation.Consumptions {
+		mat, err := h.store.MasterData().Materials().Get(context.Background(), c.MaterialID)
+		if err != nil {
+			t.Fatalf("material: %v", err)
+		}
+		byCode[mat.Code] = c.Quantity
+	}
+
+	if got, ok := byCode["BAG-JUMBO"]; !ok || !got.Equal(domain.D("303")) {
+		t.Errorf("jumbo bags = %s, want 303 (300 bags plus 1 %% scrap)", got)
+	}
+	// One liner per bag, and the liner has its own 1 % scrap rate: 303 * 1.01.
+	if got, ok := byCode["LINER"]; !ok || !got.Equal(domain.D("306.03")) {
+		t.Errorf("liners = %s, want 306.030", got)
+	}
+	// Thread at 0.004 spools per bag with a 3 % scrap rate: 303 * 0.004 * 1.03.
+	if got, ok := byCode["THREAD"]; !ok || !got.Equal(domain.D("1.248")) {
+		t.Errorf("thread = %s, want 1.248 spools", got)
+	}
+	if len(byCode) != 3 {
+		t.Errorf("the jumbo bag consumes a bag, a liner and thread, got %v", byCode)
+	}
+}
+
+func TestComponentsEnteredByHandAreNotOverriddenByTheBOM(t *testing.T) {
+	h, exec := execHarness(t)
+	ctx := h.as(auth.RoleProductionOperator, auth.RoleShiftSupervisor)
+
+	packaging, err := h.store.MasterData().PackagingTypes().GetByCode(context.Background(), "PJUMBO")
+	if err != nil {
+		t.Fatalf("packaging: %v", err)
+	}
+	liner, err := h.store.MasterData().Materials().GetByCode(context.Background(), "LINER")
+	if err != nil {
+		t.Fatalf("material: %v", err)
+	}
+	order := releasedOrder(t, h, exec, packaging.ID, domain.D("330"))
+
+	// An operator who counted what actually went out of the store is a better
+	// source than a bill of materials, so what they entered stands alone.
+	result, err := exec.Confirm(ctx, order.ID, service.ConfirmRequest{
+		BusinessDate: order.BusinessDate, YieldQty: domain.D("330"),
+		Consumptions: []service.ConsumptionInput{{
+			MaterialID: liner.ID, Quantity: domain.D("290"), UOM: "EA",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("confirm: %v", err)
+	}
+	if len(result.Confirmation.Consumptions) != 1 {
+		t.Fatalf("the entered line must stand alone, got %v", result.Confirmation.Consumptions)
+	}
+	if !result.Confirmation.Consumptions[0].Quantity.Equal(domain.D("290")) {
+		t.Errorf("the counted quantity must survive, got %s",
+			result.Confirmation.Consumptions[0].Quantity)
+	}
+}
+
+func TestBulkProductionConsumesNoPackaging(t *testing.T) {
+	h, exec := execHarness(t)
+	ctx := h.as(auth.RoleProductionOperator, auth.RoleShiftSupervisor)
+
+	// Raw sugar going straight to the refinery is not bagged at all.
+	order := releasedOrder(t, h, exec, "", domain.D("500"))
+	result, err := exec.Confirm(ctx, order.ID, service.ConfirmRequest{
+		BusinessDate: order.BusinessDate, YieldQty: domain.D("500"),
+	})
+	if err != nil {
+		t.Fatalf("confirm: %v", err)
+	}
+	if len(result.Confirmation.Consumptions) != 0 {
+		t.Errorf("an order with no packaging must not invent a bag, got %v",
+			result.Confirmation.Consumptions)
+	}
+}
+
+// releasedOrder creates an order and releases it, which is the state a
+// confirmation needs.
+func releasedOrder(t *testing.T, h *harness, exec *service.Execution,
+	packagingID string, qty domain.Dec,
+) domain.ProductionOrder {
+
+	t.Helper()
+	ctx := h.as(auth.RoleProductionOperator, auth.RoleShiftSupervisor)
+
+	order, err := exec.CreateOrder(ctx, service.OrderRequest{
+		FactoryID: h.seeded.FactoryID, BusinessDate: "2026-12-05",
+		ProductID: h.seeded.Products["REF"], PackagingID: packagingID, PlannedQty: qty,
+	})
+	if err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+	order, err = exec.ActOnOrder(ctx, order.ID, service.OrderActionRequest{
+		Action: domain.OrderActionRelease,
+	})
+	if err != nil {
+		t.Fatalf("release order: %v", err)
+	}
+	return order
+}

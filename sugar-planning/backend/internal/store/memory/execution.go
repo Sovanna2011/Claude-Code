@@ -640,3 +640,91 @@ func (e execution) SaveMaintenance(_ context.Context, m domain.MaintenanceWindow
 	e.s.d.maintenance[m.ID] = m
 	return m, nil
 }
+
+// ---------------------------------------------------------------------------
+// Batches
+// ---------------------------------------------------------------------------
+
+func (e execution) ListBatches(_ context.Context, f store.ExecutionFilter) (store.Page[domain.Batch], error) {
+	e.s.lock()
+	defer e.s.unlock()
+
+	var items []domain.Batch
+	for _, b := range e.s.d.batches {
+		if f.FactoryID != "" && b.FactoryID != f.FactoryID {
+			continue
+		}
+		if !matchIn(f.ProductIDs, b.ProductID) {
+			continue
+		}
+		if f.Number != "" && b.Code != f.Number {
+			continue
+		}
+		if f.From != "" && b.ProducedOn != "" && b.ProducedOn < f.From {
+			continue
+		}
+		if f.To != "" && b.ProducedOn != "" && b.ProducedOn > f.To {
+			continue
+		}
+		if len(f.Statuses) > 0 && !matchIn(f.Statuses, b.Status) {
+			continue
+		}
+		items = append(items, b)
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].Code > items[j].Code })
+	return paginate(items, store.ListOptions{Skip: f.Skip, Top: orDefaultTop(f.Top)}), nil
+}
+
+func (e execution) GetBatch(_ context.Context, id string) (domain.Batch, error) {
+	e.s.lock()
+	defer e.s.unlock()
+	b, ok := e.s.d.batches[id]
+	if !ok {
+		return domain.Batch{}, fmt.Errorf("%w: batch %s", domain.ErrNotFound, id)
+	}
+	return b, nil
+}
+
+func (e execution) BatchByCode(_ context.Context, code string) (domain.Batch, error) {
+	e.s.lock()
+	defer e.s.unlock()
+	for _, b := range e.s.d.batches {
+		if b.Code == code {
+			return b, nil
+		}
+	}
+	return domain.Batch{}, fmt.Errorf("%w: batch %s", domain.ErrNotFound, code)
+}
+
+func (e execution) SaveBatch(_ context.Context, b domain.Batch, actor string) (domain.Batch, error) {
+	e.s.lock()
+	defer e.s.unlock()
+
+	now := nowUTC()
+	for _, existing := range e.s.d.batches {
+		if existing.Code == b.Code && existing.ID != b.ID {
+			return domain.Batch{}, fmt.Errorf("%w: batch %s", domain.ErrDuplicate, b.Code)
+		}
+	}
+	if b.Status == "" {
+		b.Status = "OPEN"
+	}
+	if b.ID == "" {
+		b.ID = uuid.NewString()
+		b.CreatedAt, b.CreatedBy, b.RowVersion = now, actor, 1
+	} else {
+		stored, ok := e.s.d.batches[b.ID]
+		if !ok {
+			return domain.Batch{}, fmt.Errorf("%w: batch %s", domain.ErrNotFound, b.ID)
+		}
+		if b.RowVersion != 0 && b.RowVersion != stored.RowVersion {
+			return domain.Batch{}, fmt.Errorf("%w: batch %s is at version %d, you have %d",
+				domain.ErrConflict, stored.Code, stored.RowVersion, b.RowVersion)
+		}
+		b.CreatedAt, b.CreatedBy = stored.CreatedAt, stored.CreatedBy
+		b.RowVersion = stored.RowVersion + 1
+	}
+	b.UpdatedAt, b.UpdatedBy = now, actor
+	e.s.d.batches[b.ID] = b
+	return b, nil
+}

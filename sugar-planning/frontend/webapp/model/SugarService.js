@@ -242,6 +242,30 @@ sap.ui.define([
 			return this.get("/reports/" + encodeURIComponent(sCode) + "?" + aQuery.join("&"));
 		},
 
+		/** downloadCertificate fetches the certificate of analysis for a sample
+		 * and hands it to the browser. The PDF is what goes in the envelope with
+		 * a consignment, so it is named after the sample rather than after a
+		 * report code. */
+		downloadCertificate: function (sSampleId, sSampleNo, sFormat) {
+			var sPath = "/quality/samples/" + encodeURIComponent(sSampleId) +
+				"/certificate?format=" + encodeURIComponent(sFormat);
+			return this.request("GET", sPath, { raw: true }).then(function (oBlob) {
+				this._save(oBlob, "COA-" + sSampleNo + "." + sFormat);
+			}.bind(this));
+		},
+
+		/** _save hands a blob to the browser as a download. */
+		_save: function (oBlob, sName) {
+			var sUrl = window.URL.createObjectURL(oBlob);
+			var oLink = document.createElement("a");
+			oLink.href = sUrl;
+			oLink.download = sName;
+			document.body.appendChild(oLink);
+			oLink.click();
+			document.body.removeChild(oLink);
+			window.URL.revokeObjectURL(sUrl);
+		},
+
 		/** downloadReport fetches an export and hands it to the browser. */
 		downloadReport: function (sCode, sFormat, oParams) {
 			var aQuery = ["format=" + encodeURIComponent(sFormat)];
@@ -252,15 +276,8 @@ sap.ui.define([
 			});
 			var sPath = "/reports/" + encodeURIComponent(sCode) + "?" + aQuery.join("&");
 			return this.request("GET", sPath, { raw: true }).then(function (oBlob) {
-				var sUrl = window.URL.createObjectURL(oBlob);
-				var oLink = document.createElement("a");
-				oLink.href = sUrl;
-				oLink.download = sCode + "." + sFormat;
-				document.body.appendChild(oLink);
-				oLink.click();
-				document.body.removeChild(oLink);
-				window.URL.revokeObjectURL(sUrl);
-			});
+				this._save(oBlob, sCode + "." + sFormat);
+			}.bind(this));
 		},
 
 		listMaster: function (sEntity, oParams) {

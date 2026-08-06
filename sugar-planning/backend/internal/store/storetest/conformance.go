@@ -35,6 +35,7 @@ func Run(t *testing.T, newStore Factory) {
 	t.Run("Confirmations", func(t *testing.T) { testConfirmations(t, newStore) })
 	t.Run("InventoryPosting", func(t *testing.T) { testInventory(t, newStore) })
 	t.Run("InventoryRollback", func(t *testing.T) { testInventoryRollback(t, newStore) })
+	t.Run("Batches", func(t *testing.T) { testBatches(t, newStore) })
 	t.Run("Quality", func(t *testing.T) { testQuality(t, newStore) })
 	t.Run("Maintenance", func(t *testing.T) { testMaintenance(t, newStore) })
 	t.Run("CostElements", func(t *testing.T) { testCostElements(t, newStore) })

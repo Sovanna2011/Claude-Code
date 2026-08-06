@@ -487,6 +487,9 @@ func CalculateCost(in CostInput) CostOutput {
 
 		out.Lines = append(out.Lines, line)
 
+		// C37: the total is the sum of the element costs. It is written out
+		// rather than derived from a driver, because a season's cost is what its
+		// elements add up to and nothing else.
 		out.Totals.PlannedCost = out.Totals.PlannedCost.Add(line.PlannedCost)
 		out.Totals.ActualCost = out.Totals.ActualCost.Add(line.ActualCost)
 		out.Totals.RateVariance = out.Totals.RateVariance.Add(line.RateVariance)

@@ -1,6 +1,11 @@
 package memory
 
 import (
+	"context"
+	"fmt"
+	"sort"
+
+	"github.com/google/uuid"
 	"github.com/kss/sugarplan/internal/domain"
 	"github.com/kss/sugarplan/internal/store"
 )
@@ -200,4 +205,78 @@ func (m masterData) ReasonCodes() store.Repo[domain.ReasonCode] {
 			parent: func(x domain.ReasonCode) string { return x.Category },
 			text:   func(x domain.ReasonCode) string { return x.Code + " " + x.Name },
 		}}
+}
+
+// ---------------------------------------------------------------------------
+// Packaging bill of materials
+// ---------------------------------------------------------------------------
+
+func (m masterData) ListPackagingBOM(_ context.Context, packagingID string) ([]domain.PackagingBOMLine, error) {
+	m.s.lock()
+	defer m.s.unlock()
+
+	out := []domain.PackagingBOMLine{}
+	for _, line := range m.s.d.packagingBOM {
+		if packagingID != "" && line.PackagingID != packagingID {
+			continue
+		}
+		out = append(out, line)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].PackagingID != out[j].PackagingID {
+			return out[i].PackagingID < out[j].PackagingID
+		}
+		return out[i].MaterialID < out[j].MaterialID
+	})
+	return out, nil
+}
+
+func (m masterData) SavePackagingBOM(_ context.Context, line domain.PackagingBOMLine,
+	actor string,
+) (domain.PackagingBOMLine, error) {
+
+	m.s.lock()
+	defer m.s.unlock()
+
+	now := nowUTC()
+	for _, existing := range m.s.d.packagingBOM {
+		if existing.ID == line.ID || existing.PackagingID != line.PackagingID ||
+			existing.MaterialID != line.MaterialID {
+			continue
+		}
+		return domain.PackagingBOMLine{}, fmt.Errorf(
+			"%w: that material is already on this packaging type's bill of materials",
+			domain.ErrDuplicate)
+	}
+
+	if line.ID == "" {
+		line.ID = uuid.NewString()
+		line.CreatedAt, line.CreatedBy, line.RowVersion = now, actor, 1
+	} else {
+		stored, ok := m.s.d.packagingBOM[line.ID]
+		if !ok {
+			return domain.PackagingBOMLine{}, fmt.Errorf(
+				"%w: packaging bill of materials line %s", domain.ErrNotFound, line.ID)
+		}
+		if line.RowVersion != 0 && line.RowVersion != stored.RowVersion {
+			return domain.PackagingBOMLine{}, fmt.Errorf(
+				"%w: the line is at version %d, you have %d",
+				domain.ErrConflict, stored.RowVersion, line.RowVersion)
+		}
+		line.CreatedAt, line.CreatedBy = stored.CreatedAt, stored.CreatedBy
+		line.RowVersion = stored.RowVersion + 1
+	}
+	line.UpdatedAt, line.UpdatedBy = now, actor
+	m.s.d.packagingBOM[line.ID] = line
+	return line, nil
+}
+
+func (m masterData) DeletePackagingBOM(_ context.Context, id string) error {
+	m.s.lock()
+	defer m.s.unlock()
+	if _, ok := m.s.d.packagingBOM[id]; !ok {
+		return fmt.Errorf("%w: packaging bill of materials line %s", domain.ErrNotFound, id)
+	}
+	delete(m.s.d.packagingBOM, id)
+	return nil
 }

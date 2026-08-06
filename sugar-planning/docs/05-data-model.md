@@ -1,6 +1,6 @@
 # 5. PostgreSQL data model and data dictionary
 
-61 tables in five migrations. The migrations under
+68 tables in eight migrations. The migrations under
 `backend/internal/store/postgres/migrations` are the authority; this document
 explains the shape and the reasoning.
 
@@ -129,6 +129,36 @@ retrospectively fail last season's batches.
 `app_users` holds **no password hash**. Identity is the provider's job; this
 table holds the subject claim, the display name and what audit attribution
 needs.
+
+### Negative stock (migration 0006, no new tables)
+
+Relaxes `stock_balances_hold_ck` to `hold_quantity <= GREATEST(quantity, 0)`.
+The original constraint forbade a negative balance outright, which contradicted
+the deliberate `AllowNegativeStock` override — a reversal has to be allowed to
+drive a shed below zero rather than leave a wrong posting standing.
+
+### Costing (migration 0007, 5 tables)
+
+`cost_elements`, `cost_rates`, `exchange_rates`, `cost_runs`, `cost_run_lines`.
+
+Rates are held apart from quantities because that is what makes a variance
+decomposable: a cost that moved did so because the rate changed or because the
+quantity did. Rates are effective dated, so a mid-season fuel price rise does not
+rewrite the cost of the weeks before it. A saved run keeps the rates it used, so
+the figure is reproducible after those rates have moved on.
+
+### Background jobs (migration 0008, 1 table)
+
+`job_leases`.
+
+The lease behind the in-process scheduler. Two application instances behind a
+load balancer both have a scheduler and both wake at the same moment; the lease
+is what stops them doing the same work twice. It is a plain row rather than a
+PostgreSQL advisory lock deliberately: an advisory lock dies with its
+connection, which is right for a lock and wrong for a record of when a job last
+ran and what it said. `expires_at` is what makes a crash recoverable — an
+instance that dies holding the lease blocks its job only until the lease runs
+out.
 
 ---
 

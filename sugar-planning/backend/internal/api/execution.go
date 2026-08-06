@@ -1,10 +1,12 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/kss/sugarplan/internal/domain"
+	"github.com/kss/sugarplan/internal/report"
 	"github.com/kss/sugarplan/internal/service"
 	"github.com/kss/sugarplan/internal/store"
 )
@@ -28,10 +30,13 @@ func executionFilter(r *http.Request) store.ExecutionFilter {
 		WarehouseID: q.Get("warehouseId"),
 		LineID:      q.Get("lineId"),
 		OrderID:     q.Get("orderId"),
-		Statuses:    upperCSV(q.Get("status")),
-		OpenOnly:    q.Get("openOnly") == "true",
-		Skip:        atoiOr(q.Get("$skip"), 0),
-		Top:         atoiOr(q.Get("$top"), 0),
+		// number matches a batch code or a sample number, which is what
+		// somebody holding a pallet card or a bottle actually has.
+		Number:   q.Get("number"),
+		Statuses: upperCSV(q.Get("status")),
+		OpenOnly: q.Get("openOnly") == "true",
+		Skip:     atoiOr(q.Get("$skip"), 0),
+		Top:      atoiOr(q.Get("$top"), 0),
 	}
 }
 
@@ -367,4 +372,136 @@ func (s *Server) handleSaveMaintenance(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("ETag", etagFor(saved.RowVersion))
 	writeJSON(w, saved)
+}
+
+// ---------------------------------------------------------------------------
+// Batches
+// ---------------------------------------------------------------------------
+
+func (s *Server) handleListBatches(w http.ResponseWriter, r *http.Request) {
+	f := executionFilter(r)
+	page, err := s.execution.ListBatches(r.Context(), f)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeJSON(w, pageResponse[domain.Batch]{
+		Value: page.Items, Count: page.Count, Skip: f.Skip, Top: f.Top,
+	})
+}
+
+func (s *Server) handleGetBatch(w http.ResponseWriter, r *http.Request) {
+	batch, err := s.execution.GetBatch(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	w.Header().Set("ETag", etagFor(batch.RowVersion))
+	writeJSON(w, batch)
+}
+
+// ---------------------------------------------------------------------------
+// Certificate of analysis
+// ---------------------------------------------------------------------------
+
+// handleCertificate issues the certificate of analysis for a completed sample,
+// as JSON for the screen or as a file to send with a consignment.
+func (s *Server) handleCertificate(w http.ResponseWriter, r *http.Request) {
+	cert, err := s.execution.Certificate(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	table := certificateTable(cert)
+
+	switch format := strings.ToLower(r.URL.Query().Get("format")); format {
+	case "", "json":
+		writeJSON(w, cert)
+	case "csv":
+		body, err := report.CSV(table)
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+		sendFile(w, table.FileName("csv"), "text/csv; charset=utf-8", body)
+	case "xlsx":
+		body, err := report.XLSX(table)
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+		sendFile(w, table.FileName("xlsx"),
+			"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", body)
+	case "pdf":
+		body, err := report.PDF(table)
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+		sendFile(w, table.FileName("pdf"), "application/pdf", body)
+	default:
+		writeProblem(w, r, wrapValidation(
+			fmt.Sprintf("%q is not a supported format; use json, csv, xlsx or pdf", format)))
+	}
+}
+
+// certificateTable lays the certificate out for the file renderers, which give
+// it the same provenance block as every other export: who issued it, when, and
+// from which sample.
+func certificateTable(cert service.Certificate) report.Table {
+	t := report.Table{
+		Code:        "COA-" + cert.Sample.SampleNo,
+		Title:       "Certificate of analysis",
+		Company:     cert.CompanyName,
+		Factory:     cert.FactoryName,
+		GeneratedAt: cert.IssuedAt,
+		GeneratedBy: cert.IssuedBy,
+		Filters: []report.Filter{
+			{Label: "Sample", Value: cert.Sample.SampleNo},
+			{Label: "Product", Value: strings.TrimSpace(cert.ProductCode + " " + cert.ProductName)},
+			{Label: "Batch", Value: cert.Sample.BatchID},
+			{Label: "Sampled on", Value: string(cert.Sample.BusinessDate)},
+		},
+		Columns: []report.Column{
+			{Header: "Parameter", Width: 22},
+			{Header: "Method", Width: 16},
+			{Header: "Result", Width: 12, Align: report.AlignRight, Numeric: true},
+			{Header: "Unit", Width: 8},
+			{Header: "Minimum", Width: 12, Align: report.AlignRight, Numeric: true},
+			{Header: "Maximum", Width: 12, Align: report.AlignRight, Numeric: true},
+			{Header: "Verdict", Width: 10},
+		},
+	}
+
+	limit := func(d *domain.Dec) report.Cell {
+		// A blank is the honest rendering of "no limit". A zero would read as a
+		// limit of zero, which on a colour or an ash figure is a different and
+		// much stricter claim.
+		if d == nil {
+			return report.Text("")
+		}
+		return report.Num(*d, 3)
+	}
+	for _, line := range cert.Lines {
+		t.Rows = append(t.Rows, []report.Cell{
+			report.Text(strings.TrimSpace(line.ParameterCode + " " + line.ParameterName)),
+			report.Text(line.TestMethod),
+			report.Num(line.Value, 3),
+			report.Text(line.UOM),
+			limit(line.LowerLimit),
+			limit(line.UpperLimit),
+			report.Text(string(line.Status)),
+		})
+	}
+
+	t.Notes = []string{
+		"Overall verdict: " + string(cert.Verdict) + ".",
+		"The limits shown are those the material was judged against when the sample was completed, " +
+			"not the specification in force today.",
+		"This certificate relates only to the sample identified above.",
+	}
+	if cert.Sample.LabUser != "" {
+		t.Notes = append(t.Notes, "Tested by: "+cert.Sample.LabUser+".")
+	}
+	return t
 }

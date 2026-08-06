@@ -171,6 +171,13 @@ func (s *Server) routes(mux *http.ServeMux) {
 	registerMasterData(mux, "materials", md.Materials())
 	registerMasterData(mux, "reason-codes", md.ReasonCodes())
 
+	// The packaging bill of materials is not a Repo - its key is the pair
+	// (packaging, material) rather than a code - so it gets its own three
+	// routes rather than being forced into the generic four.
+	s.handle(mux, "GET /api/v1/master/packaging-bom", s.handleListPackagingBOM)
+	s.handle(mux, "PUT /api/v1/master/packaging-bom", s.handleSavePackagingBOM)
+	s.handle(mux, "DELETE /api/v1/master/packaging-bom/{id}", s.handleDeletePackagingBOM)
+
 	// --- seasons and versions ----------------------------------------------
 	s.handle(mux, "GET /api/v1/seasons", s.handleListSeasons)
 	s.handle(mux, "POST /api/v1/seasons", s.handleCreateSeason)
@@ -225,6 +232,8 @@ func (s *Server) routes(mux *http.ServeMux) {
 	s.handle(mux, "POST /api/v1/production-orders/{id}/confirm", s.handleConfirmOrder)
 	s.handle(mux, "POST /api/v1/versions/{id}/production-orders", s.handleOrdersFromPlan)
 	s.handle(mux, "POST /api/v1/confirmations/{id}/reverse", s.handleReverseConfirmation)
+	s.handle(mux, "GET /api/v1/batches", s.handleListBatches)
+	s.handle(mux, "GET /api/v1/batches/{id}", s.handleGetBatch)
 
 	// --- quality ------------------------------------------------------------
 	s.handle(mux, "GET /api/v1/quality/parameters", s.handleListQualityParameters)
@@ -234,6 +243,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 	s.handle(mux, "GET /api/v1/quality/samples", s.handleListSamples)
 	s.handle(mux, "POST /api/v1/quality/samples", s.handleCreateSample)
 	s.handle(mux, "GET /api/v1/quality/samples/{id}", s.handleGetSample)
+	s.handle(mux, "GET /api/v1/quality/samples/{id}/certificate", s.handleCertificate)
 	s.handle(mux, "POST /api/v1/quality/samples/{id}/results", s.handleRecordResults)
 	s.handle(mux, "GET /api/v1/quality/holds", s.handleListHolds)
 	s.handle(mux, "POST /api/v1/quality/holds", s.handlePlaceHold)

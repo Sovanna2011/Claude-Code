@@ -70,12 +70,16 @@ type PostingRequest struct {
 // "add minus 120". A transfer names the receiving store and is expanded into
 // the pair of signed lines that actually move the balances.
 type PostingLineInput struct {
-	WarehouseID string     `json:"warehouseId"`
-	ToWarehouse string     `json:"toWarehouse,omitempty"`
-	ProductID   string     `json:"productId"`
-	BatchID     string     `json:"batchId,omitempty"`
-	Quantity    domain.Dec `json:"quantity"`
-	UOM         string     `json:"uom,omitempty"`
+	WarehouseID string `json:"warehouseId"`
+	ToWarehouse string `json:"toWarehouse,omitempty"`
+	ProductID   string `json:"productId"`
+	// BatchID names an existing batch; BatchCode names one by the code on the
+	// pallet card. A movement cannot create a batch: stock is moved, and moving
+	// it is not what brings it into existence.
+	BatchID   string     `json:"batchId,omitempty"`
+	BatchCode string     `json:"batchCode,omitempty"`
+	Quantity  domain.Dec `json:"quantity"`
+	UOM       string     `json:"uom,omitempty"`
 }
 
 // signedFor works out what a line of this document type does to a balance.
@@ -238,6 +242,17 @@ func (e *Execution) expandLines(ctx context.Context, req PostingRequest) ([]doma
 			}
 			return nil, err
 		}
+
+		batchID, err := e.resolveBatch(ctx, e.store, "batchId", line.BatchID, line.BatchCode,
+			line.ProductID, req.FactoryID, req.BusinessDate, false)
+		if err != nil {
+			if errors.Is(err, domain.ErrValidation) {
+				verr.AddRow(i, "batchId", "NOT_FOUND", err.Error())
+				continue
+			}
+			return nil, err
+		}
+		line.BatchID = batchID
 		uom := line.UOM
 		if uom == "" {
 			uom = product.BaseUOM

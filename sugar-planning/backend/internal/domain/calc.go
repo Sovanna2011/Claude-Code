@@ -334,6 +334,22 @@ func RequiredPackages(tons, netWeightKg, scrapPct Dec) int64 {
 	return CeilInt(gross.Mul(factor))
 }
 
+// ComponentQuantity is C43: how much of a bill-of-materials component a number
+// of packages consumes, including the component's own scrap allowance.
+//
+//	quantity = packages * qty per package * (1 + scrap %/100)
+//
+// The scrap belongs to the component rather than to the package: a liner that
+// tears one time in fifty wastes liners, not bags, and charging the bag's scrap
+// rate to the thread would quietly misstate both.
+func ComponentQuantity(packages int64, qtyPerPackage, scrapPct Dec) Dec {
+	if packages <= 0 || qtyPerPackage.LessThanOrEqual(Zero) {
+		return Zero
+	}
+	factor := DI(1).Add(scrapPct.Div(DI(100)))
+	return RoundQty(DI(packages).Mul(qtyPerPackage).Mul(factor))
+}
+
 // PurchaseRequirement is C24:
 //
 //	purchase = max(0, gross requirement + safety stock - on hand - on order)

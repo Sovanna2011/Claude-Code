@@ -63,6 +63,9 @@ type data struct {
 	exchangeRates map[string]domain.ExchangeRate
 	costRuns      map[string]domain.CostRun
 
+	batches      map[string]domain.Batch
+	packagingBOM map[string]domain.PackagingBOMLine
+
 	outbox map[string]domain.OutboxEvent
 	// jobs holds what each scheduled job last did; jobLeases holds when the
 	// current holder's claim runs out, which is not part of the record an
@@ -88,6 +91,8 @@ func newData() *data {
 		cane: map[string]domain.DailyCanePlan{}, prodPlans: map[string]domain.DailyProductPlan{},
 		storage: map[string]domain.DailyStoragePlan{}, shipments: map[string]domain.DailyShipmentPlan{},
 		downtime:      map[string]domain.DowntimeEvent{},
+		batches:       map[string]domain.Batch{},
+		packagingBOM:  map[string]domain.PackagingBOMLine{},
 		outbox:        map[string]domain.OutboxEvent{},
 		jobs:          map[string]domain.JobRun{},
 		jobLeases:     map[string]time.Time{},
@@ -141,11 +146,13 @@ func (d *data) clone() *data {
 		holds: cloneMap(d.holds), maintenance: cloneMap(d.maintenance),
 		costElements: cloneMap(d.costElements), costRates: cloneMap(d.costRates),
 		exchangeRates: cloneMap(d.exchangeRates), costRuns: cloneRuns(d.costRuns),
-		outbox:    cloneMap(d.outbox),
-		jobs:      cloneMap(d.jobs),
-		jobLeases: cloneMap(d.jobLeases),
-		audit:     append([]domain.AuditEvent(nil), d.audit...),
-		idem:      cloneMap(d.idem),
+		batches:      cloneMap(d.batches),
+		packagingBOM: cloneMap(d.packagingBOM),
+		outbox:       cloneMap(d.outbox),
+		jobs:         cloneMap(d.jobs),
+		jobLeases:    cloneMap(d.jobLeases),
+		audit:        append([]domain.AuditEvent(nil), d.audit...),
+		idem:         cloneMap(d.idem),
 	}
 }
 

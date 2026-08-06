@@ -393,3 +393,141 @@ func TestTheSignInListComesFromTheServer(t *testing.T) {
 		}
 	}
 }
+
+func TestTheCertificateOfAnalysisOverHTTP(t *testing.T) {
+	ts := newTestServer(t)
+
+	rec := ts.do(t, "lab", http.MethodPost, "/api/v1/quality/samples", map[string]any{
+		"productId": ts.seeded.Products["REF"], "factoryId": ts.seeded.FactoryID,
+		"businessDate": "2026-12-05",
+	})
+	if rec.Code != http.StatusOK && rec.Code != http.StatusCreated {
+		t.Fatalf("create sample: %d %s", rec.Code, rec.Body.String())
+	}
+	sample := decode(t, rec)
+	sampleID := sample["id"].(string)
+
+	rec = ts.do(t, "lab", http.MethodGet, "/api/v1/quality/parameters", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("parameters: %d %s", rec.Code, rec.Body.String())
+	}
+	var polID string
+	for _, p := range decode(t, rec)["value"].([]any) {
+		if p.(map[string]any)["code"] == "POL" {
+			polID = p.(map[string]any)["id"].(string)
+		}
+	}
+	if polID == "" {
+		t.Fatal("the seeded catalogue has no POL parameter")
+	}
+
+	// An open sample has nothing to certify.
+	rec = ts.do(t, "lab", http.MethodGet, "/api/v1/quality/samples/"+sampleID+"/certificate", nil)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("an open sample: status = %d, want 400", rec.Code)
+	}
+
+	rec = ts.do(t, "lab", http.MethodPost, "/api/v1/quality/samples/"+sampleID+"/results",
+		map[string]any{
+			"results":  []map[string]any{{"parameterId": polID, "value": "99.9"}},
+			"complete": true,
+		})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("results: %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = ts.do(t, "lab", http.MethodGet, "/api/v1/quality/samples/"+sampleID+"/certificate", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("certificate: %d %s", rec.Code, rec.Body.String())
+	}
+	cert := decode(t, rec)
+	if cert["verdict"] != "PASS" {
+		t.Errorf("verdict = %v, want PASS", cert["verdict"])
+	}
+	lines := cert["lines"].([]any)
+	if len(lines) != 1 {
+		t.Fatalf("one measurement, one line, got %d", len(lines))
+	}
+	line := lines[0].(map[string]any)
+	if line["lowerLimit"] == nil {
+		t.Error("the limit is what makes the result mean anything")
+	}
+	if _, isString := line["value"].(string); !isString {
+		t.Errorf("value = %#v, want a decimal string", line["value"])
+	}
+
+	// The PDF is what goes with the consignment.
+	rec = ts.do(t, "lab", http.MethodGet,
+		"/api/v1/quality/samples/"+sampleID+"/certificate?format=pdf", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("pdf: %d %s", rec.Code, rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/pdf" {
+		t.Errorf("content type = %q, want application/pdf", ct)
+	}
+	if !strings.HasPrefix(rec.Body.String(), "%PDF-") {
+		t.Error("the body is not a PDF")
+	}
+	if cd := rec.Header().Get("Content-Disposition"); !strings.Contains(cd, "COA-") {
+		t.Errorf("the download must be named after the certificate, got %q", cd)
+	}
+}
+
+func TestThePackagingBillOfMaterialsOverHTTP(t *testing.T) {
+	ts := newTestServer(t)
+
+	rec := ts.do(t, "masterdata", http.MethodGet, "/api/v1/master/packaging-bom", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list: %d %s", rec.Code, rec.Body.String())
+	}
+	if len(decode(t, rec)["value"].([]any)) == 0 {
+		t.Fatal("the seeded scenario has a bill of materials")
+	}
+
+	// A component consumed in no quantity is not a component.
+	packaging := ts.seeded.Packaging["PJUMBO"]
+	rec = ts.do(t, "masterdata", http.MethodPut, "/api/v1/master/packaging-bom", map[string]any{
+		"packagingId": packaging, "materialId": ts.seeded.Materials["PALLET"],
+		"qtyPerPackage": "0", "active": true,
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("a zero quantity: status = %d, want 400", rec.Code)
+	}
+
+	rec = ts.do(t, "masterdata", http.MethodPut, "/api/v1/master/packaging-bom", map[string]any{
+		"packagingId": packaging, "materialId": ts.seeded.Materials["PALLET"],
+		"qtyPerPackage": "0.033333", "active": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("save: %d %s", rec.Code, rec.Body.String())
+	}
+	saved := decode(t, rec)
+	if saved["qtyPerPackage"] != "0.033333" {
+		t.Errorf("qtyPerPackage = %v; six decimals must survive the round trip",
+			saved["qtyPerPackage"])
+	}
+
+	// The same material twice on one package is the one thing the key forbids.
+	rec = ts.do(t, "masterdata", http.MethodPut, "/api/v1/master/packaging-bom", map[string]any{
+		"packagingId": packaging, "materialId": ts.seeded.Materials["PALLET"],
+		"qtyPerPackage": "0.05", "active": true,
+	})
+	if rec.Code != http.StatusConflict {
+		t.Errorf("a duplicate: status = %d, want 409, body = %s", rec.Code, rec.Body.String())
+	}
+
+	rec = ts.do(t, "masterdata", http.MethodDelete,
+		"/api/v1/master/packaging-bom/"+saved["id"].(string), nil)
+	if rec.Code != http.StatusNoContent {
+		t.Errorf("delete: status = %d, want 204", rec.Code)
+	}
+
+	// Reading is master data; writing needs the write permission.
+	rec = ts.do(t, "planner", http.MethodPut, "/api/v1/master/packaging-bom", map[string]any{
+		"packagingId": packaging, "materialId": ts.seeded.Materials["PALLET"],
+		"qtyPerPackage": "0.05",
+	})
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("a planner writing the bill of materials: status = %d, want 403", rec.Code)
+	}
+}

@@ -70,6 +70,22 @@ balance below zero, ship quality-held sugar, or overfill a store is rejected wit
 the offending line named and the figures quoted. Breaking one of those rules is
 possible, but it takes a second permission and it lands on the audit record.
 
+**Costs it.** Every cost element has a driver — dollars per ton of cane, per hour
+run, per calendar day — so the difference from plan splits into the part caused
+by paying a different price and the part caused by using a different quantity,
+and the two always add back up to the total. Multi-currency, effective-dated
+rates, and a saved run keeps the rates it used so the figure is reproducible
+after they have moved on.
+
+**Talks to the other systems, without being held hostage by them.** Every change
+worth publishing is written to an outbox in the same transaction as the change
+itself, so a confirmation that rolls back cannot leave a message saying it
+happened, and an ERP that is down cannot cause a confirmation to be refused. A
+dispatcher retries on a widening backoff; an event that has given up after
+twenty-five attempts waits for a person rather than disappearing. Inbound, the
+weighbridge and the laboratory system feed through the ordinary services, so an
+interface cannot reach a verdict a person could not.
+
 **Answers the capacity question.** When does this store fill? What shipment rate
 prevents it? What does a lower recovery do to the season? Each is a calculation,
 not a guess.
@@ -129,10 +145,21 @@ reconciliation figures from the specification are assertions, not comments:
 
 ## Status
 
-Phases 1 to 3 of the plan are delivered and tested: identity and authorisation,
-master data, season and version management, the full planning chain, dashboards,
-capacity forecasting, alerting, reports and exports. The schema for phases 4 and
-5 is in place. Nothing in the delivered scope is a stub.
+All five phases are delivered and tested: identity and authorisation, master
+data, seasons and versions, the full planning chain, dashboards, capacity
+forecasting, alerting, reports and exports; then execution — postings, orders,
+confirmations, quality, maintenance — and finally costing, the transactional
+outbox with its adapters, and the background scheduler.
 
-See [docs/10-implementation-plan.md](docs/10-implementation-plan.md) for what is
-next and why.
+Nothing in the delivered scope is a stub. Verified against PostgreSQL 16 and in
+a browser, not only in unit tests.
+
+Two things are deliberately not here. **Excel import of the reference workbook**
+is blocked: the workbook was never supplied, so its sheet names, header rows and
+units are unknown, and guessing at them would produce an importer that fails on
+the real file. **Three findings in the reference figures** await a business
+answer rather than a code change; they are listed at the top of
+[docs/01-assumptions-and-questions.md](docs/01-assumptions-and-questions.md).
+
+See [docs/10-implementation-plan.md](docs/10-implementation-plan.md) for what
+each phase delivered and what is still open.

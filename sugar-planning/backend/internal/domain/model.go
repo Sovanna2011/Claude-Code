@@ -289,6 +289,24 @@ type PackagingType struct {
 	AuditFields
 }
 
+// PackagingBOMLine is one component consumed per package of a packaging type.
+//
+// The primary bag is not held here - a packaging type points at its own bag
+// material - because a bag is one per package by definition and giving it a
+// quantity would invite somebody to set it to two. This is for everything else:
+// the liner inside the jumbo bag, the thread that sews it, the label on it.
+type PackagingBOMLine struct {
+	ID          string `json:"id"`
+	PackagingID string `json:"packagingId"`
+	MaterialID  string `json:"materialId"`
+	// QtyPerPackage is in the material's own unit, at scale 6: a thread
+	// consumption of 0.0035 spools per bag is a real figure, not a rounding
+	// error.
+	QtyPerPackage Dec `json:"qtyPerPackage"`
+	Validity
+	AuditFields
+}
+
 // Warehouse is a storage location with a nominal and a usable capacity.
 type Warehouse struct {
 	ID             string       `json:"id"`

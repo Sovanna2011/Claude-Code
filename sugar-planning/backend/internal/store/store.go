@@ -76,6 +76,13 @@ type MasterData interface {
 	Channels() Repo[domain.ShipmentChannel]
 	Materials() Repo[domain.Material]
 	ReasonCodes() Repo[domain.ReasonCode]
+
+	// The packaging bill of materials is not a Repo: its business key is the
+	// pair (packaging, material) rather than a code, and forcing it into the
+	// generic shape would mean inventing a code nobody would ever type.
+	ListPackagingBOM(ctx context.Context, packagingID string) ([]domain.PackagingBOMLine, error)
+	SavePackagingBOM(ctx context.Context, line domain.PackagingBOMLine, actor string) (domain.PackagingBOMLine, error)
+	DeletePackagingBOM(ctx context.Context, id string) error
 }
 
 // PlanFilter selects daily planning rows. Empty fields mean "no restriction";
@@ -186,6 +193,15 @@ type Execution interface {
 	// are already in use. Two callers racing for the same number is safe: the
 	// unique constraint on the column refuses the loser, who asks again.
 	NextNumber(ctx context.Context, series, factoryCode string, year int) (string, error)
+
+	// --- batches ---
+	// A batch is the thing a certificate of analysis is about and the thing a
+	// hold blocks, so it is a row rather than a string typed twice.
+	ListBatches(ctx context.Context, f ExecutionFilter) (Page[domain.Batch], error)
+	GetBatch(ctx context.Context, id string) (domain.Batch, error)
+	// BatchByCode resolves the code a shift writes on a pallet card.
+	BatchByCode(ctx context.Context, code string) (domain.Batch, error)
+	SaveBatch(ctx context.Context, b domain.Batch, actor string) (domain.Batch, error)
 
 	ListConfirmations(ctx context.Context, orderID string) ([]domain.ProductionConfirmation, error)
 	GetConfirmation(ctx context.Context, id string) (domain.ProductionConfirmation, error)

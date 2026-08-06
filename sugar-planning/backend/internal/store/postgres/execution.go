@@ -1114,3 +1114,114 @@ func (e execution) SaveMaintenance(ctx context.Context, m domain.MaintenanceWind
 	m.CreatedAt, m.CreatedBy, m.UpdatedAt, m.UpdatedBy, m.RowVersion = created, createdBy, now, actor, version
 	return m, nil
 }
+
+// ---------------------------------------------------------------------------
+// Batches
+// ---------------------------------------------------------------------------
+
+const batchCols = `id, code, product_id, factory_id, produced_on, quantity, status,
+	created_at, created_by, updated_at, updated_by, row_version`
+
+func scanBatch(r scanner) (domain.Batch, error) {
+	var b domain.Batch
+	var producedOn *time.Time
+	err := r.Scan(&b.ID, &b.Code, &b.ProductID, &b.FactoryID, &producedOn, &b.Quantity,
+		&b.Status, &b.CreatedAt, &b.CreatedBy, &b.UpdatedAt, &b.UpdatedBy, &b.RowVersion)
+	if producedOn != nil {
+		b.ProducedOn = mustDate(*producedOn)
+	}
+	return b, err
+}
+
+func (e execution) ListBatches(ctx context.Context, f store.ExecutionFilter) (store.Page[domain.Batch], error) {
+	w := &execWhere{}
+	if f.FactoryID != "" {
+		w.eq("factory_id", f.FactoryID)
+	}
+	w.in("product_id", f.ProductIDs)
+	w.dateRange("produced_on", f.From, f.To)
+	if f.Number != "" {
+		w.eq("code", f.Number)
+	}
+	w.in("status", f.Statuses)
+	clause := w.sql()
+
+	var total int
+	if err := e.s.q.QueryRow(ctx, "SELECT count(*) FROM batches"+clause, w.args...).
+		Scan(&total); err != nil {
+		return store.Page[domain.Batch]{}, mapError("batch", err)
+	}
+	limit := w.limit(f)
+
+	rows, err := e.s.q.Query(ctx, "SELECT "+batchCols+" FROM batches"+clause+
+		" ORDER BY code DESC"+limit, w.args...)
+	if err != nil {
+		return store.Page[domain.Batch]{}, mapError("batch", err)
+	}
+	defer rows.Close()
+
+	items := []domain.Batch{}
+	for rows.Next() {
+		b, err := scanBatch(rows)
+		if err != nil {
+			return store.Page[domain.Batch]{}, mapError("batch", err)
+		}
+		items = append(items, b)
+	}
+	return store.Page[domain.Batch]{Items: items, Count: total}, mapError("batch", rows.Err())
+}
+
+func (e execution) GetBatch(ctx context.Context, id string) (domain.Batch, error) {
+	if _, err := uuid.Parse(id); err != nil {
+		return domain.Batch{}, fmt.Errorf("%w: batch %s", domain.ErrNotFound, id)
+	}
+	b, err := scanBatch(e.s.q.QueryRow(ctx,
+		"SELECT "+batchCols+" FROM batches WHERE id = $1", id))
+	return b, mapError("batch "+id, err)
+}
+
+func (e execution) BatchByCode(ctx context.Context, code string) (domain.Batch, error) {
+	b, err := scanBatch(e.s.q.QueryRow(ctx,
+		"SELECT "+batchCols+" FROM batches WHERE code = $1", code))
+	return b, mapError("batch "+code, err)
+}
+
+func (e execution) SaveBatch(ctx context.Context, b domain.Batch, actor string) (domain.Batch, error) {
+	now := nowUTC()
+	if b.Status == "" {
+		b.Status = "OPEN"
+	}
+	if b.ID == "" {
+		b.ID = uuid.NewString()
+		b.CreatedAt, b.CreatedBy, b.UpdatedAt, b.UpdatedBy, b.RowVersion = now, actor, now, actor, 1
+		_, err := e.s.q.Exec(ctx, `INSERT INTO batches
+			(id, code, product_id, factory_id, produced_on, quantity, status,
+			 created_at, created_by, updated_at, updated_by, row_version)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$8,$9,1)`,
+			b.ID, b.Code, b.ProductID, b.FactoryID, nd(b.ProducedOn), b.Quantity, b.Status,
+			now, actor)
+		if err != nil {
+			return domain.Batch{}, mapError("batch "+b.Code, err)
+		}
+		return b, nil
+	}
+
+	var created time.Time
+	var createdBy string
+	var version int64
+	err := e.s.q.QueryRow(ctx, `UPDATE batches SET
+			code=$1, product_id=$2, factory_id=$3, produced_on=$4, quantity=$5, status=$6,
+			updated_at=$7, updated_by=$8, row_version = row_version + 1
+		WHERE id=$9 AND row_version=$10
+		RETURNING created_at, created_by, row_version`,
+		b.Code, b.ProductID, b.FactoryID, nd(b.ProducedOn), b.Quantity, b.Status,
+		now, actor, b.ID, b.RowVersion).Scan(&created, &createdBy, &version)
+	if err != nil {
+		if isNoRows(err) {
+			return domain.Batch{}, versionConflict(ctx, e.s, "batches", "batch", b.ID, b.RowVersion)
+		}
+		return domain.Batch{}, mapError("batch "+b.Code, err)
+	}
+	b.CreatedAt, b.CreatedBy, b.UpdatedAt, b.UpdatedBy, b.RowVersion = created, createdBy, now, actor, version
+	return b, nil
+}

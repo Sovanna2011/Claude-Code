@@ -3,6 +3,9 @@ package service
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
+	"time"
 
 	"github.com/kss/sugarplan/internal/auth"
 	"github.com/kss/sugarplan/internal/domain"
@@ -135,8 +138,12 @@ func (e *Execution) SaveSpec(ctx context.Context, s domain.QualitySpec) (domain.
 
 // SampleRequest records material taken for testing.
 type SampleRequest struct {
-	ProductID    string              `json:"productId"`
+	ProductID string `json:"productId"`
+	// BatchID names an existing batch; BatchCode names one by the code on the
+	// pallet card. Either way the batch must already exist: a sample of a batch
+	// nobody produced is a sample of nothing.
 	BatchID      string              `json:"batchId,omitempty"`
+	BatchCode    string              `json:"batchCode,omitempty"`
 	FactoryID    string              `json:"factoryId"`
 	BusinessDate domain.BusinessDate `json:"businessDate"`
 	ShiftID      string              `json:"shiftId,omitempty"`
@@ -179,8 +186,13 @@ func (e *Execution) CreateSample(ctx context.Context, req SampleRequest) (domain
 		if err != nil {
 			return err
 		}
+		batchID, err := e.resolveBatch(ctx, tx, "batchId", req.BatchID, req.BatchCode,
+			req.ProductID, req.FactoryID, req.BusinessDate, false)
+		if err != nil {
+			return err
+		}
 		saved, err = tx.Execution().SaveSample(ctx, domain.QualitySample{
-			SampleNo: sampleNo, ProductID: req.ProductID, BatchID: req.BatchID,
+			SampleNo: sampleNo, ProductID: req.ProductID, BatchID: batchID,
 			FactoryID: req.FactoryID, BusinessDate: req.BusinessDate, ShiftID: req.ShiftID,
 			LabUser: caller.Username, Status: "OPEN", Comment: req.Comment,
 		}, caller.Username)
@@ -774,4 +786,156 @@ func (e *Execution) findMaintenance(ctx context.Context, factoryID, id string) (
 		}
 	}
 	return domain.MaintenanceWindow{}, fmt.Errorf("%w: maintenance window %s", domain.ErrNotFound, id)
+}
+
+// ---------------------------------------------------------------------------
+// Batches
+// ---------------------------------------------------------------------------
+
+// ListBatches returns the batches the caller may see.
+func (e *Execution) ListBatches(ctx context.Context, f store.ExecutionFilter) (store.Page[domain.Batch], error) {
+	caller := auth.FromContext(ctx)
+	if err := caller.Require(domain.PermPlanRead); err != nil {
+		return store.Page[domain.Batch]{}, err
+	}
+	if err := e.requireScope(caller, f.FactoryID); err != nil {
+		return store.Page[domain.Batch]{}, err
+	}
+	return e.store.Execution().ListBatches(ctx, f)
+}
+
+// GetBatch reads one batch.
+func (e *Execution) GetBatch(ctx context.Context, id string) (domain.Batch, error) {
+	caller := auth.FromContext(ctx)
+	if err := caller.Require(domain.PermPlanRead); err != nil {
+		return domain.Batch{}, err
+	}
+	batch, err := e.store.Execution().GetBatch(ctx, id)
+	if err != nil {
+		return domain.Batch{}, err
+	}
+	if err := caller.RequireFactory(batch.FactoryID); err != nil {
+		return domain.Batch{}, err
+	}
+	return batch, nil
+}
+
+// ---------------------------------------------------------------------------
+// Certificate of analysis
+// ---------------------------------------------------------------------------
+
+// Certificate is what a customer is sent with a consignment: the sample, its
+// measurements, the limits each was judged against, and the verdict.
+//
+// It is assembled here rather than in the transport layer because it is a
+// statement the company makes about material it sold, and what goes on it -
+// which limits, which verdict, whose signature line - is a business decision
+// rather than a rendering one.
+type Certificate struct {
+	Sample      domain.QualitySample `json:"sample"`
+	ProductCode string               `json:"productCode"`
+	ProductName string               `json:"productName"`
+	FactoryName string               `json:"factoryName"`
+	CompanyName string               `json:"companyName"`
+	Verdict     domain.QualityStatus `json:"verdict"`
+	Lines       []CertificateLine    `json:"lines"`
+	// IssuedAt and IssuedBy are the moment the certificate was produced, not the
+	// moment the sample was taken. Both matter: a certificate reprinted a year
+	// later is the same measurements issued again.
+	IssuedAt time.Time `json:"issuedAt"`
+	IssuedBy string    `json:"issuedBy"`
+}
+
+// CertificateLine is one measured parameter with what it was judged against.
+type CertificateLine struct {
+	ParameterCode string               `json:"parameterCode"`
+	ParameterName string               `json:"parameterName"`
+	TestMethod    string               `json:"testMethod,omitempty"`
+	Value         domain.Dec           `json:"value"`
+	UOM           string               `json:"uom,omitempty"`
+	LowerLimit    *domain.Dec          `json:"lowerLimit,omitempty"`
+	UpperLimit    *domain.Dec          `json:"upperLimit,omitempty"`
+	Status        domain.QualityStatus `json:"status"`
+}
+
+// Certificate builds the certificate of analysis for a completed sample.
+//
+// An open sample cannot produce one. A certificate says the material was tested
+// and met its specification; issuing one from a half-finished sheet would be a
+// statement the laboratory has not made yet, and it is the kind of document that
+// is read as a guarantee.
+func (e *Execution) Certificate(ctx context.Context, sampleID string) (Certificate, error) {
+	caller := auth.FromContext(ctx)
+	if err := caller.Require(domain.PermReportRead); err != nil {
+		return Certificate{}, err
+	}
+
+	sample, err := e.store.Execution().GetSample(ctx, sampleID)
+	if err != nil {
+		return Certificate{}, err
+	}
+	if err := caller.RequireFactory(sample.FactoryID); err != nil {
+		return Certificate{}, err
+	}
+	if sample.Status != "COMPLETE" {
+		return Certificate{}, fmt.Errorf(
+			"%w: sample %s is %s; a certificate can only be issued once the laboratory has finished",
+			domain.ErrValidation, sample.SampleNo, strings.ToLower(sample.Status))
+	}
+	if len(sample.Results) == 0 {
+		return Certificate{}, fmt.Errorf(
+			"%w: sample %s has no measurements to certify", domain.ErrValidation, sample.SampleNo)
+	}
+
+	parameters, err := e.store.Execution().ListParameters(ctx)
+	if err != nil {
+		return Certificate{}, err
+	}
+	known := map[string]domain.QualityParameter{}
+	for _, p := range parameters {
+		known[p.ID] = p
+	}
+
+	cert := Certificate{
+		Sample: sample, Verdict: sample.Verdict(),
+		IssuedAt: e.now(), IssuedBy: caller.DisplayName,
+	}
+	if cert.IssuedBy == "" {
+		cert.IssuedBy = caller.Username
+	}
+
+	// The limits come from the result rather than from the specification in
+	// force today. A certificate has to keep saying what the material was judged
+	// against at the time, even after somebody tightens the limit.
+	for _, r := range sample.Results {
+		parameter := known[r.ParameterID]
+		line := CertificateLine{
+			ParameterCode: parameter.Code, ParameterName: parameter.Name,
+			TestMethod: parameter.TestMethod, Value: r.Value, UOM: r.UOM,
+			LowerLimit: r.LowerLimit, UpperLimit: r.UpperLimit, Status: r.Status,
+		}
+		if line.ParameterCode == "" {
+			// A parameter that has since been removed still has to appear, or
+			// the certificate would silently omit a measurement.
+			line.ParameterCode, line.ParameterName = r.ParameterID, "(withdrawn parameter)"
+		}
+		if line.UOM == "" {
+			line.UOM = parameter.UOM
+		}
+		cert.Lines = append(cert.Lines, line)
+	}
+	sort.Slice(cert.Lines, func(i, j int) bool {
+		return cert.Lines[i].ParameterCode < cert.Lines[j].ParameterCode
+	})
+
+	if product, err := e.store.MasterData().Products().Get(ctx, sample.ProductID); err == nil {
+		cert.ProductCode, cert.ProductName = product.Code, product.Name
+	}
+	if factory, err := e.store.MasterData().Factories().Get(ctx, sample.FactoryID); err == nil {
+		cert.FactoryName = factory.Name
+		if company, err := e.store.MasterData().Companies().Get(ctx, factory.CompanyID); err == nil {
+			cert.CompanyName = company.Name
+		}
+	}
+	return cert, nil
 }

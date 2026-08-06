@@ -119,6 +119,21 @@ sap.ui.define([
 			});
 		},
 
+		/** onCertificate downloads the certificate of analysis for a completed
+		 * sample. The PDF is what is sent with a consignment. */
+		onCertificate: function (oEvent) {
+			var oSample = oEvent.getSource().getBindingContext("view").getObject();
+			var that = this;
+			this.setBusy(true);
+			this.getService().downloadCertificate(oSample.id, oSample.sampleNo, "pdf")
+				.then(function () {
+					that.setBusy(false);
+					that.showToast(that.getText("certificateIssued", [oSample.sampleNo]));
+				}).catch(function (oProblem) {
+					that.showError(oProblem);
+				});
+		},
+
 		/** onEnterResults opens the sheet with one empty row per configured
 		 * parameter, so the laboratory fills in what it measured rather than
 		 * choosing parameters from a list first. */

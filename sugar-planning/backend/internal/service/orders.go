@@ -447,8 +447,13 @@ type ConfirmRequest struct {
 	ReworkQty    domain.Dec          `json:"reworkQty,omitempty"`
 	LabourHours  domain.Dec          `json:"labourHours,omitempty"`
 	MachineHours domain.Dec          `json:"machineHours,omitempty"`
-	BatchID      string              `json:"batchId,omitempty"`
-	ReasonCode   string              `json:"reasonCode,omitempty"`
+	// BatchID names an existing batch; BatchCode names one by the code written
+	// on the pallet card, creating it if the shift is the first to use it.
+	// Production is what creates a batch, so a confirmation is exactly the
+	// place it comes into existence.
+	BatchID    string `json:"batchId,omitempty"`
+	BatchCode  string `json:"batchCode,omitempty"`
+	ReasonCode string `json:"reasonCode,omitempty"`
 	// WarehouseID receives the yield. A confirmation without one records the
 	// production but moves no stock, which is what a site that keeps its
 	// inventory elsewhere wants.
@@ -511,13 +516,30 @@ func (e *Execution) Confirm(ctx context.Context, orderID string, req ConfirmRequ
 	if confirmation.ShiftID == "" {
 		confirmation.ShiftID = order.ShiftID
 	}
-	if confirmation.BatchID == "" {
+	if confirmation.BatchID == "" && req.BatchCode == "" {
 		confirmation.BatchID = order.BatchID
 	}
 	for _, c := range req.Consumptions {
 		confirmation.Consumptions = append(confirmation.Consumptions, domain.MaterialConsumption{
 			MaterialID: c.MaterialID, Quantity: domain.RoundQty(c.Quantity), UOM: c.UOM,
 		})
+	}
+	// A confirmation that names no components gets them from the bill of
+	// materials of the packaging it produced.
+	//
+	// This is not a convenience. An operator confirming a shift at the end of it
+	// is not going to key how many liners and how much thread went into 300
+	// jumbo bags, so asked for them by hand they would simply not be recorded -
+	// and a material consumption nobody records is a stock figure that drifts
+	// until somebody counts the shed. Derived from the bill of materials it is
+	// at least a defensible number, and an operator who knows better can still
+	// send the real ones.
+	if len(confirmation.Consumptions) == 0 {
+		derived, err := e.consumptionFromBOM(ctx, order, confirmation.YieldQty)
+		if err != nil {
+			return ConfirmResult{}, err
+		}
+		confirmation.Consumptions = derived
 	}
 	if err := domain.ValidateConfirmation(order, confirmation); err != nil {
 		return ConfirmResult{}, err
@@ -547,6 +569,15 @@ func (e *Execution) Confirm(ctx context.Context, orderID string, req ConfirmRequ
 	before := order
 	result := ConfirmResult{}
 	err = e.store.InTx(ctx, func(tx store.Store) error {
+		// The batch is resolved inside the transaction so that a batch created
+		// by a confirmation that then fails does not survive it.
+		confirmation.BatchID, err = e.resolveBatch(ctx, tx, "batchId",
+			confirmation.BatchID, req.BatchCode, order.ProductID, order.FactoryID,
+			confirmation.BusinessDate, true)
+		if err != nil {
+			return err
+		}
+
 		confirmation.ConfirmationNo, err = tx.Execution().NextNumber(
 			ctx, store.SeriesConfirmation, factory.Code, year)
 		if err != nil {
@@ -612,6 +643,141 @@ func (e *Execution) Confirm(ctx context.Context, orderID string, req ConfirmRequ
 		return ConfirmResult{}, err
 	}
 	return result, nil
+}
+
+// resolveBatch turns whatever the caller named into the id of a batch row.
+//
+// A batch is a row rather than a string typed twice: it is what a certificate
+// of analysis is about, what a hold blocks and what a customer quotes back when
+// something is wrong with a consignment. A free-text batch would make all three
+// unanswerable.
+//
+// create says whether the caller is entitled to bring a batch into existence.
+// Production is; a laboratory sample is not, because a sample of a batch nobody
+// produced is a sample of nothing.
+func (e *Execution) resolveBatch(ctx context.Context, tx store.Store, field, id, code string,
+	productID, factoryID string, on domain.BusinessDate, create bool,
+) (string, error) {
+
+	if id != "" {
+		batch, err := tx.Execution().GetBatch(ctx, id)
+		if err != nil {
+			if errors.Is(err, domain.ErrNotFound) {
+				return "", fmt.Errorf("%w: %s names a batch that does not exist",
+					domain.ErrValidation, field)
+			}
+			return "", err
+		}
+		return batch.ID, nil
+	}
+	if code == "" {
+		return "", nil
+	}
+
+	batch, err := tx.Execution().BatchByCode(ctx, code)
+	if err == nil {
+		return batch.ID, nil
+	}
+	if !errors.Is(err, domain.ErrNotFound) {
+		return "", err
+	}
+	if !create {
+		return "", fmt.Errorf("%w: no batch is coded %s; it is created by the production "+
+			"that made it, not here", domain.ErrValidation, code)
+	}
+
+	saved, err := tx.Execution().SaveBatch(ctx, domain.Batch{
+		Code: code, ProductID: productID, FactoryID: factoryID, ProducedOn: on, Status: "OPEN",
+	}, auth.FromContext(ctx).Username)
+	if err != nil {
+		return "", err
+	}
+	return saved.ID, nil
+}
+
+// consumptionFromBOM works out what a yield consumed, from the packaging type
+// the order produces and its bill of materials.
+//
+// An order with no packaging - bulk raw sugar to the refinery - consumes no
+// packaging, and this returns nothing rather than guessing at a bag.
+func (e *Execution) consumptionFromBOM(ctx context.Context, order domain.ProductionOrder,
+	yield domain.Dec,
+) ([]domain.MaterialConsumption, error) {
+
+	if order.PackagingID == "" || yield.LessThanOrEqual(domain.Zero) {
+		return nil, nil
+	}
+	md := e.store.MasterData()
+
+	packaging, err := md.PackagingTypes().Get(ctx, order.PackagingID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	materials := map[string]domain.Material{}
+	load := func(id string) (domain.Material, bool, error) {
+		if id == "" {
+			return domain.Material{}, false, nil
+		}
+		if mat, ok := materials[id]; ok {
+			return mat, true, nil
+		}
+		mat, err := md.Materials().Get(ctx, id)
+		if err != nil {
+			if errors.Is(err, domain.ErrNotFound) {
+				return domain.Material{}, false, nil
+			}
+			return domain.Material{}, false, err
+		}
+		materials[id] = mat
+		return mat, true, nil
+	}
+
+	primary, hasPrimary, err := load(packaging.MaterialID)
+	if err != nil {
+		return nil, err
+	}
+	// The scrap allowance is the bag's, because it is the bag count that the
+	// components are derived from.
+	packages := domain.RequiredPackages(yield, packaging.NetWeightKg, primary.ScrapPct)
+	if packages <= 0 {
+		return nil, nil
+	}
+
+	var out []domain.MaterialConsumption
+	if hasPrimary {
+		out = append(out, domain.MaterialConsumption{
+			MaterialID: primary.ID, Quantity: domain.DI(packages), UOM: primary.UOM,
+		})
+	}
+
+	lines, err := md.ListPackagingBOM(ctx, packaging.ID)
+	if err != nil {
+		return nil, err
+	}
+	for _, line := range lines {
+		if !line.Active {
+			continue
+		}
+		component, ok, err := load(line.MaterialID)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			continue
+		}
+		quantity := domain.ComponentQuantity(packages, line.QtyPerPackage, component.ScrapPct)
+		if quantity.LessThanOrEqual(domain.Zero) {
+			continue
+		}
+		out = append(out, domain.MaterialConsumption{
+			MaterialID: component.ID, Quantity: quantity, UOM: component.UOM,
+		})
+	}
+	return out, nil
 }
 
 // ReverseConfirmation undoes a confirmation: the goods receipt is reversed, the

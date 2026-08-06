@@ -1,8 +1,13 @@
 package postgres
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/kss/sugarplan/internal/domain"
 	"github.com/kss/sugarplan/internal/store"
 )
@@ -361,4 +366,90 @@ func (m masterData) ReasonCodes() store.Repo[domain.ReasonCode] {
 			return x, err
 		},
 	}}
+}
+
+// ---------------------------------------------------------------------------
+// Packaging bill of materials
+// ---------------------------------------------------------------------------
+
+const bomCols = `id, packaging_id, material_id, qty_per_package, active,
+	created_at, created_by, updated_at, updated_by, row_version`
+
+func scanBOM(r scanner) (domain.PackagingBOMLine, error) {
+	var line domain.PackagingBOMLine
+	err := r.Scan(&line.ID, &line.PackagingID, &line.MaterialID, &line.QtyPerPackage,
+		&line.Active, &line.CreatedAt, &line.CreatedBy, &line.UpdatedAt, &line.UpdatedBy,
+		&line.RowVersion)
+	return line, err
+}
+
+func (m masterData) ListPackagingBOM(ctx context.Context, packagingID string) ([]domain.PackagingBOMLine, error) {
+	query := `SELECT ` + bomCols + ` FROM packaging_bom`
+	args := []any{}
+	if packagingID != "" {
+		query += ` WHERE packaging_id = $1`
+		args = append(args, packagingID)
+	}
+	query += ` ORDER BY packaging_id, material_id`
+
+	rows, err := m.s.q.Query(ctx, query, args...)
+	if err != nil {
+		return nil, mapError("packaging bill of materials", err)
+	}
+	defer rows.Close()
+
+	out := []domain.PackagingBOMLine{}
+	for rows.Next() {
+		line, err := scanBOM(rows)
+		if err != nil {
+			return nil, mapError("packaging bill of materials", err)
+		}
+		out = append(out, line)
+	}
+	return out, mapError("packaging bill of materials", rows.Err())
+}
+
+func (m masterData) SavePackagingBOM(ctx context.Context, line domain.PackagingBOMLine,
+	actor string,
+) (domain.PackagingBOMLine, error) {
+
+	now := nowUTC()
+	if line.ID == "" {
+		line.ID = uuid.NewString()
+		saved, err := scanBOM(m.s.q.QueryRow(ctx, `INSERT INTO packaging_bom
+			(id, packaging_id, material_id, qty_per_package, active,
+			 created_at, created_by, updated_at, updated_by, row_version)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$6,$7,1)
+			RETURNING `+bomCols,
+			line.ID, line.PackagingID, line.MaterialID, line.QtyPerPackage, line.Active,
+			now, actor))
+		return saved, mapError("packaging bill of materials", err)
+	}
+
+	saved, err := scanBOM(m.s.q.QueryRow(ctx, `UPDATE packaging_bom
+		SET packaging_id = $1, material_id = $2, qty_per_package = $3, active = $4,
+		    updated_at = $5, updated_by = $6, row_version = row_version + 1
+		WHERE id = $7 AND ($8 = 0 OR row_version = $8)
+		RETURNING `+bomCols,
+		line.PackagingID, line.MaterialID, line.QtyPerPackage, line.Active,
+		now, actor, line.ID, line.RowVersion))
+	if errors.Is(err, pgx.ErrNoRows) {
+		// Either the line is gone or somebody else changed it. Telling the two
+		// apart costs a second query and changes nothing the caller does.
+		return domain.PackagingBOMLine{}, fmt.Errorf(
+			"%w: packaging bill of materials line %s is missing or was changed by somebody else",
+			domain.ErrConflict, line.ID)
+	}
+	return saved, mapError("packaging bill of materials", err)
+}
+
+func (m masterData) DeletePackagingBOM(ctx context.Context, id string) error {
+	tag, err := m.s.q.Exec(ctx, `DELETE FROM packaging_bom WHERE id = $1`, id)
+	if err != nil {
+		return mapError("packaging bill of materials", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("%w: packaging bill of materials line %s", domain.ErrNotFound, id)
+	}
+	return nil
 }

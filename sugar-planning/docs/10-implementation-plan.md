@@ -39,6 +39,7 @@ Cane, raw sugar, finished goods, shipment and storage planning.
 **Delivered**
 
 - The calculation catalogue, C1–C34, with table-driven tests
+  (C35–C43 followed with costing and the packaging bill of materials)
 - Plan generation from assumptions and product mix, in one transaction
 - Daily cane, production, stock ledger and shipment rows, plan and actual
 - Bulk upsert with row-level validation, all-or-nothing by default
@@ -179,14 +180,47 @@ for the same reason: the workbook it must read was never provided. See
 
 ---
 
-## Phase 5 — Costing, integration, optimisation 📋 planned
+## Phase 5 — Costing and integration ✅ delivered
+
+**Delivered**
+
+- Costing: cost elements with drivers, effective-dated standard and actual
+  rates, multi-currency, cost per ton, and a variance split into its rate and
+  usage halves that always reconciles (C35–C42)
+- A transactional outbox: eight topics, written in the same transaction as the
+  change, delivered at least once with a widening backoff and a retry ceiling
+  that puts an event in front of a person rather than discarding it
+- Inbound adapters: weighbridge gate tickets and laboratory results, both
+  through the ordinary services so an interface cannot reach a verdict a person
+  could not
+- An in-process job scheduler behind a database lease, so a pair of instances
+  share the recurring work rather than duplicating it
+- Certificate of analysis, printed from a completed sample with the limits it
+  was judged against
+- Packaging bill of materials, driving both requirement planning and the
+  components a confirmation consumes (C43)
+
+**Acceptance criteria — met**
+
+- An event whose posting rolled back is never published; asserted by
+  `TestAFailedPostingPublishesNothing`
+- A delivery that fails records its error and is retried later, not immediately;
+  asserted by `TestADeliveryThatFailsIsRetriedWithItsErrorRecorded`
+- Two schedulers never run the same job at the same tick; asserted by
+  `TestOnlyOneInstanceRunsAJob`
+- A gate terminal that resends a batch does not weigh the same lorries twice
+- A certificate keeps the limits in force when the sample was completed, even
+  after the specification is tightened
+
+---
+
+## Still open
 
 | Item | Estimate |
 | --- | --- |
-| Costing: standard and actual rates, cost per ton, variance by component, multi-currency | 4 weeks |
-| Weighbridge and LIMS adapters | 3 weeks |
-| MES / historian and ERP interfaces over the transactional outbox | 3 weeks |
+| Excel import of the reference workbook — **blocked**: the workbook was never supplied, so its sheet names, header rows and units are unknown | 1 week once the file exists |
 | Advanced forecasting: seasonality, weather, cane maturity | 4 weeks |
+| SAPUI5 unit and OPA5 tests | 2 weeks |
 | Operational hardening: partitioning, read replicas, cache tuning, load testing at ten years of data | 2 weeks |
 
 ---
@@ -205,8 +239,12 @@ for the same reason: the workbook it must read was never provided. See
 | API: authentication, RBAC, problem details, ETag, idempotency, exports | ✅ passing |
 | OpenAPI paths all routed | ✅ passing |
 | Browser walkthrough of every page | ✅ verified manually in Chromium |
-| SAPUI5 unit and OPA5 tests | ⏳ phase 4 |
-| Load and performance at ten years of data | ⏳ phase 5 |
+| Costing, including the variance reconciliation | ✅ passing |
+| Outbox: backoff, exhaustion, rollback, lease, both stores | ✅ passing |
+| Weighbridge and laboratory adapters, including their authorisation | ✅ passing |
+| Certificate of analysis and bill-of-materials consumption | ✅ passing |
+| SAPUI5 unit and OPA5 tests | ⏳ still open |
+| Load and performance at ten years of data | ⏳ still open |
 | Backup and restore rehearsal | ⏳ deployment task; runbook written |
 
 ---

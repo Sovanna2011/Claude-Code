@@ -207,6 +207,80 @@ paths:
               schema: { type: object }
         "409": { $ref: "#/components/responses/Duplicate" }
 
+  /master/packaging-bom:
+    get:
+      tags: [Master data]
+      summary: The packaging bill of materials
+      description: |
+        Requires `masterdata:read`. What a package consumes besides its own bag:
+        the liner inside the jumbo bag, the thread that sews it, the label on
+        the consumer pack, a share of the pallet it is stacked on.
+
+        The primary bag is not held here - a packaging type points at its own
+        bag material - because a bag is one per package by definition, and
+        giving it a quantity would invite somebody to set it to two.
+      operationId: listPackagingBOM
+      parameters:
+        - name: packagingId
+          in: query
+          description: Restrict to one packaging type. Omit for the whole table.
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: The lines, ordered by packaging type and material.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  value:
+                    type: array
+                    items: { $ref: "#/components/schemas/PackagingBOMLine" }
+                  count: { type: integer }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    put:
+      tags: [Master data]
+      summary: Add or change a bill of materials line
+      description: |
+        Requires `masterdata:write`. The business key is the pair of packaging
+        type and material, so the same material cannot be added twice to one
+        package. A quantity of zero is refused: a component consumed in no
+        quantity is not a component, and the line should be removed instead.
+      operationId: savePackagingBOMLine
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PackagingBOMLine" }
+      responses:
+        "200":
+          description: The stored line.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PackagingBOMLine" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Duplicate" }
+        "412": { $ref: "#/components/responses/VersionConflict" }
+
+  /master/packaging-bom/{id}:
+    delete:
+      tags: [Master data]
+      summary: Remove a bill of materials line
+      description: |
+        Requires `masterdata:write`. Unlike master data, a bill of materials
+        line is removed rather than deactivated: it is a relationship, and a
+        deactivated relationship that nothing points at is only clutter.
+      operationId: deletePackagingBOMLine
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "204": { description: Removed. }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
   /master/{entity}/{id}:
     parameters:
       - name: entity
@@ -1982,6 +2056,12 @@ paths:
               properties:
                 productId: { type: string, format: uuid }
                 batchId: { type: string, format: uuid }
+                batchCode:
+                  type: string
+                  description: |
+                    The batch by the code on the pallet card, which is what a
+                    technician has. It must already exist: a sample of a batch
+                    nobody produced is a sample of nothing.
                 factoryId: { type: string, format: uuid }
                 businessDate: { type: string, format: date }
                 shiftId: { type: string, format: uuid }
@@ -2008,6 +2088,115 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/QualitySample" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /batches:
+    get:
+      tags: [Production]
+      summary: Batches
+      description: |
+        Requires `plan:read`. A batch is a row rather than a string typed twice:
+        it is what a certificate of analysis is about, what a quality hold
+        blocks, and what a customer quotes back when something is wrong with a
+        consignment. A free-text batch would make all three unanswerable.
+
+        Batches are created by the production that made them — a confirmation
+        carrying a `batchCode` nobody has used yet brings one into existence.
+        Nothing else creates one: a laboratory sample or a stock movement naming
+        an unknown batch is refused, because a sample of a batch nobody produced
+        is a sample of nothing.
+      operationId: listBatches
+      parameters:
+        - $ref: "#/components/parameters/FactoryId"
+        - name: number
+          in: query
+          description: The batch code, as written on the pallet card.
+          schema: { type: string }
+        - name: productId
+          in: query
+          schema: { type: string }
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - name: status
+          in: query
+          schema: { type: string, enum: [OPEN, RELEASED, BLOCKED, CONSUMED] }
+        - $ref: "#/components/parameters/Top"
+        - $ref: "#/components/parameters/Skip"
+      responses:
+        "200":
+          description: A page of batches, newest code first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/Batch" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /batches/{id}:
+    get:
+      tags: [Production]
+      summary: Read one batch
+      operationId: getBatch
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: The batch.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Batch" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /quality/samples/{id}/certificate:
+    get:
+      tags: [Quality]
+      summary: Certificate of analysis
+      description: |
+        Requires `report:read`. The document that goes to the customer with a
+        consignment: the sample, its measurements, the limits each was judged
+        against and the verdict.
+
+        Only a **completed** sample can produce one. A certificate says the
+        material was tested and met its specification, and issuing one from a
+        half-finished sheet would be a statement the laboratory has not made -
+        the kind of document that is read as a guarantee.
+
+        The limits printed are those copied onto each result when the sample was
+        completed, not the specification in force today. A limit tightened next
+        season must not retrospectively change what a customer was told about
+        sugar shipped this one.
+      operationId: getCertificateOfAnalysis
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - name: format
+          in: query
+          description: |
+            `json` for the screen; `pdf` is what is sent with a consignment.
+          schema: { type: string, enum: [json, csv, xlsx, pdf], default: json }
+      responses:
+        "200":
+          description: The certificate, as JSON or as a file.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Certificate" }
+            application/pdf:
+              schema: { type: string, format: binary }
+            text/csv:
+              schema: { type: string }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+        "400":
+          description: The sample is not complete, or has no measurements to certify.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
 
   /quality/samples/{id}/results:
@@ -2829,6 +3018,11 @@ components:
                 description: Required on a transfer; the receiving warehouse.
               productId: { type: string, format: uuid }
               batchId: { type: string, format: uuid }
+              batchCode:
+                type: string
+                description: |
+                  The batch by its code. It must already exist: moving stock is
+                  not what brings a batch into existence.
               quantity:
                 allOf: [{ $ref: "#/components/schemas/Quantity" }]
                 description: |
@@ -2914,6 +3108,13 @@ components:
         labourHours: { $ref: "#/components/schemas/Decimal" }
         machineHours: { $ref: "#/components/schemas/Decimal" }
         batchId: { type: string, format: uuid }
+        batchCode:
+          type: string
+          description: |
+            The code written on the pallet card. A confirmation is the one place
+            a batch comes into existence: production is what makes a batch, so a
+            code nobody has used yet creates it, inside the same transaction as
+            the confirmation.
         reasonCode: { type: string }
         warehouseId:
           type: string
@@ -2921,6 +3122,12 @@ components:
           description: Receives the yield. Omit to record production without moving stock.
         consumptions:
           type: array
+          description: |
+            What the shift consumed. Leave it out and the components are taken
+            from the packaging bill of materials — an operator is not going to
+            key how many liners went into 300 jumbo bags, and a consumption
+            nobody records is a stock figure that drifts until somebody counts
+            the shed. Send them and only what was sent is recorded.
           items:
             type: object
             required: [materialId, quantity]
@@ -3262,6 +3469,67 @@ components:
           type: array
           description: Up to ten failures, quoting what the far end said.
           items: { type: string }
+
+    Batch:
+      type: object
+      description: |
+        A lot of finished product, created by the production that made it.
+      properties:
+        id: { type: string, format: uuid }
+        code:
+          type: string
+          description: The code written on the pallet card. Unique across the system.
+        productId: { type: string, format: uuid }
+        factoryId: { type: string, format: uuid }
+        producedOn: { type: string, format: date }
+        quantity: { $ref: "#/components/schemas/Quantity" }
+        status: { type: string, enum: [OPEN, RELEASED, BLOCKED, CONSUMED] }
+        rowVersion: { type: integer, format: int64 }
+
+    PackagingBOMLine:
+      type: object
+      description: One component consumed per package of a packaging type.
+      required: [packagingId, materialId, qtyPerPackage]
+      properties:
+        id: { type: string, format: uuid }
+        packagingId: { type: string, format: uuid }
+        materialId: { type: string, format: uuid }
+        qtyPerPackage:
+          allOf: [{ $ref: "#/components/schemas/Decimal" }]
+          description: |
+            In the material's own unit, at scale 6. A thread consumption of
+            0.0035 spools per bag is a real figure, not a rounding error.
+        active: { type: boolean }
+        rowVersion: { type: integer, format: int64 }
+
+    Certificate:
+      type: object
+      description: The certificate of analysis for a completed sample.
+      properties:
+        sample: { $ref: "#/components/schemas/QualitySample" }
+        productCode: { type: string }
+        productName: { type: string }
+        factoryName: { type: string }
+        companyName: { type: string }
+        verdict: { type: string, enum: [PASS, WARNING, FAIL] }
+        issuedAt:
+          type: string
+          format: date-time
+          description: When the certificate was issued, not when the sample was taken.
+        issuedBy: { type: string }
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              parameterCode: { type: string }
+              parameterName: { type: string }
+              testMethod: { type: string }
+              value: { $ref: "#/components/schemas/Decimal" }
+              uom: { type: string }
+              lowerLimit: { $ref: "#/components/schemas/Decimal" }
+              upperLimit: { $ref: "#/components/schemas/Decimal" }
+              status: { type: string, enum: [PASS, WARNING, FAIL] }
 
     JobRun:
       type: object

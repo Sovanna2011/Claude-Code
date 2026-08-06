@@ -273,6 +273,72 @@ func (s *Server) handleGenerate(w http.ResponseWriter, r *http.Request) {
 // same request cannot both do it; the response is attached afterwards, so a
 // later retry replays the document the first request produced rather than a
 // bare acknowledgement. A request without the header is simply run.
+// ---------------------------------------------------------------------------
+// Packaging bill of materials
+// ---------------------------------------------------------------------------
+
+func (s *Server) handleListPackagingBOM(w http.ResponseWriter, r *http.Request) {
+	if err := requirePermission(r, domain.PermMasterDataRead); err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	lines, err := s.store.MasterData().ListPackagingBOM(r.Context(),
+		r.URL.Query().Get("packagingId"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeJSON(w, pageResponse[domain.PackagingBOMLine]{Value: lines, Count: len(lines)})
+}
+
+func (s *Server) handleSavePackagingBOM(w http.ResponseWriter, r *http.Request) {
+	if err := requirePermission(r, domain.PermMasterDataWrite); err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	var line domain.PackagingBOMLine
+	if err := decodeJSON(w, r, &line); err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	verr := &domain.ValidationError{}
+	if line.PackagingID == "" {
+		verr.Add("packagingId", "REQUIRED", "a bill of materials line needs a packaging type")
+	}
+	if line.MaterialID == "" {
+		verr.Add("materialId", "REQUIRED", "a bill of materials line needs a material")
+	}
+	if line.QtyPerPackage.LessThanOrEqual(domain.Zero) {
+		verr.Add("qtyPerPackage", "NOT_POSITIVE",
+			"a component consumed in zero quantity is not a component; remove the line instead")
+	}
+	if err := verr.OrNil(); err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+
+	saved, err := s.store.MasterData().SavePackagingBOM(r.Context(), line,
+		auth.FromContext(r.Context()).Username)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	w.Header().Set("ETag", etagFor(saved.RowVersion))
+	writeJSON(w, saved)
+}
+
+func (s *Server) handleDeletePackagingBOM(w http.ResponseWriter, r *http.Request) {
+	if err := requirePermission(r, domain.PermMasterDataWrite); err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	if err := s.store.MasterData().DeletePackagingBOM(r.Context(), r.PathValue("id")); err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (s *Server) postOnce(w http.ResponseWriter, r *http.Request, run func() (any, error)) {
 	key := r.Header.Get("Idempotency-Key")
 	if key != "" {

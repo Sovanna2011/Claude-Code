@@ -4,9 +4,9 @@ Every calculation the system performs: the formula, its unit, its rounding, the
 fields it reads and a worked example.
 
 Each entry names the Go function that implements it. The functions live in
-`backend/internal/domain/calc.go` and `generator.go`, and each carries the same
-formula in its doc comment. The tests in `calc_test.go` and `generator_test.go`
-assert the examples below.
+`backend/internal/domain/calc.go`, `generator.go` and `costing.go`, and each
+carries the same formula in its doc comment. The tests in `calc_test.go`,
+`generator_test.go` and `costing_test.go` assert the examples below.
 
 ---
 
@@ -335,6 +335,110 @@ from cane and for remelt input from finished goods. Go: `ScaleSeries`.
 *Why it exists.* 137 days of `round(16,788.321 × 0.11)` sums to 252,999.955 t.
 `ScaleSeries` gives exactly 253,000.000 t, which is the figure the business
 recognises.
+
+---
+
+## C35–C42 Costing
+
+All of costing rests on one idea: a cost is a **rate** multiplied by a **driver
+quantity**. Keeping the two apart is what makes the difference from plan
+decomposable — when a cost moves, it moved because the rate changed or because
+the quantity changed, and a controller has to be able to say which.
+
+Money is scale 2 and unit rates are scale 6. A rate of $18.500000 per ton of
+cane is a real figure; rounding it to cents before multiplying by 2.3 million
+tons would move the season total by thousands of dollars.
+
+### C35 Driver quantity
+```
+CANE_TON     -> tons of cane crushed
+SUGAR_TON    -> tons of finished sugar
+RUN_HOUR     -> hours the mill ran
+CALENDAR_DAY -> days of the campaign, whether it ran or not
+FIXED_SEASON -> 1
+```
+A lump sum for the season has a driver quantity of one, so the same
+`rate × quantity` arithmetic covers it without a special case. Go:
+`DriverQuantities.Quantity`.
+
+### C36 Element cost
+```
+cost = rate × driver quantity
+```
+Unit: money, scale 2. Go: `ElementCost`.
+
+### C37 Total cost
+```
+total = Σ element costs
+```
+Written out rather than derived from a driver: a season's cost is what its
+elements add up to and nothing else.
+
+### C38 Unit cost
+```
+unit cost = total cost / output tons
+```
+Zero output gives zero rather than an error. At the start of a season the cost
+is real and the output is not yet, and a dashboard should say `0.00` rather than
+fail. Go: `UnitCost`.
+
+### C39 Rate variance
+```
+rate variance = (actual rate - standard rate) × actual quantity
+```
+The part of the difference caused by paying a different price. Positive is
+unfavourable: it cost more than the plan allowed. Go: `RateVariance`.
+
+### C40 Usage variance
+```
+usage variance = (actual quantity - planned quantity) × standard rate
+```
+The part caused by using a different quantity. The **standard** rate is
+deliberately the one used: valuing the extra quantity at the actual rate would
+count the price difference twice, and the two halves would no longer add up.
+Go: `UsageVariance`.
+
+### C41 Variance reconciliation
+```
+rate variance + usage variance = actual cost - planned cost
+```
+This is asserted, not assumed. A run that cannot reconcile raises
+`COST_VARIANCE_UNRECONCILED` at error severity rather than reporting figures
+that do not add up.
+
+In practice a run does not compute C40 directly. It rounds the rate half — the
+half a controller checks against an invoice, which has to match the paperwork to
+the cent — and takes the usage half as the remainder, so the two always
+reconstruct the total exactly. The residual is at most one cent and is the
+conventional accounting treatment. Go: `SplitVariance`, `VarianceCheck`.
+
+### C42 Currency conversion
+```
+converted = amount × rate(from -> to)
+```
+A conversion to the same currency is the identity and needs no rate, so a
+single-currency site configures nothing. An inverse quotation is as good as a
+direct one: a site that entered USD→KHR need not also enter KHR→USD. Go:
+`Convert`.
+
+---
+
+## C43 Bill-of-materials component
+
+```
+quantity = packages × qty per package × (1 + component scrap % / 100)
+```
+
+The package count comes from C23, which uses the **bag's** scrap rate: a bag
+that tears is a bag that had a liner in it. The component then applies its
+**own** scrap rate, because a liner that tears one time in fifty wastes liners,
+not bags, and charging the bag's rate to the thread would quietly misstate both.
+
+Unit: the component's own unit, scale 3. Go: `ComponentQuantity`.
+
+*Worked example.* 330 t of sugar in 1.10 t jumbo bags is 300 bags; the bag's
+1 % scrap makes it 303. One liner per bag at the liner's own 1 % scrap is
+306.030 liners. Thread at 0.004 spools per bag with 3 % scrap is 1.248 spools.
 
 ---
 
