@@ -86,6 +86,13 @@ public sealed record SubmitForApprovalRequest(
 
     public string? CostCenter { get; init; }
 
+    /// <summary>
+    /// `FI`, `AR`, `AP`, `AA` and so on. A rule may filter on it, so a
+    /// submission that leaves it null can never match one that does - which is
+    /// what happened before this was here to pass through.
+    /// </summary>
+    public string? SourceModule { get; init; }
+
     public string? Comment { get; init; }
 }
 

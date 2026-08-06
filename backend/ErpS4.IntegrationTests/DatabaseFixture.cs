@@ -20,6 +20,7 @@ public sealed class DatabaseFixture : IDisposable
     public const string ConnectionVariable = "ERPS4_TEST_CONNECTION";
 
     private readonly ServiceProvider? _provider;
+    private readonly List<ServiceProvider> _perUser = [];
 
     public DatabaseFixture()
     {
@@ -51,7 +52,40 @@ public sealed class DatabaseFixture : IDisposable
             $"No database configured. Set {ConnectionVariable}."))
         .CreateScope();
 
-    public void Dispose() => _provider?.Dispose();
+    /// <summary>
+    /// A scope acting as a named user, for rules that turn on who is asking -
+    /// maker-checker most of all, where the point is that the submitter and the
+    /// approver are different people.
+    /// </summary>
+    public IServiceScope CreateScopeAs(string userName)
+    {
+        if (ConnectionString is null)
+        {
+            throw new InvalidOperationException(
+                $"No database configured. Set {ConnectionVariable}.");
+        }
+
+        var services = new ServiceCollection();
+        services.AddErpDatabase(ConnectionString);
+        services.AddErpApplication();
+        services.AddSingleton<ITenantProvider>(new FixedTenantProvider(1));
+        services.AddSingleton<ICurrentUser>(new FixedCurrentUser(userName));
+        services.AddLogging();
+
+        var provider = services.BuildServiceProvider();
+        _perUser.Add(provider);
+        return provider.CreateScope();
+    }
+
+    public void Dispose()
+    {
+        foreach (var provider in _perUser)
+        {
+            provider.Dispose();
+        }
+
+        _provider?.Dispose();
+    }
 }
 
 [CollectionDefinition(Name)]

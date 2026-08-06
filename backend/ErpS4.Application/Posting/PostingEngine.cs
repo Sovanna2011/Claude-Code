@@ -279,8 +279,12 @@ public sealed partial class PostingEngine(
         return await context.ExecuteInTransactionAsync(
             async token =>
             {
+                // Parked, not PendingApproval: nothing has been submitted yet,
+                // and nobody has a task on it. Writing PendingApproval here
+                // made a document that still needs submitting indistinguishable
+                // from one waiting on an approver.
                 var (header, lines) = await WriteDocumentAsync(
-                    request, prepared.Configuration!, prepared.Lines, "PendingApproval", token);
+                    request, prepared.Configuration!, prepared.Lines, "Parked", token);
 
                 // Audit records the parking; the ledger effect waits for approval.
                 await AddAuditTrailAsync(
@@ -293,7 +297,7 @@ public sealed partial class PostingEngine(
 
                 return PostingResult.Posted(
                     header.DocumentNumber, header.FiscalYear, header.FiscalPeriod,
-                    "PendingApproval", prepared.Lines);
+                    "Parked", prepared.Lines);
             },
             cancellationToken);
     }
@@ -434,6 +438,17 @@ public sealed partial class PostingEngine(
             DocumentCurrencyDecimals = 2,
             LocalCurrencyDecimals = 2,
             GroupCurrencyDecimals = 2,
+
+            // The approval path builds its configuration here rather than from
+            // a draft, so it has to resolve the controlling area itself. Left
+            // unset, a parked document with a cost object threw on approval -
+            // after every rule had passed, in the middle of the transaction.
+            ControllingAreaId = companyCode.ControllingAreaId
+                ?? await context.Query<ControllingAreaCompanyCode>()
+                    .AsNoTracking()
+                    .Where(a => a.TenantId == TenantId && a.CompanyCodeId == companyCode.Id)
+                    .Select(a => (long?)a.ControllingAreaId)
+                    .FirstOrDefaultAsync(cancellationToken),
         };
     }
 

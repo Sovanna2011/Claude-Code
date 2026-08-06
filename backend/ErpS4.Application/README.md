@@ -41,14 +41,14 @@ ErpS4.Application/
 
 ErpS4.Database/               (existing) + IErpDataContext, NumberRangeService
 ErpS4.Tests/                  123 tests, no database required
-ErpS4.IntegrationTests/       15 tests against a real SQL Server
+ErpS4.IntegrationTests/       20 tests against a real SQL Server
 ```
 
 The two suites answer different questions. The unit tests ask whether the rules
 are right and run in milliseconds over lists. The integration tests ask whether
 the model maps — whether a column is wide enough, whether a query translates,
 whether `UPDATE … OUTPUT` really serialises under eight concurrent posts. Only
-a database can fail in those ways, and it did: see the eight bugs below.
+a database can fail in those ways, and it did: see the twelve bugs below.
 
 ## What the engine enforces
 
@@ -230,6 +230,23 @@ dwelling on, because every one of them passed the unit tests:
   `cfg.AccountDeterminationRule.AccountModifier` was `nvarchar(4)` and
   `fin.AssetClass.AccountDeterminationKey`, the column it is joined to, was
   `nvarchar(8)`. Two columns that must compare equal, with different widths.
+* **Parking wrote the wrong status.** `ParkAsync` set `PendingApproval` on a
+  document nobody had submitted, so a document still waiting to be sent for
+  approval was indistinguishable from one waiting on an approver. It writes
+  `Parked` now, and submission moves it on.
+* **Submitting for approval never touched the document.** `SubmitAsync` set
+  `PendingApproval` on the workflow instance only. Anything reading the header —
+  a list screen, an ageing report — could not see that the document had been
+  submitted at all. Hidden until parking stopped writing that status itself.
+* **A rule filter nothing could satisfy.** `WorkflowRule.SourceModule` is part
+  of the match, `WorkflowContext` has the field, and `SubmitAsync` never filled
+  it in — so any rule filtering on the module silently never fired.
+* **Approving a parked document threw.** `PostParkedAsync` builds its
+  configuration from stored lines rather than from a draft, and that path never
+  resolved the controlling area. A parked document with a cost object passed
+  every rule and then raised `NullReferenceException` inside the transaction —
+  the same bug as before, in the second of the two places that build a
+  configuration.
 
 ## Not built yet
 

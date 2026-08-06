@@ -1109,6 +1109,9 @@ VALUES (@Tenant, N'kss.admin', NULL, NULL, N'System', N'Administrator', N'System
        (@Tenant, N'kss.approver', N'10002', NULL, N'Dara', N'Sok', N'Dara Sok',
         N'dara.sok@kss.example', N'Dialog', N'EN', N'Asia/Phnom_Penh', @Kh01, @Coar, N'USD', N'FB03',
         N'Active', 0, 1, @Open, @Never, @By),
+       (@Tenant, N'kss.approver2', N'10003', NULL, N'Vanna', N'Ly', N'Vanna Ly',
+        N'vanna.ly@kss.example', N'Dialog', N'EN', N'Asia/Phnom_Penh', @Kh01, @Coar, N'USD', N'FB03',
+        N'Active', 0, 1, @Open, @Never, @By),
        (@Tenant, N'svc.integration', NULL, NULL, NULL, NULL, N'Integration service account',
         N'integration@kss.example', N'Integration', N'EN', N'UTC', @Kh01, @Coar, N'USD', NULL,
         N'Active', 0, 0, @Open, @Never, @By);
@@ -1116,17 +1119,20 @@ VALUES (@Tenant, N'kss.admin', NULL, NULL, N'System', N'Administrator', N'System
 DECLARE @UserAdmin bigint = (SELECT Id FROM [sec].[User] WHERE TenantId = @Tenant AND UserName = N'kss.admin');
 DECLARE @UserAccountant bigint = (SELECT Id FROM [sec].[User] WHERE TenantId = @Tenant AND UserName = N'kss.accountant');
 DECLARE @UserApprover bigint = (SELECT Id FROM [sec].[User] WHERE TenantId = @Tenant AND UserName = N'kss.approver');
+DECLARE @UserApprover2 bigint = (SELECT Id FROM [sec].[User] WHERE TenantId = @Tenant AND UserName = N'kss.approver2');
 
 INSERT INTO [sec].[Role]
     (TenantId, RoleCode, Name, Description, RoleType, IsCriticalRole, IsSystemRole,
      ValidFrom, ValidTo, CreatedBy)
 VALUES (@Tenant, N'SYS_ADMIN',     N'System administrator', N'Configuration and security', N'Single', 1, 1, @Open, @Never, @By),
        (@Tenant, N'FI_ACCOUNTANT', N'Financial accountant', N'Enters and posts documents', N'Single', 0, 1, @Open, @Never, @By),
-       (@Tenant, N'FI_APPROVER',   N'Financial approver',   N'Approves parked documents',  N'Single', 1, 1, @Open, @Never, @By);
+       (@Tenant, N'FI_APPROVER',   N'Financial approver',   N'Approves parked documents',  N'Single', 1, 1, @Open, @Never, @By),
+       (@Tenant, N'FI_DIRECTOR',   N'Finance director',     N'Second approval above the threshold', N'Single', 1, 1, @Open, @Never, @By);
 
 DECLARE @RoleAdmin bigint = (SELECT Id FROM [sec].[Role] WHERE TenantId = @Tenant AND RoleCode = N'SYS_ADMIN');
 DECLARE @RoleAccountant bigint = (SELECT Id FROM [sec].[Role] WHERE TenantId = @Tenant AND RoleCode = N'FI_ACCOUNTANT');
 DECLARE @RoleApprover bigint = (SELECT Id FROM [sec].[Role] WHERE TenantId = @Tenant AND RoleCode = N'FI_APPROVER');
+DECLARE @RoleDirector bigint = (SELECT Id FROM [sec].[Role] WHERE TenantId = @Tenant AND RoleCode = N'FI_DIRECTOR');
 
 INSERT INTO [sec].[Permission]
     (TenantId, PermissionCode, Name, Module, ObjectType, Action, IsCritical, CreatedBy)
@@ -1169,8 +1175,10 @@ INSERT INTO [sec].[UserRole]
     (TenantId, UserId, RoleId, AssignedBy, AssignedAt, ApprovedBy, ApprovedAt,
      AssignmentReason, ValidFrom, ValidTo, CreatedBy)
 VALUES (@Tenant, @UserAdmin,      @RoleAdmin,      @By, '2026-01-01T00:00:00', @By, '2026-01-01T00:00:00', N'Initial setup', @Open, @Never, @By),
+       (@Tenant, @UserAdmin,      @RoleDirector,   @By, '2026-01-01T00:00:00', @By, '2026-01-01T00:00:00', N'Second approval step', @Open, @Never, @By),
        (@Tenant, @UserAccountant, @RoleAccountant, @By, '2026-01-01T00:00:00', NULL, NULL,                 N'Initial setup', @Open, @Never, @By),
-       (@Tenant, @UserApprover,   @RoleApprover,   @By, '2026-01-01T00:00:00', @By, '2026-01-01T00:00:00', N'Initial setup', @Open, @Never, @By);
+       (@Tenant, @UserApprover,   @RoleApprover,   @By, '2026-01-01T00:00:00', @By, '2026-01-01T00:00:00', N'Initial setup', @Open, @Never, @By),
+       (@Tenant, @UserApprover2,  @RoleApprover,   @By, '2026-01-01T00:00:00', @By, '2026-01-01T00:00:00', N'Second approver so maker-checker has a fallback', @Open, @Never, @By);
 
 INSERT INTO [sec].[UserCompanyCode]
     (TenantId, UserId, CompanyCodeId, IsDefault, AccessLevel, ValidFrom, ValidTo, CreatedBy)
@@ -1220,6 +1228,40 @@ VALUES (@Tenant, N'SOD_FI_01', N'Post and approve the same document',
         N'Changing bank details and releasing payments is a fraud path.', N'Critical', N'PermissionPair',
         N'Master.BusinessPartner.Update', N'Finance.JournalEntry.Post', N'WarnAndLog', 1, @By);
 
+/* ---------------------------------------------------------------------------
+   12. Approval workflow
+
+   Without this the approval feature has no configuration and never triggers,
+   so a document above any threshold posts straight through. One definition,
+   one rule at 10 000 USD, two sequential steps: the approver, then the
+   director. Maker-checker is on, so the person who submitted a document is
+   never given a task on it.
+   --------------------------------------------------------------------------- */
+INSERT INTO [wf].[WorkflowDefinition]
+    (TenantId, WorkflowCode, Version, Name, ObjectType, ApprovalMode,
+     IsMakerCheckerEnforced, AllowDelegation, AllowResubmission, EscalationHours,
+     ReminderHours, IsActive, EffectiveFrom, CreatedBy)
+VALUES (@Tenant, N'JE_APPROVAL', 1, N'Journal entry approval', N'JournalEntry',
+        N'Sequential', 1, 1, 1, 48, 24, 1, @Open, @By);
+
+DECLARE @Workflow bigint = (SELECT Id FROM [wf].[WorkflowDefinition]
+                            WHERE TenantId = @Tenant AND WorkflowCode = N'JE_APPROVAL' AND Version = 1);
+
+INSERT INTO [wf].[WorkflowRule]
+    (TenantId, WorkflowDefinitionId, RuleSequence, Name, CompanyCodeId, CurrencyCode,
+     MinimumAmount, SourceModule, IsActive, CreatedBy)
+VALUES (@Tenant, @Workflow, 1, N'Journal entries of 10 000 USD or more',
+        @Kh01, N'USD', 10000.0000, N'FI', 1, @By);
+
+INSERT INTO [wf].[WorkflowStep]
+    (TenantId, WorkflowDefinitionId, StepNumber, Name, StepType,
+     ApproverDeterminationType, ApproverRoleId, RequiredApprovals, IsParallel,
+     IsOptional, EscalationHours, OnRejectAction, CreatedBy)
+VALUES (@Tenant, @Workflow, 1, N'Financial approver', N'Approval', N'Role',
+        @RoleApprover, 1, 0, 0, 48, N'Reject', @By),
+       (@Tenant, @Workflow, 2, N'Finance director', N'Approval', N'Role',
+        @RoleDirector, 1, 0, 0, 48, N'Reject', @By);
+
 COMMIT TRANSACTION;
 
 PRINT 'Sample data loaded:';
@@ -1227,6 +1269,7 @@ PRINT '  2 companies, 3 company codes, 1 controlling area, 1 shared chart of acc
 PRINT '  5 business partners (customer, vendor, dual role, employee, intercompany)';
 PRINT '  3 cost centres, 2 profit centres, 1 internal order, 1 asset';
 PRINT '  7 posted documents including an intercompany pair and a KHR invoice';
+PRINT '  1 approval workflow: two sequential steps above 10 000 USD';
 
 END TRY
 BEGIN CATCH

@@ -63,7 +63,10 @@ public sealed class WorkflowTests
             .ParkAsync(new PostingRequest(PostingScenario.BalancedDraft(5_000m)));
 
         Assert.True(parked.IsSuccess);
-        Assert.Equal("PendingApproval", parked.Status);
+
+        // Parked, not PendingApproval: parking and submitting for approval are
+        // two acts, and only the second gives anyone a task.
+        Assert.Equal("Parked", parked.Status);
 
         // Header and lines exist and can be displayed...
         Assert.Single(scenario.Context.Set<JournalEntryHeader>());

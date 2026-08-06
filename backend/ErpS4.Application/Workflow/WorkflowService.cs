@@ -47,6 +47,7 @@ public sealed class WorkflowService(
         {
             DocumentType = request.DocumentType,
             CostCenter = request.CostCenter,
+            SourceModule = request.SourceModule,
         };
 
         var match = await MatchAsync(workflowContext, cancellationToken);
@@ -114,6 +115,12 @@ public sealed class WorkflowService(
 
         AddHistory(instance, "Submitted", steps[0].StepNumber, null, "PendingApproval",
             request.Comment, now, user);
+
+        // The document has to move too. Its own status is what a list screen,
+        // a trial balance or an ageing report reads; leaving it Parked means
+        // nothing outside the workflow tables can tell a document waiting on an
+        // approver from one still waiting to be submitted.
+        await MoveDocumentToAsync(request, "PendingApproval", now, user, cancellationToken);
 
         await context.SaveChangesAsync(cancellationToken);
 
@@ -653,6 +660,37 @@ public sealed class WorkflowService(
             .FirstOrDefaultAsync(h => h.Id == instance.ObjectId, cancellationToken);
 
         if (header is null)
+        {
+            return;
+        }
+
+        header.Status = status;
+        header.ModifiedAt = now;
+        header.ModifiedBy = user;
+    }
+
+    /// <summary>
+    /// Moves the submitted document's own status. Only journal entries have one
+    /// today; another object type simply has nothing to move, which is not an
+    /// error.
+    /// </summary>
+    private async Task MoveDocumentToAsync(
+        SubmitForApprovalRequest request,
+        string status,
+        DateTime now,
+        string user,
+        CancellationToken cancellationToken)
+    {
+        if (request.ObjectType != "JournalEntry")
+        {
+            return;
+        }
+
+        var header = await context.Query<JournalEntryHeader>()
+            .FirstOrDefaultAsync(
+                h => h.TenantId == TenantId && h.Id == request.ObjectId, cancellationToken);
+
+        if (header is null || header.Status is "Posted" or "Reversed")
         {
             return;
         }
