@@ -29,6 +29,8 @@
 						<core:Item key="{view>id}" text="{view>code} {view>name}"/>
 					</Select>
 					<ToolbarSpacer/>
+					<Button icon="sap-icon://sort" type="Transparent" press=".onOpenTableSettings"
+						tooltip="{i18n>tableSettingsTitle}"/>
 					<ObjectNumber number="{path: 'view>/totalHours', formatter: '.formatter.tons'}"
 						unit="h" class="sapUiMediumMarginEnd"/>
 					<ObjectNumber number="{path: 'view>/totalLost', formatter: '.formatter.tons0'}"

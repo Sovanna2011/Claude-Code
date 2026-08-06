@@ -76,6 +76,16 @@ sap.ui.define([
 				oModel.setProperty("/lineId", oQuery.lineId);
 			}
 
+			// What a stoppage log is read by: when it happened, how long it
+			// cost, and - the two that group usefully - which line and which
+			// reason.
+			this.initTableSettings("downtimeTable", [
+				{ key: "businessDate", text: this.getText("date") },
+				{ key: "durationHours", text: this.getText("downtimeHours") },
+				{ key: "lineName", text: this.getText("line"), group: true },
+				{ key: "reasonName", text: this.getText("downtimeReason"), group: true }
+			]);
+
 			var that = this;
 			// A drill-down carries its own filter, so a saved default must not
 			// then overwrite it: somebody who clicked through to a period meant
@@ -86,13 +96,18 @@ sap.ui.define([
 					return {
 						from: oModel.getProperty("/from"),
 						to: oModel.getProperty("/to"),
-						lineId: oModel.getProperty("/lineId")
+						lineId: oModel.getProperty("/lineId"),
+						// The order is part of how somebody has the screen set
+						// up, so a view that restored only the filter would come
+						// back half applied.
+						sort: that.tableSortState()
 					};
 				},
 				apply: function (oPayload) {
 					oModel.setProperty("/from", oPayload.from || "");
 					oModel.setProperty("/to", oPayload.to || "");
 					oModel.setProperty("/lineId", oPayload.lineId || "");
+					that.applyTableSortState(oPayload.sort);
 					that._load();
 				}
 			}, bFromDrillDown).catch(function (oProblem) {

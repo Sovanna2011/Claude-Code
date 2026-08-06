@@ -19,6 +19,8 @@
 						<Title text="{i18n>qualitySamples}" level="H3"/>
 						<ToolbarSpacer/>
 						<Text text="{i18n>qualitySamplesHint}"/>
+						<Button icon="sap-icon://sort" type="Transparent" press=".onOpenTableSettings"
+							tooltip="{i18n>tableSettingsTitle}"/>
 					</Toolbar>
 				</headerToolbar>
 				<columns>

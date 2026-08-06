@@ -187,6 +187,27 @@ jobs:
           sys.exit(1 if missing else 0)
           PY
 
+      - name: Every table nominated for sort and group exists
+        # initTableSettings names a table by id; a typo would leave the sort
+        # dialog silently doing nothing.
+        run: |
+          python3 - <<'PY'
+          import glob, os, re, sys
+          app = 'sugar-planning/frontend/webapp/'
+          bad = []
+          for f in glob.glob(app + 'controller/*.js'):
+              src = open(f, encoding='utf-8').read()
+              view = app + 'view/' + os.path.basename(f).replace('.controller.js', '.view.xml')
+              for m in re.findall(r'initTableSettings\("([A-Za-z0-9_]+)"', src):
+                  if not os.path.exists(view):
+                      bad.append(f'{os.path.basename(f)}: no view')
+                  elif f'id="{m}"' not in open(view, encoding='utf-8').read():
+                      bad.append(f'{os.path.basename(f)}: no table with id {m}')
+          for line in bad:
+              print(line)
+          sys.exit(1 if bad else 0)
+          PY
+
       - name: Routes, targets, views and controllers agree
         # A navTo to a route that does not exist fails silently at runtime.
         run: |

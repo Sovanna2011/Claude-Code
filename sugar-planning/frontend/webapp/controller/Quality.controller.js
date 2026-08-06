@@ -27,6 +27,15 @@ sap.ui.define([
 				sample: { productId: "", businessDate: "", comment: "" },
 				sheet: { sampleNo: "", results: [], complete: true, holdWarehouse: "", holdQuantity: "" }
 			}), "view");
+			// A laboratory list is read by date and by status: what came in
+			// today, and what is still waiting. The product groups usefully;
+			// the sample number does not.
+			this.initTableSettings("sampleTable", [
+				{ key: "businessDate", text: this.getText("colDate") },
+				{ key: "sampleNo", text: this.getText("colSample") },
+				{ key: "status", text: this.getText("colStatus"), group: true },
+				{ key: "productName", text: this.getText("product"), group: true }
+			]);
 			this.getRouter().getRoute("quality").attachPatternMatched(this._onDisplay, this);
 			this.onContextRefresh(this._onDisplay);
 		},
@@ -50,10 +59,22 @@ sap.ui.define([
 				oService.listMaster("products", { active: "true" }),
 				oService.listMaster("warehouses", { active: "true" })
 			]).then(function (aResults) {
-				oModel.setProperty("/samples", aResults[0].value || []);
+				var aProducts = aResults[3].value || [];
+				// The sample carries a product id because that is what it means;
+				// grouping by it would put a uuid in the group header, so the
+				// code is resolved onto the row.
+				var mProducts = {};
+				aProducts.forEach(function (oProduct) {
+					mProducts[oProduct.id] = oProduct.code + " " + oProduct.name;
+				});
+				oModel.setProperty("/samples", (aResults[0].value || []).map(function (oSample) {
+					var oRow = Object.assign({}, oSample);
+					oRow.productName = mProducts[oSample.productId] || oSample.productId;
+					return oRow;
+				}));
 				oModel.setProperty("/holds", aResults[1].value || []);
 				oModel.setProperty("/parameters", aResults[2].value || []);
-				oModel.setProperty("/products", aResults[3].value || []);
+				oModel.setProperty("/products", aProducts);
 				oModel.setProperty("/warehouses", aResults[4].value || []);
 				that.setBusy(false);
 			}).catch(function (oProblem) {

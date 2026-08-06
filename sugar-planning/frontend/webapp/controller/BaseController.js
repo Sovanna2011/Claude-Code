@@ -3,8 +3,9 @@ sap.ui.define([
 	"sap/ui/core/Fragment",
 	"sap/m/MessageBox",
 	"sap/m/MessageToast",
+	"sap/ui/model/Sorter",
 	"sugarplan/model/formatter"
-], function (Controller, Fragment, MessageBox, MessageToast, formatter) {
+], function (Controller, Fragment, MessageBox, MessageToast, Sorter, formatter) {
 	"use strict";
 
 	/**
@@ -165,6 +166,112 @@ sap.ui.define([
 
 		can: function (sPermission) {
 			return this.getService().can(sPermission);
+		},
+
+		// --- sorting and grouping -----------------------------------------
+		//
+		// Section 15 asks for sorting and grouping on the list screens. They
+		// are one dialog and one binding change, so they live here rather than
+		// being written out per page.
+		//
+		// The daily planning board is deliberately not among the pages that
+		// offer them. A ledger is read in date order - the beginning balance of
+		// one row is the ending balance of the row above it - and a grid sorted
+		// by tonnage would show a column of continuity errors that are not
+		// there. That is a case where the absence is the design, not a gap.
+
+		/**
+		 * initTableSettings wires a table to the sort and group dialog.
+		 *
+		 * aFields is what may be sorted or grouped by: {key, text, group}. Only
+		 * fields marked group are offered for grouping, because grouping by a
+		 * date or a quantity produces one group per row, which is a longer list
+		 * than the one it replaced.
+		 */
+		initTableSettings: function (sTableId, aFields) {
+			this._sSettingsTable = sTableId;
+			this.getView().setModel(this.getService().newModel({
+				fields: aFields,
+				sortKey: aFields.length ? aFields[0].key : "",
+				descending: false,
+				groupKey: "",
+				groupable: aFields.filter(function (o) { return o.group; })
+			}), "tableSettings");
+		},
+
+		onOpenTableSettings: function () {
+			this._dialog("sugarplan.view.fragment.TableSettingsDialog").then(function (oDialog) {
+				oDialog.open();
+			});
+		},
+
+		onCancelTableSettings: function () {
+			this._closeDialog("sugarplan.view.fragment.TableSettingsDialog");
+		},
+
+		/**
+		 * onApplyTableSettings re-sorts the bound list.
+		 *
+		 * Grouping is a sorter with the group flag rather than a separate
+		 * mechanism, which is how a JSON-model list groups: the rows have to be
+		 * in group order for the headers to fall in the right places, so the
+		 * group sorter goes first and the chosen sort within it.
+		 */
+		onApplyTableSettings: function () {
+			var oModel = this.getView().getModel("tableSettings");
+			var oTable = this.byId(this._sSettingsTable);
+			if (!oTable) {
+				return;
+			}
+			var oBinding = oTable.getBinding("items");
+			if (!oBinding) {
+				return;
+			}
+
+			var sSort = oModel.getProperty("/sortKey");
+			var sGroup = oModel.getProperty("/groupKey");
+			var bDescending = !!oModel.getProperty("/descending");
+
+			var aSorters = [];
+			if (sGroup) {
+				aSorters.push(new Sorter(sGroup, false, true));
+			}
+			if (sSort && sSort !== sGroup) {
+				aSorters.push(new Sorter(sSort, bDescending));
+			}
+			oBinding.sort(aSorters);
+
+			this._closeDialog("sugarplan.view.fragment.TableSettingsDialog");
+			// The variant control cares: sort order is part of how somebody has
+			// the screen set up, so a saved view that stores it must be able to
+			// notice when it no longer matches.
+			this.onVariantChanged();
+		},
+
+		/** tableSortState is what a page's variant collects, so a saved view
+		 * restores the order as well as the filter. */
+		tableSortState: function () {
+			var oModel = this.getView().getModel("tableSettings");
+			if (!oModel) {
+				return undefined;
+			}
+			return {
+				sortKey: oModel.getProperty("/sortKey"),
+				descending: !!oModel.getProperty("/descending"),
+				groupKey: oModel.getProperty("/groupKey")
+			};
+		},
+
+		/** applyTableSortState puts a saved order back. */
+		applyTableSortState: function (oState) {
+			var oModel = this.getView().getModel("tableSettings");
+			if (!oModel || !oState) {
+				return;
+			}
+			oModel.setProperty("/sortKey", oState.sortKey || "");
+			oModel.setProperty("/descending", !!oState.descending);
+			oModel.setProperty("/groupKey", oState.groupKey || "");
+			this.onApplyTableSettings();
 		},
 
 		// --- variant management -------------------------------------------

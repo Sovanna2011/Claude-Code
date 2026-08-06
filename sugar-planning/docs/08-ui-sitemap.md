@@ -350,6 +350,19 @@ December opens on December rather than on the season's first fortnight.
 A target that does not exist says so rather than doing nothing, because a link
 that silently fails reads as broken rather than as absent.
 
+**Sorting and grouping on the list screens.** The downtime log, the order list
+and the laboratory samples each offer a sort and group dialog, over the fields
+that make sense to sort or group by. Only some fields are groupable: grouping a
+list by a date or a tonnage produces one group per row, which is a longer list
+than the one it replaced. Where a group key is an identifier — a line, a
+product — the readable name is resolved onto the row first, because a group
+header showing a uuid is worse than no grouping.
+
+The daily planning board is deliberately excluded. A ledger is read in date
+order: the beginning balance of one row is the ending balance of the row above
+it, and a grid sorted by tonnage would show a column of continuity errors that
+are not there. That absence is the design, not a gap.
+
 **Saved views on every screen with filters.** Variant management, saved views
 and personalization are the same thing stored: what a page looked like when
 somebody had it the way they wanted, under a name they can find again. The bar
@@ -369,6 +382,10 @@ who has narrowed the dates and then pressed refresh means "show me that again",
 not "throw away what I just set up". A page arrived at through a drill-down
 keeps the filter that was clicked, because somebody who clicked through to a
 period meant that period.
+
+A view stores the sort order as well as the filter, because the order is part of
+how somebody has the screen set up and a view that restored only half of it
+would come back half applied.
 
 The version is deliberately not part of what a board view stores: a filter that
 named a plan version would stop working the day that version was superseded.

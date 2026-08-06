@@ -1,0 +1,42 @@
+<core:FragmentDefinition
+	xmlns="sap.m"
+	xmlns:core="sap.ui.core"
+	xmlns:f="sap.ui.layout.form">
+
+	<!--
+	  Sort and group. Only the fields a page nominates are offered, and only the
+	  ones marked groupable can be grouped by: grouping a list by a date or a
+	  tonnage produces one group per row, which is a longer list than the one it
+	  replaced.
+	-->
+	<Dialog id="tableSettingsDialog" title="{i18n>tableSettingsTitle}" contentWidth="24rem">
+		<content>
+			<f:SimpleForm editable="true" layout="ResponsiveGridLayout"
+				labelSpanM="4" columnsM="1" class="sapUiNoMarginTop">
+				<f:content>
+					<Label text="{i18n>sortBy}"/>
+					<Select selectedKey="{tableSettings>/sortKey}" width="100%"
+						items="{path: 'tableSettings>/fields', templateShareable: false}">
+						<core:Item key="{tableSettings>key}" text="{tableSettings>text}"/>
+					</Select>
+
+					<Label text="{i18n>sortOrder}"/>
+					<CheckBox selected="{tableSettings>/descending}" text="{i18n>sortDescending}"/>
+
+					<Label text="{i18n>groupBy}"/>
+					<Select selectedKey="{tableSettings>/groupKey}" width="100%" forceSelection="false"
+						items="{path: 'tableSettings>/groupable', templateShareable: false}">
+						<core:Item key="" text="{i18n>groupNone}"/>
+						<core:Item key="{tableSettings>key}" text="{tableSettings>text}"/>
+					</Select>
+				</f:content>
+			</f:SimpleForm>
+		</content>
+		<beginButton>
+			<Button text="{i18n>apply}" type="Emphasized" press=".onApplyTableSettings"/>
+		</beginButton>
+		<endButton>
+			<Button text="{i18n>cancel}" press=".onCancelTableSettings"/>
+		</endButton>
+	</Dialog>
+</core:FragmentDefinition>

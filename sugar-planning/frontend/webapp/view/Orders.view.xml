@@ -23,6 +23,8 @@
 					<Toolbar>
 						<Title text="{i18n>ordersHeading}" level="H3"/>
 						<ToolbarSpacer/>
+						<Button icon="sap-icon://sort" type="Transparent" press=".onOpenTableSettings"
+							tooltip="{i18n>tableSettingsTitle}"/>
 						<CheckBox text="{i18n>ordersOpenOnly}" selected="{view>/openOnly}"
 							select=".onToggleOpenOnly"/>
 					</Toolbar>

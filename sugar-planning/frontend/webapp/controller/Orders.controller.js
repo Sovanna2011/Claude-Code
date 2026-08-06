@@ -28,6 +28,17 @@ sap.ui.define([
 				releasedVersionId: "",
 				releasedVersionCode: ""
 			}), "view");
+			// Product and status group usefully - "show me every order for
+			// refined sugar" and "show me everything still open" are the two
+			// questions this list is asked. Order number and date do not: they
+			// would produce one group per row.
+			this.initTableSettings("orderTable", [
+				{ key: "businessDate", text: this.getText("date") },
+				{ key: "orderNo", text: this.getText("ordersHeading") },
+				{ key: "plannedQty", text: this.getText("target") },
+				{ key: "productCode", text: this.getText("product"), group: true },
+				{ key: "status", text: this.getText("colStatus"), group: true }
+			]);
 			this.getRouter().getRoute("orders").attachPatternMatched(this._onDisplay, this);
 			this.onContextRefresh(this._onDisplay);
 		},
