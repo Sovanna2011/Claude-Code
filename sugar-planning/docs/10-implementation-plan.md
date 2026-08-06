@@ -219,14 +219,54 @@ for the same reason: the workbook it must read was never provided. See
 
 ---
 
+## Phase 6 — closing the specification sweep ✅ delivered
+
+Everything above was built against the specification section by section. This
+phase came from reading it again, end to end, against what had actually been
+delivered — and finding seven things that had been counted as done and were not.
+They are recorded here rather than quietly fixed, because "we thought it was
+finished" is the interesting part.
+
+| Found | What was actually there |
+| --- | --- |
+| Six of section 14's fifteen reports | Recovery and mass balance, remelt and refining, packing by package, order variance, downtime, and quality results had no builder at all. The data for every one of them was already stored |
+| Five of section 13's eight visuals | Only three chart renderers existed. `DowntimeKPIs` aggregated to three scalars and threw the reason code away, so the Pareto had nothing to rank |
+| "Every KPI must drill down" | The dashboard had one `navTo`, to the launchpad |
+| Downtime, a section 15 application area | The API had recorded stoppages since the beginning and nothing displayed them |
+| Variant management, saved views, personalization | Absent; `saved_views` is migration 0011 |
+| Sorting and grouping | No `Sorter` anywhere in the application |
+| Metrics | The runbook prescribed alerting on p95 latency and on a stalled job, with nothing that could measure either |
+
+Two absences turned out to be decisions that had never been written down, and
+now are: there is no `$select`, and CSRF does not apply to a bearer-token API
+that sets no cookie. Both are argued in the documents rather than left to look
+like oversights.
+
+The frontend also had no tests at all: `npm test` printed a message telling you
+to open a QUnit page that did not exist. The chart renderers and the formatters
+are pure functions, so they now run under `node --test` — eighteen of them,
+asserting the decisions rather than the pixels.
+
+**Acceptance criteria — met**
+
+- Every report in section 14 exists and its arithmetic is asserted against
+  figures somebody could redo on paper
+- Every visual in section 13 is drawn, and every KPI links to the daily rows it
+  is a sum of
+- A saved view belongs to its owner; somebody else's is `404`, not `403`
+- `GET /metrics` labels by route pattern, never by path
+
+---
+
 ## Still open
 
 | Item | Estimate |
 | --- | --- |
 | A pre-canned mapping for the reference workbook — the framework is built; only the template for that one file is missing, because the file was never supplied | an hour of data entry once the file exists |
 | Advanced forecasting: seasonality, weather, cane maturity | 4 weeks |
-| SAPUI5 unit and OPA5 tests | 2 weeks |
+| OPA5 end-to-end journeys in a browser | 1 week |
 | Operational hardening: partitioning, read replicas, cache tuning, load testing at ten years of data | 2 weeks |
+| An OpenTelemetry exporter, if a deployment has a collector to send to | 2 days |
 
 ---
 
@@ -243,7 +283,7 @@ for the same reason: the workbook it must read was never provided. See
 | Service layer: authorisation, data scope, bulk validation, dashboard | ✅ passing |
 | API: authentication, RBAC, problem details, ETag, idempotency, exports | ✅ passing |
 | OpenAPI paths all routed | ✅ passing |
-| Browser walkthrough of every page | ✅ verified manually in Chromium |
+| Browser walkthrough of every page | ✅ verified manually in Chromium, up to phase 5. The phase-6 screens — downtime, the new charts, the variant bar — have **not** been through a browser: the SAPUI5 runtime is loaded from `ui5.sap.com`, which the environment they were built in blocks. They were verified by unit-testing the pure modules, by checking every view parses and every i18n key and route resolves, and by exercising the endpoints behind them against a running server. That is not the same as looking at the page, and is why the OPA5 row below matters |
 | Costing, including the variance reconciliation | ✅ passing |
 | Outbox: backoff, exhaustion, rollback, lease, both stores | ✅ passing |
 | Weighbridge and laboratory adapters, including their authorisation | ✅ passing |
@@ -251,7 +291,10 @@ for the same reason: the workbook it must read was never provided. See
 | Spreadsheet reading: separators, serial dates, blank cells, .xlsx | ✅ passing |
 | Import staging, validation, duplicate detection, partial commit | ✅ passing |
 | Alert evaluation, deduplication, inbox addressing | ✅ passing |
-| SAPUI5 unit and OPA5 tests | ⏳ still open |
+| SAPUI5 formatter and chart unit tests (`npm test`, 18) | ✅ passing |
+| Saved views: ownership, sharing, defaults, both stores | ✅ passing |
+| Metrics: route labelling, no business data in the exposition | ✅ passing |
+| OPA5 end-to-end journeys in a browser | ⏳ still open |
 | Load and performance at ten years of data | ⏳ still open |
 | Backup and restore rehearsal | ⏳ deployment task; runbook written |
 
