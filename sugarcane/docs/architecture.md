@@ -106,6 +106,16 @@ truth, used to register the ASP.NET Core policies, to answer `ICurrentUser.HasPo
 services, and — because `Contracts` is shared verbatim — to filter the Blazor navigation from
 the same map, so the menu and the endpoint cannot disagree about who may open a screen.
 
+**Sign-in** is the one endpoint an unauthenticated caller may hit freely, so it is the one that
+needs a rate limit of its own. Five failed attempts lock the account for fifteen minutes:
+`AccessFailedAsync` records each failure, `IsLockedOutAsync` is consulted before the password is
+even checked, and a success clears the counter. `UserManager.CheckPasswordAsync` does none of
+that on its own, so configuring `MaxFailedAccessAttempts` without calling them leaves the
+password guessable indefinitely — `LoginLockoutTests` is what keeps that from returning. An
+unknown user and a wrong password answer identically so the endpoint cannot be used to
+enumerate user names; a locked account is told plainly, since by then the name is already known
+and the person needs to understand why their correct password stopped working.
+
 The client is a convenience, never the control: it hides what a role cannot use, and the API
 refuses it regardless. Note that the menu is filtered but the per-screen action buttons are not
 — a Report Viewer opening *Approvals & revisions* still sees Approve and Reject, and learns

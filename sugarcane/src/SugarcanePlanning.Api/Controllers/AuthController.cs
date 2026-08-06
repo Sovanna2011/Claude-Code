@@ -42,8 +42,34 @@ public class AuthController : ControllerBase
     public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request, CancellationToken ct)
     {
         var user = await _users.FindByNameAsync(request.UserName);
-        if (user is null || !user.IsActive || !await _users.CheckPasswordAsync(user, request.Password))
+
+        // An unknown user and a wrong password answer identically, so the endpoint cannot be
+        // used to discover which user names exist.
+        if (user is null || !user.IsActive)
             return Unauthorized(new ApiErrorDto { Code = "INVALID_CREDENTIALS", Message = "Invalid user name or password." });
+
+        // A locked account is told so plainly: the person needs to know why their correct
+        // password stopped working, and by this point they have already proved the name exists.
+        if (await _users.IsLockedOutAsync(user))
+        {
+            await _audit.LogAsync(AuditAction.Login, "Users", user.Id, null, user.UserName, "Locked out", ct);
+            return Unauthorized(new ApiErrorDto
+            {
+                Code = "ACCOUNT_LOCKED",
+                Message = "This account is locked after too many failed sign-in attempts. Try again later."
+            });
+        }
+
+        if (!await _users.CheckPasswordAsync(user, request.Password))
+        {
+            // CheckPasswordAsync alone neither counts failures nor locks anything, so the
+            // configured MaxFailedAccessAttempts would never take effect and the password could
+            // be guessed indefinitely. AccessFailedAsync is what applies the lockout.
+            await _users.AccessFailedAsync(user);
+            return Unauthorized(new ApiErrorDto { Code = "INVALID_CREDENTIALS", Message = "Invalid user name or password." });
+        }
+
+        await _users.ResetAccessFailedCountAsync(user);
 
         var roles = await _users.GetRolesAsync(user);
         var (token, expires) = _tokens.CreateToken(user, roles);

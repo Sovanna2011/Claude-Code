@@ -54,7 +54,12 @@ public static class DependencyInjection
                 options.Password.RequireUppercase = true;
                 options.Password.RequireNonAlphanumeric = false;
                 options.User.RequireUniqueEmail = true;
+                // Brute-force protection. AuthController.Login must call AccessFailedAsync and
+                // IsLockedOutAsync for these to mean anything — CheckPasswordAsync on its own
+                // neither counts a failure nor consults the lockout.
                 options.Lockout.MaxFailedAccessAttempts = 5;
+                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+                options.Lockout.AllowedForNewUsers = true;
             })
             .AddRoles<AppRole>()
             .AddEntityFrameworkStores<AppDbContext>()

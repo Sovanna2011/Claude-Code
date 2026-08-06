@@ -86,9 +86,9 @@ dotnet restore
 dotnet build -c Release
 dotnet test  -c Release                      # 173 tests
 
-# Optional: also run the 17 tests that need a real SQL Server.
+# Optional: also run the 20 tests that need a real SQL Server.
 export SUGARCANE_TEST_SQLSERVER="Server=127.0.0.1,1433;User Id=sa;Password=…;TrustServerCertificate=True"
-dotnet test  -c Release                      # 190 tests
+dotnet test  -c Release                      # 193 tests
 
 dotnet publish src/SugarcanePlanning.Api    -c Release -o ./publish/api
 dotnet publish src/SugarcanePlanning.Client -c Release -o ./publish/client
@@ -234,6 +234,11 @@ removing the other demo users.
 
 ## 7. Operational notes
 
+- **Account lockout.** Five failed sign-ins lock an account for fifteen minutes
+  (`Identity.Lockout` in `Infrastructure/DependencyInjection.cs`). An administrator clears one
+  early by setting `LockoutEnd` to null on the `planning.Users` row. Raising the threshold or
+  shortening the window weakens brute-force protection — prefer leaving it and adding a network
+  rate limit in front of `/api/auth/login`.
 - **Backups.** Standard SQL Server backups. Nothing is stored outside the database.
 - **Scaling.** The API is stateless — scale out behind a load balancer; JWTs need no affinity.
 - **Stock interface.** `POST /api/materials/stock/sync` upserts stock positions from the ERP.
