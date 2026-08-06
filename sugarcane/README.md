@@ -11,7 +11,7 @@ plantation activity, tractor, equipment, material, workforce, location and sched
 | Persistence | **EF Core 10** → **Microsoft SQL Server** (migrations, row-version concurrency, soft delete) |
 | Identity | **ASP.NET Core Identity** with ten roles and seventeen permission policies |
 | Reporting | 22 reports with print preview, **PDF** (QuestPDF) and **Excel** (ClosedXML) export |
-| Tests | 176 automated tests (xUnit) — 66 unit, 97 integration, 13 against a real SQL Server |
+| Tests | 180 automated tests (xUnit) — 66 unit, 97 integration, 17 against a real SQL Server |
 
 The solution follows **Clean Architecture**: `Domain` has no dependencies, `Application`
 depends only on `Domain` + `Contracts`, `Infrastructure` implements the persistence
@@ -96,14 +96,15 @@ Configure master data
 
 - **Projected area never exceeds the block's plantable area** — checked per line and as a
   sum over all lines for the same block.
-- **Approved plans for one block may not overlap in time**; planting dates must fall inside
-  the season's planting window.
+- **Committed plans for one block may not overlap in time** — two drafts on the same block are
+  allowed, and the rule is applied again on submission, when the block is actually taken;
+  planting dates must fall inside the season's planting window.
 - **Header totals are always derived** from the lines, never entered.
 - **A dependent activity cannot start before its blocking predecessor completes**, unless a
   manager with the override permission records a reason (kept in the audit trail).
-- **No double-booking** of a tractor, implement or operator; no booking during maintenance;
-  the tractor must meet the implement's minimum horsepower and appear on its compatibility
-  list where one exists.
+- **No double-booking** of a tractor, implement or operator — enforced under a database lock, so
+  two simultaneous requests cannot both win; no booking during maintenance; the tractor must meet
+  the implement's minimum horsepower and appear on its compatibility list where one exists.
 - **Revising an approved plan** copies it, issues a new version number, freezes the previous
   version read-only and records the reason, creator, reviewer and approver.
 - **Every company's data is isolated** by a global query filter on `CompanyId`.
@@ -123,9 +124,9 @@ Configure master data
 ```bash
 dotnet test                      # 163 tests, no database required
 
-# The 13 SQL Server tests skip unless a server is configured. To run them:
+# The 17 SQL Server tests skip unless a server is configured. To run them:
 export SUGARCANE_TEST_SQLSERVER="Server=127.0.0.1,1433;User Id=sa;Password=…;TrustServerCertificate=True"
-dotnet test                      # 176 tests
+dotnet test                      # 180 tests
 ```
 
 Integration tests run the real service graph (projection → activity plan → MRP → scheduling →
@@ -133,6 +134,9 @@ capacity → actuals → reports) against an isolated in-memory database, and ex
 data seeder itself so the start-up path is covered even without SQL Server.
 
 The SQL Server suite covers what no in-memory provider can: that the migration applies, that
-the multi-step operations survive their explicit transactions, and that the unique indexes,
-check constraints and `rowversion` tokens actually bite. It exists because it caught two real
-defects — see [docs/architecture.md](docs/architecture.md#what-only-a-real-database-caught).
+the multi-step operations survive their explicit transactions, that the unique indexes, check
+constraints and `rowversion` tokens actually bite, and — by firing genuinely simultaneous
+requests through separate connections — that no two callers can book the same tractor or commit
+the same block. It exists because it caught five real defects, four of them invisible to every
+other layer of testing; see
+[docs/architecture.md](docs/architecture.md#what-only-a-real-database-caught).

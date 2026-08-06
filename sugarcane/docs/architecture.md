@@ -78,9 +78,22 @@ Providers other than SQL Server fall back to a plain concurrency token.
 timestamp, IP address and device. Workflow, export and login events are written explicitly by
 `AuditService`.
 
-**Transactions.** Multi-step operations (create projection with lines, revise, generate plans)
-open an explicit transaction through `IAppDbContext.BeginTransactionAsync`. A nested call
-returns a no-op handle so the outer scope keeps control of the commit.
+**Transactions.** Multi-step operations (create projection with lines, revise, generate plans,
+book a resource, submit for approval) open an explicit transaction through
+`IAppDbContext.BeginTransactionAsync`. A nested call returns a no-op handle so the outer scope
+keeps control of the commit.
+
+**Locking the read-then-write rules.** Two rules cannot be expressed as a constraint, because
+they are about *overlapping intervals*: "this tractor, implement or operator is not already
+booked in this window" and "this block has no committed plan in this window". Both are
+therefore read-then-write — query, decide, insert — and under simultaneous requests both callers
+read "free" and both write. `IAppDbContext.LockAsync` takes an exclusive lock on each logical
+key (`tractor:17`, `activity-plan:42`, `block:9`) for the life of the surrounding transaction,
+so the check and the write are one step. Keys are always taken in ordinal order, which is what
+rules out a deadlock between two bookings sharing one resource. On SQL Server the lock is
+`sp_getapplock` with `@LockOwner = 'Transaction'`, so it is released by the commit or the
+rollback and no code path can leak it; a caller that waits more than fifteen seconds is refused
+with `RESOURCE_BUSY` rather than blocking the request thread indefinitely.
 
 **Error handling.** `ExceptionHandlingMiddleware` maps `NotFoundException` → 404,
 `ForbiddenException` → 403, `BusinessRuleException` → 422 with its stable code,
@@ -114,14 +127,16 @@ They also execute `DbSeeder.SeedTransactionsAsync` against a real service provid
 start-up seeding path is verified on a machine with no SQL Server.
 
 `SqlServerIntegrationTests` runs the same service graph against an actual SQL Server, creating
-a throw-away database and applying the real migration to it. Set `SUGARCANE_TEST_SQLSERVER` to
-enable it; without that variable the thirteen facts skip, so `dotnet test` stays green on a
-machine with no server.
+a throw-away database and applying the real migration to it. `ConcurrencyTests` goes further and
+fires genuinely simultaneous requests through separate scopes — one connection each, exactly as
+the API would — to prove the locking above. Set `SUGARCANE_TEST_SQLSERVER` to enable both;
+without that variable the seventeen facts skip, so `dotnet test` stays green on a machine with
+no server.
 
 ## What only a real database caught
 
-Two defects passed every in-memory test and failed immediately on SQL Server. Both are now
-covered by the SQL Server suite.
+These defects passed every in-memory test and failed on SQL Server. All are now covered by the
+SQL Server suite.
 
 **Retry-on-failure broke every transaction.** `EnableRetryOnFailure` installs
 `SqlServerRetryingExecutionStrategy`, which refuses user-initiated transactions. Creating a
@@ -145,6 +160,21 @@ origin, and a browser only reveals non-simple response headers listed in
 `Access-Control-Expose-Headers`. The Blazor client therefore fell back to its default name, so
 exporting several reports overwrote the same file. The CORS policy now exposes the header, and
 `CorsPolicyTests` guards it.
+
+**Double-booking was preventable one request at a time only.** Six simultaneous bookings of the
+same tractor in the same hour all passed the conflict check and all six were stored. The eight
+checks are read-then-write, and nothing held a lock between the read and the insert; the earlier
+green test was passing for the wrong reason, because `CreateAsync` moves the activity plan from
+Planned to Scheduled and the racers were colliding on *that* row's `rowversion` instead of on the
+booking. Warm the plan up to Scheduled first and the guard vanished entirely. Bookings now
+validate and insert inside one transaction holding a lock on the plan and on every resource, so
+one caller wins and the rest get `SCHEDULE_CONFLICT`.
+
+**Two projections could both take the same block.** The overlap rule ran only when a line was
+entered, where two drafts on one block are deliberately legal — planners work in parallel. Since
+nothing re-checked at the moment a document was *committed*, two drafts written before either was
+submitted could both be submitted and both approved, double-booking the land. `Submit` now
+re-runs the rule against the stored lines under a lock on each block.
 
 **The schema script could never be applied.** `sqlcmd` connects with `QUOTED_IDENTIFIER` OFF,
 and SQL Server refuses to create filtered indexes in that state, so the documented

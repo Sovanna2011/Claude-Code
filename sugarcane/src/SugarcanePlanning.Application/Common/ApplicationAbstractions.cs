@@ -51,6 +51,16 @@ public interface IAppDbContext
     /// <summary>Opens an explicit transaction so multi-step operations commit atomically.</summary>
     Task<IAppTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Takes an exclusive lock on each logical key, held until the surrounding transaction ends.
+    /// This is what makes the read-then-write rules that no constraint can express — "this
+    /// tractor has no overlapping booking", "this block has no approved plan in this window" —
+    /// safe under simultaneous requests: without it two callers both read "free" and both write.
+    /// Callers must already be inside a transaction. Keys are taken in a fixed order, so two
+    /// callers asking for overlapping sets cannot deadlock against each other.
+    /// </summary>
+    Task LockAsync(IEnumerable<string> keys, CancellationToken cancellationToken = default);
+
     /// <summary>Change-tracker entry; used to seed the original row version for concurrency checks.</summary>
     Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry Entry(object entity);
 }

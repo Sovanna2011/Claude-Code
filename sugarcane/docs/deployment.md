@@ -86,9 +86,9 @@ dotnet restore
 dotnet build -c Release
 dotnet test  -c Release                      # 163 tests
 
-# Optional: also run the 13 tests that need a real SQL Server.
+# Optional: also run the 17 tests that need a real SQL Server.
 export SUGARCANE_TEST_SQLSERVER="Server=127.0.0.1,1433;User Id=sa;Password=…;TrustServerCertificate=True"
-dotnet test  -c Release                      # 176 tests
+dotnet test  -c Release                      # 180 tests
 
 dotnet publish src/SugarcanePlanning.Api    -c Release -o ./publish/api
 dotnet publish src/SugarcanePlanning.Client -c Release -o ./publish/client
@@ -225,6 +225,13 @@ removing the other demo users.
   The planning system never posts movements back.
 - **Working calendar.** Changing `Planning:WorkOnSaturday`/`WorkOnSunday` changes every
   duration and requirement calculation; regenerate activity plans afterwards.
+- **Booking and submission take application locks.** Resource bookings and projection submissions
+  call `sp_getapplock` with `@LockOwner = 'Transaction'`, which is what stops two simultaneous
+  requests double-booking a tractor or committing the same block. No grant is needed — `public`
+  may take application locks — but the login must not be denied `EXECUTE` on `sp_getapplock`.
+  A caller that waits longer than fifteen seconds is refused with `RESOURCE_BUSY`; if that ever
+  shows up in the logs, look for a long-running transaction rather than raising the timeout.
+  `sys.dm_tran_locks` with `resource_type = 'APPLICATION'` shows who holds what.
 - **Transient-fault retries are deliberately off.** EF Core's `EnableRetryOnFailure` installs an
   execution strategy that refuses the explicit transactions used by the create, revise and
   plan-generation paths. If you need resilience on Azure SQL, route each of those operations

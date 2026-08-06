@@ -257,8 +257,30 @@ public class SchedulingService : ServiceBase, ISchedulingService
 
     // ------------------------------------------------------------------ writes
 
+    /// <summary>
+    /// The keys a booking must hold while it is validated and written. The double-booking checks
+    /// are read-then-write, so without a lock two simultaneous requests both read "free" and both
+    /// insert. Every resource the booking touches is locked, plus the activity plan itself,
+    /// because the first booking moves it from Planned to Scheduled.
+    /// </summary>
+    private static IEnumerable<string> LockKeys(int activityPlanId, int? tractorId, int? equipmentId,
+        int? operatorId, int? workTeamId = null)
+    {
+        yield return $"activity-plan:{activityPlanId}";
+        if (tractorId is not null) yield return $"tractor:{tractorId}";
+        if (equipmentId is not null) yield return $"equipment:{equipmentId}";
+        if (operatorId is not null) yield return $"operator:{operatorId}";
+        if (workTeamId is not null) yield return $"work-team:{workTeamId}";
+    }
+
+    private static IEnumerable<string> LockKeys(ResourceScheduleUpsertDto dto)
+        => LockKeys(dto.ActivityPlanId, dto.TractorId, dto.EquipmentId, dto.OperatorId, dto.WorkTeamId);
+
     public async Task<ResourceScheduleDto> CreateAsync(ResourceScheduleUpsertDto dto, CancellationToken ct = default)
     {
+        await using var tx = await Db.BeginTransactionAsync(ct);
+        await Db.LockAsync(LockKeys(dto), ct);
+
         var validation = await ValidateAsync(dto, null, ct);
         if (!validation.IsValid)
             throw new BusinessRuleException("SCHEDULE_CONFLICT",
@@ -302,14 +324,21 @@ public class SchedulingService : ServiceBase, ISchedulingService
         await _audit.LogAsync(AuditAction.Schedule, nameof(ResourceSchedule), entity.Id.ToString(),
             null, $"plan {plan.Id} on {entity.ScheduleDate:yyyy-MM-dd}", entity.DependencyOverrideReason, ct);
 
+        await tx.CommitAsync(ct);
         return await LoadDtoAsync(entity.Id, ct);
     }
 
     public async Task<ResourceScheduleDto> UpdateAsync(int id, ResourceScheduleUpsertDto dto, CancellationToken ct = default)
     {
+        await using var tx = await Db.BeginTransactionAsync(ct);
+
         var entity = await RequireAsync(Db.Schedules, id, "Resource schedule", ct);
         if (entity.Status == ScheduleStatus.Completed)
             throw new BusinessRuleException("COMPLETED", "A completed booking can no longer be changed.");
+
+        // Both sides of a reassignment: the resources being released and the ones being taken.
+        await Db.LockAsync(LockKeys(dto).Concat(
+            LockKeys(entity.ActivityPlanId, entity.TractorId, entity.EquipmentId, entity.OperatorId, entity.WorkTeamId)), ct);
 
         var validation = await ValidateAsync(dto, id, ct);
         if (!validation.IsValid)
@@ -344,6 +373,7 @@ public class SchedulingService : ServiceBase, ISchedulingService
         await _audit.LogAsync(AuditAction.Reassign, nameof(ResourceSchedule), entity.Id.ToString(),
             oldResources, $"tractor={entity.TractorId}, equipment={entity.EquipmentId}, operator={entity.OperatorId}", null, ct);
 
+        await tx.CommitAsync(ct);
         return await LoadDtoAsync(id, ct);
     }
 

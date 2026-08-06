@@ -295,7 +295,7 @@ public class SqlServerIntegrationTests : IClassFixture<SqlServerFixture>, IAsync
             .ToListAsync();
 
         Assert.Contains(entries, e => e.Action == AuditAction.Create);
-        var update = Assert.Single(entries.Where(e => e.Action == AuditAction.Update));
+        var update = Assert.Single(entries, e => e.Action == AuditAction.Update);
         Assert.Contains("Name", update.ChangedColumns ?? string.Empty);
         Assert.Contains("Audited twice", update.NewValues ?? string.Empty);
     }

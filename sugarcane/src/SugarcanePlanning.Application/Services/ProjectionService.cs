@@ -244,6 +244,50 @@ public class ProjectionService : ServiceBase, IProjectionService
                 $"Total projected area for block {block.Code} ({otherArea + dto.ProjectedPlantingAreaHa:N2} ha) exceeds its plantable area ({block.PlantableAreaHa:N2} ha).");
     }
 
+    /// <summary>
+    /// Re-runs the block-overlap rule over the stored lines at the moment a document is committed.
+    /// The check in <see cref="BuildLineAsync"/> only sees documents that were already submitted;
+    /// two drafts written on the same block are legal, and it is the submission that decides which
+    /// of them takes the block. Callers hold a lock on each block, so of two simultaneous
+    /// submissions exactly one gets past this.
+    /// </summary>
+    private async Task RequireBlockStillFreeAsync(PlantingProjection projection, CancellationToken ct)
+    {
+        var committedStatuses = new[]
+        {
+            ProjectionStatus.Submitted, ProjectionStatus.UnderReview, ProjectionStatus.Approved
+        };
+
+        foreach (var line in projection.Lines.Where(l => !l.IsDeleted))
+        {
+            var blockId = line.BlockId;
+            var start = line.PlannedPlantingStart;
+            var end = line.PlannedPlantingEnd;
+
+            var clash = await Db.ProjectionLines.AsNoTracking()
+                .Where(l => l.BlockId == blockId
+                            && l.ProjectionId != projection.Id
+                            && l.Projection!.IsCurrentVersion
+                            && committedStatuses.Contains(l.Projection.Status)
+                            && l.PlannedPlantingStart <= end
+                            && start <= l.PlannedPlantingEnd)
+                .Select(l => new
+                {
+                    l.Projection!.ProjectionNo,
+                    BlockCode = l.Block!.Code,
+                    l.PlannedPlantingStart,
+                    l.PlannedPlantingEnd
+                })
+                .FirstOrDefaultAsync(ct);
+
+            if (clash is not null)
+                throw new BusinessRuleException("BLOCK_OVERLAP",
+                    $"Block {clash.BlockCode} was committed to projection {clash.ProjectionNo} between " +
+                    $"{clash.PlannedPlantingStart:yyyy-MM-dd} and {clash.PlannedPlantingEnd:yyyy-MM-dd}; " +
+                    "change the dates or the block before submitting.");
+        }
+    }
+
     // ------------------------------------------------------------------- header
 
     public async Task<ProjectionDetailDto> UpdateHeaderAsync(int id, ProjectionUpdateDto dto, CancellationToken ct = default)
@@ -330,6 +374,17 @@ public class ProjectionService : ServiceBase, IProjectionService
 
         ApplyConcurrencyToken(projection, action.RowVersion);
 
+        await using var tx = await Db.BeginTransactionAsync(ct);
+
+        if (action.Action == ApprovalAction.Submit)
+        {
+            // Submitting is what commits a block to this document, so the overlap rule is checked
+            // here as well as at line entry. The lock makes the check and the status change one
+            // step: without it two drafts written at the same time could both be submitted.
+            await Db.LockAsync(projection.Lines.Where(l => !l.IsDeleted).Select(l => $"block:{l.BlockId}"), ct);
+            await RequireBlockStillFreeAsync(projection, ct);
+        }
+
         var from = projection.Status;
         var now = Clock.UtcNow;
         projection.Status = newStatus;
@@ -372,6 +427,7 @@ public class ProjectionService : ServiceBase, IProjectionService
         await _audit.LogAsync(MapAuditAction(action.Action), nameof(PlantingProjection), projection.Id.ToString(),
             from.ToString(), newStatus.ToString(), action.Comments, ct);
 
+        await tx.CommitAsync(ct);
         return (await LoadFullAsync(id, tracking: false, ct)).ToDetailDto();
     }
 

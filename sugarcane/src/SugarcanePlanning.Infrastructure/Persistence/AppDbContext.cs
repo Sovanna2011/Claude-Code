@@ -68,6 +68,74 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, string>, IAppDbC
         return new EfTransaction(tx);
     }
 
+    /// <summary>How long a caller waits for a busy resource before the booking is refused.</summary>
+    private const int LockTimeoutMilliseconds = 15_000;
+
+    public async Task LockAsync(IEnumerable<string> keys, CancellationToken cancellationToken = default)
+    {
+        // Application locks are a SQL Server feature. The in-memory provider used by the fast
+        // test suite has neither locks nor transactions, so there is nothing to take there; the
+        // SQL Server suite is what proves the guard actually holds under concurrency.
+        if (!Database.IsSqlServer()) return;
+
+        if (Database.CurrentTransaction is null)
+            throw new InvalidOperationException(
+                "A lock must be taken inside a transaction, otherwise it is released before the write it protects.");
+
+        // Ordinal sort: every caller takes overlapping keys in the same sequence, which is what
+        // rules out a deadlock between two bookings that share one of their resources.
+        var ordered = keys
+            .Where(k => !string.IsNullOrWhiteSpace(k))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(k => k, StringComparer.Ordinal);
+
+        foreach (var key in ordered)
+            await AcquireApplicationLockAsync(key, cancellationToken);
+    }
+
+    /// <summary>
+    /// <c>sp_getapplock</c> with <c>@LockOwner = 'Transaction'</c>: the lock is released by the
+    /// commit or rollback, so no code path can leak it.
+    /// </summary>
+    private async Task AcquireApplicationLockAsync(string key, CancellationToken cancellationToken)
+    {
+        await using var command = Database.GetDbConnection().CreateCommand();
+        command.Transaction = Database.CurrentTransaction!.GetDbTransaction();
+        command.CommandType = System.Data.CommandType.StoredProcedure;
+        command.CommandText = "sp_getapplock";
+
+        // sp_getapplock truncates at 255 characters; the keys built by the services are far shorter.
+        AddParameter(command, "@Resource", System.Data.DbType.String, key);
+        AddParameter(command, "@LockMode", System.Data.DbType.String, "Exclusive");
+        AddParameter(command, "@LockOwner", System.Data.DbType.String, "Transaction");
+        AddParameter(command, "@LockTimeout", System.Data.DbType.Int32, LockTimeoutMilliseconds);
+
+        var outcome = command.CreateParameter();
+        outcome.ParameterName = "@Outcome";
+        outcome.DbType = System.Data.DbType.Int32;
+        outcome.Direction = System.Data.ParameterDirection.ReturnValue;
+        command.Parameters.Add(outcome);
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+
+        // 0 granted immediately, 1 granted after waiting; everything below zero is a refusal.
+        var code = outcome.Value is null ? -999 : Convert.ToInt32(outcome.Value);
+        if (code >= 0) return;
+
+        throw new BusinessRuleException("RESOURCE_BUSY",
+            $"Another user is currently changing the same plan or resource ({key}). Please try again.");
+    }
+
+    private static void AddParameter(System.Data.Common.DbCommand command, string name,
+        System.Data.DbType type, object value)
+    {
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.DbType = type;
+        parameter.Value = value;
+        command.Parameters.Add(parameter);
+    }
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
