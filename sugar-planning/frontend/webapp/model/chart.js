@@ -36,6 +36,14 @@ sap.ui.define([], function () {
 		return Math.round(fValue) + " t";
 	}
 
+	// One colour per cost category, held here so the bar chart and any future
+	// legend cannot drift apart.
+	var CATEGORY_COLOURS = {
+		CANE: "#5899DA", LABOUR: "#E8743B", ENERGY: "#19A979",
+		CHEMICALS: "#945ECF", PACKAGING: "#13A4B4", MAINTENANCE: "#BF399E",
+		OVERHEAD: "#8c8c8c"
+	};
+
 	return {
 
 		/**
@@ -204,6 +212,81 @@ sap.ui.define([], function () {
 				sCapacity +
 				"<path d='" + aPath.join(" ") + "' fill='none' stroke='" + COLOUR_TARGET + "' stroke-width='2.5'/>" +
 				aLabels.join("") +
+				"</svg></div>";
+		},
+
+		/**
+		 * costByCategory draws the planned and actual cost of each category
+		 * side by side.
+		 *
+		 * A category rather than an element: twelve elements is too many bars to
+		 * read, and the question the chart answers - where did the money go -
+		 * is a category question. The table underneath carries the detail.
+		 */
+		costByCategory: function (aLines) {
+			if (!aLines || !aLines.length) {
+				return "";
+			}
+
+			var mByCategory = {};
+			aLines.forEach(function (oLine) {
+				var sKey = oLine.category || "OVERHEAD";
+				if (!mByCategory[sKey]) {
+					mByCategory[sKey] = { planned: 0, actual: 0 };
+				}
+				mByCategory[sKey].planned += toNumber(oLine.plannedCost);
+				mByCategory[sKey].actual += toNumber(oLine.actualCost);
+			});
+
+			var aKeys = Object.keys(mByCategory).sort();
+			var fMax = 0;
+			aKeys.forEach(function (sKey) {
+				fMax = Math.max(fMax, mByCategory[sKey].planned, mByCategory[sKey].actual);
+			});
+			if (fMax <= 0) {
+				return "";
+			}
+
+			var iWidth = 760, iHeight = 260, iLeft = 90, iRight = 20, iTop = 16, iBottom = 46;
+			var iPlotW = iWidth - iLeft - iRight;
+			var iPlotH = iHeight - iTop - iBottom;
+			var fSlot = iPlotW / aKeys.length;
+			var fBar = Math.min(26, fSlot / 3);
+
+			var aBars = [];
+			aKeys.forEach(function (sKey, i) {
+				var oEntry = mByCategory[sKey];
+				var sColour = CATEGORY_COLOURS[sKey] || COLOUR_AXIS;
+				var fCentre = iLeft + fSlot * (i + 0.5);
+
+				[["planned", oEntry.planned, 0.35], ["actual", oEntry.actual, 1]].forEach(
+					function (aBarSpec, iBar) {
+						var fValue = aBarSpec[1];
+						var fH = (fValue / fMax) * iPlotH;
+						var fX = fCentre + (iBar === 0 ? -fBar - 2 : 2);
+						aBars.push("<rect x='" + fX.toFixed(1) + "' y='" +
+							(iTop + iPlotH - fH).toFixed(1) + "' width='" + fBar.toFixed(1) +
+							"' height='" + Math.max(0, fH).toFixed(1) + "' fill='" + sColour +
+							"' fill-opacity='" + aBarSpec[2] + "'><title>" +
+							escapeHtml(sKey + " " + aBarSpec[0] + ": " +
+								fValue.toLocaleString(undefined, { maximumFractionDigits: 0 })) +
+							"</title></rect>");
+					});
+
+				aBars.push("<text x='" + fCentre.toFixed(1) + "' y='" + (iHeight - 26) +
+					"' text-anchor='middle' font-size='10' fill='" + COLOUR_AXIS + "'>" +
+					escapeHtml(sKey.slice(0, 9)) + "</text>");
+			});
+
+			return "<div class='sugarChart' role='img' " +
+				"aria-label='Planned and actual cost by category'>" +
+				"<svg viewBox='0 0 " + iWidth + " " + iHeight + "' width='100%' height='" +
+				iHeight + "'>" +
+				"<line x1='" + iLeft + "' y1='" + (iTop + iPlotH) + "' x2='" + (iWidth - iRight) +
+				"' y2='" + (iTop + iPlotH) + "' stroke='" + COLOUR_AXIS + "' stroke-width='1'/>" +
+				aBars.join("") +
+				"<text x='" + iLeft + "' y='" + (iHeight - 8) + "' font-size='10' fill='" +
+				COLOUR_AXIS + "'>Left bar planned, right bar actual</text>" +
 				"</svg></div>";
 		}
 	};

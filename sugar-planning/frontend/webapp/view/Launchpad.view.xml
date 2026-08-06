@@ -108,6 +108,10 @@
 						subheader="{i18n>tileMaterialsSub}" press=".onNavigate" data:route="materials">
 						<TileContent><ImageContent src="sap-icon://sales-order-item"/></TileContent>
 					</GenericTile>
+					<GenericTile class="sugarTile" header="{i18n>navCosting}"
+						subheader="{i18n>tileCostingSub}" press=".onNavigate" data:route="costing">
+						<TileContent><ImageContent src="sap-icon://money-bills"/></TileContent>
+					</GenericTile>
 					<GenericTile class="sugarTile" header="{i18n>navReports}"
 						subheader="{i18n>tileReportsSub}" press=".onNavigate" data:route="reports">
 						<TileContent><ImageContent src="sap-icon://list"/></TileContent>

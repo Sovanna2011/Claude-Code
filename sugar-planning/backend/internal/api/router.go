@@ -23,6 +23,7 @@ type Server struct {
 	analytics *service.Analytics
 	materials *service.Materials
 	execution *service.Execution
+	costing   *service.Costing
 	verifier  auth.Verifier
 	authCfg   auth.Config
 	logger    *slog.Logger
@@ -44,6 +45,7 @@ type Options struct {
 	Analytics *service.Analytics
 	Materials *service.Materials
 	Execution *service.Execution
+	Costing   *service.Costing
 	Verifier  auth.Verifier
 	AuthCfg   auth.Config
 	Logger    *slog.Logger
@@ -62,7 +64,8 @@ type Options struct {
 func NewServer(o Options) http.Handler {
 	s := &Server{
 		store: o.Store, planning: o.Planning, analytics: o.Analytics, materials: o.Materials,
-		execution: o.Execution, verifier: o.Verifier, authCfg: o.AuthCfg, logger: o.Logger,
+		execution: o.Execution, costing: o.Costing,
+		verifier: o.Verifier, authCfg: o.AuthCfg, logger: o.Logger,
 		version: o.Version, staticDir: o.StaticDir, now: o.Now,
 	}
 	if s.now == nil {
@@ -70,6 +73,9 @@ func NewServer(o Options) http.Handler {
 	}
 	if s.execution == nil {
 		s.execution = service.NewExecution(o.Store, s.now)
+	}
+	if s.costing == nil {
+		s.costing = service.NewCosting(o.Store, o.Planning, s.now)
 	}
 
 	mux := http.NewServeMux()
@@ -221,6 +227,18 @@ func (s *Server) routes(mux *http.ServeMux) {
 	s.handle(mux, "GET /api/v1/quality/holds", s.handleListHolds)
 	s.handle(mux, "POST /api/v1/quality/holds", s.handlePlaceHold)
 	s.handle(mux, "POST /api/v1/quality/holds/{id}/release", s.handleReleaseHold)
+
+	// --- costing ------------------------------------------------------------
+	s.handle(mux, "GET /api/v1/costing/elements", s.handleListCostElements)
+	s.handle(mux, "PUT /api/v1/costing/elements", s.handleSaveCostElement)
+	s.handle(mux, "GET /api/v1/costing/rates", s.handleListCostRates)
+	s.handle(mux, "PUT /api/v1/costing/rates", s.handleSaveCostRate)
+	s.handle(mux, "DELETE /api/v1/costing/rates/{id}", s.handleDeleteCostRate)
+	s.handle(mux, "GET /api/v1/costing/exchange-rates", s.handleListExchangeRates)
+	s.handle(mux, "PUT /api/v1/costing/exchange-rates", s.handleSaveExchangeRate)
+	s.handle(mux, "POST /api/v1/costing/runs", s.handleCostRun)
+	s.handle(mux, "GET /api/v1/costing/runs", s.handleListCostRuns)
+	s.handle(mux, "GET /api/v1/costing/runs/{id}", s.handleGetCostRun)
 
 	// --- reports ------------------------------------------------------------
 	s.handle(mux, "GET /api/v1/reports", s.handleListReports)

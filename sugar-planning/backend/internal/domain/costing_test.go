@@ -392,3 +392,39 @@ func TestUnitCostSurvivesAZeroOutput(t *testing.T) {
 		t.Errorf("unit cost with no output = %s, want 0 rather than an error", got)
 	}
 }
+
+// TestTheVarianceSplitAlwaysReconciles is the property SplitVariance exists for.
+// The identity is exact before rounding, but rounding each half to the cent
+// independently breaks it, and a report whose columns do not add up is one
+// nobody trusts. The quantities below are chosen to produce a remainder.
+func TestTheVarianceSplitAlwaysReconciles(t *testing.T) {
+	cases := []struct{ actualRate, standardRate, actualQty, plannedQty string }{
+		{"155.005000", "140.003000", "800.333", "720.777"},
+		{"1.150000", "1.080000", "163333.333", "170000.001"},
+		{"0.000001", "0.000002", "999999.999", "1.001"},
+		{"22.505000", "22.500000", "2300000.123", "2299999.877"},
+	}
+	for _, c := range cases {
+		actualRate, standardRate := domain.D(c.actualRate), domain.D(c.standardRate)
+		actualQty, plannedQty := domain.D(c.actualQty), domain.D(c.plannedQty)
+
+		actualCost := domain.ElementCost(actualRate, actualQty)
+		plannedCost := domain.ElementCost(standardRate, plannedQty)
+		total, rate, usage := domain.SplitVariance(
+			actualCost, plannedCost, actualRate, standardRate, actualQty)
+
+		if !rate.Add(usage).Equal(total) {
+			t.Errorf("%+v: rate %s + usage %s != total %s", c, rate, usage, total)
+		}
+		if !total.Equal(domain.RoundMoney(actualCost.Sub(plannedCost))) {
+			t.Errorf("%+v: total %s is not actual - planned", c, total)
+		}
+		// The usage half absorbs the remainder, and the remainder is small: it
+		// must stay a rounding artefact rather than become a real number.
+		byFormula := domain.UsageVariance(actualQty, plannedQty, standardRate)
+		if usage.Sub(byFormula).Abs().GreaterThan(domain.D("0.01")) {
+			t.Errorf("%+v: the derived usage variance %s is %s away from the formula's %s",
+				c, usage, usage.Sub(byFormula).Abs(), byFormula)
+		}
+	}
+}

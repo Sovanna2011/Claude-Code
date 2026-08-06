@@ -64,6 +64,7 @@ func run() error {
 	analytics := service.NewAnalytics(st, planning)
 	materials := service.NewMaterials(st, planning)
 	execution := service.NewExecution(st, func() time.Time { return time.Now().UTC() })
+	costing := service.NewCosting(st, planning, func() time.Time { return time.Now().UTC() })
 
 	if cfg.SeedDemo {
 		logger.Info("loading the demonstration scenario")
@@ -98,8 +99,8 @@ func run() error {
 	// --- HTTP ---------------------------------------------------------------
 	handler := api.NewServer(api.Options{
 		Store: st, Planning: planning, Analytics: analytics, Materials: materials,
-		Execution: execution,
-		Verifier:  verifier, AuthCfg: cfg.Auth, Logger: logger, Version: cfg.Version,
+		Execution: execution, Costing: costing,
+		Verifier: verifier, AuthCfg: cfg.Auth, Logger: logger, Version: cfg.Version,
 		StaticDir: cfg.StaticDir, AllowedOrigins: cfg.AllowedOrigins,
 		RequestTimeout: cfg.RequestTimeout, RateLimit: cfg.RateLimit, RateInterval: cfg.RateInterval,
 	})

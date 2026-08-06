@@ -85,6 +85,7 @@
 								<tnt:NavigationListItem text="{i18n>navMaintenance}" icon="sap-icon://wrench" key="maintenance"/>
 								<tnt:NavigationListItem text="{i18n>navShipments}" icon="sap-icon://shipping-status" key="shipments"/>
 								<tnt:NavigationListItem text="{i18n>navMaterials}" icon="sap-icon://sales-order-item" key="materials"/>
+								<tnt:NavigationListItem text="{i18n>navCosting}" icon="sap-icon://money-bills" key="costing"/>
 								<tnt:NavigationListItem text="{i18n>navReports}" icon="sap-icon://list" key="reports"/>
 								<tnt:NavigationListItem text="{i18n>navMasterData}" icon="sap-icon://database" key="masterdata"/>
 								<tnt:NavigationListItem text="{i18n>navAudit}" icon="sap-icon://history" key="audit"/>

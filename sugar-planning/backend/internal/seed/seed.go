@@ -44,6 +44,8 @@ func seedPrincipal(companyID, factoryID string) auth.Principal {
 			auth.RoleApprover, auth.RoleShipmentPlanner,
 			// The demo also records actuals, which needs the operator roles.
 			auth.RoleShiftSupervisor, auth.RoleWarehouseOperator,
+			// The scenario also carries a cost structure and its rates.
+			auth.RoleCostController,
 		},
 		[]string{companyID}, []string{factoryID})
 }
@@ -343,6 +345,95 @@ func Load(ctx context.Context, s store.Store, planning *service.Planning) (Resul
 		}
 	}
 
+	// --- cost structure -----------------------------------------------------
+	// Ordinary refinery cost lines, each against the driver it really scales
+	// with. Without them the costing screen has nothing to report and the unit
+	// cost is zero, which reads as free rather than as unconfigured.
+	elementIDs := map[string]string{}
+	for _, e := range []domain.CostElement{
+		{Code: "CANE", Name: "Cane payment", Category: domain.CategoryCane,
+			Driver: domain.DriverCaneTon, Variable: true, Validity: active(),
+			Note: "Paid to growers on delivered weight"},
+		{Code: "HARVEST", Name: "Harvesting and haulage", Category: domain.CategoryCane,
+			Driver: domain.DriverCaneTon, Variable: true, Validity: active()},
+		{Code: "FUEL", Name: "Boiler fuel", Category: domain.CategoryEnergy,
+			Driver: domain.DriverRunHour, Variable: true, Validity: active()},
+		{Code: "POWER", Name: "Purchased electricity", Category: domain.CategoryEnergy,
+			Driver: domain.DriverRunHour, Variable: true, Validity: active()},
+		{Code: "LIME", Name: "Lime and clarification chemicals", Category: domain.CategoryChemicals,
+			Driver: domain.DriverCaneTon, Variable: true, Validity: active()},
+		{Code: "REFCHEM", Name: "Refining chemicals", Category: domain.CategoryChemicals,
+			Driver: domain.DriverSugarTon, Variable: true, Validity: active()},
+		{Code: "PACKMAT", Name: "Packaging materials", Category: domain.CategoryPackaging,
+			Driver: domain.DriverSugarTon, Variable: true, Validity: active()},
+		{Code: "SHIFTLAB", Name: "Shift labour", Category: domain.CategoryLabour,
+			Driver: domain.DriverRunHour, Variable: true, Validity: active()},
+		{Code: "STAFF", Name: "Salaried staff", Category: domain.CategoryLabour,
+			Driver: domain.DriverCalendarDay, Variable: false, Validity: active(),
+			Note: "Paid whether the mill runs or not"},
+		{Code: "MAINT", Name: "Routine maintenance", Category: domain.CategoryMaintenance,
+			Driver: domain.DriverRunHour, Variable: true, Validity: active()},
+		{Code: "SHUTDOWN", Name: "Annual overhaul", Category: domain.CategoryMaintenance,
+			Driver: domain.DriverFixedSeason, Variable: false, Validity: active()},
+		{Code: "OVERHEAD", Name: "Site overhead", Category: domain.CategoryOverhead,
+			Driver: domain.DriverCalendarDay, Variable: false, Validity: active()},
+	} {
+		saved, err := s.Costing().SaveElement(ctx, e, Actor)
+		if err != nil {
+			return res, fmt.Errorf("cost element %s: %w", e.Code, err)
+		}
+		elementIDs[e.Code] = saved.ID
+	}
+
+	// Standard rates for the whole campaign, in the company's currency except
+	// cane, which growers are paid in riel. The costing converts it.
+	for _, r := range []struct {
+		element, rate, currency string
+	}{
+		{"CANE", "92250.000000", "KHR"}, // 22.50 USD/t at 4,100
+		{"HARVEST", "6.400000", "USD"},
+		{"FUEL", "140.000000", "USD"},
+		{"POWER", "38.500000", "USD"},
+		{"LIME", "1.150000", "USD"},
+		{"REFCHEM", "9.800000", "USD"},
+		{"PACKMAT", "12.250000", "USD"},
+		{"SHIFTLAB", "96.000000", "USD"},
+		{"STAFF", "3100.000000", "USD"},
+		{"MAINT", "44.000000", "USD"},
+		{"SHUTDOWN", "450000.000000", "USD"},
+		{"OVERHEAD", "1850.000000", "USD"},
+	} {
+		if _, err := s.Costing().SaveRate(ctx, domain.CostRate{
+			ElementID: elementIDs[r.element], FactoryID: factory.ID,
+			RateType: domain.RateStandard, Rate: domain.D(r.rate), Currency: r.currency,
+			ValidFrom: "2026-12-01",
+		}, Actor); err != nil {
+			return res, fmt.Errorf("standard rate %s: %w", r.element, err)
+		}
+	}
+
+	// Two actual rates, so the demonstration has a variance to explain: fuel
+	// was invoiced above budget, and lime below it.
+	for _, r := range []struct{ element, rate, currency string }{
+		{"FUEL", "155.000000", "USD"},
+		{"LIME", "1.080000", "USD"},
+	} {
+		if _, err := s.Costing().SaveRate(ctx, domain.CostRate{
+			ElementID: elementIDs[r.element], FactoryID: factory.ID,
+			RateType: domain.RateActual, Rate: domain.D(r.rate), Currency: r.currency,
+			ValidFrom: "2026-12-01",
+		}, Actor); err != nil {
+			return res, fmt.Errorf("actual rate %s: %w", r.element, err)
+		}
+	}
+
+	if _, err := s.Costing().SaveExchangeRate(ctx, domain.ExchangeRate{
+		FromCurrency: "USD", ToCurrency: "KHR", Rate: domain.D("4100"),
+		ValidFrom: "2026-12-01",
+	}, Actor); err != nil {
+		return res, fmt.Errorf("exchange rate: %w", err)
+	}
+
 	// --- season, assumptions and mix ---------------------------------------
 	ctx = auth.WithPrincipal(ctx, seedPrincipal(company.ID, factory.ID))
 
@@ -477,6 +568,31 @@ func LoadWithActuals(ctx context.Context, s store.Store, planning *service.Plann
 	factors := []string{"0.82", "0.94", "0.61", "0.97", "1.02", "1.01", "0.99",
 		"1.03", "1.04", "0.98", "1.01", "1.05", "1.02", "1.00"}
 
+	// The plan's own finished-goods rows for the same days, so the actuals
+	// follow the product mix rather than inventing one. Without them the
+	// actuals stop at raw sugar: the stock ledger has nothing finished in it
+	// and the cost per ton divides by zero output, which reads as free rather
+	// than as unrecorded.
+	plannedProducts, err := s.Planning().ListProducts(ctx, store.PlanFilter{
+		VersionIDs: []string{res.BudgetID}, Series: domain.SeriesPlan,
+		From: plan[0].BusinessDate, To: plan[days-1].BusinessDate,
+	})
+	if err != nil {
+		return res, fmt.Errorf("read the planned production: %w", err)
+	}
+	finished := map[string]bool{}
+	for _, code := range []string{"REF", "WHT", "SUP"} {
+		if id, ok := res.Products[code]; ok {
+			finished[id] = true
+		}
+	}
+	byDate := map[domain.BusinessDate][]domain.DailyProductPlan{}
+	for _, row := range plannedProducts {
+		if finished[row.ProductID] {
+			byDate[row.BusinessDate] = append(byDate[row.BusinessDate], row)
+		}
+	}
+
 	var caneRows []domain.DailyCanePlan
 	var rawRows []domain.DailyProductPlan
 	for i := 0; i < days; i++ {
@@ -501,6 +617,17 @@ func LoadWithActuals(ctx context.Context, s store.Store, planning *service.Plann
 			FactoryID: res.FactoryID, BusinessDate: p.BusinessDate, ProductID: res.Products["RAW"],
 			Series: domain.SeriesActual, Quantity: domain.ExpectedRawSugar(crushed, recovery),
 		})
+
+		// Finished goods move with the same daily factor as the cane, so a bad
+		// day upstream shows as a bad day downstream.
+		for _, row := range byDate[p.BusinessDate] {
+			rawRows = append(rawRows, domain.DailyProductPlan{
+				FactoryID: res.FactoryID, BusinessDate: p.BusinessDate,
+				LineID: row.LineID, ProductID: row.ProductID, PackagingID: row.PackagingID,
+				Series: domain.SeriesActual, Quantity: domain.RoundQty(row.Quantity.Mul(factor)),
+				RemeltInput: domain.RoundQty(row.RemeltInput.Mul(factor)),
+			})
+		}
 	}
 
 	if _, err := planning.UpsertCane(ctx, res.ActualID, caneRows, service.UpsertOptions{}); err != nil {

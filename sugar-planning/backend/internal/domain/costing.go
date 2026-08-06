@@ -298,8 +298,37 @@ func RateVariance(actualRate, standardRate, actualQuantity Dec) Dec {
 // The standard rate is deliberately the one used here. Valuing the extra
 // quantity at the actual rate would count the price difference twice, and the
 // two variances would no longer add up to the total.
+//
+// This is the definition. A cost run does not call it directly: it rounds the
+// rate variance and takes the usage variance as the remainder, so that the two
+// always reconstruct the total exactly. See SplitVariance.
 func UsageVariance(actualQuantity, plannedQuantity, standardRate Dec) Dec {
 	return RoundMoney(actualQuantity.Sub(plannedQuantity).Mul(standardRate))
+}
+
+// SplitVariance divides a total variance into its rate and usage halves so that
+// the two always add back up to it.
+//
+// The identity is exact before rounding:
+//
+//	actual − planned = (actual rate − standard rate) × actual qty
+//	                 + (actual qty − planned qty) × standard rate
+//
+// Rounding each half to the cent independently breaks it: two values rounded
+// separately need not sum to the rounded total, and a report whose columns do
+// not add up is a report nobody trusts. So one half is rounded and the other
+// takes the remainder - the same cumulative-rounding treatment this codebase
+// gives a season total split across 137 days.
+//
+// The rate half is the rounded one because it is the half a controller checks
+// against an invoice: it has to match the paperwork to the cent. The usage half
+// absorbs the difference, which is at most one cent and is the conventional
+// accounting treatment of the residual.
+func SplitVariance(actualCost, plannedCost, actualRate, standardRate, actualQuantity Dec) (total, rate, usage Dec) {
+	total = RoundMoney(actualCost.Sub(plannedCost))
+	rate = RateVariance(actualRate, standardRate, actualQuantity)
+	usage = RoundMoney(total.Sub(rate))
+	return total, rate, usage
 }
 
 // VarianceCheck is C41: the two variances reconstruct the total difference.
@@ -453,9 +482,8 @@ func CalculateCost(in CostInput) CostOutput {
 
 		line.PlannedCost = ElementCost(line.StandardRate, line.PlannedQty)
 		line.ActualCost = ElementCost(line.ActualRate, line.ActualQty)
-		line.RateVariance = RateVariance(line.ActualRate, line.StandardRate, line.ActualQty)
-		line.UsageVariance = UsageVariance(line.ActualQty, line.PlannedQty, line.StandardRate)
-		line.TotalVariance = RoundMoney(line.ActualCost.Sub(line.PlannedCost))
+		line.TotalVariance, line.RateVariance, line.UsageVariance = SplitVariance(
+			line.ActualCost, line.PlannedCost, line.ActualRate, line.StandardRate, line.ActualQty)
 
 		out.Lines = append(out.Lines, line)
 
@@ -482,18 +510,19 @@ func CalculateCost(in CostInput) CostOutput {
 	t.ActualUnitCost = UnitCost(t.ActualCost, t.ActualSugarTons)
 	t.UnitCostVariance = RoundMoney(t.ActualUnitCost.Sub(t.PlannedUnitCost))
 
-	// The decomposition has to reconstruct the total, or the report is lying.
-	// Rounding each line to the money scale can leave a cent between the two
-	// sides; it is reported rather than hidden, because a controller who adds
-	// the columns up will find it.
+	// SplitVariance makes each line reconcile by construction, and the totals
+	// are sums of reconciling lines, so this can only fail if that construction
+	// has been broken. It stays as an assertion rather than as an expected
+	// outcome: a report whose columns do not add up is one nobody trusts, and
+	// it should say so loudly rather than let a reader find it.
 	if !VarianceCheck(t.ActualCost, t.PlannedCost, t.RateVariance, t.UsageVariance) {
 		difference := RoundMoney(t.TotalVariance.Sub(t.RateVariance.Add(t.UsageVariance)))
 		out.Warnings = append(out.Warnings, Alert{
-			Code: "COST_VARIANCE_ROUNDING", Severity: SeverityInfo,
-			Title: "The variance split differs from the total by a rounding remainder",
+			Code: "COST_VARIANCE_UNRECONCILED", Severity: SeverityError,
+			Title: "The variance split does not reconstruct the total",
 			Detail: fmt.Sprintf(
-				"Rate and usage variance sum to %s against a total variance of %s, a difference of %s "+
-					"caused by rounding each line to the money scale.",
+				"Rate and usage variance sum to %s against a total variance of %s, a difference of %s. "+
+					"This is a defect in the costing, not a property of the data.",
 				RoundMoney(t.RateVariance.Add(t.UsageVariance)), t.TotalVariance, difference),
 		})
 	}

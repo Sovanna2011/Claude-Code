@@ -389,6 +389,53 @@ sap.ui.define([
 			return this.put("/maintenance", oWindow, { etag: sEtag });
 		},
 
+		// ------------------------------------------------------------------
+		// Costing
+		// ------------------------------------------------------------------
+
+		listCostElements: function () {
+			return this.get("/costing/elements?$top=200");
+		},
+
+		saveCostElement: function (oElement) {
+			return this.put("/costing/elements", oElement);
+		},
+
+		listCostRates: function (oParams) {
+			return this.get("/costing/rates" + this.query(oParams));
+		},
+
+		saveCostRate: function (oRate) {
+			return this.put("/costing/rates", oRate);
+		},
+
+		deleteCostRate: function (sId) {
+			return this.del("/costing/rates/" + encodeURIComponent(sId));
+		},
+
+		listExchangeRates: function () {
+			return this.get("/costing/exchange-rates");
+		},
+
+		saveExchangeRate: function (oRate) {
+			return this.put("/costing/exchange-rates", oRate);
+		},
+
+		/** costRun prices a period. Saving one is a write and carries a key;
+		 * a run that is only being looked at writes nothing. */
+		costRun: function (oRequest) {
+			var oOptions = oRequest.save ? { idempotencyKey: this.newIdempotencyKey() } : {};
+			return this.post("/costing/runs", oRequest, oOptions);
+		},
+
+		listCostRuns: function (oParams) {
+			return this.get("/costing/runs" + this.query(oParams));
+		},
+
+		getCostRun: function (sId) {
+			return this.get("/costing/runs/" + encodeURIComponent(sId));
+		},
+
 		/** newIdempotencyKey returns a key unique to one user action. */
 		newIdempotencyKey: function () {
 			if (window.crypto && window.crypto.randomUUID) {

@@ -50,6 +50,7 @@ func newTestServer(t *testing.T) *testServer {
 		"keeper":     {DisplayName: "Warehouse operator", Roles: []string{auth.RoleWarehouseOperator}},
 		"lab":        {DisplayName: "Laboratory", Roles: []string{auth.RoleQualityUser}},
 		"masterdata": {DisplayName: "Master data", Roles: []string{auth.RoleMasterDataAdmin}},
+		"controller": {DisplayName: "Cost controller", Roles: []string{auth.RoleCostController}},
 		"executive":  {DisplayName: "Executive", Roles: []string{auth.RoleExecutiveViewer}},
 		"auditor":    {DisplayName: "Auditor", Roles: []string{auth.RoleAuditor}},
 		"outsider":   {DisplayName: "Other factory", Roles: []string{auth.RoleProductionPlanner}},

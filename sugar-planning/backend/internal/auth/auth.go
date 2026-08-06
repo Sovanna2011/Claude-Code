@@ -77,7 +77,8 @@ var DefaultRoles = map[string][]string{
 		domain.PermActualShip, domain.PermReportRead,
 	},
 	RoleCostController: {
-		domain.PermMasterDataRead, domain.PermPlanRead, domain.PermReportRead,
+		domain.PermMasterDataRead, domain.PermMasterDataWrite, domain.PermPlanRead,
+		domain.PermCostRead, domain.PermCostWrite, domain.PermReportRead,
 	},
 	RoleApprover: {
 		domain.PermMasterDataRead, domain.PermPlanRead, domain.PermPlanApprove,
@@ -85,10 +86,12 @@ var DefaultRoles = map[string][]string{
 		domain.PermReportRead,
 	},
 	RoleExecutiveViewer: {
-		domain.PermPlanRead, domain.PermMasterDataRead, domain.PermReportRead,
+		domain.PermPlanRead, domain.PermMasterDataRead, domain.PermCostRead,
+		domain.PermReportRead,
 	},
 	RoleAuditor: {
-		domain.PermPlanRead, domain.PermMasterDataRead, domain.PermReportRead, domain.PermAuditRead,
+		domain.PermPlanRead, domain.PermMasterDataRead, domain.PermCostRead,
+		domain.PermReportRead, domain.PermAuditRead,
 	},
 }
 

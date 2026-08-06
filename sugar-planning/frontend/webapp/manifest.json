@@ -142,6 +142,11 @@
 					"target": "materials"
 				},
 				{
+					"pattern": "costing",
+					"name": "costing",
+					"target": "costing"
+				},
+				{
 					"pattern": "reports",
 					"name": "reports",
 					"target": "reports"
@@ -216,6 +221,10 @@
 				},
 				"maintenance": {
 					"viewName": "Maintenance",
+					"viewLevel": 2
+				},
+				"costing": {
+					"viewName": "Costing",
 					"viewLevel": 2
 				}
 			}

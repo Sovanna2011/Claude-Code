@@ -27,6 +27,36 @@ sap.ui.define([], function () {
 			return sNumber === "" ? "" : sNumber + " %";
 		},
 
+		/**
+		 * money renders a money amount short enough for a KPI tile.
+		 *
+		 * A season's cost runs to tens of millions, and NumericContent truncates
+		 * what does not fit rather than abbreviating it - 76,606,286 arrives on
+		 * screen as "76,6", which reads as seventy-six point six of something.
+		 * Abbreviating here keeps the magnitude legible. Tables keep the full
+		 * figure, because that is where somebody adds the column up.
+		 */
+		money: function (vValue) {
+			if (vValue === null || vValue === undefined || vValue === "") {
+				return "";
+			}
+			var fValue = typeof vValue === "number" ? vValue : parseFloat(vValue);
+			if (isNaN(fValue)) {
+				return String(vValue);
+			}
+			var fAbs = Math.abs(fValue);
+			if (fAbs >= 1e9) {
+				return formatter._number(fValue / 1e9, 2) + "bn";
+			}
+			if (fAbs >= 1e6) {
+				return formatter._number(fValue / 1e6, 1) + "m";
+			}
+			if (fAbs >= 1e4) {
+				return formatter._number(fValue / 1e3, 0) + "k";
+			}
+			return formatter._number(fValue, 0);
+		},
+
 		/** units formats a whole count, such as a number of bags. */
 		units: function (vValue) {
 			return formatter._number(vValue, 0);
@@ -307,6 +337,16 @@ sap.ui.define([], function () {
 				case "CANCELLED": return "Error";
 				default: return "Information";
 			}
+		},
+
+		/** varianceColor colours a money variance on a tile. Spending more than
+		 * the plan is bad news whatever the sign convention says. */
+		varianceColor: function (vValue) {
+			var fValue = parseFloat(vValue);
+			if (isNaN(fValue) || fValue === 0) {
+				return "Neutral";
+			}
+			return fValue > 0 ? "Error" : "Good";
 		},
 
 		/** reversedLabel marks a document that has been undone. */

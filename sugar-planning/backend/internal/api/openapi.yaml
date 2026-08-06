@@ -64,6 +64,8 @@ tags:
     description: Parameters, effective-dated specifications, samples and holds.
   - name: Maintenance
     description: Planned outages, which remove crushing days once approved.
+  - name: Costing
+    description: Cost structure, rates, and what a ton of sugar costs.
   - name: Reports
     description: Report catalogue and exports.
   - name: Audit
@@ -885,6 +887,278 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/DowntimeEvent" }
+
+  # --------------------------------------------------------------------------
+  # Costing
+  # --------------------------------------------------------------------------
+
+  /costing/elements:
+    get:
+      tags: [Costing]
+      summary: The cost structure
+      description: Requires `masterdata:read`.
+      operationId: listCostElements
+      parameters:
+        - $ref: "#/components/parameters/Top"
+        - $ref: "#/components/parameters/Skip"
+        - $ref: "#/components/parameters/Search"
+      responses:
+        "200":
+          description: The cost elements, by category then code.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/CostElement" } }
+    put:
+      tags: [Costing]
+      summary: Create or update a cost element
+      description: |
+        Requires `masterdata:write`. The code is the business key, so a repeat
+        updates in place and re-running a seed or an import is idempotent.
+      operationId: saveCostElement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CostElement" }
+      responses:
+        "200":
+          description: The saved element.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CostElement" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /costing/rates:
+    get:
+      tags: [Costing]
+      summary: Cost rates
+      description: |
+        Requires `cost:read`. What a factory pays for cane is commercially
+        sensitive in a way that how much cane it crushed is not, so the rates
+        sit behind their own permission rather than behind `plan:read`.
+
+        Every rate matching the filter is returned; the effective dating is
+        resolved by the caller. Where two rates for one element and type are
+        both in force, the later start date is the one that applies.
+      operationId: listCostRates
+      parameters:
+        - $ref: "#/components/parameters/FactoryId"
+        - name: seasonId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: elementId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: rateType
+          in: query
+          schema: { type: string, enum: [STANDARD, ACTUAL] }
+        - name: on
+          in: query
+          description: Restrict to the rates in force on this date.
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: The rates.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/CostRate" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    put:
+      tags: [Costing]
+      summary: Create or correct a rate
+      description: |
+        Requires `cost:write`. The element, factory, rate type and start date
+        are the business key: re-entering a rate for a date that already has one
+        corrects it rather than leaving two rates silently competing. A price
+        change is a new rate with a later start date.
+      operationId: saveCostRate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CostRate" }
+      responses:
+        "200":
+          description: The saved rate.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CostRate" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /costing/rates/{id}:
+    delete:
+      tags: [Costing]
+      summary: Remove a rate entered in error
+      operationId: deleteCostRate
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "204": { description: Removed. }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /costing/exchange-rates:
+    get:
+      tags: [Costing]
+      summary: Currency quotations
+      operationId: listExchangeRates
+      responses:
+        "200":
+          description: The quotations.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/ExchangeRate" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    put:
+      tags: [Costing]
+      summary: Record a quotation
+      description: |
+        Requires `cost:write`. Only one direction of a pair need be entered: a
+        conversion with no direct quotation uses the inverse of the one that
+        exists. A conversion to the same currency needs no quotation at all, so
+        a single-currency site configures nothing.
+      operationId: saveExchangeRate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExchangeRate" }
+      responses:
+        "200":
+          description: The saved quotation.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExchangeRate" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /costing/runs:
+    get:
+      tags: [Costing]
+      summary: Saved cost runs
+      operationId: listCostRuns
+      parameters:
+        - name: seasonId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: versionId
+          in: query
+          schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/FactoryId"
+        - $ref: "#/components/parameters/Top"
+        - $ref: "#/components/parameters/Skip"
+      responses:
+        "200":
+          description: A page of runs with their totals. The lines belong to the detail view.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/CostRun" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      tags: [Costing]
+      summary: Cost a period
+      description: |
+        Requires `cost:read`. Prices every cost element against its own driver -
+        cane on tons crushed, fuel on hours run, packaging on tons of sugar
+        made, salaried staff on days elapsed - and splits the difference from
+        plan into the part caused by paying a different price and the part
+        caused by using a different quantity.
+
+        The driver quantities come from the same daily rows the dashboard
+        reports on, so a cost figure and a tonnage figure cannot disagree.
+
+        The rates are read as at the **last day** of the range, so a price
+        change inside the range applies to the whole of it. Splitting the range
+        is how a site prices either side of a change separately.
+
+        A run never fails on missing data: an element with no rate in force
+        contributes nothing, says so in `missing` on its line, and raises a
+        warning. Refusing the whole run because one rate is absent would make
+        the report useless exactly when it is most needed.
+
+        `save: true` stores the run under `code` so the figure can be reproduced
+        later after the rates have moved on; it requires `cost:write`, and the
+        season and code are the business key, so re-running a period replaces it.
+      operationId: runCosting
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [seasonId]
+              properties:
+                seasonId: { type: string, format: uuid }
+                versionId:
+                  type: string
+                  format: uuid
+                  description: The plan to cost against. Defaults to the released one.
+                from: { type: string, format: date, description: Defaults to the season start. }
+                to: { type: string, format: date, description: Defaults to the season end, or today. }
+                currency:
+                  type: string
+                  description: Defaults to the company's currency.
+                save: { type: boolean }
+                code: { type: string, description: Required in practice when saving; defaults to the date range. }
+                note: { type: string }
+      responses:
+        "200":
+          description: The costing, with the driver quantities it was built from.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CostRunResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /costing/runs/{id}:
+    get:
+      tags: [Costing]
+      summary: Read a saved run
+      description: |
+        The stored run keeps the rates it used, so the figure is reproducible
+        after those rates have changed.
+      operationId: getCostRun
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: The run with its lines.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CostRun" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
 
   /reports:
     get:
@@ -2563,6 +2837,174 @@ components:
         status: { type: string, enum: [PLANNED, APPROVED, DONE, CANCELLED] }
         approvedBy: { type: string }
         rowVersion: { type: integer, format: int64 }
+
+    CostElement:
+      type: object
+      required: [code, name, category, driver]
+      description: One line of the cost structure, against the driver it scales with.
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string, examples: ["FUEL"] }
+        name: { type: string, examples: ["Boiler fuel"] }
+        category:
+          type: string
+          enum: [CANE, LABOUR, ENERGY, CHEMICALS, PACKAGING, MAINTENANCE, OVERHEAD]
+        driver:
+          type: string
+          enum: [CANE_TON, SUGAR_TON, RUN_HOUR, CALENDAR_DAY, FIXED_SEASON]
+          description: |
+            What the cost scales with. A fixed seasonal cost has a driver
+            quantity of one, so the same rate x quantity arithmetic covers it.
+        variable:
+          type: boolean
+          description: |
+            Whether the site treats it as variable. Deliberately not derived
+            from the driver: a shift crew paid per run hour may still be a fixed
+            cost to a site with a salaried crew, and the contribution analysis
+            follows the site's view.
+        note: { type: string }
+        active: { type: boolean }
+        rowVersion: { type: integer, format: int64 }
+
+    CostRate:
+      type: object
+      required: [elementId, factoryId, rateType, rate, currency, validFrom]
+      properties:
+        id: { type: string, format: uuid }
+        elementId: { type: string, format: uuid }
+        factoryId: { type: string, format: uuid }
+        seasonId: { type: string, format: uuid }
+        rateType:
+          type: string
+          enum: [STANDARD, ACTUAL]
+          description: |
+            STANDARD is what was budgeted and is held still so a variance means
+            something. ACTUAL is what was really paid, entered as invoices
+            arrive; an element with no actual rate is charged at standard and
+            its rate variance stays zero until somebody knows better.
+        rate:
+          allOf: [{ $ref: "#/components/schemas/Decimal" }]
+          description: Money per unit of the element's driver, scale 6.
+        currency: { type: string, minLength: 3, maxLength: 3, examples: ["USD"] }
+        validFrom: { type: string, format: date }
+        validTo: { type: string, format: date }
+        note: { type: string }
+        rowVersion: { type: integer, format: int64 }
+
+    ExchangeRate:
+      type: object
+      required: [fromCurrency, toCurrency, rate, validFrom]
+      properties:
+        id: { type: string, format: uuid }
+        fromCurrency: { type: string, minLength: 3, maxLength: 3 }
+        toCurrency: { type: string, minLength: 3, maxLength: 3 }
+        rate: { $ref: "#/components/schemas/Decimal" }
+        validFrom: { type: string, format: date }
+        rowVersion: { type: integer, format: int64 }
+
+    CostLine:
+      type: object
+      description: One element's contribution to a run.
+      properties:
+        elementId: { type: string, format: uuid }
+        elementCode: { type: string }
+        elementName: { type: string }
+        category: { type: string }
+        driver: { type: string }
+        driverUnit: { type: string, examples: ["t", "h", "d", "season"] }
+        variable: { type: boolean }
+        standardRate: { $ref: "#/components/schemas/Decimal" }
+        actualRate: { $ref: "#/components/schemas/Decimal" }
+        plannedQty: { $ref: "#/components/schemas/Quantity" }
+        actualQty: { $ref: "#/components/schemas/Quantity" }
+        plannedCost: { $ref: "#/components/schemas/Money" }
+        actualCost: { $ref: "#/components/schemas/Money" }
+        rateVariance:
+          allOf: [{ $ref: "#/components/schemas/Money" }]
+          description: |
+            (actual rate - standard rate) x actual quantity. Positive is
+            unfavourable. This is the half a controller checks against an
+            invoice, so it is the half that is rounded exactly.
+        usageVariance:
+          allOf: [{ $ref: "#/components/schemas/Money" }]
+          description: |
+            The remainder of the total variance, which is the usage half valued
+            at the standard rate. It absorbs the rounding so that the two halves
+            always reconstruct the total.
+        totalVariance: { $ref: "#/components/schemas/Money" }
+        missing:
+          type: array
+          description: What the run could not find, so a zero line is not mistaken for a free one.
+          items: { type: string }
+
+    CostTotals:
+      type: object
+      properties:
+        plannedCost: { $ref: "#/components/schemas/Money" }
+        actualCost: { $ref: "#/components/schemas/Money" }
+        rateVariance: { $ref: "#/components/schemas/Money" }
+        usageVariance: { $ref: "#/components/schemas/Money" }
+        totalVariance: { $ref: "#/components/schemas/Money" }
+        variancePct: { $ref: "#/components/schemas/Decimal" }
+        plannedSugarTons: { $ref: "#/components/schemas/Quantity" }
+        actualSugarTons: { $ref: "#/components/schemas/Quantity" }
+        plannedUnitCost: { $ref: "#/components/schemas/Money" }
+        actualUnitCost: { $ref: "#/components/schemas/Money" }
+        unitCostVariance: { $ref: "#/components/schemas/Money" }
+        fixedCost: { $ref: "#/components/schemas/Money" }
+        variableCost: { $ref: "#/components/schemas/Money" }
+
+    CostRun:
+      type: object
+      description: A saved costing, reproducible after the rates have moved on.
+      properties:
+        id: { type: string, format: uuid }
+        seasonId: { type: string, format: uuid }
+        versionId: { type: string, format: uuid }
+        factoryId: { type: string, format: uuid }
+        code: { type: string }
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        currency: { type: string }
+        totals: { $ref: "#/components/schemas/CostTotals" }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/CostLine" }
+        note: { type: string }
+        rowVersion: { type: integer, format: int64 }
+
+    CostDrivers:
+      type: object
+      description: The measured volumes a run multiplied its rates by.
+      properties:
+        caneTons: { $ref: "#/components/schemas/Quantity" }
+        sugarTons: { $ref: "#/components/schemas/Quantity" }
+        runHours: { $ref: "#/components/schemas/Decimal" }
+        calendarDays: { $ref: "#/components/schemas/Decimal" }
+
+    CostRunResult:
+      type: object
+      properties:
+        run: { $ref: "#/components/schemas/CostRun" }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/CostLine" }
+        totals: { $ref: "#/components/schemas/CostTotals" }
+        plannedDrivers: { $ref: "#/components/schemas/CostDrivers" }
+        actualDrivers: { $ref: "#/components/schemas/CostDrivers" }
+        warnings:
+          type: array
+          items: { $ref: "#/components/schemas/Alert" }
+        currency: { type: string }
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        saved: { type: boolean }
+
+    Money:
+      type: string
+      description: An exact money amount at the ledger scale of two places, carried as a string.
+      pattern: '^-?[0-9]+(\.[0-9]{1,2})?$'
+      examples: ["51750000.00"]
 
     ReportTable:
       type: object
