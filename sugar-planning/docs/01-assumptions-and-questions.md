@@ -222,10 +222,9 @@ blocked.
 
 ## 1.5 What is built, and what is not
 
-The specification describes five phases. This delivery covers **phases 1 to 3**
-in full, plus the complete data model for phases 4 and 5. Nothing in the
-delivered scope is a placeholder: there are no stub methods, no fake success
-responses and no unexplained TODOs.
+The specification describes five phases. This delivery covers **all five**.
+Nothing in the delivered scope is a placeholder: there are no stub methods, no
+fake success responses and no unexplained TODOs.
 
 **Built and tested**
 
@@ -243,6 +242,14 @@ responses and no unexplained TODOs.
   quality samples, results and holds, and the maintenance calendar — with their
   screens
 - Downtime recording, which feeds the dashboard's lost-tonnage figure
+- Costing: elements with drivers, effective-dated standard and actual rates,
+  multi-currency, cost per ton, and a variance split that always reconciles
+- The transactional outbox, its dispatcher, and the weighbridge and laboratory
+  adapters, with the machine account they run as
+- Background jobs behind a database lease, so a pair of instances share the
+  recurring work rather than duplicating it
+- Certificate of analysis, and the packaging bill of materials that drives both
+  requirement planning and the components a confirmation consumes
 
 **Not built: the Excel migration**
 
@@ -251,11 +258,12 @@ The importer is the one item of the original scope with nothing behind it. Its
 read was never provided. Writing a column mapping against a file nobody has seen
 would be guesswork dressed as progress.
 
-**Not started**
+**Not built: the rest**
 
-Costing (section 21) and the external integration adapters (section 22) are
-phase 5. The transactional outbox table exists so that integration events can be
-written from day one without a schema change.
+Advanced forecasting (seasonality, weather, cane maturity), SAPUI5 unit and OPA5
+tests, and operational hardening at ten years of data. None is a gap in the
+specification's core scope; each is listed under "Still open" in the
+implementation plan with an estimate.
 
 See [10-implementation-plan.md](10-implementation-plan.md) for the phase plan
 with acceptance criteria.

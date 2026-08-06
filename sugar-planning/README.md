@@ -48,7 +48,8 @@ mix and the capacities; the system generates 137 days of cane, raw sugar,
 finished goods, stock and shipment rows, and tells you what is wrong with the
 plan before anybody releases it.
 
-On the reference figures it finds three real problems:
+On the reference figures it finds real problems, before anybody releases the
+plan:
 
 - the finished goods mix needs **254,205 t** of raw sugar but the plan produces
   **253,000 t** — a 1,205 t shortfall at the stated 1.05 remelt factor;
@@ -157,7 +158,7 @@ a browser, not only in unit tests.
 Two things are deliberately not here. **Excel import of the reference workbook**
 is blocked: the workbook was never supplied, so its sheet names, header rows and
 units are unknown, and guessing at them would produce an importer that fails on
-the real file. **Three findings in the reference figures** await a business
+the real file. **The findings in the reference figures above** await a business
 answer rather than a code change; they are listed at the top of
 [docs/01-assumptions-and-questions.md](docs/01-assumptions-and-questions.md).
 
