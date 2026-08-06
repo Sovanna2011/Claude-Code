@@ -167,6 +167,12 @@ jobs:
           npm install --no-audit --no-fund
           npx eslint webapp --ext .js || true   # advisory until the ruleset is agreed
 
+      # The chart renderers and the formatters are pure functions with no UI5
+      # dependencies, so they run under plain Node without a browser or a CDN.
+      - name: Unit tests
+        working-directory: sugar-planning/frontend
+        run: npm test
+
       - name: Build
         working-directory: sugar-planning/frontend
         run: npx ui5 build --clean-dest --all

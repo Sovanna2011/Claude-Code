@@ -51,6 +51,19 @@ type Dashboard struct {
 	Downtime  DowntimeKPIs         `json:"downtime"`
 	Alerts    []domain.Alert       `json:"alerts"`
 	CaneTrend []domain.SeriesPoint `json:"caneTrend"`
+
+	// RecoveryTrend is the recovery achieved each day against the assumption.
+	// A season average inside the range can hide a fortnight outside it, which
+	// is exactly the fortnight somebody needed to know about.
+	//
+	// It reuses SeriesPoint for its date, target and actual. The cumulative
+	// fields are left at zero: a running total of percentages is not a figure
+	// anybody wants, and inventing one would be worse than leaving it empty.
+	RecoveryTrend []domain.SeriesPoint `json:"recoveryTrend"`
+	// ProductTrend is the daily output of each finished product, for the mix.
+	ProductTrend []NamedSeries `json:"productTrend"`
+	// ShipmentTrend is the daily planned and actual shipment of each channel.
+	ShipmentTrend []NamedSeries `json:"shipmentTrend"`
 	// CaneRollingAvg is aligned index for index with CaneTrend.
 	CaneRollingAvg []domain.Dec `json:"caneRollingAverage"`
 }
@@ -74,12 +87,18 @@ type CaneKPIs struct {
 
 // RecoveryKPIs is the raw sugar headline.
 type RecoveryKPIs struct {
-	TargetTons        domain.Dec      `json:"targetTons"`
-	ActualTons        domain.Dec      `json:"actualTons"`
-	TargetRecoveryPct domain.Dec      `json:"targetRecoveryPct"`
-	ActualRecoveryPct domain.Dec      `json:"actualRecoveryPct"`
-	RecoveryVariance  domain.Dec      `json:"recoveryVariancePct"`
-	Verdict           domain.Severity `json:"verdict"`
+	TargetTons        domain.Dec `json:"targetTons"`
+	ActualTons        domain.Dec `json:"actualTons"`
+	TargetRecoveryPct domain.Dec `json:"targetRecoveryPct"`
+	ActualRecoveryPct domain.Dec `json:"actualRecoveryPct"`
+	RecoveryVariance  domain.Dec `json:"recoveryVariancePct"`
+	// MinRecoveryPct and MaxRecoveryPct are the operating window the verdict is
+	// reached by. They are published so the recovery chart can draw the band the
+	// alert is raised on, rather than a band of its own that would eventually
+	// disagree with it.
+	MinRecoveryPct domain.Dec      `json:"minRecoveryPct"`
+	MaxRecoveryPct domain.Dec      `json:"maxRecoveryPct"`
+	Verdict        domain.Severity `json:"verdict"`
 }
 
 // ProductKPI is one finished product's target versus actual.
@@ -124,6 +143,36 @@ type DowntimeKPIs struct {
 	Hours      domain.Dec `json:"hours"`
 	LostTons   domain.Dec `json:"lostTons"`
 	EventCount int        `json:"eventCount"`
+	// ByReason ranks the reasons by the hours they cost, worst first. Three
+	// numbers about downtime tell somebody there is a problem; this tells them
+	// which one to go and fix.
+	ByReason []DowntimeReasonKPI `json:"byReason"`
+}
+
+// DowntimeReasonKPI is one bar of the Pareto: how much of the lost time one
+// reason accounts for, and how much of it the reasons above it and this one
+// account for together.
+type DowntimeReasonKPI struct {
+	ReasonCode  string     `json:"reasonCode"`
+	ReasonName  string     `json:"reasonName"`
+	Hours       domain.Dec `json:"hours"`
+	LostTons    domain.Dec `json:"lostTons"`
+	EventCount  int        `json:"eventCount"`
+	SharePct    domain.Dec `json:"sharePct"`
+	CumSharePct domain.Dec `json:"cumulativeSharePct"`
+}
+
+// NamedSeries is a daily curve that belongs to something: a product, a shipment
+// channel. The product mix and the shipment trend are the same shape, so they
+// are the same type rather than two that drift apart.
+type NamedSeries struct {
+	ID   string `json:"id"`
+	Code string `json:"code"`
+	Name string `json:"name"`
+	// Total is the sum of the actuals, which is what a stacked chart orders its
+	// bands by so the largest contributor sits at the bottom.
+	Total  domain.Dec           `json:"total"`
+	Points []domain.SeriesPoint `json:"points"`
 }
 
 // Dashboard assembles the executive overview.
@@ -231,6 +280,9 @@ func (a *Analytics) Dashboard(ctx context.Context, req DashboardRequest) (Dashbo
 	}
 	dash.RawSugar = a.recoveryKPIs(assumptions, planCane, actualCane, planProd, actualProd, products)
 	dash.Products = productKPIs(planProd, actualProd, products)
+	dash.RecoveryTrend = recoveryTrend(ordered, actualCane, actualProd, products,
+		assumptions[domain.AsmRecoveryPct])
+	dash.ProductTrend = productTrend(ordered, planProd, actualProd, products)
 
 	// --- storage and capacity ----------------------------------------------
 	dash.Storage, dash.Alerts, err = a.storageKPIs(ctx, planVersion, actualVersion, assumptions, req)
@@ -239,7 +291,7 @@ func (a *Analytics) Dashboard(ctx context.Context, req DashboardRequest) (Dashbo
 	}
 
 	// --- shipments ----------------------------------------------------------
-	dash.Shipments, err = a.shipmentKPIs(ctx, planFilter, actualFilter)
+	dash.Shipments, dash.ShipmentTrend, err = a.shipmentKPIs(ctx, planFilter, actualFilter, ordered)
 	if err != nil {
 		return Dashboard{}, err
 	}
@@ -371,6 +423,7 @@ func (a *Analytics) recoveryKPIs(assumptions map[string]domain.Dec,
 		minPct = targetRecovery.Sub(domain.DI(1))
 		maxPct = targetRecovery.Add(domain.DI(1))
 	}
+	k.MinRecoveryPct, k.MaxRecoveryPct = minPct, maxPct
 	if actualCrushed.IsZero() {
 		k.Verdict = domain.SeverityInfo // the season has not started
 	} else {
@@ -408,6 +461,145 @@ func productKPIs(plan, actual []domain.DailyProductPlan, products map[string]dom
 		out = append(out, k)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ProductCode < out[j].ProductCode })
+	return out
+}
+
+// recoveryTrend is the recovery achieved each day, against the assumption as a
+// flat target line.
+//
+// It is built from the actuals alone: the plan's recovery is the assumption by
+// construction, so plotting it would draw the target line twice. A day with
+// cane crushed but no raw sugar recorded yet carries no actual rather than a
+// recovery of zero, which would drag the eye to a problem that is really a
+// laboratory still working.
+func recoveryTrend(dates []domain.BusinessDate, cane []domain.DailyCanePlan,
+	produced []domain.DailyProductPlan, products map[string]domain.Product,
+	targetPct domain.Dec) []domain.SeriesPoint {
+
+	crushed := map[domain.BusinessDate]domain.Dec{}
+	for _, r := range cane {
+		crushed[r.BusinessDate] = crushed[r.BusinessDate].Add(r.CaneCrushed)
+	}
+	raw := map[domain.BusinessDate]domain.Dec{}
+	for _, r := range produced {
+		if products[r.ProductID].Stage != domain.StageRawSugar {
+			continue
+		}
+		raw[r.BusinessDate] = raw[r.BusinessDate].Add(r.Quantity)
+	}
+
+	out := make([]domain.SeriesPoint, 0, len(dates))
+	for _, d := range dates {
+		point := domain.SeriesPoint{Date: d, Target: domain.RoundPct(targetPct)}
+		c, r := crushed[d], raw[d]
+		if !c.IsZero() && !r.IsZero() {
+			point.Actual = domain.ActualRecoveryPct(r, c)
+			point.Variance = domain.RoundPct(point.Actual.Sub(point.Target))
+			point.HasActual = true
+		}
+		out = append(out, point)
+	}
+	return out
+}
+
+// productTrend is the daily output of each finished product, for the mix chart.
+//
+// Bulk raw sugar is left out: a stacked chart of finished goods with raw sugar
+// in it is a chart of two different things, and the raw sugar band would be
+// twice the height of everything else.
+func productTrend(dates []domain.BusinessDate, plan, actual []domain.DailyProductPlan,
+	products map[string]domain.Product) []NamedSeries {
+
+	target := map[string]map[domain.BusinessDate]domain.Dec{}
+	got := map[string]map[domain.BusinessDate]domain.Dec{}
+	add := func(m map[string]map[domain.BusinessDate]domain.Dec, r domain.DailyProductPlan) {
+		if !products[r.ProductID].IsFinished {
+			return
+		}
+		if m[r.ProductID] == nil {
+			m[r.ProductID] = map[domain.BusinessDate]domain.Dec{}
+		}
+		m[r.ProductID][r.BusinessDate] = m[r.ProductID][r.BusinessDate].Add(r.Quantity)
+	}
+	for _, r := range plan {
+		add(target, r)
+	}
+	for _, r := range actual {
+		add(got, r)
+	}
+
+	ids := map[string]bool{}
+	for id := range target {
+		ids[id] = true
+	}
+	for id := range got {
+		ids[id] = true
+	}
+
+	out := make([]NamedSeries, 0, len(ids))
+	for id := range ids {
+		p := products[id]
+		s := NamedSeries{ID: id, Code: p.Code, Name: p.Name,
+			Points: domain.BuildSeries(dates, target[id], got[id])}
+		if n := len(s.Points); n > 0 {
+			s.Total = s.Points[n-1].CumActual
+		}
+		out = append(out, s)
+	}
+	// Largest first, so the stacked bands are ordered by how much they matter
+	// rather than alphabetically.
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].Total.Equal(out[j].Total) {
+			return out[i].Total.GreaterThan(out[j].Total)
+		}
+		return out[i].Code < out[j].Code
+	})
+	return out
+}
+
+// shipmentTrend is the daily planned and actual shipment of each channel.
+func shipmentTrend(dates []domain.BusinessDate, plan, actual []domain.DailyShipmentPlan,
+	channels map[string]domain.ShipmentChannel) []NamedSeries {
+
+	target := map[string]map[domain.BusinessDate]domain.Dec{}
+	got := map[string]map[domain.BusinessDate]domain.Dec{}
+	add := func(m map[string]map[domain.BusinessDate]domain.Dec, r domain.DailyShipmentPlan) {
+		if m[r.ChannelID] == nil {
+			m[r.ChannelID] = map[domain.BusinessDate]domain.Dec{}
+		}
+		m[r.ChannelID][r.BusinessDate] = m[r.ChannelID][r.BusinessDate].Add(r.Quantity)
+	}
+	for _, r := range plan {
+		add(target, r)
+	}
+	for _, r := range actual {
+		add(got, r)
+	}
+
+	ids := map[string]bool{}
+	for id := range target {
+		ids[id] = true
+	}
+	for id := range got {
+		ids[id] = true
+	}
+
+	out := make([]NamedSeries, 0, len(ids))
+	for id := range ids {
+		c := channels[id]
+		s := NamedSeries{ID: id, Code: c.Code, Name: c.Name,
+			Points: domain.BuildSeries(dates, target[id], got[id])}
+		if n := len(s.Points); n > 0 {
+			s.Total = s.Points[n-1].CumActual
+		}
+		out = append(out, s)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].Total.Equal(out[j].Total) {
+			return out[i].Total.GreaterThan(out[j].Total)
+		}
+		return out[i].Code < out[j].Code
+	})
 	return out
 }
 
@@ -524,18 +716,24 @@ func (a *Analytics) storageKPIs(ctx context.Context, planVersion, actualVersion 
 	return out, alerts, nil
 }
 
-func (a *Analytics) shipmentKPIs(ctx context.Context, planFilter, actualFilter store.PlanFilter) ([]ChannelKPI, error) {
+func (a *Analytics) shipmentKPIs(ctx context.Context, planFilter, actualFilter store.PlanFilter,
+	dates []domain.BusinessDate) ([]ChannelKPI, []NamedSeries, error) {
+
 	channels, err := a.store.MasterData().Channels().List(ctx, store.ListOptions{Top: 1000})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	plan, err := a.store.Planning().ListShipments(ctx, withSeries(planFilter, domain.SeriesPlan))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	actual, err := a.store.Planning().ListShipments(ctx, withSeries(actualFilter, domain.SeriesActual))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	byID := make(map[string]domain.ShipmentChannel, len(channels.Items))
+	for _, c := range channels.Items {
+		byID[c.ID] = c
 	}
 
 	planned := map[string]domain.Dec{}
@@ -560,7 +758,7 @@ func (a *Analytics) shipmentKPIs(ctx context.Context, planFilter, actualFilter s
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ChannelCode < out[j].ChannelCode })
-	return out, nil
+	return out, shipmentTrend(dates, plan, actual, byID), nil
 }
 
 func (a *Analytics) downtimeKPIs(ctx context.Context, season domain.Season, req DashboardRequest) (DowntimeKPIs, error) {
@@ -581,12 +779,58 @@ func (a *Analytics) downtimeKPIs(ctx context.Context, season domain.Season, req 
 		rated[l.ID] = l.RatedTPH
 	}
 
+	reasons, err := a.store.MasterData().ReasonCodes().List(ctx, store.ListOptions{Top: 1000})
+	if err != nil {
+		return DowntimeKPIs{}, err
+	}
+	named := map[string]string{}
+	for _, rc := range reasons.Items {
+		named[rc.Code] = rc.Name
+	}
+
 	k := DowntimeKPIs{EventCount: len(events)}
+	byReason := map[string]*DowntimeReasonKPI{}
 	for _, e := range events {
+		lost := domain.LostTons(e.DurationHrs, rated[e.LineID])
 		k.Hours = k.Hours.Add(e.DurationHrs)
-		k.LostTons = k.LostTons.Add(domain.LostTons(e.DurationHrs, rated[e.LineID]))
+		k.LostTons = k.LostTons.Add(lost)
+
+		code := e.ReasonCode
+		if code == "" {
+			// A stoppage recorded against no reason is still lost time, and
+			// bucketing it silently into another reason would misdirect the
+			// person reading the chart.
+			code = "(none)"
+		}
+		bucket, ok := byReason[code]
+		if !ok {
+			bucket = &DowntimeReasonKPI{ReasonCode: code, ReasonName: named[code]}
+			byReason[code] = bucket
+		}
+		bucket.Hours = bucket.Hours.Add(e.DurationHrs)
+		bucket.LostTons = bucket.LostTons.Add(lost)
+		bucket.EventCount++
 	}
 	k.Hours, k.LostTons = domain.RoundRate(k.Hours), domain.RoundQty(k.LostTons)
+
+	k.ByReason = make([]DowntimeReasonKPI, 0, len(byReason))
+	for _, b := range byReason {
+		b.Hours, b.LostTons = domain.RoundRate(b.Hours), domain.RoundQty(b.LostTons)
+		b.SharePct = domain.RoundPct(domain.SafePct(b.Hours, k.Hours))
+		k.ByReason = append(k.ByReason, *b)
+	}
+	// Worst first: a Pareto that is not sorted is a bar chart.
+	sort.Slice(k.ByReason, func(i, j int) bool {
+		if !k.ByReason[i].Hours.Equal(k.ByReason[j].Hours) {
+			return k.ByReason[i].Hours.GreaterThan(k.ByReason[j].Hours)
+		}
+		return k.ByReason[i].ReasonCode < k.ByReason[j].ReasonCode
+	})
+	running := domain.Zero
+	for i := range k.ByReason {
+		running = running.Add(k.ByReason[i].SharePct)
+		k.ByReason[i].CumSharePct = domain.RoundPct(running)
+	}
 	return k, nil
 }
 

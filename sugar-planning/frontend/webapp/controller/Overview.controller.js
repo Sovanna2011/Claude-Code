@@ -14,7 +14,12 @@ sap.ui.define([
 
 		onInit: function () {
 			this.getView().setModel(this.getService().newModel({
-				versions: [], versionId: "", chartHtml: ""
+				versions: [], versionId: "",
+				// One property per chart rather than one blob: a panel that is
+				// collapsed still binds, and a single string would redraw all
+				// eight every time any of them changed.
+				chartHtml: "", dailyHtml: "", recoveryHtml: "",
+				mixHtml: "", channelHtml: "", paretoHtml: "", calendarHtml: ""
 			}), "view");
 			this.getView().setModel(this.getService().newModel({
 				alerts: [], storage: [], products: [], shipments: [],
@@ -55,10 +60,37 @@ sap.ui.define([
 			var that = this;
 			return this.getService().dashboard(sSeasonId, sVersionId).then(function (oDashboard) {
 				that.getView().getModel("dash").setData(oDashboard);
-				that.getView().getModel("view").setProperty("/chartHtml",
-					chart.cumulativeCurve(oDashboard.caneTrend || []));
+				that._drawCharts(oDashboard);
 				that.setBusy(false);
 			});
+		},
+
+		/**
+		 * _drawCharts renders every visual from the one dashboard payload.
+		 *
+		 * They are drawn together from a single response so that no two charts on
+		 * the page can be showing different moments of the same season.
+		 */
+		_drawCharts: function (oDashboard) {
+			var oModel = this.getView().getModel("view");
+			var aCane = oDashboard.caneTrend || [];
+
+			oModel.setProperty("/chartHtml", chart.cumulativeCurve(aCane));
+			oModel.setProperty("/dailyHtml",
+				chart.dailyTrend(aCane, oDashboard.caneRollingAverage || []));
+			oModel.setProperty("/calendarHtml", chart.calendar(aCane));
+
+			// The band is the one the verdict is reached by, taken from the
+			// dashboard rather than derived here, so the chart and the alert
+			// cannot come to different conclusions about the same day.
+			var oRaw = oDashboard.rawSugar || {};
+			oModel.setProperty("/recoveryHtml", chart.recoveryTrend(
+				oDashboard.recoveryTrend || [], oRaw.minRecoveryPct, oRaw.maxRecoveryPct));
+
+			oModel.setProperty("/mixHtml", chart.productMix(oDashboard.productTrend || []));
+			oModel.setProperty("/channelHtml", chart.channelTrend(oDashboard.shipmentTrend || []));
+			oModel.setProperty("/paretoHtml",
+				chart.downtimePareto((oDashboard.downtime || {}).byReason || []));
 		},
 
 		onVersionChange: function () {

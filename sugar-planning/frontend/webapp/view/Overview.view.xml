@@ -105,6 +105,27 @@
 					</HBox>
 				</Panel>
 
+				<!-- The cumulative curve answers "are we on track for the
+				     season"; this one answers "how did yesterday go". -->
+				<Panel headerText="{i18n>chartDaily}" class="sapUiSmallMarginBottom"
+					expandable="true" expanded="true">
+					<core:HTML id="dailyChart" content="{view>/dailyHtml}" sanitizeContent="false"/>
+					<Text class="sapUiSmallMarginBegin sugarChartFoot" text="{i18n>chartDailyFoot}"/>
+				</Panel>
+
+				<!-- Which particular days went wrong, which a line chart of 137
+				     points cannot show. -->
+				<Panel headerText="{i18n>chartCalendar}" class="sapUiSmallMarginBottom"
+					expandable="true" expanded="false">
+					<core:HTML id="calendarChart" content="{view>/calendarHtml}" sanitizeContent="false"/>
+				</Panel>
+
+				<Panel headerText="{i18n>chartRecovery}" class="sapUiSmallMarginBottom"
+					expandable="true" expanded="true">
+					<core:HTML id="recoveryChart" content="{view>/recoveryHtml}" sanitizeContent="false"/>
+					<Text class="sapUiSmallMarginBegin sugarChartFoot" text="{i18n>chartRecoveryFoot}"/>
+				</Panel>
+
 				<!-- Storage capacity. -->
 				<Panel headerText="{i18n>storageCapacity}" class="sapUiSmallMarginBottom" expandable="true" expanded="true">
 					<Table id="storageTable" items="{path: 'dash>/storage', templateShareable: false}"
@@ -143,6 +164,7 @@
 				<!-- Product mix and shipment. -->
 				<l:Grid defaultSpan="XL6 L6 M12 S12">
 					<Panel headerText="{i18n>productMix}" expandable="true" expanded="true">
+						<core:HTML id="mixChart" content="{view>/mixHtml}" sanitizeContent="false"/>
 						<Table items="{path: 'dash>/products', templateShareable: false}" mode="None" class="sugarTable">
 							<columns>
 								<Column><Text text="{i18n>product}"/></Column>
@@ -165,6 +187,7 @@
 					</Panel>
 
 					<Panel headerText="{i18n>shipmentByChannel}" expandable="true" expanded="true">
+						<core:HTML id="channelChart" content="{view>/channelHtml}" sanitizeContent="false"/>
 						<Table items="{path: 'dash>/shipments', templateShareable: false}" mode="None" class="sugarTable">
 							<columns>
 								<Column><Text text="{i18n>channel}"/></Column>
@@ -184,17 +207,22 @@
 								</ColumnListItem>
 							</items>
 						</Table>
-						<VBox class="sapUiSmallMargin">
-							<Text text="{i18n>downtimeSummary}" class="sugarKpiLabel"/>
-							<HBox>
-								<ObjectNumber number="{path: 'dash>/downtime/hours', formatter: '.formatter.tons'}"
-									unit="h" class="sapUiMediumMarginEnd"/>
-								<ObjectNumber number="{path: 'dash>/downtime/lostTons', formatter: '.formatter.tons0'}"
-									unit="t lost" state="Warning"/>
-							</HBox>
-						</VBox>
 					</Panel>
 				</l:Grid>
+
+				<!-- Three numbers about downtime say there is a problem; the
+				     ranking says which one to go and fix. -->
+				<Panel headerText="{i18n>downtimeSummary}" class="sapUiSmallMarginTop"
+					expandable="true" expanded="true">
+					<HBox class="sapUiSmallMarginBegin sapUiSmallMarginBottom" alignItems="Center">
+						<ObjectNumber number="{path: 'dash>/downtime/hours', formatter: '.formatter.tons'}"
+							unit="h" class="sapUiMediumMarginEnd"/>
+						<ObjectNumber number="{path: 'dash>/downtime/lostTons', formatter: '.formatter.tons0'}"
+							unit="t lost" state="Warning" class="sapUiMediumMarginEnd"/>
+						<ObjectNumber number="{dash>/downtime/eventCount}" unit="events"/>
+					</HBox>
+					<core:HTML id="paretoChart" content="{view>/paretoHtml}" sanitizeContent="false"/>
+				</Panel>
 			</VBox>
 		</content>
 	</Page>

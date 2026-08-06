@@ -110,6 +110,13 @@
 	font-family: var(--sapFontFamily);
 }
 
+/* The sentence under a chart that says how to read it. A legend drawn inside
+   the SVG cannot wrap or translate; this can do both. */
+.sugarChartFoot {
+	color: var(--sapContent_LabelColor);
+	font-size: 0.8125rem;
+}
+
 /* --- reports ------------------------------------------------------------ */
 
 .sugarReportSplit {
