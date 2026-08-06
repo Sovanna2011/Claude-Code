@@ -36,6 +36,24 @@ var reportCatalogue = []reportDef{
 	{Code: "cane-crushing", Title: "Cane crushing report",
 		Description: "Cane delivered, accepted, rejected and crushed with rate and utilisation.",
 		Parameters:  []string{"versionId", "from", "to"}, Formats: []string{"csv", "xlsx", "pdf"}},
+	{Code: "recovery-mass-balance", Title: "Raw sugar recovery and mass balance",
+		Description: "Cane crushed against raw sugar produced, with the recovery achieved and whether the two reconcile within tolerance.",
+		Parameters:  []string{"versionId", "from", "to"}, Formats: []string{"csv", "xlsx", "pdf"}},
+	{Code: "remelt-refining", Title: "Remelt and refining report",
+		Description: "Raw sugar remelted against refined output, with process loss, rework, rejection and yield.",
+		Parameters:  []string{"versionId", "from", "to"}, Formats: []string{"csv", "xlsx", "pdf"}},
+	{Code: "packing", Title: "Packing report by package and product",
+		Description: "Tonnage and package counts for each product and package size over the period.",
+		Parameters:  []string{"versionId", "from", "to"}, Formats: []string{"csv", "xlsx", "pdf"}},
+	{Code: "order-variance", Title: "Production order variance report",
+		Description: "Planned against confirmed quantity for every production order, with the variance reason recorded.",
+		Parameters:  []string{"versionId", "from", "to"}, Formats: []string{"csv", "xlsx", "pdf"}},
+	{Code: "downtime", Title: "Downtime and lost production report",
+		Description: "Every stoppage with its reason, duration, root cause and the estimated tonnage it cost.",
+		Parameters:  []string{"seasonId", "versionId", "from", "to"}, Formats: []string{"csv", "xlsx", "pdf"}},
+	{Code: "quality-results", Title: "Quality results and hold report",
+		Description: "Laboratory results against the limits they were judged by, with the holds they caused.",
+		Parameters:  []string{"seasonId", "versionId", "from", "to"}, Formats: []string{"csv", "xlsx", "pdf"}},
 	{Code: "stock-ledger", Title: "Warehouse and silo daily stock ledger",
 		Description: "Beginning balance, movements, ending balance and capacity use per store.",
 		Parameters:  []string{"versionId", "warehouseId", "from", "to"}, Formats: []string{"csv", "xlsx", "pdf"}},
@@ -222,6 +240,18 @@ func (s *Server) buildReport(r *http.Request, code string) (report.Table, error)
 		return s.reportTargetVsActual(r, t, season, version)
 	case "cane-crushing":
 		return s.reportCaneCrushing(r, t, version, from, to)
+	case "recovery-mass-balance":
+		return s.reportRecovery(r, t, season, version, from, to)
+	case "remelt-refining":
+		return s.reportRemelt(r, t, season, version, from, to)
+	case "packing":
+		return s.reportPacking(r, t, season, version, from, to)
+	case "order-variance":
+		return s.reportOrderVariance(r, t, version, from, to)
+	case "downtime":
+		return s.reportDowntime(r, t, season, from, to)
+	case "quality-results":
+		return s.reportQuality(r, t, season, from, to)
 	case "stock-ledger":
 		return s.reportStockLedger(r, t, version, from, to)
 	case "capacity-forecast":

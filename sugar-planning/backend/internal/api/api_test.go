@@ -44,8 +44,14 @@ func newTestServer(t *testing.T) *testServer {
 
 	// Development accounts, scoped to the seeded factory as the server does.
 	users := map[string]auth.DevUser{
-		"planner":    {DisplayName: "Planner", Roles: []string{auth.RoleProductionPlanner}},
-		"approver":   {DisplayName: "Approver", Roles: []string{auth.RoleApprover}},
+		"planner":  {DisplayName: "Planner", Roles: []string{auth.RoleProductionPlanner}},
+		"approver": {DisplayName: "Approver", Roles: []string{auth.RoleApprover}},
+		// A factory manager holds two roles. Closing an order that missed its
+		// plan needs both the production permission and the approval authority,
+		// and no single role carries both - which is the separation of duties
+		// working, not a gap. Granting both is a deliberate act.
+		"manager": {DisplayName: "Factory manager",
+			Roles: []string{auth.RoleApprover, auth.RoleShiftSupervisor}},
 		"supervisor": {DisplayName: "Supervisor", Roles: []string{auth.RoleShiftSupervisor}},
 		"keeper":     {DisplayName: "Warehouse operator", Roles: []string{auth.RoleWarehouseOperator}},
 		"lab":        {DisplayName: "Laboratory", Roles: []string{auth.RoleQualityUser}},

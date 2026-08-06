@@ -265,6 +265,17 @@ func (a *Analytics) Dashboard(ctx context.Context, req DashboardRequest) (Dashbo
 	return dash, nil
 }
 
+// Versions resolves the pair a comparison needs: the plan version to measure
+// against and the season's actuals container.
+//
+// It is exported because the reports need the same answer the dashboard gets. A
+// report that resolved "the current plan" by its own rule would eventually
+// disagree with the KPI beside it, and the first person to notice would be the
+// one holding both printouts.
+func (a *Analytics) Versions(ctx context.Context, seasonID, requested string) (plan, actual domain.PlanVersion, err error) {
+	return a.resolveVersions(ctx, seasonID, requested)
+}
+
 // resolveVersions picks the plan version to report against and the season's
 // actuals container.
 func (a *Analytics) resolveVersions(ctx context.Context, seasonID, requested string) (plan, actual domain.PlanVersion, err error) {

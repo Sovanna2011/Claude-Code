@@ -1889,6 +1889,12 @@ paths:
             - daily-plan
             - target-vs-actual
             - cane-crushing
+            - recovery-mass-balance
+            - remelt-refining
+            - packing
+            - order-variance
+            - downtime
+            - quality-results
             - stock-ledger
             - capacity-forecast
             - shipment-plan
