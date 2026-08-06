@@ -121,7 +121,7 @@ func (r pgRepo[T]) Save(ctx context.Context, entity T, actor string) (T, error) 
 	var zero T
 	idPtr := r.sp.id(&entity)
 	aud := r.sp.audit(&entity)
-	now := time.Now().UTC()
+	now := nowUTC()
 
 	if *idPtr == "" {
 		*idPtr = uuid.NewString()
@@ -170,7 +170,7 @@ func (r pgRepo[T]) Deactivate(ctx context.Context, id string, rowVersion int64, 
 	sql := fmt.Sprintf(
 		"UPDATE %s SET %s = false, updated_at = $1, updated_by = $2, row_version = row_version + 1 "+
 			"WHERE id = $3 AND row_version = $4", r.sp.table, r.sp.activeCol)
-	tag, err := r.s.q.Exec(ctx, sql, time.Now().UTC(), actor, id, rowVersion)
+	tag, err := r.s.q.Exec(ctx, sql, nowUTC(), actor, id, rowVersion)
 	if err != nil {
 		return mapError(r.sp.name, err)
 	}

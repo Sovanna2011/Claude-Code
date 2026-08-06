@@ -47,6 +47,17 @@ type data struct {
 	shipments map[string]domain.DailyShipmentPlan
 	downtime  map[string]domain.DowntimeEvent
 
+	orders        map[string]domain.ProductionOrder
+	confirmations map[string]domain.ProductionConfirmation
+	documents     map[string]domain.InventoryDocument
+	positions     map[string]domain.StockPosition
+	qualityParams map[string]domain.QualityParameter
+	qualitySpecs  map[string]domain.QualitySpec
+	samples       map[string]domain.QualitySample
+	results       map[string][]domain.QualityResult
+	holds         map[string]domain.QualityHold
+	maintenance   map[string]domain.MaintenanceWindow
+
 	audit []domain.AuditEvent
 	idem  map[string][]byte
 }
@@ -64,8 +75,18 @@ func newData() *data {
 		assumptions: map[string]domain.PlanAssumption{}, mix: map[string]domain.ProductMixEntry{},
 		cane: map[string]domain.DailyCanePlan{}, prodPlans: map[string]domain.DailyProductPlan{},
 		storage: map[string]domain.DailyStoragePlan{}, shipments: map[string]domain.DailyShipmentPlan{},
-		downtime: map[string]domain.DowntimeEvent{},
-		idem:     map[string][]byte{},
+		downtime:      map[string]domain.DowntimeEvent{},
+		orders:        map[string]domain.ProductionOrder{},
+		confirmations: map[string]domain.ProductionConfirmation{},
+		documents:     map[string]domain.InventoryDocument{},
+		positions:     map[string]domain.StockPosition{},
+		qualityParams: map[string]domain.QualityParameter{},
+		qualitySpecs:  map[string]domain.QualitySpec{},
+		samples:       map[string]domain.QualitySample{},
+		results:       map[string][]domain.QualityResult{},
+		holds:         map[string]domain.QualityHold{},
+		maintenance:   map[string]domain.MaintenanceWindow{},
+		idem:          map[string][]byte{},
 	}
 }
 
@@ -94,9 +115,34 @@ func (d *data) clone() *data {
 		cane: cloneMap(d.cane), prodPlans: cloneMap(d.prodPlans),
 		storage: cloneMap(d.storage), shipments: cloneMap(d.shipments),
 		downtime: cloneMap(d.downtime),
-		audit:    append([]domain.AuditEvent(nil), d.audit...),
-		idem:     cloneMap(d.idem),
+		orders:   cloneMap(d.orders), confirmations: cloneMap(d.confirmations),
+		documents: cloneDocuments(d.documents), positions: cloneMap(d.positions),
+		qualityParams: cloneMap(d.qualityParams), qualitySpecs: cloneMap(d.qualitySpecs),
+		samples: cloneMap(d.samples), results: cloneResults(d.results),
+		holds: cloneMap(d.holds), maintenance: cloneMap(d.maintenance),
+		audit: append([]domain.AuditEvent(nil), d.audit...),
+		idem:  cloneMap(d.idem),
 	}
+}
+
+// cloneDocuments deep-copies the documents, whose item slices would otherwise
+// be shared with the snapshot and survive a rollback.
+func cloneDocuments(m map[string]domain.InventoryDocument) map[string]domain.InventoryDocument {
+	out := make(map[string]domain.InventoryDocument, len(m))
+	for k, v := range m {
+		v.Items = append([]domain.InventoryDocumentItem(nil), v.Items...)
+		out[k] = v
+	}
+	return out
+}
+
+// cloneResults deep-copies the per-sample result slices, for the same reason.
+func cloneResults(m map[string][]domain.QualityResult) map[string][]domain.QualityResult {
+	out := make(map[string][]domain.QualityResult, len(m))
+	for k, v := range m {
+		out[k] = append([]domain.QualityResult(nil), v...)
+	}
+	return out
 }
 
 // locker lets a transaction child share the parent's state without deadlocking

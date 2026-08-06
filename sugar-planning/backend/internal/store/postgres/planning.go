@@ -83,7 +83,7 @@ func (p planning) GetSeason(ctx context.Context, id string) (domain.Season, erro
 }
 
 func (p planning) SaveSeason(ctx context.Context, s domain.Season, actor string) (domain.Season, error) {
-	now := time.Now().UTC()
+	now := nowUTC()
 	if s.ID == "" {
 		s.ID = uuid.NewString()
 		s.CreatedAt, s.CreatedBy, s.UpdatedAt, s.UpdatedBy, s.RowVersion = now, actor, now, actor, 1
@@ -193,7 +193,7 @@ func (p planning) GetVersion(ctx context.Context, id string) (domain.PlanVersion
 }
 
 func (p planning) SaveVersion(ctx context.Context, v domain.PlanVersion, actor string) (domain.PlanVersion, error) {
-	now := time.Now().UTC()
+	now := nowUTC()
 	if v.ID == "" {
 		if v.VersionNo == 0 {
 			// Next number within the season. Inside a transaction this is
@@ -277,7 +277,7 @@ func (p planning) ListAssumptions(ctx context.Context, versionID string) ([]doma
 }
 
 func (p planning) SaveAssumption(ctx context.Context, a domain.PlanAssumption, actor string) (domain.PlanAssumption, error) {
-	now := time.Now().UTC()
+	now := nowUTC()
 	if a.ID == "" {
 		a.ID = uuid.NewString()
 	}
@@ -338,7 +338,7 @@ func (p planning) ListMix(ctx context.Context, versionID string) ([]domain.Produ
 }
 
 func (p planning) SaveMix(ctx context.Context, m domain.ProductMixEntry, actor string) (domain.ProductMixEntry, error) {
-	now := time.Now().UTC()
+	now := nowUTC()
 	if m.ID == "" {
 		m.ID = uuid.NewString()
 	}

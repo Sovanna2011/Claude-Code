@@ -185,6 +185,15 @@ func bd(p *time.Time) domain.BusinessDate {
 	return domain.NewBusinessDate(*p)
 }
 
+// nowUTC is the timestamp every write stamps on a row.
+//
+// It is rounded to a microsecond because that is the resolution of a PostgreSQL
+// timestamptz. Without the rounding the value a caller gets back from an insert
+// is fractionally later than the value stored, so re-reading the row - or
+// comparing the creation stamp an update returns against the one the insert
+// returned - shows a difference that does not exist.
+func nowUTC() time.Time { return time.Now().UTC().Round(time.Microsecond) }
+
 // mustDate converts a non-null date column.
 func mustDate(t time.Time) domain.BusinessDate { return domain.NewBusinessDate(t) }
 

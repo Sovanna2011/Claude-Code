@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -23,7 +22,7 @@ func (a auditRepo) Append(ctx context.Context, e domain.AuditEvent) error {
 		e.ID = uuid.NewString()
 	}
 	if e.OccurredAt.IsZero() {
-		e.OccurredAt = time.Now().UTC()
+		e.OccurredAt = nowUTC()
 	}
 	var before, after any
 	if e.Before != "" {

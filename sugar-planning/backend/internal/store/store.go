@@ -137,6 +137,75 @@ type Planning interface {
 	SaveDowntime(ctx context.Context, e domain.DowntimeEvent, actor string) (domain.DowntimeEvent, error)
 }
 
+// ExecutionFilter selects execution records. Empty fields mean "no
+// restriction"; every field is an allow-listed filter.
+type ExecutionFilter struct {
+	FactoryID   string
+	VersionID   string
+	From        domain.BusinessDate
+	To          domain.BusinessDate
+	ProductIDs  []string
+	WarehouseID string
+	LineID      string
+	OrderID     string
+	Statuses    []string
+	// OpenOnly restricts to records that are still live: orders that are not
+	// closed or cancelled, holds that are not released.
+	OpenOnly bool
+	Skip     int
+	Top      int
+}
+
+// Execution is the repository for production orders, confirmations, inventory
+// documents, stock balances, quality and maintenance.
+type Execution interface {
+	// --- production orders ---
+	ListOrders(ctx context.Context, f ExecutionFilter) (Page[domain.ProductionOrder], error)
+	GetOrder(ctx context.Context, id string) (domain.ProductionOrder, error)
+	SaveOrder(ctx context.Context, o domain.ProductionOrder, actor string) (domain.ProductionOrder, error)
+	// NextOrderNo issues the next document number for a factory and year.
+	NextOrderNo(ctx context.Context, factoryCode string, year int) (string, error)
+
+	ListConfirmations(ctx context.Context, orderID string) ([]domain.ProductionConfirmation, error)
+	GetConfirmation(ctx context.Context, id string) (domain.ProductionConfirmation, error)
+	SaveConfirmation(ctx context.Context, c domain.ProductionConfirmation, actor string) (domain.ProductionConfirmation, error)
+
+	// --- inventory ---
+	// PostDocument writes the document, its items and the resulting balances.
+	// The caller is responsible for having validated the posting; this method
+	// is the write, not the decision.
+	PostDocument(ctx context.Context, d domain.InventoryDocument, actor string) (domain.InventoryDocument, error)
+	GetDocument(ctx context.Context, id string) (domain.InventoryDocument, error)
+	ListDocuments(ctx context.Context, f ExecutionFilter) (Page[domain.InventoryDocument], error)
+	// MarkReversed flags the original once its reversal is posted.
+	MarkReversed(ctx context.Context, documentID string, actor string) error
+
+	// Positions reads the current balances for the given warehouse/product
+	// pairs, returning a zero position for a pair that has never been posted.
+	Positions(ctx context.Context, pairs [][2]string) (map[string]domain.StockPosition, error)
+	ListPositions(ctx context.Context, f ExecutionFilter) ([]domain.StockPosition, error)
+
+	// --- quality ---
+	ListParameters(ctx context.Context) ([]domain.QualityParameter, error)
+	SaveParameter(ctx context.Context, p domain.QualityParameter, actor string) (domain.QualityParameter, error)
+	// SpecsFor returns the specifications for a product effective on a date.
+	SpecsFor(ctx context.Context, productID string, on domain.BusinessDate) ([]domain.QualitySpec, error)
+	SaveSpec(ctx context.Context, s domain.QualitySpec, actor string) (domain.QualitySpec, error)
+
+	ListSamples(ctx context.Context, f ExecutionFilter) (Page[domain.QualitySample], error)
+	GetSample(ctx context.Context, id string) (domain.QualitySample, error)
+	SaveSample(ctx context.Context, s domain.QualitySample, actor string) (domain.QualitySample, error)
+	SaveResults(ctx context.Context, sampleID string, results []domain.QualityResult, actor string) error
+
+	ListHolds(ctx context.Context, f ExecutionFilter) ([]domain.QualityHold, error)
+	GetHold(ctx context.Context, id string) (domain.QualityHold, error)
+	SaveHold(ctx context.Context, h domain.QualityHold, actor string) (domain.QualityHold, error)
+
+	// --- maintenance ---
+	ListMaintenance(ctx context.Context, f ExecutionFilter) ([]domain.MaintenanceWindow, error)
+	SaveMaintenance(ctx context.Context, m domain.MaintenanceWindow, actor string) (domain.MaintenanceWindow, error)
+}
+
 // AuditFilter selects audit records.
 type AuditFilter struct {
 	Entity   string
@@ -166,6 +235,7 @@ type Idempotency interface {
 type Store interface {
 	MasterData() MasterData
 	Planning() Planning
+	Execution() Execution
 	Audit() Audit
 	Idempotency() Idempotency
 	// InTx runs fn inside a database transaction. Every posting that touches

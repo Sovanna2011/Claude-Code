@@ -107,7 +107,7 @@ func (p planning) ListCane(ctx context.Context, f store.PlanFilter) ([]domain.Da
 }
 
 func (p planning) UpsertCane(ctx context.Context, rows []domain.DailyCanePlan, actor string) (int, error) {
-	now := time.Now().UTC()
+	now := nowUTC()
 	const stmt = `INSERT INTO daily_cane_plans
 		(id, version_id, factory_id, business_date, shift_id, series,
 		 cane_available, cane_delivered, cane_accepted, cane_rejected, cane_diverted, cane_crushed,
@@ -190,7 +190,7 @@ func (p planning) ListProducts(ctx context.Context, f store.PlanFilter) ([]domai
 }
 
 func (p planning) UpsertProducts(ctx context.Context, rows []domain.DailyProductPlan, actor string) (int, error) {
-	now := time.Now().UTC()
+	now := nowUTC()
 	const stmt = `INSERT INTO daily_product_plans
 		(id, version_id, factory_id, line_id, business_date, shift_id, product_id, packaging_id,
 		 series, quantity, remelt_input, process_loss, rework, rejected, hold_qty, reason_code, note,
@@ -271,7 +271,7 @@ func (p planning) ListStorage(ctx context.Context, f store.PlanFilter) ([]domain
 }
 
 func (p planning) UpsertStorage(ctx context.Context, rows []domain.DailyStoragePlan, actor string) (int, error) {
-	now := time.Now().UTC()
+	now := nowUTC()
 	const stmt = `INSERT INTO daily_storage_plans
 		(id, version_id, warehouse_id, product_id, business_date, series, beginning_balance,
 		 production_receipt, transfer_in, transfer_out, repack_in, repack_out, remelt_issue,
@@ -354,7 +354,7 @@ func (p planning) ListShipments(ctx context.Context, f store.PlanFilter) ([]doma
 }
 
 func (p planning) UpsertShipments(ctx context.Context, rows []domain.DailyShipmentPlan, actor string) (int, error) {
-	now := time.Now().UTC()
+	now := nowUTC()
 	const stmt = `INSERT INTO daily_shipment_plans
 		(id, version_id, warehouse_id, product_id, channel_id, business_date, series, quantity, note,
 		 created_at, created_by, updated_at, updated_by, row_version)
@@ -428,7 +428,7 @@ func (p planning) ListDowntime(ctx context.Context, f store.PlanFilter) ([]domai
 }
 
 func (p planning) SaveDowntime(ctx context.Context, e domain.DowntimeEvent, actor string) (domain.DowntimeEvent, error) {
-	now := time.Now().UTC()
+	now := nowUTC()
 	if e.ID == "" {
 		e.ID = uuid.NewString()
 		e.CreatedAt, e.CreatedBy, e.UpdatedAt, e.UpdatedBy, e.RowVersion = now, actor, now, actor, 1
