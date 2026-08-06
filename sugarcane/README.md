@@ -67,8 +67,9 @@ an estate with 3 farms / 6 zones / 24 blocks, a 2026 season, 3 varieties, the 19
 planting activities with their dependency chain, 10 tractors, 14 implements with a
 compatibility matrix, 10 operators, 3 crews, 8 materials with standards and stock, and an
 approved planting projection of 12 lines — plus its generated activity plans, material
-requirements, a set of live resource bookings and part-recorded field progress, so the
-dashboard, Gantt, MRP and variance screens all open with real content.
+requirements, a set of live resource bookings and part-recorded field progress on both land
+preparation and planting — so the dashboard opens at 683.56 ha planted of 1,876.8 ha projected,
+and the Gantt, MRP and variance screens all have real content.
 
 **Demo accounts** — password `Planner#2026` for all of them:
 
@@ -129,6 +130,7 @@ Configure master data
 | [docs/deployment.md](docs/deployment.md) | build, configure, deploy to IIS / Linux / Docker / Azure |
 | [docs/user-guide.md](docs/user-guide.md) | the 20 screens, step by step |
 | [docs/formulas.md](docs/formulas.md) | every calculation with a worked example |
+| [docs/demo-script.md](docs/demo-script.md) | a twenty-minute walkthrough of the seeded demo estate |
 
 ## Running the tests
 

@@ -481,18 +481,30 @@ public static class DbSeeder
             index++;
         }
 
-        // 3 — record progress on the earliest land-preparation activities: some complete,
-        //     one deliberately short so the variance and delay screens have content.
+        // 3 — record progress: the earliest land preparation, and the planting that follows it.
+        //     Planting matters because that is what the dashboard measures — it reports area
+        //     planted, not land cleared. Seeding land preparation alone leaves the headline
+        //     figures, the monthly target-versus-actual table and every variance screen sitting
+        //     at zero, which makes the sample tenant look like nothing has happened.
+        //     One plan of each kind is left deliberately short so the variance, delay and
+        //     shortage screens have content to show.
         var actuals = 0;
-        var completed = plans
+        var landPrep = plans
             .Where(p => p.Activity?.Category == ActivityCategory.LandPreparation)
             .Take(6)
             .ToList();
+        var planting = plans
+            .Where(p => p.Activity?.Category == ActivityCategory.Planting)
+            .OrderBy(p => p.PlannedStartDate)
+            .Take(5)
+            .ToList();
+
+        var completed = landPrep.Concat(planting).ToList();
 
         for (var i = 0; i < completed.Count; i++)
         {
             var plan = completed[i];
-            var isShort = i == completed.Count - 1;
+            var isShort = i == landPrep.Count - 1 || i == completed.Count - 1;
 
             await execution.RecordAsync(new ActivityActualUpsertDto
             {

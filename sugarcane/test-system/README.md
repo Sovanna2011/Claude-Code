@@ -20,6 +20,9 @@ Sign in with any of the demo accounts — password `Planner#2026` for all of the
 builds projections, `machinery` schedules tractors, `director` approves, `admin` sees the audit
 log; the full list is in the main [README](../README.md).
 
+Presenting it to someone? [docs/demo-script.md](../docs/demo-script.md) is a twenty-minute
+walkthrough that follows the planning process in order, with the figures you should see.
+
 ```bash
 docker compose logs -f api        # follow start-up, migration and seeding
 docker compose restart api        # after changing an environment variable
