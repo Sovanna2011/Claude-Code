@@ -127,21 +127,44 @@ func (e execution) SaveOrder(_ context.Context, o domain.ProductionOrder, actor 
 	return o, nil
 }
 
-func (e execution) NextOrderNo(_ context.Context, factoryCode string, year int) (string, error) {
+func (e execution) NextNumber(_ context.Context, series, factoryCode string, year int) (string, error) {
 	e.s.lock()
 	defer e.s.unlock()
-	prefix := fmt.Sprintf("PO-%s-%d-", factoryCode, year)
-	max := 0
-	for _, o := range e.s.d.orders {
-		if !strings.HasPrefix(o.OrderNo, prefix) {
+
+	var existing []string
+	switch series {
+	case store.SeriesOrder:
+		for _, o := range e.s.d.orders {
+			existing = append(existing, o.OrderNo)
+		}
+	case store.SeriesConfirmation:
+		for _, c := range e.s.d.confirmations {
+			existing = append(existing, c.ConfirmationNo)
+		}
+	case store.SeriesDocument:
+		for _, d := range e.s.d.documents {
+			existing = append(existing, d.DocumentNo)
+		}
+	case store.SeriesSample:
+		for _, s := range e.s.d.samples {
+			existing = append(existing, s.SampleNo)
+		}
+	default:
+		return "", fmt.Errorf("%w: %q is not a known document series", domain.ErrValidation, series)
+	}
+
+	prefix := fmt.Sprintf("%s-%s-%d-", series, factoryCode, year)
+	highest := 0
+	for _, no := range existing {
+		if !strings.HasPrefix(no, prefix) {
 			continue
 		}
 		var n int
-		if _, err := fmt.Sscanf(strings.TrimPrefix(o.OrderNo, prefix), "%d", &n); err == nil && n > max {
-			max = n
+		if _, err := fmt.Sscanf(strings.TrimPrefix(no, prefix), "%d", &n); err == nil && n > highest {
+			highest = n
 		}
 	}
-	return fmt.Sprintf("%s%05d", prefix, max+1), nil
+	return fmt.Sprintf("%s%05d", prefix, highest+1), nil
 }
 
 // ---------------------------------------------------------------------------

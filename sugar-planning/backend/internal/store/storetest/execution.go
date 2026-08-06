@@ -72,10 +72,13 @@ func testOrders(t *testing.T, newStore Factory) {
 	f := seedExecFixture(t, ctx, s)
 	exec := s.Execution()
 
-	first, err := exec.NextOrderNo(ctx, "F1", 2026)
+	first, err := exec.NextNumber(ctx, store.SeriesOrder, "F1", 2026)
 	must(t, err, "next order number")
 	if first != "PO-F1-2026-00001" {
 		t.Fatalf("first order number = %q, want PO-F1-2026-00001", first)
+	}
+	if _, err := exec.NextNumber(ctx, "XX", "F1", 2026); !errors.Is(err, domain.ErrValidation) {
+		t.Errorf("an unknown series must be refused, got %v", err)
 	}
 
 	order, err := exec.SaveOrder(ctx, domain.ProductionOrder{
@@ -95,10 +98,27 @@ func testOrders(t *testing.T, newStore Factory) {
 	}
 
 	// The numbering is derived from what exists, so the next call moves on.
-	second, err := exec.NextOrderNo(ctx, "F1", 2026)
+	second, err := exec.NextNumber(ctx, store.SeriesOrder, "F1", 2026)
 	must(t, err, "next order number again")
 	if second != "PO-F1-2026-00002" {
 		t.Errorf("second order number = %q, want PO-F1-2026-00002", second)
+	}
+	// Each series counts on its own, and each year starts again at one.
+	for _, c := range []struct{ series, want string }{
+		{store.SeriesConfirmation, "CF-F1-2026-00001"},
+		{store.SeriesDocument, "MD-F1-2026-00001"},
+		{store.SeriesSample, "QS-F1-2026-00001"},
+	} {
+		got, err := exec.NextNumber(ctx, c.series, "F1", 2026)
+		must(t, err, "next "+c.series+" number")
+		if got != c.want {
+			t.Errorf("next %s number = %q, want %q", c.series, got, c.want)
+		}
+	}
+	nextYear, err := exec.NextNumber(ctx, store.SeriesOrder, "F1", 2027)
+	must(t, err, "next order number for the following year")
+	if nextYear != "PO-F1-2027-00001" {
+		t.Errorf("the numbering restarts each year, got %q", nextYear)
 	}
 
 	if _, err := exec.SaveOrder(ctx, domain.ProductionOrder{

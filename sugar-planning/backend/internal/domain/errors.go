@@ -1,6 +1,10 @@
 package domain
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+	"strings"
+)
 
 // Sentinel errors. The HTTP layer maps these onto RFC 9457 problem details so
 // that no internal SQL text or stack trace ever reaches a client.
@@ -41,7 +45,33 @@ type ValidationError struct {
 	Errors []FieldError
 }
 
-func (v *ValidationError) Error() string { return "validation failed" }
+// Error summarises the field errors.
+//
+// The API does not use this text - it puts the errors themselves into the
+// problem document, addressed by row and field - but a log line, a test failure
+// and a wrapped error all do, and "validation failed" on its own tells whoever
+// is reading it nothing at all. The first few messages are enough to recognise
+// the problem; the rest are counted rather than printed so that a rejected
+// import of ten thousand rows does not become a ten-thousand-line log entry.
+func (v *ValidationError) Error() string {
+	if len(v.Errors) == 0 {
+		return "validation failed"
+	}
+	const shown = 3
+	parts := make([]string, 0, shown+1)
+	for i, e := range v.Errors {
+		if i == shown {
+			parts = append(parts, fmt.Sprintf("and %d more", len(v.Errors)-shown))
+			break
+		}
+		if e.Row != nil {
+			parts = append(parts, fmt.Sprintf("row %d %s: %s", *e.Row, e.Field, e.Message))
+			continue
+		}
+		parts = append(parts, e.Field+": "+e.Message)
+	}
+	return "validation failed: " + strings.Join(parts, "; ")
+}
 
 // Unwrap lets errors.Is(err, ErrValidation) succeed for aggregated errors.
 func (v *ValidationError) Unwrap() error { return ErrValidation }

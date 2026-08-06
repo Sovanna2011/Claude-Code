@@ -12,8 +12,9 @@ import (
 // GenerateRequest asks for the daily plan to be rebuilt from the version's
 // assumptions and product mix.
 type GenerateRequest struct {
-	// NonWorkingDays are dates excluded from crushing (approved maintenance,
-	// shutdowns). The campaign is extended rather than shortened.
+	// NonWorkingDays are extra dates excluded from crushing, on top of the
+	// approved maintenance windows the generator picks up on its own. The
+	// campaign is extended rather than shortened.
 	NonWorkingDays []domain.BusinessDate `json:"nonWorkingDays,omitempty"`
 	// Replace clears the version's existing daily rows first. Without it, a
 	// generate run refuses to overwrite work that is already there.
@@ -27,6 +28,10 @@ type GenerateResult struct {
 	RowCounts map[string]int      `json:"rowCounts"`
 	FirstDate domain.BusinessDate `json:"firstDate"`
 	LastDate  domain.BusinessDate `json:"lastDate"`
+	// NonWorkingDays are the dates the run skipped. The planner needs to see
+	// them: they are the reason the campaign ends later than the day count
+	// alone suggests.
+	NonWorkingDays []domain.BusinessDate `json:"nonWorkingDays,omitempty"`
 }
 
 // Generate rebuilds the daily plan for a version.
@@ -77,6 +82,13 @@ func (p *Planning) Generate(ctx context.Context, versionID string, req GenerateR
 	}
 	if len(output.Dates) > 0 {
 		result.FirstDate, result.LastDate = output.Dates[0], output.Dates[len(output.Dates)-1]
+		// Only the skipped days that fall inside the campaign are reported; a
+		// maintenance window booked for next season is not this plan's news.
+		for _, d := range sortedDates(input.NonWorkingDays) {
+			if d >= result.FirstDate && d <= result.LastDate {
+				result.NonWorkingDays = append(result.NonWorkingDays, d)
+			}
+		}
 	}
 
 	err = p.store.InTx(ctx, func(tx store.Store) error {
@@ -263,7 +275,23 @@ func (p *Planning) buildGeneratorInput(ctx context.Context, season domain.Season
 		return nil, err
 	}
 
-	nonWorking := map[domain.BusinessDate]bool{}
+	// Approved maintenance removes crushing days without anybody having to
+	// remember to type them into the request. Only approved, factory-wide
+	// windows count: a window somebody is still thinking about must not quietly
+	// move the end of the season, and a line outage does not stop the mill.
+	windows, err := p.store.Execution().ListMaintenance(ctx, store.ExecutionFilter{
+		FactoryID: season.FactoryID,
+		From:      season.StartDate,
+		To:        season.EndDate,
+		Statuses:  []string{domain.MaintenanceApproved},
+	})
+	if err != nil {
+		return nil, err
+	}
+	nonWorking := domain.NonWorkingDays(windows)
+
+	// Anything the caller sends is added on top, for a shutdown that has not
+	// been entered as a maintenance window.
 	for _, d := range req.NonWorkingDays {
 		if !d.Valid() {
 			return nil, fmt.Errorf("%w: %q is not a valid non-working date", domain.ErrValidation, d)

@@ -156,6 +156,15 @@ type ExecutionFilter struct {
 	Top      int
 }
 
+// Document number series. Each one names the column its numbers live in, which
+// is where the uniqueness that makes the numbering safe actually comes from.
+const (
+	SeriesOrder        = "PO" // production_orders.order_no
+	SeriesConfirmation = "CF" // production_confirmations.confirmation_no
+	SeriesDocument     = "MD" // inventory_documents.document_no
+	SeriesSample       = "QS" // quality_samples.sample_no
+)
+
 // Execution is the repository for production orders, confirmations, inventory
 // documents, stock balances, quality and maintenance.
 type Execution interface {
@@ -163,8 +172,16 @@ type Execution interface {
 	ListOrders(ctx context.Context, f ExecutionFilter) (Page[domain.ProductionOrder], error)
 	GetOrder(ctx context.Context, id string) (domain.ProductionOrder, error)
 	SaveOrder(ctx context.Context, o domain.ProductionOrder, actor string) (domain.ProductionOrder, error)
-	// NextOrderNo issues the next document number for a factory and year.
-	NextOrderNo(ctx context.Context, factoryCode string, year int) (string, error)
+
+	// NextNumber issues the next number in a document series for a factory and
+	// year, in the form SERIES-FACTORY-YEAR-NNNNN. The series is one of the
+	// constants below; anything else is rejected rather than guessed at.
+	//
+	// The number is derived from the numbers that exist rather than from a
+	// sequence, so a restored database does not start handing out numbers that
+	// are already in use. Two callers racing for the same number is safe: the
+	// unique constraint on the column refuses the loser, who asks again.
+	NextNumber(ctx context.Context, series, factoryCode string, year int) (string, error)
 
 	ListConfirmations(ctx context.Context, orderID string) ([]domain.ProductionConfirmation, error)
 	GetConfirmation(ctx context.Context, id string) (domain.ProductionConfirmation, error)

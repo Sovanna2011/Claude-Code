@@ -645,9 +645,16 @@ type auditEntry struct {
 // audit writes one audit record inside the caller's transaction, so the trail
 // is committed with the change it describes or not at all.
 func (p *Planning) audit(ctx context.Context, tx store.Store, e auditEntry) error {
+	return writeAudit(ctx, tx, p.now, e)
+}
+
+// writeAudit is the shared implementation, used by every service. It is a free
+// function rather than a method so that a new service cannot accidentally grow
+// its own idea of what an audit record looks like.
+func writeAudit(ctx context.Context, tx store.Store, now func() time.Time, e auditEntry) error {
 	caller := auth.FromContext(ctx)
 	return tx.Audit().Append(ctx, domain.AuditEvent{
-		OccurredAt: p.now(), Actor: caller.Username, Action: e.action,
+		OccurredAt: now(), Actor: caller.Username, Action: e.action,
 		Entity: e.entity, EntityID: e.entityID,
 		Before: encodeState(e.before), After: encodeState(e.after),
 		Reason: e.reason, CorrelationID: CorrelationFromContext(ctx),

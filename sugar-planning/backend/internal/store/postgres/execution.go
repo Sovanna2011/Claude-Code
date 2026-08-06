@@ -196,24 +196,37 @@ func (e execution) SaveOrder(ctx context.Context, o domain.ProductionOrder, acto
 	return o, nil
 }
 
-// NextOrderNo issues the next number for a factory and year.
-//
-// The number is derived from what exists rather than from a sequence, so a
-// restored database does not restart the numbering. The unique constraint on
-// order_no is what makes a race safe: the loser gets a duplicate-key error and
-// retries.
-func (e execution) NextOrderNo(ctx context.Context, factoryCode string, year int) (string, error) {
-	prefix := fmt.Sprintf("PO-%s-%d-", factoryCode, year)
-	var maxSuffix *int
-	err := e.s.q.QueryRow(ctx, `
-		SELECT max(NULLIF(regexp_replace(order_no, '^.*-', ''), '')::int)
-		FROM production_orders WHERE order_no LIKE $1`, prefix+"%").Scan(&maxSuffix)
+// numberSeries maps a series to the table and column its numbers live in. It
+// is an allow list, not a lookup: the table name goes into the SQL text, so it
+// may only ever come from here.
+var numberSeries = map[string][2]string{
+	store.SeriesOrder:        {"production_orders", "order_no"},
+	store.SeriesConfirmation: {"production_confirmations", "confirmation_no"},
+	store.SeriesDocument:     {"inventory_documents", "document_no"},
+	store.SeriesSample:       {"quality_samples", "sample_no"},
+}
+
+func (e execution) NextNumber(ctx context.Context, series, factoryCode string, year int) (string, error) {
+	target, ok := numberSeries[series]
+	if !ok {
+		return "", fmt.Errorf("%w: %q is not a known document series", domain.ErrValidation, series)
+	}
+	table, column := target[0], target[1]
+
+	prefix := fmt.Sprintf("%s-%s-%d-", series, factoryCode, year)
+	var highest *int
+	// The numbers are matched on the prefix and the suffix read back off the
+	// end, so a number somebody typed by hand in another format is ignored
+	// rather than crashing the cast.
+	err := e.s.q.QueryRow(ctx, fmt.Sprintf(`
+		SELECT max(substring(%s from '([0-9]+)$')::int)
+		FROM %s WHERE %s LIKE $1`, column, table, column), prefix+"%").Scan(&highest)
 	if err != nil {
-		return "", mapError("production order number", err)
+		return "", mapError("document number for series "+series, err)
 	}
 	next := 1
-	if maxSuffix != nil {
-		next = *maxSuffix + 1
+	if highest != nil {
+		next = *highest + 1
 	}
 	return fmt.Sprintf("%s%05d", prefix, next), nil
 }
