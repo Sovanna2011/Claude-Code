@@ -5,7 +5,7 @@ Capital Management application, built on an open stack:
 
 - **Database** — Microsoft **SQL Server** (SAP-faithful schema: PA infotypes,
   Organizational Management, customizing/T-tables, stored procedures, views)
-- **Backend** — **C# / ASP.NET Core 8** Web API with **Entity Framework Core**
+- **Backend** — **C# / ASP.NET Core 10** Web API with **Entity Framework Core 10**
 - **Frontend** — **SAPUI5** (Fiori, Horizon theme) master–detail application
 
 It covers the core HCM sub-modules plus common HR processes:
@@ -27,6 +27,43 @@ It covers the core HCM sub-modules plus common HR processes:
 See **[docs/architecture.md](docs/architecture.md)** for the full design, and the
 **[User Manual](docs/USER_MANUAL.md)** for step-by-step end-user instructions.
 
+## S/4HANA-inspired ERP — table catalogue
+
+Separate from the HR module, **[docs/s4hana/](docs/s4hana/README.md)** holds the
+data dictionary for the S/4HANA-inspired finance ERP: **228 tables / 4 379
+fields** with table name, field name and SQL Server data type across the `org`,
+`cfg`, `mdm`, `fin`, `co`, `wf`, `sec`, `audit`, `rpt` and `intg` schemas, plus a
+[mapping to real S/4HANA tables and ABAP types](docs/s4hana/10_sap_reference_mapping.md)
+and [nine entity relationship diagrams](docs/s4hana/11_entity_relationships.md).
+
+The catalogue drives both physical artefacts, so they cannot drift from it:
+
+| | |
+|---|---|
+| **[`backend/ErpS4.Application/`](backend/ErpS4.Application/README.md)** | Posting engine, Business Partner synchronisation, clearing, assets, approval workflow, and the SE11 / SE16N back ends — 123 unit tests over the rules, 32 integration tests against a real server |
+| **[`backend/ErpS4.Api/`](backend/ErpS4.Api/README.md)** | .NET 10 minimal API — journal entries, business partners, payments, assets, approvals, data dictionary and table browser, permission policies resolved from the security tables, RFC 7807 problems, capped paging |
+| **[`database/s4hana/`](database/s4hana/)** | SQL Server DDL — 228 tables, 837 foreign keys, 172 indexes, the SE11 dictionary seed (authorization groups and masked fields included), and a sample dataset (2 companies, 3 company codes, customer/vendor/dual-role partners, an asset, an intercompany pair, a KHR invoice, and a two-step approval workflow) |
+| **[`backend/ErpS4.Database/`](backend/ErpS4.Database/README.md)** | .NET 10 / EF Core 10 model — 228 entities and configurations, tenant query filters, audit stamping, append-only enforcement |
+
+```bash
+cd database/s4hana && sqlcmd -S localhost -i run_all.sql   # install the schema
+python3 tools/generate_sql_ddl.py && python3 tools/generate_ef_core.py   # regenerate
+python3 tools/validate_generated_sql.py                    # six checks before shipping
+dotnet test backend/ErpS4.Tests                            # 123 tests, no database
+./tools/start_test_database.sh                             # SQL Server 2025 + schema
+ERPS4_TEST_CONNECTION='Server=...;Database=ErpS4;...' \
+  dotnet test backend/ErpS4.IntegrationTests               # 32 tests, real SQL Server
+```
+
+The integration tests skip rather than fail when `ERPS4_TEST_CONNECTION` is
+unset, so the suite stays runnable without a server without pretending it
+passed.
+
+Installed and exercised end to end on SQL Server 2025 and .NET 10: the schema
+loads from `run_all.sql`, the API serves the seeded documents, and SE16N refuses
+`sec.User`, masks IBANs, and turns `x'; DROP TABLE …` into a parameter that
+matches nothing.
+
 ## Try it in one command (demo)
 
 Want to see it running without installing .NET or SQL Server? A self-contained
@@ -45,7 +82,7 @@ Claude-Code/
 ├── database/                 # SQL Server scripts (run in numeric order)
 │   ├── 01_create_database.sql … 08_views.sql
 │   └── run_all.sql           # SQLCMD master installer
-├── backend/HRModule.Api/     # ASP.NET Core 8 Web API (EF Core)
+├── backend/HRModule.Api/     # ASP.NET Core 10 Web API (EF Core 10)
 │   ├── Models/               # EmployeeMaster, Infotypes, OrgManagement, Customizing
 │   ├── Data/HRDbContext.cs   # EF Core mappings (schema [HR])
 │   ├── DTOs/ Services/ Controllers/ Middleware/
@@ -60,9 +97,15 @@ Claude-Code/
 
 | Tool | Version | Used for |
 |------|---------|----------|
-| SQL Server | 2019+ (or Azure SQL / LocalDB) | database |
-| .NET SDK | 8.0 | backend build/run |
+| SQL Server | 2019+ (or Azure SQL / LocalDB); built and tested on **2025 / 17.0.4065.4** | database |
+| .NET SDK | **10.0** (tested on 10.0.110) | both backends — HR module and S/4HANA ERP |
 | Node.js | 18+ | UI5 dev server / build |
+
+Package versions for everything under `backend/` are decided in one place,
+[`backend/Directory.Packages.props`](backend/Directory.Packages.props), and the
+project files carry only package names. That is not tidiness for its own sake:
+mixing 10.0.0 and 10.0.10 across projects produced `NU1605` package-downgrade
+build errors twice, and a single list makes that impossible rather than fixed.
 
 ## 1. Database
 

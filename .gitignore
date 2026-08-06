@@ -29,3 +29,7 @@ Thumbs.db
 *.log
 appsettings.*.local.json
 .env
+
+# ---- Python tooling ----
+__pycache__/
+*.pyc

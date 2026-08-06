@@ -1,0 +1,53 @@
+<Project>
+
+  <!--
+    Central package management. Every version for every project in backend/ is
+    decided here, and the project files carry only the package names.
+
+    This exists because it had to: mixing 10.0.0 and 10.0.10 across projects
+    produced NU1605 package-downgrade errors twice, once for
+    Microsoft.Extensions.Logging.Abstractions and once for
+    Microsoft.Extensions.DependencyInjection. A single list makes that class of
+    error impossible rather than merely fixed.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <!-- .NET 10 / EF Core 10. Kept level: EF Core pulls the Extensions packages
+       transitively, so anything lower here is a downgrade. -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
+  </ItemGroup>
+
+  <!-- ASP.NET Core 10 -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
+
+    <!-- Pinned above what Microsoft.AspNetCore.OpenApi 10.0.0 and Swashbuckle
+         resolve to on their own: everything below 2.5.0 carries
+         GHSA-v5pm-xwqc-g5wc, which NuGet audit reports as high severity. -->
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.11.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageVersion Include="FluentValidation" Version="12.0.0" />
+    <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.0.0" />
+    <PackageVersion Include="Serilog.AspNetCore" Version="9.0.0" />
+    <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.2.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageVersion Include="xunit" Version="2.9.2" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+</Project>

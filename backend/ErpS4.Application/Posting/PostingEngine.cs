@@ -1,0 +1,992 @@
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using ErpS4.Application.Services;
+using ErpS4.Database;
+using ErpS4.Database.Entities;
+using ErpS4.Domain;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+
+namespace ErpS4.Application.Posting;
+
+/// <summary>
+/// The one place a document becomes accounting fact.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Every module posts through here - FI, AR, AP, asset accounting, controlling,
+/// and later logistics - so the rules in section 15 of the design are enforced
+/// once instead of once per module: tenant, company code, period, accounts,
+/// posting keys, currencies, tax, controlling derivation, reconciliation
+/// account protection, and balanced debits and credits.
+/// </para>
+/// <para>
+/// Header, lines, open items, controlling documents, balances, the audit record
+/// and the integration event are written in one transaction. If any mandatory
+/// step fails the whole document is rolled back; a drawn document number is not
+/// reused, and the gap is recorded.
+/// </para>
+/// </remarks>
+public sealed partial class PostingEngine(
+    IErpDataContext context,
+    INumberRangeService numberRanges,
+    ICurrencyConverter currencyConverter,
+    ITenantProvider tenantProvider,
+    ICurrentUser currentUser,
+    TimeProvider timeProvider,
+    ILogger<PostingEngine> logger) : IPostingEngine
+{
+    private int TenantId => tenantProvider.TenantId;
+
+    public async Task<PostingResult> PostAsync(
+        PostingRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var prepared = await PrepareAsync(request, cancellationToken);
+        if (prepared.Result is not null)
+        {
+            return prepared.Result;
+        }
+
+        return await context.ExecuteInTransactionAsync(
+            token => CommitAsync(request, prepared.Configuration!, prepared.Lines, token),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Everything that happens before anything is written: idempotency, the
+    /// configuration, every rule, and the currency conversion.
+    /// </summary>
+    /// <remarks>
+    /// Posting and parking share it, which is the point - a parked document has
+    /// passed the same rules as a posted one, so approval cannot smuggle
+    /// through a document that was never valid.
+    /// </remarks>
+    private async Task<PreparedPosting> PrepareAsync(
+        PostingRequest request,
+        CancellationToken cancellationToken)
+    {
+        var draft = request.Draft;
+
+        if (request.IdempotencyKey is { } key && !request.Simulate)
+        {
+            var existing = await context.Query<JournalEntryHeader>()
+                .AsNoTracking()
+                .Where(h => h.TenantId == TenantId && h.IdempotencyKey == key)
+                .Select(h => new { h.DocumentNumber, h.FiscalYear, h.FiscalPeriod, h.Status })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (existing is not null)
+            {
+                logger.LogInformation(
+                    "Idempotency key {Key} already produced document {Document}/{Year}",
+                    key, existing.DocumentNumber, existing.FiscalYear);
+
+                return new PreparedPosting(null, [], PostingResult.Posted(
+                    existing.DocumentNumber,
+                    existing.FiscalYear,
+                    existing.FiscalPeriod,
+                    existing.Status,
+                    [],
+                    alreadyPosted: true));
+            }
+        }
+
+        var (configuration, loadErrors) = await LoadConfigurationAsync(draft, cancellationToken);
+        if (configuration is null)
+        {
+            return new PreparedPosting(null, [], PostingResult.Rejected(loadErrors));
+        }
+
+        var errors = new List<PostingError>(loadErrors);
+        errors.AddRange(draft.Validate(configuration.DocumentCurrencyDecimals));
+        errors.AddRange(ValidatePeriod(draft, configuration));
+        errors.AddRange(ValidateLines(draft, configuration));
+
+        var (lines, conversionErrors) = await ConvertAsync(draft, configuration, cancellationToken);
+        errors.AddRange(conversionErrors);
+
+        if (errors.Count > 0)
+        {
+            logger.LogInformation(
+                "Document for company code {CompanyCode} rejected by {Count} rules",
+                draft.CompanyCode, errors.Count);
+            return new PreparedPosting(null, [], PostingResult.Rejected(errors));
+        }
+
+        // Local currency has to balance as well: rounding each line separately
+        // can leave a residue that the document currency does not show.
+        var localDifference = lines
+            .Aggregate(0m, (total, line) => total + line.LocalAmount.Amount);
+        if (Math.Round(localDifference, configuration.LocalCurrencyDecimals) != 0m)
+        {
+            return new PreparedPosting(null, [], PostingResult.Rejected([
+                new PostingError(
+                    PostingErrorCodes.DocumentNotBalanced,
+                    $"Converted amounts differ by {localDifference} {configuration.LocalCurrency}; " +
+                    "adjust a line or post the rounding difference explicitly.",
+                    nameof(JournalEntryDraft.Lines)),
+            ]));
+        }
+
+        if (request.Simulate)
+        {
+            return new PreparedPosting(configuration, lines, PostingResult.Simulated(
+                (short)configuration.Period.FiscalYear,
+                configuration.Period.FiscalPeriodCode,
+                lines));
+        }
+
+        return new PreparedPosting(configuration, lines, null);
+    }
+
+    /// <param name="Result">Set when the caller should stop here.</param>
+    private sealed record PreparedPosting(
+        PostingConfiguration? Configuration,
+        IReadOnlyList<SimulatedLine> Lines,
+        PostingResult? Result);
+
+    public async Task<PostingResult> ReverseAsync(
+        ReversalRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var original = await context.Query<JournalEntryHeader>()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                h => h.TenantId == TenantId
+                     && h.DocumentNumber == request.DocumentNumber
+                     && h.FiscalYear == request.FiscalYear,
+                cancellationToken);
+
+        if (original is null)
+        {
+            return PostingResult.Rejected([
+                new PostingError(
+                    PostingErrorCodes.DocumentNotPosted,
+                    $"Document {request.DocumentNumber}/{request.FiscalYear} does not exist.",
+                    nameof(ReversalRequest.DocumentNumber)),
+            ]);
+        }
+
+        // Checked before the status, because a reversed document is also not
+        // posted and "already reversed, by this document" tells the user far
+        // more than "not posted" does.
+        if (original.IsReversed)
+        {
+            return PostingResult.Rejected([
+                new PostingError(
+                    PostingErrorCodes.DocumentAlreadyReversed,
+                    $"Document {request.DocumentNumber} was already reversed by " +
+                    $"{original.ReversalDocumentNumber}.",
+                    nameof(ReversalRequest.DocumentNumber)),
+            ]);
+        }
+
+        if (original.Status != "Posted")
+        {
+            return PostingResult.Rejected([
+                new PostingError(
+                    PostingErrorCodes.DocumentNotPosted,
+                    $"Only a posted document can be reversed; this one is {original.Status}.",
+                    nameof(ReversalRequest.DocumentNumber)),
+            ]);
+        }
+
+        var originalLines = await context.Query<JournalEntryLine>()
+            .AsNoTracking()
+            .Where(l => l.TenantId == TenantId && l.JournalEntryHeaderId == original.Id)
+            .OrderBy(l => l.LineItemNumber)
+            .ToListAsync(cancellationToken);
+
+        var postingDate = request.PostingDate ?? original.PostingDate;
+
+        // The reversal mirrors the original: same accounts and assignments,
+        // opposite posting keys. Nothing about the original document changes
+        // except the pointer to its reversal.
+        var draft = new JournalEntryDraft(
+            request.CompanyCode,
+            original.DocumentTypeCodeOrDefault(),
+            postingDate,
+            postingDate,
+            original.DocumentCurrencyCode)
+        {
+            HeaderText = $"Reversal of {original.DocumentNumber}",
+            ReferenceDocumentNumber = original.DocumentNumber,
+            Reverses = new ReversalReference(
+                original.DocumentNumber, original.FiscalYear, request.ReasonCode),
+        };
+
+        // The stored line keeps its cost objects as surrogate keys, and a draft
+        // speaks in codes, so they have to be translated back. Dropping them
+        // instead - which is what this used to do - produced a reversal that
+        // failed validation on any account needing a cost object, so a document
+        // could be posted and then never reversed.
+        var assignments = await LoadAssignmentCodesAsync(originalLines, cancellationToken);
+
+        foreach (var line in originalLines)
+        {
+            draft.AddLine(new JournalEntryDraftLine(
+                MirrorPostingKey(line.PostingKey),
+                line.GLAccount,
+                new Money(-line.AmountInDocumentCurrency, line.DocumentCurrencyCode))
+            {
+                BusinessPartner = assignments.Partner(line.BusinessPartnerId),
+                CostCenter = assignments.CostCenter(line.CostCenterId),
+                ProfitCenter = assignments.ProfitCenter(line.ProfitCenterId),
+                InternalOrder = assignments.InternalOrder(line.InternalOrderId),
+                Segment = assignments.Segment(line.SegmentId),
+                Text = $"Reversal: {line.LineItemText}",
+                Assignment = line.AssignmentReference,
+            });
+        }
+
+        var result = await PostAsync(
+            new PostingRequest(draft, original.SourceModule, "FB08", request.IdempotencyKey),
+            cancellationToken);
+
+        if (result.IsSuccess && !result.WasAlreadyPosted)
+        {
+            var tracked = await context.Query<JournalEntryHeader>()
+                .FirstAsync(h => h.Id == original.Id, cancellationToken);
+
+            // Status and IsReversed have to agree. Setting only the flag left
+            // the status reading Posted, so anything selecting on Status - a
+            // trial balance, an open item list, a report - counted a reversed
+            // document as live.
+            tracked.IsReversed = true;
+            tracked.Status = "Reversed";
+            tracked.ReversalDocumentNumber = result.DocumentNumber;
+            tracked.ReversalReasonCode = request.ReasonCode;
+            tracked.ReversalDate = postingDate;
+            await context.SaveChangesAsync(cancellationToken);
+        }
+
+        return result;
+    }
+
+    public async Task<PostingResult> ParkAsync(
+        PostingRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var prepared = await PrepareAsync(request, cancellationToken);
+        if (prepared.Result is not null)
+        {
+            return prepared.Result;
+        }
+
+        return await context.ExecuteInTransactionAsync(
+            async token =>
+            {
+                // Parked, not PendingApproval: nothing has been submitted yet,
+                // and nobody has a task on it. Writing PendingApproval here
+                // made a document that still needs submitting indistinguishable
+                // from one waiting on an approver.
+                var (header, lines) = await WriteDocumentAsync(
+                    request, prepared.Configuration!, prepared.Lines, "Parked", token);
+
+                // Audit records the parking; the ledger effect waits for approval.
+                await AddAuditTrailAsync(
+                    header, timeProvider.GetUtcNow().UtcDateTime, currentUser.UserName, token);
+                await context.SaveChangesAsync(token);
+
+                logger.LogInformation(
+                    "Parked {Document}/{Year} pending approval",
+                    header.DocumentNumber, header.FiscalYear);
+
+                return PostingResult.Posted(
+                    header.DocumentNumber, header.FiscalYear, header.FiscalPeriod,
+                    "Parked", prepared.Lines);
+            },
+            cancellationToken);
+    }
+
+    public async Task<PostingResult> PostParkedAsync(
+        string companyCode,
+        short fiscalYear,
+        string documentNumber,
+        CancellationToken cancellationToken = default)
+    {
+        var header = await context.Query<JournalEntryHeader>()
+            .FirstOrDefaultAsync(
+                h => h.TenantId == TenantId
+                     && h.FiscalYear == fiscalYear
+                     && h.DocumentNumber == documentNumber,
+                cancellationToken);
+
+        if (header is null)
+        {
+            return PostingResult.Rejected([
+                new PostingError(
+                    PostingErrorCodes.DocumentNotPosted,
+                    $"Document {documentNumber}/{fiscalYear} does not exist."),
+            ]);
+        }
+
+        if (header.Status is not ("PendingApproval" or "Parked" or "Approved"))
+        {
+            return PostingResult.Rejected([
+                new PostingError(
+                    PostingErrorCodes.DocumentNotPosted,
+                    $"Document {documentNumber} is {header.Status} and cannot be posted again."),
+            ]);
+        }
+
+        var lines = await context.Query<JournalEntryLine>()
+            .Where(l => l.TenantId == TenantId && l.JournalEntryHeaderId == header.Id)
+            .OrderBy(l => l.LineItemNumber)
+            .ToListAsync(cancellationToken);
+
+        // The period is checked again on purpose: a document can sit in an
+        // inbox across a period close, and posting it then would reopen a
+        // closed period through the back door.
+        var period = await context.Query<FiscalPeriod>()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                p => p.TenantId == TenantId
+                     && p.FiscalYear == fiscalYear
+                     && p.FiscalPeriodCode == header.FiscalPeriod,
+                cancellationToken);
+
+        if (period is null || period.PeriodStatus != "Open")
+        {
+            return PostingResult.Rejected([
+                new PostingError(
+                    PostingErrorCodes.PeriodClosed,
+                    $"Period {header.FiscalPeriod}/{fiscalYear} closed while the document was " +
+                    "waiting for approval. Change the posting date and resubmit.",
+                    nameof(JournalEntryDraft.PostingDate)),
+            ]);
+        }
+
+        var companyCodeEntity = await context.Query<CompanyCode>()
+            .AsNoTracking()
+            .FirstAsync(c => c.Id == header.CompanyCodeId, cancellationToken);
+
+        var configuration = await LoadConfigurationForLinesAsync(
+            companyCodeEntity, header, lines, period, cancellationToken);
+
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        var user = currentUser.UserName;
+
+        return await context.ExecuteInTransactionAsync(
+            async token =>
+            {
+                await WriteLedgerEffectAsync(configuration, header, lines, now, user, token);
+
+                header.Status = "Posted";
+                header.PostedAt = now;
+                header.PostedBy = user;
+
+                await context.SaveChangesAsync(token);
+
+                logger.LogInformation(
+                    "Approved document {Document}/{Year} posted by {User}",
+                    documentNumber, fiscalYear, user);
+
+                return PostingResult.Posted(
+                    documentNumber, fiscalYear, header.FiscalPeriod, "Posted", []);
+            },
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Minimal configuration for a document whose lines already exist: only the
+    /// controlling area and cost elements are needed to write the ledger effect.
+    /// </summary>
+    private async Task<PostingConfiguration> LoadConfigurationForLinesAsync(
+        CompanyCode companyCode,
+        JournalEntryHeader header,
+        IReadOnlyList<JournalEntryLine> lines,
+        FiscalPeriod period,
+        CancellationToken cancellationToken)
+    {
+        var accountIds = lines.Select(l => l.GLAccountId).Distinct().ToList();
+
+        var costElements = await context.Query<CostElement>()
+            .AsNoTracking()
+            .Where(e => e.TenantId == TenantId
+                        && e.IsPrimary
+                        && e.GLAccountId != null
+                        && accountIds.Contains(e.GLAccountId!.Value))
+            .ToListAsync(cancellationToken);
+
+        return new PostingConfiguration
+        {
+            CompanyCode = companyCode,
+            DocumentType = await context.Query<DocumentType>()
+                .AsNoTracking()
+                .FirstAsync(d => d.Id == header.DocumentTypeId, cancellationToken),
+            Ledger = await context.Query<Ledger>()
+                .AsNoTracking()
+                .FirstAsync(l => l.Id == header.LedgerId, cancellationToken),
+            Period = period,
+            PeriodControls = [],
+            PostingKeys = new Dictionary<string, PostingKey>(),
+            Accounts = new Dictionary<string, GLAccount>(),
+            AccountSegments = new Dictionary<long, GLAccountCompanyCode>(),
+            Partners = new Dictionary<string, BusinessPartner>(),
+            PartnerSegments = [],
+            CostCenters = new Dictionary<string, CostCenter>(),
+            ProfitCenters = new Dictionary<string, ProfitCenter>(),
+            InternalOrders = new Dictionary<string, InternalOrder>(),
+            Segments = new Dictionary<string, Segment>(),
+            TaxCodes = new Dictionary<string, TaxCode>(),
+            Assets = new Dictionary<string, Asset>(),
+            CostElementsByAccount = costElements.ToDictionary(e => e.GLAccountId!.Value),
+            DocumentCurrencyDecimals = 2,
+            LocalCurrencyDecimals = 2,
+            GroupCurrencyDecimals = 2,
+
+            // The approval path builds its configuration here rather than from
+            // a draft, so it has to resolve the controlling area itself. Left
+            // unset, a parked document with a cost object threw on approval -
+            // after every rule had passed, in the middle of the transaction.
+            ControllingAreaId = companyCode.ControllingAreaId
+                ?? await context.Query<ControllingAreaCompanyCode>()
+                    .AsNoTracking()
+                    .Where(a => a.TenantId == TenantId && a.CompanyCodeId == companyCode.Id)
+                    .Select(a => (long?)a.ControllingAreaId)
+                    .FirstOrDefaultAsync(cancellationToken),
+        };
+    }
+
+    /// <summary>
+    /// Debit becomes credit on the same account type: 40 &lt;-&gt; 50,
+    /// 01 &lt;-&gt; 11, 21 &lt;-&gt; 31, 70 &lt;-&gt; 75.
+    /// </summary>
+    public static string MirrorPostingKey(string postingKey) => postingKey switch
+    {
+        "40" => "50",
+        "50" => "40",
+        "01" => "11",
+        "11" => "01",
+        "15" => "01",
+        "21" => "31",
+        "31" => "21",
+        "25" => "31",
+        "70" => "75",
+        "75" => "70",
+        _ => postingKey,
+    };
+
+    /// <summary>
+    /// Surrogate keys of the cost objects on a set of lines, resolved back to
+    /// the codes a draft is written in.
+    /// </summary>
+    private async Task<AssignmentCodes> LoadAssignmentCodesAsync(
+        IReadOnlyList<JournalEntryLine> lines,
+        CancellationToken cancellationToken)
+    {
+        static List<long> Ids(IEnumerable<long?> values) =>
+            values.Where(v => v is not null).Select(v => v!.Value).Distinct().ToList();
+
+        var costCenterIds = Ids(lines.Select(l => l.CostCenterId));
+        var profitCenterIds = Ids(lines.Select(l => l.ProfitCenterId));
+        var internalOrderIds = Ids(lines.Select(l => l.InternalOrderId));
+        var segmentIds = Ids(lines.Select(l => l.SegmentId));
+        var partnerIds = Ids(lines.Select(l => l.BusinessPartnerId));
+
+        return new AssignmentCodes(
+            costCenterIds.Count == 0 ? [] : await context.Query<CostCenter>()
+                .AsNoTracking()
+                .Where(c => costCenterIds.Contains(c.Id))
+                .ToDictionaryAsync(c => c.Id, c => c.CostCenterCode, cancellationToken),
+            profitCenterIds.Count == 0 ? [] : await context.Query<ProfitCenter>()
+                .AsNoTracking()
+                .Where(p => profitCenterIds.Contains(p.Id))
+                .ToDictionaryAsync(p => p.Id, p => p.ProfitCenterCode, cancellationToken),
+            internalOrderIds.Count == 0 ? [] : await context.Query<InternalOrder>()
+                .AsNoTracking()
+                .Where(o => internalOrderIds.Contains(o.Id))
+                .ToDictionaryAsync(o => o.Id, o => o.OrderNumber, cancellationToken),
+            segmentIds.Count == 0 ? [] : await context.Query<Segment>()
+                .AsNoTracking()
+                .Where(s => segmentIds.Contains(s.Id))
+                .ToDictionaryAsync(s => s.Id, s => s.SegmentCode, cancellationToken),
+            partnerIds.Count == 0 ? [] : await context.Query<BusinessPartner>()
+                .AsNoTracking()
+                .Where(p => partnerIds.Contains(p.Id))
+                .ToDictionaryAsync(p => p.Id, p => p.PartnerNumber, cancellationToken));
+    }
+
+    private sealed record AssignmentCodes(
+        Dictionary<long, string> CostCenters,
+        Dictionary<long, string> ProfitCenters,
+        Dictionary<long, string> InternalOrders,
+        Dictionary<long, string> Segments,
+        Dictionary<long, string> Partners)
+    {
+        public string? CostCenter(long? id) => Lookup(CostCenters, id);
+
+        public string? ProfitCenter(long? id) => Lookup(ProfitCenters, id);
+
+        public string? InternalOrder(long? id) => Lookup(InternalOrders, id);
+
+        public string? Segment(long? id) => Lookup(Segments, id);
+
+        public string? Partner(long? id) => Lookup(Partners, id);
+
+        private static string? Lookup(Dictionary<long, string> codes, long? id) =>
+            id is { } key && codes.TryGetValue(key, out var code) ? code : null;
+    }
+
+    private async Task<PostingResult> CommitAsync(
+        PostingRequest request,
+        PostingConfiguration configuration,
+        IReadOnlyList<SimulatedLine> lines,
+        CancellationToken cancellationToken)
+    {
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        var user = currentUser.UserName;
+
+        var (header, entityLines) = await WriteDocumentAsync(
+            request, configuration, lines, "Posted", cancellationToken);
+
+        await WriteLedgerEffectAsync(
+            configuration, header, entityLines, now, user, cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
+
+        logger.LogInformation(
+            "Posted {Document}/{Year} in {CompanyCode} with {LineCount} lines",
+            header.DocumentNumber, header.FiscalYear, request.Draft.CompanyCode,
+            entityLines.Count);
+
+        return PostingResult.Posted(
+            header.DocumentNumber, header.FiscalYear, header.FiscalPeriod, "Posted", lines);
+    }
+
+    /// <summary>
+    /// Draws the document number and writes the header and the lines. Nothing
+    /// here touches a balance or an open item: that is the ledger effect, and
+    /// it is written separately so parking can leave it out.
+    /// </summary>
+    private async Task<(JournalEntryHeader Header, List<JournalEntryLine> Lines)>
+        WriteDocumentAsync(
+            PostingRequest request,
+            PostingConfiguration configuration,
+            IReadOnlyList<SimulatedLine> lines,
+            string status,
+            CancellationToken cancellationToken)
+    {
+        var draft = request.Draft;
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        var user = currentUser.UserName;
+        var fiscalYear = (short)configuration.Period.FiscalYear;
+        var period = configuration.Period.FiscalPeriodCode;
+
+        var documentNumber = await numberRanges.NextAsync(
+            "RF_BELEG",
+            configuration.DocumentType.NumberRangeCode,
+            configuration.CompanyCode.Id,
+            fiscalYear,
+            configuration.DocumentType.DocumentTypeCode,
+            cancellationToken);
+
+        var totalDebit = lines.Where(l => l.DocumentAmount.IsDebit)
+            .Sum(l => l.DocumentAmount.Amount);
+
+        var posted = status == "Posted";
+
+        var header = new JournalEntryHeader
+        {
+            TenantId = TenantId,
+            CompanyCodeId = configuration.CompanyCode.Id,
+            FiscalYear = fiscalYear,
+            DocumentNumber = documentNumber,
+            LedgerId = configuration.Ledger.Id,
+            DocumentTypeId = configuration.DocumentType.Id,
+            DocumentDate = draft.DocumentDate,
+            PostingDate = draft.PostingDate,
+            EntryDate = DateOnly.FromDateTime(now),
+            EntryTime = TimeOnly.FromDateTime(now),
+            FiscalPeriod = period,
+            DocumentCurrencyCode = draft.DocumentCurrency,
+            LocalCurrencyCode = configuration.LocalCurrency,
+            GroupCurrencyCode = configuration.GroupCurrency,
+            TotalDebitAmount = totalDebit,
+            TotalCreditAmount = totalDebit,
+            ReferenceDocumentNumber = draft.ReferenceDocumentNumber,
+            DocumentHeaderText = draft.HeaderText,
+            Status = status,
+            PostedAt = posted ? now : null,
+            PostedBy = posted ? user : null,
+            ParkedBy = posted ? null : user,
+            IsReversed = false,
+            ReversedDocumentNumber = draft.Reverses?.DocumentNumber,
+            ReversalReasonCode = draft.Reverses?.ReasonCode,
+            IsIntercompany = draft.Lines.Any(l => l.PartnerCompanyCode is not null),
+            SourceModule = request.SourceModule,
+            TransactionCode = request.TransactionCode,
+            IdempotencyKey = request.IdempotencyKey,
+            IsSimulation = false,
+            CreatedAt = now,
+            CreatedBy = user,
+        };
+
+        context.Add(header);
+        await context.SaveChangesAsync(cancellationToken);
+
+        var entityLines = BuildLines(draft, configuration, lines, header, now, user);
+        context.AddRange(entityLines);
+        await context.SaveChangesAsync(cancellationToken);
+
+        return (header, entityLines);
+    }
+
+    /// <summary>
+    /// Everything that makes a document *count*: open items, controlling
+    /// documents, balances, the audit record and the integration event.
+    /// </summary>
+    /// <remarks>
+    /// Parking writes the header and the lines but not this, which is what
+    /// "no ledger effect until approved" means in practice. Approval calls it
+    /// on the same lines, so an approved document is indistinguishable from one
+    /// posted directly.
+    /// </remarks>
+    private async Task WriteLedgerEffectAsync(
+        PostingConfiguration configuration,
+        JournalEntryHeader header,
+        IReadOnlyList<JournalEntryLine> lines,
+        DateTime now,
+        string user,
+        CancellationToken cancellationToken)
+    {
+        AddOpenItems(lines, header, now, user);
+        AddControllingPostings(configuration, lines, now, user);
+        await UpdateBalancesAsync(configuration, lines, cancellationToken);
+        await AddAuditTrailAsync(header, now, user, cancellationToken);
+        AddOutboxEvent(header, lines, now, user);
+    }
+
+    private List<JournalEntryLine> BuildLines(
+        JournalEntryDraft draft,
+        PostingConfiguration configuration,
+        IReadOnlyList<SimulatedLine> converted,
+        JournalEntryHeader header,
+        DateTime now,
+        string user)
+    {
+        var lines = new List<JournalEntryLine>(draft.Lines.Count);
+
+        foreach (var line in draft.Lines)
+        {
+            var amounts = converted.First(c => c.LineNumber == line.LineNumber);
+            var postingKey = configuration.PostingKeys[line.PostingKey];
+            var account = configuration.Accounts[line.Account];
+            var partner = line.BusinessPartner is null
+                ? null
+                : configuration.Partners[line.BusinessPartner];
+            var accountSegment = configuration.AccountSegments.GetValueOrDefault(account.Id);
+
+            lines.Add(new JournalEntryLine
+            {
+                TenantId = TenantId,
+                JournalEntryHeaderId = header.Id,
+                CompanyCodeId = header.CompanyCodeId,
+                FiscalYear = header.FiscalYear,
+                DocumentNumber = header.DocumentNumber,
+                LineItemNumber = line.LineNumber,
+                LedgerId = header.LedgerId,
+                PostingDate = header.PostingDate,
+                FiscalPeriod = header.FiscalPeriod,
+                PostingKey = postingKey.PostingKeyCode,
+                DebitCreditIndicator = amounts.DebitCreditIndicator,
+                AccountType = postingKey.AccountType,
+                GLAccountId = account.Id,
+                GLAccount = account.GLAccountCode,
+                AssetId = line.Asset is null
+                    ? null
+                    : configuration.Assets[line.Asset].Id,
+                AssetSubNumber = line.AssetSubNumber,
+                BusinessPartnerId = partner?.Id,
+                BusinessPartnerRoleCategory = partner is null
+                    ? null
+                    : postingKey.AccountType == "D" ? "Customer" : "Vendor",
+                CostCenterId = line.CostCenter is null
+                    ? null
+                    : configuration.CostCenters[line.CostCenter].Id,
+                ProfitCenterId = line.ProfitCenter is null
+                    ? null
+                    : configuration.ProfitCenters[line.ProfitCenter].Id,
+                InternalOrderId = line.InternalOrder is null
+                    ? null
+                    : configuration.InternalOrders[line.InternalOrder].Id,
+                SegmentId = line.Segment is null
+                    ? null
+                    : configuration.Segments[line.Segment].Id,
+                DocumentCurrencyCode = amounts.DocumentAmount.Currency,
+                AmountInDocumentCurrency = amounts.DocumentAmount.Amount,
+                LocalCurrencyCode = amounts.LocalAmount.Currency,
+                AmountInLocalCurrency = amounts.LocalAmount.Amount,
+                GroupCurrencyCode = amounts.GroupAmount?.Currency,
+                AmountInGroupCurrency = amounts.GroupAmount?.Amount,
+                TaxCodeId = line.TaxCode is null ? null : configuration.TaxCodes[line.TaxCode].Id,
+                TaxAmountInDocumentCurrency = line.TaxAmount?.Amount,
+                IsTaxLine = false,
+                AssignmentReference = line.Assignment,
+                LineItemText = line.Text,
+                BaselineDate = line.BaselineDate,
+                DueDate = line.BaselineDate,
+                IsOpenItemManaged =
+                    postingKey.AccountType is "D" or "K"
+                    || (accountSegment?.IsOpenItemManaged ?? false),
+                ClearingStatus = "Open",
+                IsReversalLine = draft.Reverses is not null,
+                SourceModule = header.SourceModule,
+                CreatedAt = now,
+                CreatedBy = user,
+            });
+        }
+
+        return lines;
+    }
+
+    private void AddOpenItems(
+        IReadOnlyList<JournalEntryLine> lines,
+        JournalEntryHeader header,
+        DateTime now,
+        string user)
+    {
+        foreach (var line in lines.Where(l => l.IsOpenItemManaged))
+        {
+            context.Add(new OpenItem
+            {
+                TenantId = TenantId,
+                JournalEntryLineId = line.Id,
+                CompanyCodeId = line.CompanyCodeId,
+                FiscalYear = line.FiscalYear,
+                DocumentNumber = line.DocumentNumber,
+                LineItemNumber = line.LineItemNumber,
+                AccountType = line.AccountType,
+                BusinessPartnerId = line.BusinessPartnerId,
+                GLAccountId = line.GLAccountId,
+                PostingDate = line.PostingDate,
+                DocumentDate = header.DocumentDate,
+                BaselineDate = line.BaselineDate,
+                DueDate = line.DueDate,
+                DocumentCurrencyCode = line.DocumentCurrencyCode,
+                OriginalAmountInDocumentCurrency = Math.Abs(line.AmountInDocumentCurrency),
+                OpenAmountInDocumentCurrency = Math.Abs(line.AmountInDocumentCurrency),
+                OriginalAmountInLocalCurrency = Math.Abs(line.AmountInLocalCurrency),
+                OpenAmountInLocalCurrency = Math.Abs(line.AmountInLocalCurrency),
+                ClearedAmountInDocumentCurrency = 0m,
+                DebitCreditIndicator = line.DebitCreditIndicator,
+                DunningLevel = 0,
+                AssignmentReference = line.AssignmentReference,
+                ReferenceDocumentNumber = header.ReferenceDocumentNumber,
+                LineItemText = line.LineItemText,
+                Status = "Open",
+                CreatedAt = now,
+                CreatedBy = user,
+            });
+        }
+    }
+
+    private void AddControllingPostings(
+        PostingConfiguration configuration,
+        IReadOnlyList<JournalEntryLine> lines,
+        DateTime now,
+        string user)
+    {
+        var relevant = lines
+            .Where(l => l.CostCenterId is not null || l.InternalOrderId is not null)
+            .Where(l => configuration.CostElementsByAccount.ContainsKey(l.GLAccountId))
+            .ToList();
+
+        var sequence = 0;
+        foreach (var line in relevant)
+        {
+            sequence++;
+            var costElement = configuration.CostElementsByAccount[line.GLAccountId];
+            var isCostCenter = line.CostCenterId is not null;
+
+            context.Add(new ControllingPosting
+            {
+                TenantId = TenantId,
+                // Validation has already refused a cost object without one, so
+                // this cannot be null by the time the line is written.
+                ControllingAreaId = configuration.ControllingAreaId!.Value,
+                ControllingDocumentNumber =
+                    $"{line.DocumentNumber}-CO{sequence.ToString("000", CultureInfo.InvariantCulture)}",
+                LineItemNumber = 1,
+                FiscalYear = line.FiscalYear,
+                FiscalPeriod = line.FiscalPeriod,
+                PostingDate = line.PostingDate,
+                PlanVersion = "000",
+                IsPlan = false,
+                ValueType = "04",
+                ObjectType = isCostCenter ? "CostCenter" : "InternalOrder",
+                ObjectId = isCostCenter ? line.CostCenterId!.Value : line.InternalOrderId!.Value,
+                CostElementId = costElement.Id,
+                CompanyCodeId = line.CompanyCodeId,
+                ProfitCenterId = line.ProfitCenterId,
+                SegmentId = line.SegmentId,
+                DebitCreditIndicator = line.DebitCreditIndicator,
+                CurrencyCode = line.DocumentCurrencyCode,
+                AmountInTransactionCurrency = line.AmountInDocumentCurrency,
+                AmountInControllingAreaCurrency = line.AmountInLocalCurrency,
+                AmountInCompanyCodeCurrency = line.AmountInLocalCurrency,
+                TransactionType = "Primary",
+                ReferenceDocumentNumber = line.DocumentNumber,
+                JournalEntryHeaderId = line.JournalEntryHeaderId,
+                LineItemText = line.LineItemText,
+                IsReversed = false,
+                CreatedAt = now,
+                CreatedBy = user,
+            });
+        }
+    }
+
+    private async Task UpdateBalancesAsync(
+        PostingConfiguration configuration,
+        IReadOnlyList<JournalEntryLine> lines,
+        CancellationToken cancellationToken)
+    {
+        var groups = lines
+            .GroupBy(l => (l.LedgerId, l.CompanyCodeId, l.FiscalYear, l.FiscalPeriod, l.GLAccountId))
+            .ToList();
+
+        foreach (var group in groups)
+        {
+            var key = group.Key;
+            var debit = group.Where(l => l.AmountInLocalCurrency > 0)
+                .Sum(l => l.AmountInLocalCurrency);
+            var credit = group.Where(l => l.AmountInLocalCurrency < 0)
+                .Sum(l => -l.AmountInLocalCurrency);
+
+            var balance = await context.Query<AccountBalance>()
+                .FirstOrDefaultAsync(
+                    b => b.TenantId == TenantId
+                         && b.LedgerId == key.LedgerId
+                         && b.CompanyCodeId == key.CompanyCodeId
+                         && b.FiscalYear == key.FiscalYear
+                         && b.FiscalPeriod == key.FiscalPeriod
+                         && b.GLAccountId == key.GLAccountId
+                         && b.CurrencyType == "10",
+                    cancellationToken);
+
+            if (balance is null)
+            {
+                context.Add(new AccountBalance
+                {
+                    TenantId = TenantId,
+                    LedgerId = key.LedgerId,
+                    CompanyCodeId = key.CompanyCodeId,
+                    FiscalYear = key.FiscalYear,
+                    FiscalPeriod = key.FiscalPeriod,
+                    GLAccountId = key.GLAccountId,
+                    CurrencyType = "10",
+                    CurrencyCode = configuration.LocalCurrency,
+                    DebitTotal = debit,
+                    CreditTotal = credit,
+                    PeriodBalance = debit - credit,
+                    CumulativeBalance = debit - credit,
+                    LastUpdatedAt = timeProvider.GetUtcNow().UtcDateTime,
+                });
+            }
+            else
+            {
+                balance.DebitTotal += debit;
+                balance.CreditTotal += credit;
+                balance.PeriodBalance += debit - credit;
+                balance.CumulativeBalance += debit - credit;
+                balance.LastUpdatedAt = timeProvider.GetUtcNow().UtcDateTime;
+            }
+        }
+    }
+
+    private async Task AddAuditTrailAsync(
+        JournalEntryHeader header,
+        DateTime now,
+        string user,
+        CancellationToken cancellationToken)
+    {
+        var previousHash = await context.Query<AuditLog>()
+            .AsNoTracking()
+            .Where(a => a.TenantId == TenantId)
+            .OrderByDescending(a => a.Id)
+            .Select(a => a.HashChainValue)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var payload =
+            $"{now:O}|{user}|Post|JournalEntry|{header.DocumentNumber}|{header.FiscalYear}|" +
+            $"{header.TotalDebitAmount}|{previousHash}";
+
+        context.Add(new AuditLog
+        {
+            TenantId = TenantId,
+            OccurredAt = now,
+            UserName = user,
+            CompanyCodeId = header.CompanyCodeId,
+            Action = "Post",
+            ObjectType = "JournalEntry",
+            ObjectId = header.Id,
+            ObjectKeyText = $"{header.DocumentNumber}/{header.FiscalYear}",
+            SourceType = "Api",
+            SourceName = nameof(PostingEngine),
+            TransactionCode = header.TransactionCode,
+            Result = "Success",
+            IsSensitiveAction = true,
+            PreviousHashValue = previousHash,
+            HashChainValue = Sha256(payload),
+        });
+    }
+
+    private void AddOutboxEvent(
+        JournalEntryHeader header,
+        IReadOnlyList<JournalEntryLine> lines,
+        DateTime now,
+        string user)
+    {
+        // Written inside the posting transaction: an event can never describe a
+        // document that was rolled back, and a committed document always has
+        // its event waiting for the dispatcher.
+        var payload = JsonSerializer.Serialize(new
+        {
+            header.DocumentNumber,
+            header.FiscalYear,
+            header.CompanyCodeId,
+            header.PostingDate,
+            header.DocumentCurrencyCode,
+            header.TotalDebitAmount,
+            LineCount = lines.Count,
+            Accounts = lines.Select(l => l.GLAccount).Distinct().ToArray(),
+        });
+
+        context.Add(new OutboxMessage
+        {
+            TenantId = TenantId,
+            MessageId = Guid.NewGuid(),
+            EventType = "JournalEntryPosted",
+            AggregateType = nameof(JournalEntryHeader),
+            AggregateId = header.Id,
+            PayloadJson = payload,
+            OccurredAt = now,
+            Status = "Pending",
+            AttemptCount = 0,
+            CreatedBy = user,
+        });
+    }
+
+    private static string Sha256(string value) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
+}
+
+/// <summary>Small helpers that keep the engine readable.</summary>
+internal static class PostingEngineExtensions
+{
+    /// <summary>
+    /// The document type code carried on a stored header. The header keeps the
+    /// id; the code is what a draft is expressed in.
+    /// </summary>
+    public static string DocumentTypeCodeOrDefault(this JournalEntryHeader header) =>
+        header.SourceModule switch
+        {
+            "AR" => "DR",
+            "AP" => "KR",
+            "AA" => "AA",
+            _ => "SA",
+        };
+}
