@@ -37,6 +37,10 @@ func Run(t *testing.T, newStore Factory) {
 	t.Run("InventoryRollback", func(t *testing.T) { testInventoryRollback(t, newStore) })
 	t.Run("Quality", func(t *testing.T) { testQuality(t, newStore) })
 	t.Run("Maintenance", func(t *testing.T) { testMaintenance(t, newStore) })
+	t.Run("CostElements", func(t *testing.T) { testCostElements(t, newStore) })
+	t.Run("CostRates", func(t *testing.T) { testCostRates(t, newStore) })
+	t.Run("ExchangeRates", func(t *testing.T) { testExchangeRates(t, newStore) })
+	t.Run("CostRuns", func(t *testing.T) { testCostRuns(t, newStore) })
 }
 
 // fixture seeds the minimum master data the planning tests need and returns

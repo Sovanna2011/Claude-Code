@@ -223,6 +223,43 @@ type Execution interface {
 	SaveMaintenance(ctx context.Context, m domain.MaintenanceWindow, actor string) (domain.MaintenanceWindow, error)
 }
 
+// CostFilter selects costing records. Empty fields mean "no restriction".
+type CostFilter struct {
+	FactoryID string
+	SeasonID  string
+	VersionID string
+	ElementID string
+	RateType  string
+	// On restricts rates to those in force on a date.
+	On   domain.BusinessDate
+	Skip int
+	Top  int
+}
+
+// Costing is the repository for cost elements, rates, exchange rates and saved
+// cost runs.
+type Costing interface {
+	ListElements(ctx context.Context, opts ListOptions) (Page[domain.CostElement], error)
+	GetElement(ctx context.Context, id string) (domain.CostElement, error)
+	SaveElement(ctx context.Context, e domain.CostElement, actor string) (domain.CostElement, error)
+
+	// ListRates returns the rates matching the filter. Effective dating is
+	// resolved by the domain, not here: the repository hands over everything in
+	// force and RateOn picks, so both store implementations cannot disagree
+	// about which rate applies.
+	ListRates(ctx context.Context, f CostFilter) ([]domain.CostRate, error)
+	SaveRate(ctx context.Context, r domain.CostRate, actor string) (domain.CostRate, error)
+	DeleteRate(ctx context.Context, id string) error
+
+	ListExchangeRates(ctx context.Context) ([]domain.ExchangeRate, error)
+	SaveExchangeRate(ctx context.Context, r domain.ExchangeRate, actor string) (domain.ExchangeRate, error)
+
+	ListRuns(ctx context.Context, f CostFilter) (Page[domain.CostRun], error)
+	GetRun(ctx context.Context, id string) (domain.CostRun, error)
+	// SaveRun writes the run and replaces its lines.
+	SaveRun(ctx context.Context, r domain.CostRun, actor string) (domain.CostRun, error)
+}
+
 // AuditFilter selects audit records.
 type AuditFilter struct {
 	Entity   string
@@ -261,6 +298,7 @@ type Store interface {
 	MasterData() MasterData
 	Planning() Planning
 	Execution() Execution
+	Costing() Costing
 	Audit() Audit
 	Idempotency() Idempotency
 	// InTx runs fn inside a database transaction. Every posting that touches

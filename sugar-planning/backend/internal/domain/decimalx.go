@@ -29,6 +29,14 @@ const (
 	ScalePercent int32 = 3
 	// ScaleFactor is the scale of conversion factors and assumptions.
 	ScaleFactor int32 = 6
+	// ScaleMoney is the scale of a money amount. Two places is what an invoice
+	// and a ledger use, and a cost report that carried more would be quoting a
+	// precision the accounts do not have.
+	ScaleMoney int32 = 2
+	// ScaleUnitRate is the scale of a rate expressed in money per unit. It is
+	// finer than money itself because a cost of a few cents per ton, multiplied
+	// by 2,300,000 t, is a real number on the report.
+	ScaleUnitRate int32 = 6
 )
 
 // Zero is the neutral quantity.
@@ -69,6 +77,12 @@ func RoundPct(d Dec) Dec { return d.Round(ScalePercent) }
 
 // RoundFactor rounds a conversion factor or assumption value.
 func RoundFactor(d Dec) Dec { return d.Round(ScaleFactor) }
+
+// RoundMoney rounds a money amount to the ledger scale.
+func RoundMoney(d Dec) Dec { return d.Round(ScaleMoney) }
+
+// RoundUnitRate rounds money per unit of a cost driver.
+func RoundUnitRate(d Dec) Dec { return d.Round(ScaleUnitRate) }
 
 // SafeDiv divides a by b and returns zero when b is zero. Division by zero is
 // a routine situation in this domain (day 1 of a season has no cumulative

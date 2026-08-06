@@ -58,6 +58,11 @@ type data struct {
 	holds         map[string]domain.QualityHold
 	maintenance   map[string]domain.MaintenanceWindow
 
+	costElements  map[string]domain.CostElement
+	costRates     map[string]domain.CostRate
+	exchangeRates map[string]domain.ExchangeRate
+	costRuns      map[string]domain.CostRun
+
 	audit []domain.AuditEvent
 	idem  map[string][]byte
 }
@@ -76,6 +81,10 @@ func newData() *data {
 		cane: map[string]domain.DailyCanePlan{}, prodPlans: map[string]domain.DailyProductPlan{},
 		storage: map[string]domain.DailyStoragePlan{}, shipments: map[string]domain.DailyShipmentPlan{},
 		downtime:      map[string]domain.DowntimeEvent{},
+		costElements:  map[string]domain.CostElement{},
+		costRates:     map[string]domain.CostRate{},
+		exchangeRates: map[string]domain.ExchangeRate{},
+		costRuns:      map[string]domain.CostRun{},
 		orders:        map[string]domain.ProductionOrder{},
 		confirmations: map[string]domain.ProductionConfirmation{},
 		documents:     map[string]domain.InventoryDocument{},
@@ -120,6 +129,8 @@ func (d *data) clone() *data {
 		qualityParams: cloneMap(d.qualityParams), qualitySpecs: cloneMap(d.qualitySpecs),
 		samples: cloneMap(d.samples), results: cloneResults(d.results),
 		holds: cloneMap(d.holds), maintenance: cloneMap(d.maintenance),
+		costElements: cloneMap(d.costElements), costRates: cloneMap(d.costRates),
+		exchangeRates: cloneMap(d.exchangeRates), costRuns: cloneRuns(d.costRuns),
 		audit: append([]domain.AuditEvent(nil), d.audit...),
 		idem:  cloneMap(d.idem),
 	}
@@ -131,6 +142,17 @@ func cloneDocuments(m map[string]domain.InventoryDocument) map[string]domain.Inv
 	out := make(map[string]domain.InventoryDocument, len(m))
 	for k, v := range m {
 		v.Items = append([]domain.InventoryDocumentItem(nil), v.Items...)
+		out[k] = v
+	}
+	return out
+}
+
+// cloneRuns deep-copies the saved cost runs, whose line slices would otherwise
+// be shared with the snapshot and survive a rollback.
+func cloneRuns(m map[string]domain.CostRun) map[string]domain.CostRun {
+	out := make(map[string]domain.CostRun, len(m))
+	for k, v := range m {
+		v.Lines = append([]domain.CostLine(nil), v.Lines...)
 		out[k] = v
 	}
 	return out
