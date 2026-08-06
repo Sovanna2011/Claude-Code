@@ -85,6 +85,9 @@ func run() error {
 	}
 	interfaces := service.NewIntegration(st, execution, planning, publisher,
 		func() time.Time { return time.Now().UTC() })
+	imports := service.NewImports(st, planning, func() time.Time { return time.Now().UTC() })
+	notifications := service.NewNotifications(st, analytics,
+		func() time.Time { return time.Now().UTC() })
 	logger.Info("integration events will be published", "to", publisher.Describe())
 
 	if cfg.SeedDemo {
@@ -121,13 +124,14 @@ func run() error {
 	handler := api.NewServer(api.Options{
 		Store: st, Planning: planning, Analytics: analytics, Materials: materials,
 		Execution: execution, Costing: costing, Integration: interfaces,
+		Imports: imports, Notifications: notifications,
 		Verifier: verifier, AuthCfg: cfg.Auth, Logger: logger, Version: cfg.Version,
 		StaticDir: cfg.StaticDir, AllowedOrigins: cfg.AllowedOrigins,
 		RequestTimeout: cfg.RequestTimeout, RateLimit: cfg.RateLimit, RateInterval: cfg.RateInterval,
 	})
 
 	// --- background jobs ----------------------------------------------------
-	scheduler, err := startJobs(ctx, cfg, st, interfaces, logger)
+	scheduler, err := startJobs(ctx, cfg, st, interfaces, notifications, logger)
 	if err != nil {
 		return err
 	}
@@ -180,13 +184,9 @@ func run() error {
 // drives the dispatcher from its own scheduler, but it is said out loud in the
 // log rather than left to be discovered.
 func startJobs(ctx context.Context, cfg config.Config, st store.Store,
-	interfaces *service.Integration, logger *slog.Logger,
+	interfaces *service.Integration, notifications *service.Notifications,
+	logger *slog.Logger,
 ) (*jobs.Scheduler, error) {
-
-	if cfg.DispatchInterval <= 0 {
-		logger.Warn("the outbox dispatcher is switched off; events will wait until somebody sends them by hand")
-		return nil, nil
-	}
 
 	// The lease owner names this instance, so an operations screen can say
 	// which one last ran a job. A hostname is what an operator recognises.
@@ -195,18 +195,22 @@ func startJobs(ctx context.Context, cfg config.Config, st store.Store,
 		owner = "instance"
 	}
 
-	scheduler, err := jobs.New(st, owner, logger, func() time.Time { return time.Now().UTC() },
-		jobs.Job{
+	// Each job runs as the system rather than as a person, and each is given a
+	// principal that may do exactly its own work and nothing else. Running the
+	// scheduler as an administrator would be one more way in.
+	asSystem := func(ctx context.Context, roles ...string) context.Context {
+		return auth.WithPrincipal(ctx, auth.NewSystemPrincipal(roles...))
+	}
+
+	var registered []jobs.Job
+
+	if cfg.DispatchInterval > 0 {
+		registered = append(registered, jobs.Job{
 			Name:    "outbox-dispatch",
 			Every:   cfg.DispatchInterval,
 			Timeout: 2 * time.Minute,
 			Run: func(ctx context.Context) (string, error) {
-				// The dispatcher runs as the system rather than as a person, so
-				// it is given a principal that may do exactly this and nothing
-				// else. Running it as an administrator would be one more way in.
-				ctx = auth.WithPrincipal(ctx, auth.NewPrincipal(
-					"system", "system", "Scheduler", "",
-					[]string{auth.RoleIntegration}, nil, nil))
+				ctx = asSystem(ctx, auth.RoleIntegration)
 				result, err := interfaces.Dispatch(ctx, cfg.DispatchBatch)
 				if err != nil {
 					return "", err
@@ -224,6 +228,41 @@ func startJobs(ctx context.Context, cfg config.Config, st store.Store,
 				return detail, nil
 			},
 		})
+	} else {
+		logger.Warn("the outbox dispatcher is switched off; events will wait until somebody sends them by hand")
+	}
+
+	if cfg.AlertInterval > 0 {
+		registered = append(registered, jobs.Job{
+			Name:    "alert-evaluation",
+			Every:   cfg.AlertInterval,
+			Timeout: 5 * time.Minute,
+			Run: func(ctx context.Context) (string, error) {
+				// The evaluator reads plans and writes nothing but
+				// notifications, so a read-only principal is all it needs.
+				ctx = asSystem(ctx, auth.RoleExecutiveViewer)
+				result, err := notifications.Evaluate(ctx)
+				if err != nil {
+					return "", err
+				}
+				if result.Raised == 0 {
+					return fmt.Sprintf("%d alerts across %d seasons, nothing new",
+						result.Alerts, result.Seasons), nil
+				}
+				return fmt.Sprintf("raised %d of %d alerts across %d seasons (%d already waiting)",
+					result.Raised, result.Alerts, result.Seasons, result.Suppressed), nil
+			},
+		})
+	} else {
+		logger.Warn("alert evaluation is switched off; alerts will appear on the dashboard but reach nobody's inbox")
+	}
+
+	if len(registered) == 0 {
+		return nil, nil
+	}
+
+	scheduler, err := jobs.New(st, owner, logger,
+		func() time.Time { return time.Now().UTC() }, registered...)
 	if err != nil {
 		return nil, fmt.Errorf("background jobs: %w", err)
 	}

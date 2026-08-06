@@ -150,6 +150,26 @@ sap.ui.define([], function () {
 			return iDays > 7 ? "Error" : "Critical";
 		},
 
+		/**
+		 * severityIconColor maps a severity onto sap.ui.core.IconColor.
+		 *
+		 * This is the third enumeration in the family and they are all different:
+		 * ObjectStatus takes ValueState (Error/Warning/Success/None),
+		 * NumericContent takes ValueColor (Error/Critical/Good/Neutral), and
+		 * sap.ui.core.Icon takes IconColor (Negative/Critical/Positive/Neutral).
+		 * Passing one where another is expected logs an error and drops the
+		 * colour, so each has its own formatter rather than one being reused and
+		 * hoping.
+		 */
+		severityIconColor: function (sSeverity) {
+			switch (sSeverity) {
+				case "ERROR": return "Negative";
+				case "WARNING": return "Critical";
+				case "SUCCESS": return "Positive";
+				default: return "Neutral";
+			}
+		},
+
 		severityIcon: function (sSeverity) {
 			switch (sSeverity) {
 				case "ERROR": return "sap-icon://error";

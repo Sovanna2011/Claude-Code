@@ -66,6 +66,12 @@
 							</Select>
 
 							<ToolbarSpacer width="1rem"/>
+							<!-- The inbox: alerts that were raised for the roles
+							     this person holds. The count is what makes it
+							     worth looking at. -->
+							<Button icon="sap-icon://bell" type="Transparent"
+								text="{= ${app>/unread} > 0 ? String(${app>/unread}) : '' }"
+								tooltip="{i18n>inboxTooltip}" press=".onOpenInbox"/>
 							<Button icon="sap-icon://account" type="Transparent"
 								text="{app>/profile/displayName}" press=".onOpenProfile"/>
 						</tnt:ToolHeader>

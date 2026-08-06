@@ -62,6 +62,11 @@ type Config struct {
 	// it off, which leaves the outbox to be drained by hand.
 	DispatchInterval time.Duration
 	DispatchBatch    int
+	// AlertInterval is how often the alerts are evaluated into people's
+	// inboxes. Zero turns it off, which leaves the alerts visible on the
+	// dashboard and reaching nobody - said out loud in the log rather than
+	// left to be discovered.
+	AlertInterval time.Duration
 
 	FactoryTimeZone string
 	Version         string
@@ -100,6 +105,7 @@ func Load() (Config, error) {
 		IntegrationSource:     env("INTEGRATION_SOURCE", "sugarplan"),
 		DispatchInterval:      envDuration("INTEGRATION_DISPATCH_INTERVAL", 30*time.Second),
 		DispatchBatch:         envInt("INTEGRATION_DISPATCH_BATCH", 50),
+		AlertInterval:         envDuration("ALERT_INTERVAL", 15*time.Minute),
 
 		FactoryTimeZone: env("FACTORY_TIMEZONE", "Asia/Phnom_Penh"),
 		Version:         env("APP_VERSION", "dev"),

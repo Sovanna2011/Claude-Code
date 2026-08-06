@@ -67,6 +67,8 @@ type data struct {
 	importJobs     map[string]domain.ImportJob
 	importRows     map[string][]domain.ImportRow
 
+	notifications map[string]domain.Notification
+
 	batches      map[string]domain.Batch
 	packagingBOM map[string]domain.PackagingBOMLine
 
@@ -96,6 +98,7 @@ func newData() *data {
 		storage: map[string]domain.DailyStoragePlan{}, shipments: map[string]domain.DailyShipmentPlan{},
 		downtime:       map[string]domain.DowntimeEvent{},
 		batches:        map[string]domain.Batch{},
+		notifications:  map[string]domain.Notification{},
 		importMappings: map[string]domain.ImportMapping{},
 		importJobs:     map[string]domain.ImportJob{},
 		importRows:     map[string][]domain.ImportRow{},
@@ -154,6 +157,7 @@ func (d *data) clone() *data {
 		costElements: cloneMap(d.costElements), costRates: cloneMap(d.costRates),
 		exchangeRates: cloneMap(d.exchangeRates), costRuns: cloneRuns(d.costRuns),
 		batches:        cloneMap(d.batches),
+		notifications:  cloneMap(d.notifications),
 		importMappings: cloneMap(d.importMappings),
 		importJobs:     cloneMap(d.importJobs),
 		importRows:     cloneRows(d.importRows),

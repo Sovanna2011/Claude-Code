@@ -171,3 +171,14 @@
 .sugarSwatchActual {
 	border-top: 3px solid #2B7D2B;
 }
+
+/* An unread notification is the one somebody has to act on, so it carries the
+   weight; a read one stays visible because the inbox is a record of what
+   happened rather than a queue that empties. */
+.sugarUnread {
+	font-weight: 600;
+}
+
+.sugarRead {
+	opacity: 0.65;
+}

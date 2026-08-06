@@ -121,6 +121,7 @@ sap.ui.define([
 				// The pages mounted before the session existed; tell them the
 				// context is ready.
 				that.getOwnerComponent().getEventBus().publish("app", "contextChanged");
+				that._refreshInbox();
 				if (!aSeasons.length) {
 					MessageBox.information(that.getText("noSeasonsForUser"));
 				}
@@ -150,6 +151,57 @@ sap.ui.define([
 		onToggleNav: function () {
 			var oToolPage = this.byId("toolPage");
 			oToolPage.setSideExpanded(!oToolPage.getSideExpanded());
+		},
+
+		/**
+		 * onOpenInbox shows what has been raised for the roles this person
+		 * holds, and marks read whatever they open.
+		 *
+		 * It is a dialog rather than a page because an inbox is read in the
+		 * middle of doing something else - that is what makes it an inbox - and
+		 * navigating away from a half-finished screen to look at it would be the
+		 * wrong trade.
+		 */
+		onOpenInbox: function () {
+			var that = this;
+			this.getService().listNotifications(false).then(function (oPage) {
+				that.getAppModel().setProperty("/unread", oPage.unread || 0);
+				that.getAppModel().setProperty("/notifications", oPage.value || []);
+				that._dialog("sugarplan.view.fragment.InboxDialog").then(function (oDialog) {
+					oDialog.open();
+				});
+			}).catch(function (oProblem) {
+				that.showError(oProblem);
+			});
+		},
+
+		/** onReadNotification clears one and refreshes the badge. */
+		onReadNotification: function (oEvent) {
+			var oItem = oEvent.getSource().getBindingContext("app").getObject();
+			var that = this;
+			this.getService().markNotificationRead(oItem.id).then(function (oResult) {
+				that.getAppModel().setProperty("/unread", oResult.unread || 0);
+				return that.getService().listNotifications(false);
+			}).then(function (oPage) {
+				that.getAppModel().setProperty("/notifications", oPage.value || []);
+			}).catch(function (oProblem) {
+				that.showError(oProblem);
+			});
+		},
+
+		onCloseInbox: function () {
+			this._closeDialog("sugarplan.view.fragment.InboxDialog");
+		},
+
+		/** _refreshInbox keeps the badge current without opening anything. */
+		_refreshInbox: function () {
+			var that = this;
+			this.getService().listNotifications(true).then(function (oPage) {
+				that.getAppModel().setProperty("/unread", oPage.unread || 0);
+			}).catch(function () {
+				// A badge that cannot be fetched is not worth interrupting
+				// somebody for; the inbox itself will say so when they open it.
+			});
 		},
 
 		onOpenProfile: function () {

@@ -30,11 +30,13 @@ type Server struct {
 	integration *service.Integration
 	// imports is the controlled file import: mapping templates, staging,
 	// preview and commit.
-	imports  *service.Imports
-	verifier auth.Verifier
-	authCfg  auth.Config
-	logger   *slog.Logger
-	version  string
+	imports *service.Imports
+	// notifications is the inbox and the alert evaluation behind it.
+	notifications *service.Notifications
+	verifier      auth.Verifier
+	authCfg       auth.Config
+	logger        *slog.Logger
+	version       string
 	// now is injected so that a default business date in a request is
 	// deterministic in tests.
 	now func() time.Time
@@ -55,13 +57,14 @@ type Options struct {
 	Costing   *service.Costing
 	// Integration is optional: without it the server builds one that logs its
 	// deliveries, so an outbox is never left with nobody to drain it.
-	Integration *service.Integration
-	Imports     *service.Imports
-	Verifier    auth.Verifier
-	AuthCfg     auth.Config
-	Logger      *slog.Logger
-	Version     string
-	StaticDir   string
+	Integration   *service.Integration
+	Imports       *service.Imports
+	Notifications *service.Notifications
+	Verifier      auth.Verifier
+	AuthCfg       auth.Config
+	Logger        *slog.Logger
+	Version       string
+	StaticDir     string
 	// Now overrides the clock. Leave it nil outside tests.
 	Now func() time.Time
 	// AllowedOrigins is empty for a same-origin deployment.
@@ -88,6 +91,9 @@ func NewServer(o Options) http.Handler {
 	}
 	if s.costing == nil {
 		s.costing = service.NewCosting(o.Store, o.Planning, s.now)
+	}
+	if s.notifications == nil {
+		s.notifications = service.NewNotifications(o.Store, o.Analytics, s.now)
 	}
 	if s.imports == nil {
 		s.imports = service.NewImports(o.Store, o.Planning, s.now)
@@ -268,6 +274,11 @@ func (s *Server) routes(mux *http.ServeMux) {
 	s.handle(mux, "POST /api/v1/costing/runs", s.handleCostRun)
 	s.handle(mux, "GET /api/v1/costing/runs", s.handleListCostRuns)
 	s.handle(mux, "GET /api/v1/costing/runs/{id}", s.handleGetCostRun)
+
+	// --- inbox --------------------------------------------------------------
+	s.handle(mux, "GET /api/v1/notifications", s.handleListNotifications)
+	s.handle(mux, "POST /api/v1/notifications/{id}/read", s.handleMarkNotificationRead)
+	s.handle(mux, "POST /api/v1/notifications/evaluate", s.handleEvaluateAlerts)
 
 	// --- imports ------------------------------------------------------------
 	s.handle(mux, "GET /api/v1/import-mappings", s.handleListImportMappings)

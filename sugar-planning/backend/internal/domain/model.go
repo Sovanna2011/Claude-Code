@@ -603,6 +603,45 @@ type AuditEvent struct {
 	SourceIP      string    `json:"sourceIp,omitempty"`
 }
 
+// Notification is an alert that has been sent to somebody.
+//
+// The distinction from Alert matters. An alert is calculated: it is true of the
+// plan at the moment somebody looks. A notification is a fact about a person -
+// this was raised, they were told, they have or have not read it - and it
+// survives the alert ceasing to be true, which is what makes an inbox an
+// account of what happened rather than a second dashboard.
+type Notification struct {
+	ID string `json:"id"`
+	// Recipient is a **role code**, not a person. There is no user directory
+	// here - identity, roles and data scope all come from the token - so a
+	// notification is addressed to "the shipment planners at this factory" and
+	// somebody's inbox is what their roles and their scope entitle them to see.
+	// It is also the better answer operationally: an alert addressed to a person
+	// who has left is an alert nobody owns.
+	Recipient string     `json:"recipient"`
+	FactoryID string     `json:"factoryId,omitempty"`
+	Severity  Severity   `json:"severity"`
+	Code      string     `json:"code"`
+	Title     string     `json:"title"`
+	Detail    string     `json:"detail,omitempty"`
+	Entity    string     `json:"entity,omitempty"`
+	EntityID  string     `json:"entityId,omitempty"`
+	ReadAt    *time.Time `json:"readAt,omitempty"`
+	CreatedAt time.Time  `json:"createdAt"`
+}
+
+// IsRead reports whether the recipient has seen it.
+func (n Notification) IsRead() bool { return n.ReadAt != nil }
+
+// DedupeKey is what stops the same alert being raised at every tick.
+//
+// It is the recipient, the code and the thing it is about - not the wording,
+// which may be regenerated with a different figure in it, and not the date it
+// was raised, which would make every day's tick a new notification.
+func (n Notification) DedupeKey() string {
+	return n.Recipient + "|" + n.FactoryID + "|" + n.Code + "|" + n.Entity + "|" + n.EntityID
+}
+
 // Alert is a calculated exception surfaced on the dashboard and in the inbox.
 type Alert struct {
 	Code     string       `json:"code"`

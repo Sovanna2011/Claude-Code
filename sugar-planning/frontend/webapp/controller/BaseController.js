@@ -1,9 +1,10 @@
 sap.ui.define([
 	"sap/ui/core/mvc/Controller",
+	"sap/ui/core/Fragment",
 	"sap/m/MessageBox",
 	"sap/m/MessageToast",
 	"sugarplan/model/formatter"
-], function (Controller, MessageBox, MessageToast, formatter) {
+], function (Controller, Fragment, MessageBox, MessageToast, formatter) {
 	"use strict";
 
 	/**
@@ -132,6 +133,36 @@ sap.ui.define([
 		},
 
 		/** can reports whether the signed-in user holds a permission. */
+		/**
+		 * _dialog loads a fragment once and keeps it.
+		 *
+		 * A dialog reloaded on every open loses its state and leaks a control
+		 * tree each time, so it is cached against the controller and made a
+		 * dependent of the view - which is what disposes of it when the page
+		 * goes away.
+		 */
+		_dialog: function (sName) {
+			this._dialogs = this._dialogs || {};
+			if (this._dialogs[sName]) {
+				return Promise.resolve(this._dialogs[sName]);
+			}
+			var that = this;
+			return Fragment.load({
+				id: this.getView().getId(), name: sName, controller: this
+			}).then(function (oDialog) {
+				that.getView().addDependent(oDialog);
+				that._dialogs[sName] = oDialog;
+				return oDialog;
+			});
+		},
+
+		_closeDialog: function (sName) {
+			if (this._dialogs && this._dialogs[sName]) {
+				this._dialogs[sName].close();
+			}
+			this.setBusy(false);
+		},
+
 		can: function (sPermission) {
 			return this.getService().can(sPermission);
 		}

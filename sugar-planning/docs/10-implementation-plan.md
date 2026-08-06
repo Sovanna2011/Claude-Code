@@ -199,6 +199,11 @@ for the same reason: the workbook it must read was never provided. See
   was judged against
 - Packaging bill of materials, driving both requirement planning and the
   components a confirmation consumes (C43)
+- The controlled import of section 22: a mapping template, a staging area, a
+  preview with row-level errors and a downloadable error file, and a commit
+  through the ordinary planning service
+- The rest of the scheduled jobs: alert evaluation into role-addressed inboxes,
+  alongside the outbox dispatcher
 
 **Acceptance criteria — met**
 
@@ -218,7 +223,7 @@ for the same reason: the workbook it must read was never provided. See
 
 | Item | Estimate |
 | --- | --- |
-| Excel import of the reference workbook — **blocked**: the workbook was never supplied, so its sheet names, header rows and units are unknown | 1 week once the file exists |
+| A pre-canned mapping for the reference workbook — the framework is built; only the template for that one file is missing, because the file was never supplied | an hour of data entry once the file exists |
 | Advanced forecasting: seasonality, weather, cane maturity | 4 weeks |
 | SAPUI5 unit and OPA5 tests | 2 weeks |
 | Operational hardening: partitioning, read replicas, cache tuning, load testing at ten years of data | 2 weeks |
@@ -243,6 +248,9 @@ for the same reason: the workbook it must read was never provided. See
 | Outbox: backoff, exhaustion, rollback, lease, both stores | ✅ passing |
 | Weighbridge and laboratory adapters, including their authorisation | ✅ passing |
 | Certificate of analysis and bill-of-materials consumption | ✅ passing |
+| Spreadsheet reading: separators, serial dates, blank cells, .xlsx | ✅ passing |
+| Import staging, validation, duplicate detection, partial commit | ✅ passing |
+| Alert evaluation, deduplication, inbox addressing | ✅ passing |
 | SAPUI5 unit and OPA5 tests | ⏳ still open |
 | Load and performance at ten years of data | ⏳ still open |
 | Backup and restore rehearsal | ⏳ deployment task; runbook written |

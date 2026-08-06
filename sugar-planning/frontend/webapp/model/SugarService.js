@@ -478,6 +478,20 @@ sap.ui.define([
 		},
 
 		// ------------------------------------------------------------------
+		// Inbox
+		// ------------------------------------------------------------------
+
+		/** listNotifications reads the caller's inbox. The unread count comes
+		 * back with it so the badge cannot disagree with the list. */
+		listNotifications: function (bUnreadOnly) {
+			return this.get("/notifications?$top=100" + (bUnreadOnly ? "&unreadOnly=true" : ""));
+		},
+
+		markNotificationRead: function (sId) {
+			return this.post("/notifications/" + encodeURIComponent(sId) + "/read", null);
+		},
+
+		// ------------------------------------------------------------------
 		// Imports
 		// ------------------------------------------------------------------
 

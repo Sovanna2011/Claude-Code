@@ -43,7 +43,7 @@ reaches for a package-level variable.
 | Store | `internal/store` + `memory`, `postgres` | Persistence, business keys, optimistic concurrency, transactions | Business rules |
 | Service | `internal/service` | Authorisation, validation, orchestration across repositories, transaction boundaries, audit | SQL; HTTP |
 | Transport | `internal/api` | Routing, decoding, problem details, ETags, idempotency, exports | Business rules |
-| Support | `internal/auth`, `config`, `report`, `seed`, `integration`, `jobs` | Token verification, configuration, renderers, demo data, event delivery, the scheduler | Business rules |
+| Support | `internal/auth`, `config`, `report`, `seed`, `integration`, `jobs`, `tabular` | Token verification, configuration, renderers, demo data, event delivery, the scheduler, spreadsheet reading | Business rules |
 
 ### Why two store implementations
 
@@ -109,6 +109,7 @@ sugar-planning/
 │       │   ├── costing.go          # cost model and variance decomposition
 │       │   ├── execution.go        # postings, orders, quality, maintenance
 │       │   ├── integration.go      # topics, the outbox, inbound readings
+│       │   ├── importing.go        # the mapping template and row parsing
 │       │   ├── generator.go        # season plan generation
 │       │   ├── workflow.go         # state machine, locking, permissions
 │       │   └── errors.go           # sentinel errors, field errors
@@ -120,9 +121,11 @@ sugar-planning/
 │       │   └── storetest/          # conformance suite both must pass
 │       ├── service/                # planning, generate, dailyrows, analytics,
 │       │                           # materials, compare, inventory, orders,
-│       │                           # quality, costing, integration
+│       │                           # quality, costing, integration, imports,
+│       │                           # notifications
 │       ├── api/                    # router, handlers, middleware, problem
 │       │                           # details, reports, openapi.yaml
+│       ├── tabular/               # reading .csv and .xlsx into rows of text
 │       ├── integration/            # the publishers events are delivered through
 │       ├── jobs/                   # the in-process scheduler and its lease
 │       ├── auth/                   # principal, roles, OIDC and dev verifiers
@@ -228,3 +231,5 @@ see [05-data-model.md](05-data-model.md) for the trigger point.
 | An event cannot be delivered at all | After 25 attempts it stops being retried and stays in the outbox with its last error, listed under `?exhausted=true`. It is never discarded |
 | Two instances run the dispatcher at once | `SELECT ... FOR UPDATE SKIP LOCKED` gives each instance a disjoint batch, so neither delivers the other's events |
 | A weighbridge terminal resends a batch | The idempotency key replays the first answer; the lorries are not weighed twice |
+| A spreadsheet with a bad row is uploaded | Nothing is written. The file is staged, every row is judged, and the whole file is refused unless the caller asks for the sound rows explicitly |
+| The same alert is true for a fortnight | It is raised once and stays quiet for a day, read or not. An inbox that repeats itself is an inbox nobody reads |

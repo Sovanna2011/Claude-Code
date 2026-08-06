@@ -251,12 +251,24 @@ fake success responses and no unexplained TODOs.
 - Certificate of analysis, and the packaging bill of materials that drives both
   requirement planning and the components a confirmation consumes
 
-**Not built: the Excel migration**
+- The controlled import of section 22: mapping templates, a staging area, a
+  preview with row-level errors, and a commit that goes through the ordinary
+  planning service
+- Background jobs behind a database lease: the outbox dispatcher and the alert
+  evaluation that fills people's inboxes
 
-The importer is the one item of the original scope with nothing behind it. Its
-`import_jobs` table exists; the mapping does not, because the workbook it must
-read was never provided. Writing a column mapping against a file nobody has seen
-would be guesswork dressed as progress.
+**Partly built: the Excel migration**
+
+The framework is here and works: a site defines a mapping template — which
+column holds which field, how the dates and numbers in it are written — uploads a
+`.csv` or `.xlsx`, reads a preview with every problem attached to the line of the
+file it is on, and commits.
+
+What is *not* here is a pre-canned mapping for the reference workbook
+`5_6296369270787941755.xlsx`, because that file was never provided. Its sheet
+names, header rows and units are unknown, and a column mapping written against a
+file nobody has seen would be guesswork dressed as progress. Defining it once the
+workbook exists is a screen's worth of data entry, not a code change.
 
 **Not built: the rest**
 

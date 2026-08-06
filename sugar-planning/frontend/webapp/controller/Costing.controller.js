@@ -1,8 +1,7 @@
 sap.ui.define([
 	"sugarplan/controller/BaseController",
-	"sap/ui/core/Fragment",
 	"sugarplan/model/chart"
-], function (BaseController, Fragment, chart) {
+], function (BaseController, chart) {
 	"use strict";
 
 	/**
@@ -241,28 +240,6 @@ sap.ui.define([
 
 		onNavBack: function () {
 			this.navTo("launchpad");
-		},
-
-		_dialog: function (sName) {
-			this._dialogs = this._dialogs || {};
-			if (this._dialogs[sName]) {
-				return Promise.resolve(this._dialogs[sName]);
-			}
-			var that = this;
-			return Fragment.load({
-				id: this.getView().getId(), name: sName, controller: this
-			}).then(function (oDialog) {
-				that.getView().addDependent(oDialog);
-				that._dialogs[sName] = oDialog;
-				return oDialog;
-			});
-		},
-
-		_closeDialog: function (sName) {
-			if (this._dialogs && this._dialogs[sName]) {
-				this._dialogs[sName].close();
-			}
-			this.setBusy(false);
 		}
 	});
 });

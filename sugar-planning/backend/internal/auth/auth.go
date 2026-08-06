@@ -121,7 +121,28 @@ type Principal struct {
 	Factories []string `json:"factories"`
 
 	permissions map[string]bool
+	// system marks the scheduler's own principal, which is scoped to every
+	// factory because the work it does is not any one factory's. It is set only
+	// by NewSystemPrincipal and is deliberately unexported: a data scope that
+	// could be widened by a JSON field would not be a data scope.
+	system bool
 }
+
+// NewSystemPrincipal is the identity a background job runs as.
+//
+// It is scoped to every factory, because evaluating the alerts of a season
+// nobody is currently signed in to is exactly what a scheduled job is for. It is
+// still given only the roles its own work needs - the dispatcher gets the
+// integration role and nothing more - so "runs as the system" never means "runs
+// as an administrator".
+func NewSystemPrincipal(roles ...string) Principal {
+	p := NewPrincipal("system", "system", "Scheduler", "", roles, nil, nil)
+	p.system = true
+	return p
+}
+
+// IsSystem reports whether this is a background job rather than a person.
+func (p Principal) IsSystem() bool { return p.system }
 
 // NewPrincipal resolves the caller's roles into permissions.
 func NewPrincipal(subject, username, displayName, email string, roles, companies, factories []string) Principal {
@@ -171,8 +192,8 @@ func (p Principal) Require(permission string) error {
 // CanSeeFactory applies the data scope. It fails closed: a caller with no
 // scope at all sees nothing.
 func (p Principal) CanSeeFactory(factoryID string) bool {
-	if factoryID == "" {
-		return true // the request is not factory specific
+	if factoryID == "" || p.system {
+		return true // the request is not factory specific, or this is a job
 	}
 	for _, f := range p.Factories {
 		if f == factoryID {
@@ -184,7 +205,7 @@ func (p Principal) CanSeeFactory(factoryID string) bool {
 
 // CanSeeCompany applies the company-level data scope.
 func (p Principal) CanSeeCompany(companyID string) bool {
-	if companyID == "" {
+	if companyID == "" || p.system {
 		return true
 	}
 	for _, c := range p.Companies {

@@ -67,6 +67,7 @@ in a state it cannot honour.
 | `INTEGRATION_SOURCE` | `sugarplan` | Names this system in the envelope |
 | `INTEGRATION_DISPATCH_INTERVAL` | `30s` | How often the dispatcher runs. `0` switches it off and says so in the log |
 | `INTEGRATION_DISPATCH_BATCH` | `50` | Events per pass |
+| `ALERT_INTERVAL` | `15m` | How often the alerts are evaluated into people's inboxes. `0` switches it off, which leaves alerts on the dashboard reaching nobody — said out loud in the log |
 
 The dispatcher runs inside the server process. Two instances behind a load
 balancer both have one, and each job is taken under a lease in `job_leases`, so
@@ -247,6 +248,7 @@ only real once it has been measured.
 | Unpublished outbox events | older than 15 minutes |
 | Exhausted outbox events | any at all — they have stopped being retried and are waiting for a person (`GET /api/v1/integration/events?exhausted=true`) |
 | Outbox dispatcher | `finishedAt` from `GET /api/v1/integration/jobs` older than three intervals — the scheduler has stopped |
+| Alert evaluation | the same, for the `alert-evaluation` job |
 | Disk | above 80 % on the data volume |
 
 ### Business monitoring

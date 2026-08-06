@@ -1,6 +1,6 @@
 # 5. PostgreSQL data model and data dictionary
 
-68 tables in eight migrations. The migrations under
+70 tables in ten migrations. The migrations under
 `backend/internal/store/postgres/migrations` are the authority; this document
 explains the shape and the reasoning.
 
@@ -126,6 +126,9 @@ retrospectively fail last season's batches.
 `audit_events`, `outbox_events`, `import_jobs`, `export_jobs`, `attachments`,
 `notifications`, `idempotency_keys`.
 
+`notifications.recipient` holds a **role code**, not a username - see migration
+0010.
+
 `app_users` holds **no password hash**. Identity is the provider's job; this
 table holds the subject claim, the display name and what audit attribution
 needs.
@@ -147,6 +150,23 @@ quantity did. Rates are effective dated, so a mid-season fuel price rise does no
 rewrite the cost of the weeks before it. A saved run keeps the rates it used, so
 the figure is reproducible after those rates have moved on.
 
+### Imports (migration 0009, 2 tables)
+
+`import_mappings`, `import_rows`, plus columns on `import_jobs`.
+
+The mapping template is the thing a site gets right once: which column of which
+shape of file holds which field, and how the dates and numbers in it are
+written. Its columns are `jsonb` because that shape *is* the mapping - a list of
+field-to-column pairs that varies per site and per file - and nothing joins to it
+or queries inside it.
+
+`import_rows` is the staging area. A file is never posted as it arrives: it is
+read through its mapping into these rows, validated, shown to somebody, and
+committed only when they say so. The rows are held rather than the file, because
+a file on disk would need a storage layer, a retention policy and a backup of its
+own, while the rows as they were parsed are what a preview shows, what an error
+download lists and what a commit applies.
+
 ### Background jobs (migration 0008, 1 table)
 
 `job_leases`.
@@ -159,6 +179,17 @@ connection, which is right for a lock and wrong for a record of when a job last
 ran and what it said. `expires_at` is what makes a crash recoverable — an
 instance that dies holding the lease blocks its job only until the lease runs
 out.
+
+### The inbox (migration 0010, no new tables)
+
+Adds `factory_id` to `notifications`.
+
+There is no user directory here: identity, roles and data scope all come from the
+token the identity provider issued. So a notification is addressed to a **role at
+a factory** - "the shipment planners at Kampong Speu" - and somebody's inbox is
+what their roles and their scope entitle them to see. It is also the better
+answer operationally: an alert addressed to a person who has left is an alert
+nobody owns.
 
 ---
 

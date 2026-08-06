@@ -312,6 +312,41 @@ type OutboxFilter struct {
 	Top       int
 }
 
+// Notifications is the inbox: alerts that have been raised for a role at a
+// factory, and read by the people who hold that role there.
+type Notifications interface {
+	List(ctx context.Context, f NotificationFilter) (Page[domain.Notification], error)
+	// Save writes one notification, returning it with its id.
+	Save(ctx context.Context, n domain.Notification) (domain.Notification, error)
+	// MarkRead marks one notification read. The reader's roles are part of the
+	// match, so a notification addressed to a role somebody does not hold is
+	// not found rather than forbidden: whose inbox holds what is not a question
+	// this system answers to a caller.
+	MarkRead(ctx context.Context, id string, roles []string, at time.Time) error
+	// Unread counts what is waiting, for the badge in the shell.
+	Unread(ctx context.Context, f NotificationFilter) (int, error)
+	// ExistsSince reports whether an alert has been raised since a moment,
+	// which is what stops the same alert arriving at every tick.
+	//
+	// It counts read notifications too. Reading one means "I know", not "remind
+	// me at the next tick", and an alert that stays true for a fortnight should
+	// not fill an inbox with a fortnight of copies of itself.
+	ExistsSince(ctx context.Context, key string, since time.Time) (bool, error)
+}
+
+// NotificationFilter selects notifications.
+type NotificationFilter struct {
+	// Recipients are the role codes the reader holds. Empty matches nothing:
+	// an inbox is addressed, and a caller with no roles has none.
+	Recipients []string
+	// Factories restricts to the reader's data scope. Empty means every
+	// factory, which is what a caller scoped to a whole company gets.
+	Factories  []string
+	UnreadOnly bool
+	Skip       int
+	Top        int
+}
+
 // Imports is the repository for the mapping templates and the staging area.
 //
 // The rows are held rather than the file. A file kept on disk would need a
@@ -403,6 +438,7 @@ type Store interface {
 	Outbox() Outbox
 	Jobs() Jobs
 	Imports() Imports
+	Notifications() Notifications
 	Audit() Audit
 	Idempotency() Idempotency
 	// InTx runs fn inside a database transaction. Every posting that touches

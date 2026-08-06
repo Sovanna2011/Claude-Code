@@ -391,7 +391,91 @@ those are recorded.
 
 ---
 
-## 7.6 Interfaces
+## 7.6 Imports
+
+| Method | Path | Purpose | Permission |
+| --- | --- | --- | --- |
+| GET | `/import-fields` | What each kind of file may contain | `plan:read` |
+| GET | `/import-mappings` | The mapping templates | `plan:read` |
+| PUT | `/import-mappings` | Create or change a template | `masterdata:write` |
+| POST | `/imports` | Upload a file and stage it | the permission its commit will need |
+| GET | `/imports` | The import history | `plan:read` |
+| GET | `/imports/{id}` | A staged import and its rows | `plan:read` |
+| GET | `/imports/{id}/errors` | The rows that failed, as CSV | `plan:read` |
+| POST | `/imports/{id}/commit` | Write it into the plan | as above |
+| POST | `/imports/{id}/cancel` | Abandon it | `plan:read` |
+
+**A file is never posted as it arrives.** It is read through its mapping,
+staged, validated row by row, shown to somebody, and committed only when they say
+so. An import that wrote straight through would be a way past every rule the rest
+of the system enforces — and the spreadsheet this application replaces is exactly
+where the bad data comes from.
+
+The **mapping template** is master data: which heading holds which field, or
+which position when the sheet has no headings; the date format written as an
+example of 2 January 2006; whether the numbers are `1,234.56` or `1.234,56`.
+Getting that last one wrong turns a thousand tons into one, so it is a setting
+rather than a guess made per cell. A template that could never work — a field
+mapped twice, a required field not mapped, data starting above the headings — is
+refused when it is saved, not when a file is uploaded.
+
+Reading copes with what spreadsheets are really like: a byte order mark,
+thousands separators and non-breaking spaces, accounting parentheses for a
+negative, a currency symbol, a date column formatted as an Excel day serial, a
+blank cell that must hold its place rather than shifting the next column left,
+and a trailing row of nothing. `.xlsx` is read directly; only the first worksheet,
+and that is said rather than left to be discovered.
+
+Three things are reported that are not errors and matter anyway: columns of the
+file the mapping ignores, mapped columns the file does not have — reported even
+when a default covers them, because a renamed column looks exactly like an absent
+one — and rows whose key already exists and would therefore be replaced.
+
+The commit goes through the ordinary planning service, so an imported row meets
+the same validation, period locking, authorisation and audit trail as a row
+somebody types into the grid. The permission the commit will need is checked at
+**upload**, so nobody reads a preview of figures they may not post. The default
+is all or nothing.
+
+The stock ledger imports movements and never balances: the opening and closing
+balances are calculated forward from the movements, and a file that could set
+them would let a spreadsheet contradict the ledger — which is the disagreement
+this application exists to end.
+
+---
+
+## 7.7 Inbox
+
+| Method | Path | Purpose | Permission |
+| --- | --- | --- | --- |
+| GET | `/notifications` | What has been raised for the caller | — |
+| POST | `/notifications/{id}/read` | Mark one read | — |
+| POST | `/notifications/evaluate` | Run the alert evaluation now | `plan:read` |
+
+A notification is addressed to a **role at a factory**, not to a named person.
+There is no user directory here — identity, roles and data scope all come from
+the token — so somebody's inbox is what their roles and their scope entitle them
+to see, and there is no permission for reading anybody else's because there is no
+such thing. A notification addressed to a role the caller does not hold is *not
+found* rather than forbidden.
+
+The distinction from an alert is the point. An alert is calculated: it is true of
+the plan at the moment somebody looks at the dashboard. A notification is a
+record — this was raised, somebody was told, it has or has not been read — and it
+survives the alert ceasing to be true.
+
+An alert already raised within the last day is not raised again. Reading one
+means "I know", not "remind me at the next tick", so the suppression counts read
+notifications too; an alert still true a day later comes back, because one nobody
+acted on should not be forgotten either.
+
+Only warnings and errors are sent. An informational alert belongs on the
+dashboard, and an inbox that fills with them is an inbox nobody reads — which
+costs the warnings that do matter.
+
+---
+
+## 7.8 Interfaces
 
 The two directions are deliberately different in kind. What leaves this system
 goes through an outbox and is delivered asynchronously; what arrives comes in
@@ -481,7 +565,7 @@ enter laboratory readings. It cannot move stock, release a hold or touch a plan.
 
 ---
 
-## 7.7 What the API does not do
+## 7.9 What the API does not do
 
 Worth stating so nobody looks for it:
 

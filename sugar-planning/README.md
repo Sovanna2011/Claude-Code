@@ -87,6 +87,20 @@ twenty-five attempts waits for a person rather than disappearing. Inbound, the
 weighbridge and the laboratory system feed through the ordinary services, so an
 interface cannot reach a verdict a person could not.
 
+**Takes the spreadsheet in, without taking its mistakes.** A site defines a
+mapping template once — which column holds which field, whether the numbers are
+`1,234.56` or `1.234,56`, how the dates are written — then uploads a `.csv` or
+`.xlsx` and reads a preview: what would be written, what would be replaced, and
+every problem attached to the line of the file it is on. Nothing reaches the plan
+until somebody commits, and the commit goes through the same service a planner
+types into.
+
+**Tells somebody.** The alerts are evaluated on a timer, not on a page load: a
+store that fills on 1 January should reach the shipment planner in November, not
+the next time anybody happens to open the dashboard. Notifications are addressed
+to a role at a factory rather than to a named person, so an alert never belongs
+to somebody who has left.
+
 **Answers the capacity question.** When does this store fill? What shipment rate
 prevents it? What does a lower recovery do to the season? Each is a calculation,
 not a guess.
@@ -155,11 +169,12 @@ outbox with its adapters, and the background scheduler.
 Nothing in the delivered scope is a stub. Verified against PostgreSQL 16 and in
 a browser, not only in unit tests.
 
-Two things are deliberately not here. **Excel import of the reference workbook**
-is blocked: the workbook was never supplied, so its sheet names, header rows and
-units are unknown, and guessing at them would produce an importer that fails on
-the real file. **The findings in the reference figures above** await a business
-answer rather than a code change; they are listed at the top of
+Two things are deliberately not here. A **pre-canned mapping for the reference
+workbook**: the import framework is built and works, but that particular file was
+never supplied, so its sheet names, header rows and units are unknown — defining
+the template once it exists is data entry, not a code change. And **the findings
+in the reference figures above**, which await a business answer rather than a
+code change; they are listed at the top of
 [docs/01-assumptions-and-questions.md](docs/01-assumptions-and-questions.md).
 
 See [docs/10-implementation-plan.md](docs/10-implementation-plan.md) for what

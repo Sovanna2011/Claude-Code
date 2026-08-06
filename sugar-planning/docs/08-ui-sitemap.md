@@ -26,6 +26,7 @@ flowchart TD
     H --> R[Reports]
     H --> C[Costing]
     H --> MD[Master data]
+    H --> IM[Import a file]
     H --> I[Interfaces]
     H --> A[Audit trail]
 ```
@@ -245,6 +246,33 @@ server-side builder, so they cannot disagree.
 One generic screen for all fourteen entities. Because every master entity has
 the same API shape, the table is built from a column list per entity and a new
 entity needs no new page.
+
+### Import a file
+
+Three steps, deliberately not one button: choose the mapping, the plan version
+and whether the file holds plan or actual figures; upload; then look at what
+would be written before committing it.
+
+The preview is the screen. Each row shows the line number *in the uploaded
+spreadsheet* — because fixing an import means going to those lines — what will
+happen to it (new, replaces, refused), the values as they were parsed, and the
+problem if there is one. Two message strips carry what did not line up: columns
+the mapping ignores, and mapped columns the file lacks. Those two are the first
+thing to check when an import produced nothing.
+
+The version list is narrowed by the series, so a plan file cannot be pointed at
+the actuals container or the other way round: that is a mistake worth making
+impossible rather than validating. Refused rows download as a CSV to open beside
+the original.
+
+### The inbox
+
+A bell in the shell header with the unread count, opening a dialog rather than a
+page: an inbox is read in the middle of doing something else, and navigating away
+from a half-finished screen to look at it would be the wrong trade.
+
+Unread items carry the weight; read ones stay, dimmed, because the inbox is an
+account of what happened rather than a queue that empties.
 
 ### Interfaces
 

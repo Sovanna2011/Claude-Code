@@ -66,6 +66,10 @@ tags:
     description: Planned outages, which remove crushing days once approved.
   - name: Costing
     description: Cost structure, rates, and what a ton of sugar costs.
+  - name: Inbox
+    description: |
+      Alerts that have been raised for the roles the caller holds, at the
+      factories they may see.
   - name: Imports
     description: |
       The controlled import: mapping templates, a staging area, a preview with
@@ -1243,6 +1247,103 @@ paths:
               schema: { $ref: "#/components/schemas/CostRun" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+
+  /notifications:
+    get:
+      tags: [Inbox]
+      summary: The caller's inbox
+      description: |
+        A notification is addressed to a **role at a factory**, not to a named
+        person: there is no user directory here, and identity, roles and data
+        scope all come from the token. So somebody's inbox is what their roles
+        and their scope entitle them to see - and an alert addressed to a person
+        who has left is an alert nobody owns.
+
+        The distinction from an alert matters. An alert is calculated: it is true
+        of the plan at the moment somebody looks at the dashboard. A notification
+        is a record - this was raised, somebody was told, it has or has not been
+        read - and it survives the alert ceasing to be true, which is what makes
+        an inbox an account of what happened rather than a second dashboard.
+
+        The unread count comes back with the list, so the badge in the shell is
+        right without a second request.
+      operationId: listNotifications
+      parameters:
+        - name: unreadOnly
+          in: query
+          schema: { type: boolean }
+        - $ref: "#/components/parameters/Top"
+        - $ref: "#/components/parameters/Skip"
+      responses:
+        "200":
+          description: The notifications, newest first, with the unread count.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value:
+                        type: array
+                        items: { $ref: "#/components/schemas/Notification" }
+                      unread: { type: integer }
+
+  /notifications/{id}/read:
+    post:
+      tags: [Inbox]
+      summary: Mark one read
+      description: |
+        A notification is read once, by whoever gets to it first: it is addressed
+        to a role, and the point of that is that somebody deals with it - not
+        that everyone holding the role ticks it off separately.
+
+        A notification addressed to a role the caller does not hold is **not
+        found** rather than forbidden: whose inbox holds what is not a question
+        this system answers to a caller.
+      operationId: markNotificationRead
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: The caller's new unread count.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  unread: { type: integer }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /notifications/evaluate:
+    post:
+      tags: [Inbox]
+      summary: Evaluate the alerts now
+      description: |
+        Requires `plan:read`. Calculates the alerts for every open season and
+        puts the new ones in the right inboxes, exactly as the scheduled job
+        does. It is here so that somebody who has just fixed a plan can see the
+        effect without waiting for the next tick.
+
+        An alert already sitting unread in an inbox is not raised again - that is
+        what `suppressed` counts, and without it every tick would repeat the same
+        warning until nobody read any of them.
+      operationId: evaluateAlerts
+      responses:
+        "200":
+          description: What the pass did.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  seasons: { type: integer }
+                  alerts: { type: integer }
+                  raised: { type: integer }
+                  suppressed:
+                    type: integer
+                    description: Alerts already waiting unread, so not raised again.
+        "403": { $ref: "#/components/responses/Forbidden" }
 
   /import-fields:
     get:
@@ -3737,6 +3838,27 @@ components:
           type: array
           description: Parameter codes with no specification in force.
           items: { type: string }
+
+    Notification:
+      type: object
+      description: An alert that has been raised for a role at a factory.
+      properties:
+        id: { type: string, format: uuid }
+        recipient:
+          type: string
+          description: A role code, not a person.
+        factoryId: { type: string, format: uuid }
+        severity: { type: string, enum: [INFO, SUCCESS, WARNING, ERROR] }
+        code: { type: string }
+        title: { type: string }
+        detail: { type: string }
+        entity: { type: string }
+        entityId: { type: string }
+        readAt:
+          type: string
+          format: date-time
+          description: Absent while it is still waiting.
+        createdAt: { type: string, format: date-time }
 
     ImportKind:
       type: string
