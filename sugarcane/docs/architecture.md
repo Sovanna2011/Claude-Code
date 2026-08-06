@@ -103,7 +103,14 @@ the body back into `ApiException` so screens can show the real reason.
 **Authorization.** Ten roles and seventeen policies (`perm:view`, `perm:approve`,
 `perm:override-dependency`, …). `Policies.RoleMap` in `Contracts` is the single source of
 truth, used to register the ASP.NET Core policies, to answer `ICurrentUser.HasPolicy` inside
-services, and to drive what the Blazor client offers.
+services, and — because `Contracts` is shared verbatim — to filter the Blazor navigation from
+the same map, so the menu and the endpoint cannot disagree about who may open a screen.
+
+The client is a convenience, never the control: it hides what a role cannot use, and the API
+refuses it regardless. Note that the menu is filtered but the per-screen action buttons are not
+— a Report Viewer opening *Approvals & revisions* still sees Approve and Reject, and learns
+they are refused only when the API answers 403. Gating those controls is worth doing; the
+security boundary does not depend on it.
 
 All 123 endpoints declare the permission they need as an attribute, and `AuthorizationTests`
 enforces that by reflection: an action that forgets its attribute is authenticated-only, so any

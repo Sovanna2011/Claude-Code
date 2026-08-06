@@ -1,12 +1,22 @@
 @*
-    The 18 screens of section 19, grouped the way a planner works: master data first,
+    The screens of section 19, grouped the way a planner works: master data first,
     then planning, then resources, then analysis and administration.
+
+    Each entry carries the permission its screens need, and the menu shows only what the
+    signed-in user's roles actually allow. The API refuses the rest regardless — this is so a
+    Report Viewer is not offered "Users & roles" and sent to a 403 to find out.
 *@
+@using System.Security.Claims
+@using SugarcanePlanning.Contracts.Auth
+
 <nav class="nav flex-column p-2">
     @foreach (var group in Groups)
     {
+        var visible = group.Items.Where(Allowed).ToArray();
+        if (visible.Length == 0) { continue; }
+
         <div class="text-uppercase small fw-semibold text-secondary px-2 pt-3 pb-1">@group.Title</div>
-        @foreach (var item in group.Items)
+        @foreach (var item in visible)
         {
             <NavLink class="nav-link px-2 py-1 rounded" href="@item.Href"
                      Match="@(item.Href == "" ? NavLinkMatch.All : NavLinkMatch.Prefix)"
@@ -20,44 +30,72 @@
 @code {
     [Parameter] public EventCallback OnNavigate { get; set; }
 
-    private record NavItem(string Label, string Href, string Icon);
+    /// <summary>Supplied by <c>CascadingAuthenticationState</c>, so the menu re-renders on sign-in and sign-out.</summary>
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private ClaimsPrincipal? _user;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (AuthenticationStateTask is not null)
+        {
+            _user = (await AuthenticationStateTask).User;
+        }
+    }
+
+    /// <summary>
+    /// <c>Policies.RoleMap</c> in Contracts is the same map the API registers its policies from,
+    /// so the menu and the endpoint can never disagree about who may see a screen.
+    /// </summary>
+    private bool Allowed(NavItem item)
+    {
+        if (_user?.Identity?.IsAuthenticated != true) { return false; }
+        if (!Policies.RoleMap.TryGetValue(item.Policy, out var roles)) { return false; }
+        return roles.Any(_user.IsInRole);
+    }
+
+    private record NavItem(string Label, string Href, string Icon, string Policy);
     private record NavGroup(string Title, NavItem[] Items);
 
     private static readonly NavGroup[] Groups =
     {
         new("Overview", new[]
         {
-            new NavItem("Dashboard", "", "📊")
+            new NavItem("Dashboard", "", "📊", Policies.View)
         }),
         new("Master data", new[]
         {
-            new NavItem("Enterprise & land", "land-structure", "🏢"),
-            new NavItem("Growing seasons", "seasons", "🗓"),
-            new NavItem("Sugarcane varieties", "varieties", "🌾"),
-            new NavItem("Plantation blocks", "blocks", "🟩"),
-            new NavItem("Activities & dependencies", "activities", "🧩"),
-            new NavItem("Tractors", "tractors", "🚜"),
-            new NavItem("Equipment & compatibility", "equipment", "⚙"),
-            new NavItem("Materials & standards", "materials", "🧪"),
-            new NavItem("Operators & work teams", "workforce", "👷")
+            new NavItem("Enterprise & land", "land-structure", "🏢", Policies.View),
+            new NavItem("Growing seasons", "seasons", "🗓", Policies.View),
+            new NavItem("Sugarcane varieties", "varieties", "🌾", Policies.View),
+            new NavItem("Plantation blocks", "blocks", "🟩", Policies.View),
+            new NavItem("Activities & dependencies", "activities", "🧩", Policies.View),
+            new NavItem("Tractors", "tractors", "🚜", Policies.View),
+            new NavItem("Equipment & compatibility", "equipment", "⚙", Policies.View),
+            new NavItem("Materials & standards", "materials", "🧪", Policies.View),
+            new NavItem("Operators & work teams", "workforce", "👷", Policies.View)
         }),
         new("Planning", new[]
         {
-            new NavItem("Planting projections", "projections", "📋"),
-            new NavItem("Monthly / weekly plan", "period-plan", "📆"),
-            new NavItem("Activity plan & Gantt", "activity-plan", "📈"),
-            new NavItem("Resource scheduling", "scheduling", "🗂"),
-            new NavItem("Material requirements", "material-requirements", "📦"),
-            new NavItem("Fuel & labor projection", "fuel-labor", "⛽")
+            new NavItem("Planting projections", "projections", "📋", Policies.View),
+            new NavItem("Monthly / weekly plan", "period-plan", "📆", Policies.View),
+            new NavItem("Activity plan & Gantt", "activity-plan", "📈", Policies.View),
+            new NavItem("Resource scheduling", "scheduling", "🗂", Policies.View),
+            new NavItem("Material requirements", "material-requirements", "📦", Policies.View),
+            new NavItem("Fuel & labor projection", "fuel-labor", "⛽", Policies.View)
         }),
         new("Analysis", new[]
         {
-            new NavItem("Capacity & scenarios", "capacity", "⚖"),
-            new NavItem("Approvals & revisions", "approvals", "✅"),
-            new NavItem("Projection vs actual", "projection-vs-actual", "🎯"),
-            new NavItem("Reports", "reports", "🖨"),
-            new NavItem("Audit log", "audit", "🔍"),
-            new NavItem("Users & roles", "users", "🔐")
+            new NavItem("Capacity & scenarios", "capacity", "⚖", Policies.View),
+            new NavItem("Approvals & revisions", "approvals", "✅", Policies.View),
+            new NavItem("Projection vs actual", "projection-vs-actual", "🎯", Policies.View),
+            new NavItem("Reports", "reports", "🖨", Policies.View)
+        }),
+        new("Administration", new[]
+        {
+            // Both endpoints require perm:administer, so only the System Administrator is offered them.
+            new NavItem("Audit log", "audit", "🔍", Policies.Administer),
+            new NavItem("Users & roles", "users", "🔐", Policies.Administer)
         })
     };
 }
