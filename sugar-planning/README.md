@@ -49,6 +49,18 @@ does not double it.
 ./demo.sh --plan-only              # the plan without the factory life
 ```
 
+And to check the system rather than show it:
+
+```bash
+./test-system.sh                   # two tenants, the suites, and section 27
+./test-system.sh --postgres "$DSN" # plus the backup and restore drill
+```
+
+That boots a second company at a second factory, narrows every account to one of
+them, and drives the eleven acceptance criteria over HTTP against the running
+instance — printing pass or fail per criterion.
+[What it covers, and what it found](docs/12-test-system.md).
+
 The accounts show the role model, and the difference between them is enforced by
 the server rather than hidden by the screen: `approver` can release a plan and
 `planner` cannot; `warehouse` posts stock and cannot touch the plan; `auditor`
@@ -149,6 +161,7 @@ periods are locked, and the trail is append-only.
 | [9. Workflow diagrams](docs/09-workflow-diagrams.md) | State machines and transitions |
 | [10. Implementation plan](docs/10-implementation-plan.md) | Phases, status, acceptance criteria |
 | [11. Demonstration scenario](docs/11-demonstration-scenario.md) | What `./demo.sh` loads, and a walkthrough of it |
+| [12. Test system](docs/12-test-system.md) | The second tenant, the acceptance harness, and what running it found |
 | [Runbook](docs/runbook.md) | Environment variables, deployment, backup and restore, troubleshooting |
 
 The API contract is `backend/internal/api/openapi.yaml`, served live at
@@ -175,8 +188,16 @@ go test ./...                                              # unit and service
 TEST_DATABASE_URL=postgres://… go test ./...               # plus PostgreSQL integration
 ```
 
+```bash
+./test-system.sh                                           # section 27, over HTTP
+```
+
 The store conformance suite runs against **both** the in-memory and the
-PostgreSQL implementations, so the two cannot drift apart. The reference
+PostgreSQL implementations, so the two cannot drift apart. Above them,
+`test-system.sh` boots a real instance with two tenants in it and checks the
+acceptance criteria over the wire — which is where a route that is registered
+but not wired, or a query that works in memory and fails on PostgreSQL, actually
+shows up. The reference
 reconciliation figures from the specification are assertions, not comments:
 2,300,000 × 11.00 % = 253,000 t; capacities 45,000 + 65,000 = 110,000 t and
 22,000 + 47,000 = 69,000 t; finished goods 106,700 + 133,400 + 2,000 =

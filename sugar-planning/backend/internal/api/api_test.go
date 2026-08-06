@@ -408,6 +408,50 @@ func TestReportCatalogueMatchesTheImplementedReports(t *testing.T) {
 	}
 }
 
+// The catalogue is per caller, not one list with a rule for reading it.
+//
+// This is here because the acceptance harness found the alternative running:
+// the packaging requirement report needs materials:read, which only the planner
+// holds, and it was on every role's Reports page answering 403 to all of them. A
+// menu that offers something it will refuse is worse than one that does not
+// offer it.
+func TestTheReportCatalogueOffersNothingItWillRefuse(t *testing.T) {
+	ts := newTestServer(t)
+	params := "?versionId=" + ts.versionID() + "&seasonId=" + ts.seeded.SeasonID
+
+	for _, user := range []string{"planner", "executive", "keeper", "auditor"} {
+		rec := ts.do(t, user, http.MethodGet, "/api/v1/reports", nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("catalogue as %s = %d", user, rec.Code)
+		}
+		var body struct {
+			Value []struct {
+				Code string `json:"code"`
+			} `json:"value"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+			t.Fatalf("decode catalogue as %s: %v", user, err)
+		}
+		if len(body.Value) == 0 {
+			t.Fatalf("%s is offered no reports at all", user)
+		}
+		for _, def := range body.Value {
+			rec := ts.do(t, user, http.MethodGet, "/api/v1/reports/"+def.Code+params, nil)
+			if rec.Code == http.StatusForbidden {
+				t.Errorf("%s is offered %s and refused it: %s", user, def.Code, rec.Body)
+			}
+		}
+	}
+
+	// And the other half. Leaving a report off somebody's catalogue is a
+	// courtesy; the refusal when they name it directly is the control.
+	rec := ts.do(t, "executive", http.MethodGet, "/api/v1/reports/material-requirements"+params, nil)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("an executive viewer naming the packaging requirement report directly = %d, "+
+			"want 403", rec.Code)
+	}
+}
+
 func TestExportFormats(t *testing.T) {
 	ts := newTestServer(t)
 	base := "/api/v1/reports/daily-plan?versionId=" + ts.versionID() +

@@ -28,7 +28,21 @@ func (w *factWhere) addIn(col string, values []string) {
 	if len(values) == 0 {
 		return
 	}
-	w.args = append(w.args, values)
+	// A blank id is not a uuid, and PostgreSQL says so with a 22P02 rather than
+	// returning nothing. Drop the blanks; if that empties the list, match
+	// nothing rather than everything, because a filter that was asked for and
+	// cannot be applied must not quietly widen the query.
+	wanted := make([]string, 0, len(values))
+	for _, v := range values {
+		if v != "" {
+			wanted = append(wanted, v)
+		}
+	}
+	if len(wanted) == 0 {
+		w.clauses = append(w.clauses, "false")
+		return
+	}
+	w.args = append(w.args, wanted)
 	w.clauses = append(w.clauses, fmt.Sprintf("%s = ANY($%d)", col, len(w.args)))
 }
 

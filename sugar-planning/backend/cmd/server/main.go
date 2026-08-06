@@ -23,6 +23,7 @@ import (
 	"github.com/kss/sugarplan/internal/api"
 	"github.com/kss/sugarplan/internal/auth"
 	"github.com/kss/sugarplan/internal/config"
+	"github.com/kss/sugarplan/internal/domain"
 	"github.com/kss/sugarplan/internal/integration"
 	"github.com/kss/sugarplan/internal/jobs"
 	"github.com/kss/sugarplan/internal/seed"
@@ -123,6 +124,24 @@ func run() error {
 				"season", res.SeasonID, "version", res.BudgetID,
 				"caneTons", res.Generated.Summary.CaneAllocated.String(),
 				"days", res.Generated.Summary.WorkingDays)
+		}
+
+		if cfg.SeedTenants {
+			// The test system. A second mill with its own season, so that data
+			// scope is a claim two real tenants can be held to rather than one
+			// checked against a factory that does not exist.
+			second, err := seed.LoadSecondTenant(ctx, st, planning)
+			if err != nil {
+				return fmt.Errorf("seed the second tenant: %w", err)
+			}
+			logger.Info("second tenant ready",
+				"company", seed.SecondCompanyCode, "factory", seed.SecondFactoryCode,
+				"season", second.SeasonID,
+				"caneTons", second.Generated.Summary.CaneAllocated.String(),
+				"days", second.Generated.Summary.WorkingDays)
+			if cfg.Auth.Mode == "dev" {
+				partitionDevUsers(cfg.Auth.DevUsers)
+			}
 		}
 	}
 
@@ -302,6 +321,11 @@ func startJobs(ctx context.Context, cfg config.Config, st store.Store,
 // scopeDevUsers gives every demonstration account access to the companies and
 // factories that exist in this sandbox. It runs only in dev mode; production
 // scopes come from the identity provider's token claims.
+//
+// An account that names a home factory is scoped to that factory and its
+// company alone. That is how the test profile makes data scope testable: with
+// one tenant every account can be given everything and nothing is lost, but
+// once a second mill exists an account that can read both proves nothing.
 func scopeDevUsers(ctx context.Context, st store.Store, users map[string]auth.DevUser) error {
 	companies, err := st.MasterData().Companies().List(ctx, store.ListOptions{Top: 1000})
 	if err != nil {
@@ -316,14 +340,51 @@ func scopeDevUsers(ctx context.Context, st store.Store, users map[string]auth.De
 		companyIDs = append(companyIDs, c.ID)
 	}
 	factoryIDs := make([]string, 0, len(factories.Items))
+	byCode := map[string]domain.Factory{}
 	for _, f := range factories.Items {
 		factoryIDs = append(factoryIDs, f.ID)
+		byCode[f.Code] = f
 	}
 	for name, u := range users {
-		u.Companies, u.Factories = companyIDs, factoryIDs
+		if u.HomeFactory == "" {
+			u.Companies, u.Factories = companyIDs, factoryIDs
+			users[name] = u
+			continue
+		}
+		home, ok := byCode[u.HomeFactory]
+		if !ok {
+			// Fail closed and say so. Silently widening the account to every
+			// factory would turn a typo into a scope leak.
+			return fmt.Errorf("development account %q names factory %q, which does not exist",
+				name, u.HomeFactory)
+		}
+		u.Companies, u.Factories = []string{home.CompanyID}, []string{home.ID}
 		users[name] = u
 	}
 	return nil
+}
+
+// partitionDevUsers narrows every development account to one mill and adds the
+// second tenant's own accounts.
+//
+// It runs only under the test profile. Until a second tenant exists there is
+// nothing to keep an account out of, and the demonstration is better served by
+// accounts that can see everything in front of them.
+func partitionDevUsers(users map[string]auth.DevUser) {
+	for name, u := range users {
+		if u.HomeFactory == "" {
+			u.HomeFactory = seed.FactoryCode
+			users[name] = u
+		}
+	}
+	users["btb-planner"] = auth.DevUser{
+		DisplayName: "Rin Planner (Battambang)", Email: "btb-planner@example.com",
+		Roles: []string{auth.RoleProductionPlanner}, HomeFactory: seed.SecondFactoryCode,
+	}
+	users["btb-warehouse"] = auth.DevUser{
+		DisplayName: "Sreypov Warehouse (Battambang)", Email: "btb-warehouse@example.com",
+		Roles: []string{auth.RoleWarehouseOperator}, HomeFactory: seed.SecondFactoryCode,
+	}
 }
 
 // openStore builds the configured store, running migrations first when asked.

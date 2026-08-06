@@ -38,6 +38,13 @@ type Result struct {
 // Actor is the user recorded against seeded rows.
 const Actor = "seed"
 
+// The business keys of the reference scenario, so that code outside this
+// package can name the company and the factory without holding an id.
+const (
+	CompanyCode = "KSS"
+	FactoryCode = "F1"
+)
+
 // seedPrincipal has every permission needed to build the scenario. It exists
 // only inside the seeding process and is never exposed as a login.
 func seedPrincipal(companyID, factoryID string) auth.Principal {
@@ -62,8 +69,8 @@ func Load(ctx context.Context, s store.Store, planning *service.Planning) (Resul
 	md := s.MasterData()
 
 	// --- organisation -------------------------------------------------------
-	company, err := upsert(ctx, md.Companies(), "KSS", domain.Company{
-		Code: "KSS", Name: "Kampong Speu Sugar Co., Ltd.", Currency: "USD",
+	company, err := upsert(ctx, md.Companies(), CompanyCode, domain.Company{
+		Code: CompanyCode, Name: "Kampong Speu Sugar Co., Ltd.", Currency: "USD",
 		TimeZone: "Asia/Phnom_Penh", Validity: active(),
 	})
 	if err != nil {
@@ -71,8 +78,8 @@ func Load(ctx context.Context, s store.Store, planning *service.Planning) (Resul
 	}
 	res.CompanyID = company.ID
 
-	factory, err := upsert(ctx, md.Factories(), "F1", domain.Factory{
-		CompanyID: company.ID, Code: "F1", Name: "Factory 1 - Kampong Speu",
+	factory, err := upsert(ctx, md.Factories(), FactoryCode, domain.Factory{
+		CompanyID: company.ID, Code: FactoryCode, Name: "Factory 1 - Kampong Speu",
 		TimeZone: "Asia/Phnom_Penh", Validity: active(),
 	})
 	if err != nil {

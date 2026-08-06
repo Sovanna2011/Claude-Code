@@ -258,6 +258,49 @@ asserting the decisions rather than the pixels.
 
 ---
 
+## Phase 7 — the test system ✅ delivered
+
+A demonstration shows the system. This checks it.
+
+Two things were missing. There was no harness that drove a **running** instance:
+every test in the repository ran the handler in-process, which cannot find a
+route that is registered and not wired, or a query that works against the
+in-memory store and fails against PostgreSQL. And the seed created one company
+at one factory, so the most security-relevant claim the system makes — that two
+tenants are kept apart — could only be checked against a factory that did not
+exist, which proves a caller scoped to nothing sees nothing and nothing else.
+
+So: `SEED_TENANTS=true` adds Battambang Cane Millers at a second factory with a
+season and figures of its own, and narrows every development account to one mill
+or the other. `backend/cmd/acceptance` drives a running instance over HTTP
+against all eleven of section 27's criteria and exits non-zero on failure.
+`./test-system.sh` boots the instance, runs the suites and the vulnerability
+check around it, and — against PostgreSQL — dumps, restores into a scratch
+database and compares the row counts. CI runs the whole thing on every push.
+
+[12-test-system.md](12-test-system.md) has the coverage table and the honest
+list of what it does *not* check.
+
+**What the first two runs found**, none of it caught by the unit tests:
+
+| Found | Fix |
+| --- | --- |
+| The Reports page offered the packaging requirement report to every role and answered 403 to all but the planner — it needs `materials:read` | The catalogue is built per caller, and naming the report directly is still refused |
+| A report asked for by season with no version named returned an empty table in memory and a **500 on an invalid uuid** against PostgreSQL | A season resolves to its plan version the way the dashboard does; a blank id in a filter now matches nothing rather than raising |
+| The second tenant could not generate a plan at all — the seed omitted a required assumption | Added, in the first second of the first run |
+| The restore drill passed while doing nothing: it counted a table that does not exist, both counts came back empty, and two empty strings compared equal | The counts must be numbers, across three tables |
+
+**Acceptance criteria — met**
+
+- All eleven criteria pass against PostgreSQL 16 and against the in-memory store
+- Neither tenant can read, or write into, the other — by list, by id, over plans,
+  dashboards, stock and postings
+- The harness refuses to run where the development login is off
+- Running it twice against the same instance passes twice
+- The reference figures are the same after a run as before one
+
+---
+
 ## Still open
 
 | Item | Estimate |
@@ -323,9 +366,11 @@ container restart tripled the stoppages and the orders.
 | Saved views: ownership, sharing, defaults, both stores | ✅ passing |
 | Metrics: route labelling, no business data in the exposition | ✅ passing |
 | The demonstration scenario: contents, idempotency, reconciliation with the dashboard | ✅ passing |
+| The second tenant: its own plan, isolation both ways, idempotency | ✅ passing |
+| Section 27 against a running instance (`./test-system.sh`, 61 checks) | ✅ passing, in memory and against PostgreSQL 16 |
+| Backup and restore rehearsal | ✅ run by `./test-system.sh --postgres`: dump, readability check, restore into a scratch database, row counts compared |
 | OPA5 end-to-end journeys in a browser | ⏳ still open |
 | Load and performance at ten years of data | ⏳ still open |
-| Backup and restore rehearsal | ⏳ deployment task; runbook written |
 
 ---
 

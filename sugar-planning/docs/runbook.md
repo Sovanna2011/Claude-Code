@@ -81,6 +81,7 @@ its job only until the lease expires, not until somebody notices.
 | `SEED_DEMO` | `false` | Loads the Kampong Speu scenario. Refused in production |
 | `SEED_ACTUAL_DAYS` | `14` | Days of demonstration actuals |
 | `SEED_EXECUTION` | `true` | Also plays a fortnight of factory life through the plan: stoppages, orders, stock movements, laboratory results, a cost run and the alerts they raise. Only read when `SEED_DEMO` is on. Idempotent: a restart finds the data and leaves it alone |
+| `SEED_TENANTS` | `false` | Adds a second company and factory with a season of its own, and narrows every development account to one of the two, so that data scope can be tested between two real tenants. Needs `SEED_DEMO`. Refused in production. This is the test profile, not the demonstration - see [12-test-system.md](12-test-system.md) |
 
 ---
 
@@ -356,6 +357,8 @@ Read the message: configuration validation lists every problem at once.
 | `DATABASE_URL is required when STORE=postgres` | Not set |
 | `AUTH_MODE must be oidc when APP_ENV=production` | The development sign-in was left enabled |
 | `SEED_DEMO must be off when APP_ENV=production` | Demonstration data was left enabled |
+| `SEED_TENANTS must be off when APP_ENV=production` | The test profile was left enabled |
+| `SEED_TENANTS needs SEED_DEMO=true` | The second tenant is added to the reference scenario, not instead of it |
 | `AUTH_DEV_SECRET must be at least 16 characters` | Too short |
 | `read openid configuration: …` | The issuer URL is wrong or unreachable |
 | `FACTORY_TIMEZONE … is not a known IANA time zone` | A typo, or `tzdata` is missing from the image |

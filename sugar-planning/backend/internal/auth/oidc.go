@@ -53,6 +53,13 @@ type DevUser struct {
 	Roles       []string `json:"roles"`
 	Companies   []string `json:"companies"`
 	Factories   []string `json:"factories"`
+	// HomeFactory is the code of the factory this account belongs to. It is
+	// used only when the sandbox holds more than one tenant: the start-up code
+	// resolves it to a company and a factory id and scopes the account to those
+	// alone, so that "a planner at one mill cannot read another mill's plan" is
+	// a claim two real tenants can be held to. Empty means the account is
+	// scoped to everything in the sandbox, which is the single-tenant default.
+	HomeFactory string `json:"homeFactory,omitempty"`
 }
 
 // claims is the subset of the token this application reads.

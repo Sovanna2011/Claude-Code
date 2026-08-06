@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -555,5 +556,41 @@ func TestTheDowntimeParetoReachesTheDashboard(t *testing.T) {
 	last := byReason[len(byReason)-1].(map[string]any)
 	if last["cumulativeSharePct"] != "100" {
 		t.Errorf("the cumulative share must reach 100, got %v", last["cumulativeSharePct"])
+	}
+}
+
+// A report asked for by season, with no version named, must resolve one.
+//
+// This is here because the acceptance harness found what happened when it did
+// not: half the catalogue reads daily rows for a version id, and an empty one
+// produced a silently empty report against the in-memory store and a 500 on an
+// invalid uuid against PostgreSQL. Two different wrong answers to the same
+// reasonable question.
+func TestAReportAskedForBySeasonResolvesItsVersion(t *testing.T) {
+	ts := newTestServer(t)
+	query := "?seasonId=" + ts.seeded.SeasonID
+
+	for _, code := range []string{"daily-plan", "cane-crushing", "packing",
+		"stock-ledger", "remelt-refining", "approval-history"} {
+		rec := ts.do(t, "planner", http.MethodGet, "/api/v1/reports/"+code+query, nil)
+		if rec.Code != http.StatusOK {
+			t.Errorf("%s by season = %d (%s)", code, rec.Code, rec.Body)
+			continue
+		}
+		body := decode(t, rec)
+		// The header has to name the version the figures came from, or a
+		// report run by season is a page nobody can trace back to a plan.
+		named := false
+		for _, line := range body["metadata"].([]any) {
+			if strings.Contains(fmt.Sprint(line), "V1") {
+				named = true
+			}
+		}
+		if !named {
+			t.Errorf("%s does not name the version it reported on: %v", code, body["metadata"])
+		}
+		if rows, ok := body["rows"].([]any); !ok || len(rows) == 0 {
+			t.Errorf("%s by season has no rows; the season has a released plan in it", code)
+		}
 	}
 }

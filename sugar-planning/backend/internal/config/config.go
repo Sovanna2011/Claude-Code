@@ -52,6 +52,14 @@ type Config struct {
 	// the alerts they raise. Without it the execution screens are empty, which
 	// demonstrates the planning half of the system and none of the rest.
 	SeedExecution bool
+	// SeedTenants adds a second company and factory with a season of its own.
+	// It exists for the test system rather than the demonstration: with one
+	// tenant, "a planner at Kampong Speu cannot see another factory's plan" can
+	// only be checked against a factory that does not exist, which proves a
+	// caller scoped to nothing sees nothing and says nothing about whether two
+	// real tenants are kept apart. It also narrows every development account to
+	// its own factory, so the isolation is testable from both sides.
+	SeedTenants bool
 
 	// Integration configures the outbound interface. With no endpoint set the
 	// dispatcher publishes to the application log, which is a real destination
@@ -103,6 +111,7 @@ func Load() (Config, error) {
 		SeedDemo:       envBool("SEED_DEMO", false),
 		SeedActualDays: envInt("SEED_ACTUAL_DAYS", 14),
 		SeedExecution:  envBool("SEED_EXECUTION", true),
+		SeedTenants:    envBool("SEED_TENANTS", false),
 
 		IntegrationEndpoint:   env("INTEGRATION_ENDPOINT", ""),
 		IntegrationAuthHeader: env("INTEGRATION_AUTH_HEADER", ""),
@@ -190,6 +199,17 @@ func (c Config) Validate() error {
 		if c.SeedDemo {
 			problems = append(problems, "SEED_DEMO must be off when APP_ENV=production")
 		}
+		if c.SeedTenants {
+			problems = append(problems, "SEED_TENANTS must be off when APP_ENV=production")
+		}
+	}
+	// The second tenant is built on top of the reference scenario - it reuses
+	// the shared products, units and packaging - so asking for it without the
+	// scenario is a request the system cannot honour. Said out loud rather
+	// than half-performed.
+	if c.SeedTenants && !c.SeedDemo {
+		problems = append(problems, "SEED_TENANTS needs SEED_DEMO=true; the second tenant "+
+			"is added to the reference scenario, not instead of it")
 	}
 
 	if len(problems) > 0 {

@@ -21,6 +21,17 @@ type reportDef struct {
 	Description string   `json:"description"`
 	Parameters  []string `json:"parameters"`
 	Formats     []string `json:"formats"`
+	// Needs is a permission the report requires beyond report:read, because the
+	// data it reaches is guarded in its own right. It is not serialised: what
+	// the caller gets is a catalogue with the reports they cannot run left out,
+	// rather than a list and a rule for reading it.
+	//
+	// This exists because the acceptance harness found the alternative. Every
+	// role but the planner holds report:read and not materials:read, so the
+	// packaging requirement appeared on everybody's Reports page and answered
+	// 403 to all of them. A menu that offers something it will refuse is worse
+	// than one that does not offer it.
+	Needs string `json:"-"`
 }
 
 // reportCatalogue is the list the Reports page renders. Each entry maps to a
@@ -65,7 +76,8 @@ var reportCatalogue = []reportDef{
 		Parameters:  []string{"seasonId", "versionId", "from", "to"}, Formats: []string{"csv", "xlsx", "pdf"}},
 	{Code: "material-requirements", Title: "Packaging material requirement and shortage",
 		Description: "Gross requirement, cover and purchase requirement per packaging material.",
-		Parameters:  []string{"versionId"}, Formats: []string{"csv", "xlsx", "pdf"}},
+		Parameters:  []string{"versionId"}, Formats: []string{"csv", "xlsx", "pdf"},
+		Needs: domain.PermMaterialsRead},
 	{Code: "season-summary", Title: "Seasonal production summary",
 		Description: "Season totals for cane, raw sugar, finished goods and shipment against plan.",
 		Parameters:  []string{"seasonId", "versionId"}, Formats: []string{"csv", "xlsx", "pdf"}},
@@ -79,7 +91,15 @@ func (s *Server) handleListReports(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, err)
 		return
 	}
-	writeJSON(w, pageResponse[reportDef]{Value: reportCatalogue, Count: len(reportCatalogue)})
+	caller := auth.FromContext(r.Context())
+	visible := make([]reportDef, 0, len(reportCatalogue))
+	for _, def := range reportCatalogue {
+		if def.Needs != "" && !caller.Can(def.Needs) {
+			continue
+		}
+		visible = append(visible, def)
+	}
+	writeJSON(w, pageResponse[reportDef]{Value: visible, Count: len(visible)})
 }
 
 // handleRunReport builds the report and renders it in the requested format.
@@ -89,6 +109,16 @@ func (s *Server) handleRunReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	code := r.PathValue("code")
+	// A report left out of the caller's catalogue is refused here too. Hiding
+	// it from the list is a courtesy; this is the control.
+	for _, def := range reportCatalogue {
+		if def.Code == code && def.Needs != "" {
+			if err := requirePermission(r, def.Needs); err != nil {
+				writeProblem(w, r, err)
+				return
+			}
+		}
+	}
 	format := strings.ToLower(r.URL.Query().Get("format"))
 	if format == "" {
 		format = "json"
@@ -217,6 +247,16 @@ func (s *Server) buildReport(r *http.Request, code string) (report.Table, error)
 	} else if seasonID := q.Get("seasonId"); seasonID != "" {
 		var err error
 		season, err = s.planning.GetSeason(ctx, seasonID)
+		if err != nil {
+			return t, err
+		}
+		// A season on its own resolves to its plan version, the same way the
+		// dashboard does. Half the catalogue reads daily rows for a version and
+		// would otherwise be handed an empty id: in memory that quietly
+		// produced an empty report, and against PostgreSQL it was a 500 on an
+		// empty uuid. The acceptance harness found both, and neither was an
+		// answer to give somebody who asked for a season's figures.
+		version, _, err = s.analytics.Versions(ctx, season.ID, "")
 		if err != nil {
 			return t, err
 		}

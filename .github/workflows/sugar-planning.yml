@@ -258,6 +258,49 @@ jobs:
         working-directory: sugar-planning/frontend
         run: npx ui5 build --clean-dest --all
 
+  acceptance:
+    name: Acceptance criteria
+    runs-on: ubuntu-latest
+    needs: [backend]
+
+    # Against a real database, because two of the things this stage exists to
+    # find only happen there: a query that works on the in-memory store and
+    # fails on PostgreSQL, and a backup that restores empty.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: sugarplan_acceptance
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: sugar-planning/backend/go.sum
+
+      # Section 27, checked against a running instance rather than asserted in
+      # a document: the test profile seeds a second company and factory and
+      # narrows every account to one of them, so data scope is a claim two real
+      # tenants are held to. --acceptance-only skips the suites the backend job
+      # has already run; the backup and restore drill still runs here.
+      - name: Section 27 against a running instance
+        env:
+          PGPASSWORD: postgres
+        run: |
+          ./test-system.sh --acceptance-only --port 8080 \
+            --postgres "postgres://postgres:postgres@localhost:5432/sugarplan_acceptance?sslmode=disable"
+
   container:
     name: Container image
     runs-on: ubuntu-latest
