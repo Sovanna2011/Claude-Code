@@ -236,8 +236,11 @@ jobs:
 
       - name: Install and lint
         working-directory: sugar-planning/frontend
+        # npm ci, not npm install: it installs exactly the tree in
+        # package-lock.json and fails if the lock and the manifest disagree, so
+        # a transitive dependency cannot change under the project between runs.
         run: |
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           npx eslint webapp --ext .js || true   # advisory until the ruleset is agreed
 
       # The chart renderers and the formatters are pure functions with no UI5
