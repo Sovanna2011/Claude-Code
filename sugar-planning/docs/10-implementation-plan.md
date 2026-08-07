@@ -301,6 +301,42 @@ list of what it does *not* check.
 
 ---
 
+## Phase 8 — performance at ten years of history ✅ delivered
+
+Section 25 sets two numbers - list APIs p95 under 500 ms, dashboards under 2 s -
+at "at least 10 years of daily history and high-volume transaction and audit
+data". Both had been designed for and neither had been measured, which makes
+them wishes rather than targets.
+
+`backend/cmd/loadtest` generates the volume (616,511 document items, 205,510
+documents, 205,550 audit events in about thirty seconds, by `COPY` rather than
+through the services - this fixture is about volume, not correctness, and says
+so) and then measures every endpoint over HTTP twice: alone, and under
+concurrent load. Alone is the query; under load is the machine. A report giving
+only the second would blame an index for a small server.
+
+[13-performance.md](13-performance.md) has the table and the caveats.
+
+**What the first run found:**
+
+| Found | Fix |
+| --- | --- |
+| The exact `count(*)` beside a page of documents cost 84 ms against 1.5 ms for the page itself, and grew with the table forever. Filtered to one warehouse under load: **p95 829 ms against a 500 ms target** | The count is bounded by a `LIMIT`, so the planner stops early: 21 ms, and 0.1 ms when nothing matches. Past `store.CountLimit` the response sets `countCapped`, so a screen says "10,000+" rather than a floor pretending to be a total |
+| A page of a hundred documents made a hundred round trips for their lines | One `WHERE document_id = ANY($1)` for the whole page |
+| The warehouse filter's `EXISTS` could not use an index-only scan | Migration 0012 adds `(warehouse_id, document_id)`; heap fetches 153,450 → 0 |
+| **That index made the isolated query faster and the concurrent one worse** - 84→68 ms alone, 829→1236 ms under load, because the index-only scan encouraged a parallel plan and eight callers on four cores cannot afford one | Kept the index, fixed the real cost (the count), and made the harness measure both - an `EXPLAIN ANALYZE` on a quiet database decides nothing |
+
+**Acceptance criteria — met**
+
+- Every endpoint is inside its target at ten seasons of history, alone and at
+  eight concurrent callers
+- The one with no margin is named rather than averaged away: documents filtered
+  to one warehouse, 494 ms against 500 ms
+- Both stores report the same bounded count, held there by the conformance suite
+- All 61 acceptance checks still pass after the store change
+
+---
+
 ## Still open
 
 | Item | Estimate |
@@ -308,7 +344,7 @@ list of what it does *not* check.
 | A pre-canned mapping for the reference workbook — the framework is built; only the template for that one file is missing, because the file was never supplied | an hour of data entry once the file exists |
 | Advanced forecasting: seasonality, weather, cane maturity | 4 weeks |
 | OPA5 end-to-end journeys in a browser | 1 week |
-| Operational hardening: partitioning, read replicas, cache tuning, load testing at ten years of data | 2 weeks |
+| Operational hardening: partitioning, read replicas, cache tuning | 2 weeks. Load testing at ten years of data is **done** - see [13-performance.md](13-performance.md); partitioning is measured as not yet justified |
 | An OpenTelemetry exporter, if a deployment has a collector to send to | 2 days |
 
 ---
@@ -370,7 +406,7 @@ container restart tripled the stoppages and the orders.
 | Section 27 against a running instance (`./test-system.sh`, 61 checks) | ✅ passing, in memory and against PostgreSQL 16 |
 | Backup and restore rehearsal | ✅ run by `./test-system.sh --postgres`: dump, readability check, restore into a scratch database, row counts compared |
 | OPA5 end-to-end journeys in a browser | ⏳ still open |
-| Load and performance at ten years of data | ⏳ still open |
+| Load and performance at ten years of data (`./load-test.sh`, 616k document items) | ✅ passing, with `documents, one warehouse` at 494 ms against a 500 ms target under load - no margin |
 
 ---
 

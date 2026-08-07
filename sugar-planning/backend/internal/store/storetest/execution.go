@@ -393,6 +393,16 @@ func testInventory(t *testing.T, newStore Factory) {
 	if all.Count != 5 {
 		t.Errorf("documents on the day = %d, want 5", all.Count)
 	}
+	// An ordinary result is counted exactly, and says so by not saying
+	// otherwise. The cap only shows up past store.CountLimit, which is what
+	// keeps "showing 12 of 47" honest on every screen anybody will actually
+	// see.
+	if all.CountCapped {
+		t.Error("five documents were reported as a capped count")
+	}
+	if touching.CountCapped {
+		t.Error("one document was reported as a capped count")
+	}
 
 	// --- reversal ---
 	// Nothing is deleted and nothing is edited: the counter-document is posted,

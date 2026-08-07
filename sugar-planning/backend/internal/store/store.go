@@ -41,7 +41,26 @@ func (o ListOptions) Normalise() ListOptions {
 type Page[T any] struct {
 	Items []T `json:"value"`
 	Count int `json:"count"`
+	// CountCapped says the count stopped at CountLimit rather than counting
+	// every match, so Count is a floor and not a total. A screen showing it
+	// should say "10,000+" rather than "10,000".
+	//
+	// This exists because of what the load test measured. A page of a hundred
+	// documents is an index scan that stops after a hundred rows; the exact
+	// total beside it is an aggregate over every matching row in the table,
+	// and at ten years of postings it was the whole cost of the request - 1.5
+	// ms for the rows against 84 ms for the count, and far worse under
+	// concurrency. Nobody paging through a list needs to know there are
+	// exactly 205,510 of them.
+	CountCapped bool `json:"countCapped,omitempty"`
 }
+
+// CountLimit is how far a bounded count will go before it stops and says so.
+//
+// High enough that ordinary use is exact - a season of documents for one store
+// is a few thousand - and low enough that the work is bounded whatever the
+// table grows to.
+const CountLimit = 10000
 
 // Repo is the uniform master-data repository. Every master entity supports the
 // same five operations, so the service layer and the API handlers are written

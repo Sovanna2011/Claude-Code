@@ -527,10 +527,25 @@ func (e execution) ListDocuments(ctx context.Context, f store.ExecutionFilter) (
 	}
 	clause := w.sql()
 
+	// A bounded count. The rows come back from an index scan that stops after
+	// a page; an exact total is an aggregate over every match, and at ten
+	// years of postings that was the whole cost of the request. Wrapping the
+	// match in a LIMIT lets the planner stop early - it picks a merge semi-join
+	// with an early exit instead of a parallel hash join over the table - and
+	// turns an unbounded cost into a bounded one.
+	//
+	// Measured on 205,510 documents and 616,511 items, filtered to one
+	// warehouse: 84 ms exact, 21 ms bounded, and the difference under eight
+	// concurrent callers was p95 829 ms against target 500 ms.
 	var total int
 	if err := e.s.q.QueryRow(ctx,
-		"SELECT count(*) FROM inventory_documents d"+clause, w.args...).Scan(&total); err != nil {
+		"SELECT count(*) FROM (SELECT 1 FROM inventory_documents d"+clause+
+			fmt.Sprintf(" LIMIT %d) t", store.CountLimit+1), w.args...).Scan(&total); err != nil {
 		return store.Page[domain.InventoryDocument]{}, mapError("inventory document", err)
+	}
+	capped := total > store.CountLimit
+	if capped {
+		total = store.CountLimit
 	}
 	limit := w.limit(f)
 
@@ -552,12 +567,56 @@ func (e execution) ListDocuments(ctx context.Context, f store.ExecutionFilter) (
 	if err := rows.Err(); err != nil {
 		return store.Page[domain.InventoryDocument]{}, mapError("inventory document", err)
 	}
-	for i := range items {
-		if items[i].Items, err = e.itemsFor(ctx, items[i].ID); err != nil {
-			return store.Page[domain.InventoryDocument]{}, err
-		}
+	// One query for every document's lines, not one query per document. The
+	// load test made this visible: a hundred documents was a hundred round
+	// trips, and the page cost grew with the page size rather than with the
+	// work in it.
+	if err := e.attachItems(ctx, items); err != nil {
+		return store.Page[domain.InventoryDocument]{}, err
 	}
-	return store.Page[domain.InventoryDocument]{Items: items, Count: total}, nil
+	return store.Page[domain.InventoryDocument]{
+		Items: items, Count: total, CountCapped: capped,
+	}, nil
+}
+
+// attachItems fills in the lines of every document on the page in one round
+// trip, keyed back to the document they belong to.
+func (e execution) attachItems(ctx context.Context, docs []domain.InventoryDocument) error {
+	if len(docs) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(docs))
+	for _, d := range docs {
+		ids = append(ids, d.ID)
+	}
+	rows, err := e.s.q.Query(ctx, `SELECT id, document_id, line_no, warehouse_id, product_id,
+		batch_id, quantity, uom, to_warehouse, created_at, created_by
+		FROM inventory_document_items WHERE document_id = ANY($1) ORDER BY document_id, line_no`,
+		ids)
+	if err != nil {
+		return mapError("inventory document item", err)
+	}
+	defer rows.Close()
+
+	byDocument := make(map[string][]domain.InventoryDocumentItem, len(docs))
+	for rows.Next() {
+		var item domain.InventoryDocumentItem
+		var batch, toWarehouse *string
+		if err := rows.Scan(&item.ID, &item.DocumentID, &item.LineNo, &item.WarehouseID,
+			&item.ProductID, &batch, &item.Quantity, &item.UOM, &toWarehouse,
+			&item.CreatedAt, &item.CreatedBy); err != nil {
+			return mapError("inventory document item", err)
+		}
+		item.BatchID, item.ToWarehouse = ds(batch), ds(toWarehouse)
+		byDocument[item.DocumentID] = append(byDocument[item.DocumentID], item)
+	}
+	if err := rows.Err(); err != nil {
+		return mapError("inventory document item", err)
+	}
+	for i := range docs {
+		docs[i].Items = byDocument[docs[i].ID]
+	}
+	return nil
 }
 
 func (e execution) MarkReversed(ctx context.Context, documentID, actor string) error {

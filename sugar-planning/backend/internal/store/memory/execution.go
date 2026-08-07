@@ -315,7 +315,15 @@ func (e execution) ListDocuments(_ context.Context, f store.ExecutionFilter) (st
 		}
 		return items[i].DocumentNo < items[j].DocumentNo
 	})
-	return paginate(items, store.ListOptions{Skip: f.Skip, Top: orDefaultTop(f.Top)}), nil
+	page := paginate(items, store.ListOptions{Skip: f.Skip, Top: orDefaultTop(f.Top)})
+	// The same bounded count the SQL store reports, so a caller cannot come to
+	// depend on an exact total that only one of the two implementations gives.
+	// The in-memory store has already done the counting and could answer
+	// exactly; answering differently is how the two drift apart.
+	if page.Count > store.CountLimit {
+		page.Count, page.CountCapped = store.CountLimit, true
+	}
+	return page, nil
 }
 
 func documentTouches(d domain.InventoryDocument, warehouseID string) bool {

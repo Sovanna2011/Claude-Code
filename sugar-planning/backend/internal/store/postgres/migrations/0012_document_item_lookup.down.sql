@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS inventory_document_items_warehouse_doc_idx;

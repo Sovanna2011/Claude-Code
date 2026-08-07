@@ -54,12 +54,14 @@ And to check the system rather than show it:
 ```bash
 ./test-system.sh                   # two tenants, the suites, and section 27
 ./test-system.sh --postgres "$DSN" # plus the backup and restore drill
+./load-test.sh --postgres "$DSN"   # section 25, at ten years of history
 ```
 
 That boots a second company at a second factory, narrows every account to one of
 them, and drives the eleven acceptance criteria over HTTP against the running
 instance — printing pass or fail per criterion.
-[What it covers, and what it found](docs/12-test-system.md).
+[What it covers, and what it found](docs/12-test-system.md), and
+[what ten years of history does to the queries](docs/13-performance.md).
 
 The accounts show the role model, and the difference between them is enforced by
 the server rather than hidden by the screen: `approver` can release a plan and
@@ -162,6 +164,7 @@ periods are locked, and the trail is append-only.
 | [10. Implementation plan](docs/10-implementation-plan.md) | Phases, status, acceptance criteria |
 | [11. Demonstration scenario](docs/11-demonstration-scenario.md) | What `./demo.sh` loads, and a walkthrough of it |
 | [12. Test system](docs/12-test-system.md) | The second tenant, the acceptance harness, and what running it found |
+| [13. Performance](docs/13-performance.md) | The section 25 targets, measured at ten years of history, and the three things that fixed |
 | [Runbook](docs/runbook.md) | Environment variables, deployment, backup and restore, troubleshooting |
 
 The API contract is `backend/internal/api/openapi.yaml`, served live at
