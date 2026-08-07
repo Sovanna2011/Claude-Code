@@ -20,8 +20,8 @@
 # What it runs, in order:
 #
 #   1. go vet and the Go test suite
-#   2. govulncheck, if it is installed
-#   3. the frontend unit tests, if node is installed
+#   2. govulncheck
+#   3. the frontend unit tests
 #   4. the server, seeded with both tenants
 #   5. cmd/acceptance against it, over HTTP
 #   6. with --postgres: a dump, a restore into a scratch database, and a
@@ -31,6 +31,11 @@
 # criterion — "automated tests pass, no critical security findings remain, and
 # backup/restore has been demonstrated" — something a run can be held to rather
 # than a sentence in a document.
+#
+# A step that could not run fails the run too, and says which it was. A tool
+# that is missing, or a vulnerability database that cannot be reached, leaves
+# the claim unverified — and an unverified claim reported as a pass is the one
+# outcome worse than a red one.
 set -uo pipefail
 
 PORT=8080
@@ -86,17 +91,31 @@ if [[ "$SKIP_SUITES" != true ]]; then
 
     step "govulncheck"
     if command -v govulncheck > /dev/null; then
-        govulncheck ./... || record "govulncheck"
+        # A scan that found something and a scan that could not run are both
+        # failures - an unverified claim is not a met one - but they need
+        # different things done about them, so they are reported differently.
+        # govulncheck's exit codes are not documented, so the two are told
+        # apart by whether a report came back at all.
+        if govulncheck ./... > "$WORK/govulncheck.txt" 2>&1; then
+            tail -3 "$WORK/govulncheck.txt" | sed 's/^/  /'
+        elif grep -q "Your code is affected by" "$WORK/govulncheck.txt"; then
+            sed 's/^/  /' "$WORK/govulncheck.txt"
+            record "govulncheck (vulnerabilities found)"
+        else
+            sed 's/^/  /' "$WORK/govulncheck.txt"
+            record "govulncheck (the scan could not run, so nothing was checked)"
+        fi
     else
         echo "  not installed — go install golang.org/x/vuln/cmd/govulncheck@latest"
-        echo "  (this leaves 'no critical security findings' unchecked, not met)"
+        record "govulncheck (not installed, so nothing was checked)"
     fi
 
     step "frontend unit tests"
     if command -v node > /dev/null; then
         (cd "$ROOT/frontend" && npm test) || record "npm test"
     else
-        echo "  node is not installed — the frontend unit tests did not run"
+        echo "  node is not installed"
+        record "npm test (node is not installed, so nothing was checked)"
     fi
 fi
 

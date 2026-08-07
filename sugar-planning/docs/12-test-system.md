@@ -92,6 +92,18 @@ are not questions an HTTP client can answer. `test-system.sh` runs those around
 the harness and fails the whole run if any of them fails. A skip is not a pass,
 and the report says so.
 
+The same rule applies to a step that *could not* run. A missing tool, or a
+vulnerability database that cannot be reached from the network the run is on,
+fails the run and says which it was — distinguished in the output from a scan
+that found something, because the two need different things done about them. An
+unverified claim reported as a pass is the one outcome worse than a red one.
+
+> In the sandbox this was built in, `vuln.go.dev` is blocked by the network
+> policy, so `govulncheck` cannot fetch its database and the run ends red on
+> exactly that line. Everything else — the Go suite, the frontend tests, all
+> eleven criteria and the restore drill — passes. CI has network access and runs
+> the scan for real.
+
 ---
 
 ## 12.3 What one run covers
