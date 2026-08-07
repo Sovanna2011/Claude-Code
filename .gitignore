@@ -40,3 +40,11 @@ sugar-planning/backend/migrate
 # ---- local environment ----
 deploy/.env
 sugar-planning/deploy/.env
+
+# ---- Go build output ----
+# `go build ./cmd/x` drops the binary in the working directory. Two have been
+# committed by accident already; naming them is cheaper than remembering.
+/sugar-planning/backend/server
+/sugar-planning/backend/migrate
+/sugar-planning/backend/acceptance
+/sugar-planning/backend/loadtest
