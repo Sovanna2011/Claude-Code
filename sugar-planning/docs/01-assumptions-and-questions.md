@@ -214,7 +214,8 @@ blocked.
 | Q6 | What is the acceptable recovery operating window? | 9.8 % to 13.0 %, configurable as `RECOVERY_MIN_PCT` / `RECOVERY_MAX_PCT`. |
 | Q7 | What mass-balance tolerance applies per process? | 0.5 % of throughput, configurable as `MASS_BALANCE_TOLERANCE_PCT`. |
 | Q8 | Which shift pattern applies — three eight-hour shifts, or two twelve-hour? | Three eight-hour shifts (A/B/C) seeded. The model supports any pattern; daily rows may be shift-level or day-level. |
-| Q9 | Are Khmer and Thai needed in printed PDF output, or only on screen? | Screen only for now. The UI is fully translatable; the PDF writer uses the standard fonts and substitutes non-Latin characters. Embedding a Khmer font is a small, contained change when the answer is yes. |
+| Q9 | Are Khmer and Thai needed in printed PDF output, or only on screen? | Screen only for now. Both languages are **fully translated on screen** — 580 of 580 keys, held there by `frontend/test/i18n.test.js` — but the PDF writer uses the standard fonts and substitutes non-Latin characters. Embedding a Khmer font is a small, contained change when the answer is yes. |
+| Q10 | Do the Khmer and Thai industry terms match this mill's house vocabulary? | The translations follow general Cambodian and Thai mill usage. A mill's own words for recovery, remelt, bagasse and the like often differ, and no test can check word choice. Worth an hour with the people who read these screens daily. |
 | Q10 | Which system is the source of truth for cane weights — the weighbridge, or this system? | The weighbridge. The import and API path is designed for it (section 22); until it is connected, weights are entered by hand. |
 | Q11 | How long must audit and transaction history be retained, and may it be partitioned by season? | 10 years (section 23). Partitioning is prepared for but not enabled; see [05-data-model.md](05-data-model.md). |
 

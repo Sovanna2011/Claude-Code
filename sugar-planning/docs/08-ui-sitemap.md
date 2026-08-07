@@ -413,14 +413,36 @@ text or an icon beside it.
 ## 8.4 Internationalisation
 
 English is the source language in `i18n/i18n.properties`; every user-visible
-string is there. `i18n_km.properties` and `i18n_th.properties` carry the same
-keys, and a key that is absent falls back to English, so an untranslated string
-appears in English rather than as a raw key.
+string is there. `i18n_km.properties` and `i18n_th.properties` carry **the same
+580 keys** — Khmer and Thai are complete, not seeded, and the manifest declares
+both as supported locales. Adding a language is a properties file and one entry
+in `supportedLocales`.
 
-The Khmer and Thai files are seeded with the shell and navigation — what an
-operator meets first — and are structurally complete rather than fully
-translated. Adding a language is a properties file and one entry in
-`supportedLocales`.
+**Why the tests check both directions.** They did not, and that is how this was
+missed. CI checked that a translation carried no key the English source lacked —
+an orphan, which is dead weight — and never checked the reverse. Khmer and Thai
+sat at 95 of 580 keys while both were advertised as supported, so switching
+language gave a screen four-fifths in English. The fallback working is precisely
+what stopped anyone noticing.
+
+`frontend/test/i18n.test.js` now holds every bundle to the source on:
+
+| | Why it matters |
+| --- | --- |
+| Every English key is translated | A missing one is an English sentence in the middle of a Khmer screen |
+| No key the source lacks | Dead weight, and usually a typo of a real key |
+| No duplicate keys | The later one silently wins |
+| Placeholders `{0}`, `{1}` survive | A dropped one loses an argument out of the middle of a sentence |
+| `\n` escapes survive | A lost one puts a literal backslash-n on screen |
+| No empty values | An empty label is worse than falling back to English |
+| The manifest matches the bundles | A locale with no bundle serves English under a language name |
+
+**The vocabulary needs a native review.** The industry terms follow mill usage —
+អំពៅ / อ้อย for cane, ស្ករឆៅ / น้ำตาลทรายดิบ for raw sugar, អត្រាទាញយកស្ករ /
+ประสิทธิภาพการหีบสกัด for recovery — but a mill has its own house words, and
+those are worth going through with the people who will read these screens every
+morning. The structure is guaranteed by the tests; the word choice is not
+something a test can check.
 
 One caveat, recorded as open question Q9: the PDF writer uses the standard
 Helvetica fonts, which cannot render Khmer or Thai. Screen and Excel output are
