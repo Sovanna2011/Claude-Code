@@ -5,11 +5,17 @@ sap.ui.define([
 	"sap/m/Label",
 	"sap/m/Input",
 	"sap/m/Select",
+	"sap/m/MultiComboBox",
 	"sap/m/CheckBox",
 	"sap/m/Text",
 	"sap/m/VBox",
-	"sap/ui/core/Item"
-], function (BaseController, Dialog, Button, Label, Input, Select, CheckBox, Text, VBox, Item) {
+	"sap/ui/core/Item",
+	"sap/m/Table",
+	"sap/m/Column",
+	"sap/m/ColumnListItem",
+	"sap/m/ObjectNumber"
+], function (BaseController, Dialog, Button, Label, Input, Select, MultiComboBox, CheckBox,
+	Text, VBox, Item, Table, Column, ColumnListItem, ObjectNumber) {
 	"use strict";
 
 	return BaseController.extend("sugarplan.controller.SeasonPlans", {
@@ -163,14 +169,23 @@ sap.ui.define([
 				return;
 			}
 
-			var oBase = new Select({ width: "100%" });
-			var oOther = new Select({ width: "100%" });
+			// A review reads a budget, its what-ifs and the actuals so far in
+			// columns. Two Selects could only ever ask half that question.
+			var oPick = new MultiComboBox({ width: "100%" });
+			var oBaseline = new Select({ width: "100%" });
 			aVersions.forEach(function (oVersion) {
 				var sText = oVersion.code + " — " + (oVersion.description || oVersion.planType);
-				oBase.addItem(new Item({ key: oVersion.id, text: sText }));
-				oOther.addItem(new Item({ key: oVersion.id, text: sText }));
+				oPick.addItem(new Item({ key: oVersion.id, text: sText }));
+				oBaseline.addItem(new Item({ key: oVersion.id, text: sText }));
 			});
-			oOther.setSelectedKey(aVersions[aVersions.length - 1].id);
+			// Open on the two ends of the list, which is the comparison somebody
+			// almost always wants first: the baseline against the newest scenario.
+			oPick.setSelectedKeys([aVersions[0].id, aVersions[aVersions.length - 1].id]);
+			oBaseline.setSelectedKey(aVersions[0].id);
+
+			var oActuals = new CheckBox({
+				text: this.getText("compareIncludeActual"), selected: false
+			});
 
 			var oDimension = new Select({ width: "100%" });
 			[["PROCESS", "By process stage"], ["DATE", "By date"], ["PRODUCT", "By product"],
@@ -182,12 +197,13 @@ sap.ui.define([
 
 			var oDialog = new Dialog({
 				title: this.getText("compareVersions"),
-				contentWidth: "44rem",
+				contentWidth: "56rem",
 				content: [new VBox({
 					class: "sapUiSmallMargin",
 					items: [
-						new Label({ text: this.getText("compareBase") }), oBase,
-						new Label({ text: this.getText("compareOther") }), oOther,
+						new Label({ text: this.getText("compareVersionsPick") }), oPick,
+						new Label({ text: this.getText("compareBaseline") }), oBaseline,
+						oActuals,
 						new Label({ text: this.getText("compareDimension") }), oDimension,
 						oResult
 					]
@@ -195,10 +211,16 @@ sap.ui.define([
 				beginButton: new Button({
 					text: this.getText("compare"), type: "Emphasized",
 					press: function () {
+						var aPicked = oPick.getSelectedKeys();
+						if (aPicked.length < 1) {
+							that.showToast(that.getText("needTwoVersions"));
+							return;
+						}
 						oDialog.setBusy(true);
-						that.getService().compare({
-							baseVersionId: oBase.getSelectedKey(),
-							otherVersionId: oOther.getSelectedKey(),
+						that.getService().compareMatrix({
+							versionIds: aPicked,
+							baselineVersionId: oBaseline.getSelectedKey(),
+							includeActual: oActuals.getSelected(),
 							dimension: oDimension.getSelectedKey()
 						}).then(function (oComparison) {
 							oDialog.setBusy(false);
@@ -216,35 +238,75 @@ sap.ui.define([
 			oDialog.open();
 		},
 
+		/**
+		 * _renderComparison draws the matrix: one column per version.
+		 *
+		 * The baseline column is marked rather than left to be inferred from the
+		 * zeros - a column of zero differences could equally be a version that
+		 * happens to match, and those are different facts.
+		 */
 		_renderComparison: function (oContainer, oComparison) {
 			var that = this;
 			oContainer.destroyItems();
 
-			if (oComparison.assumptionDeltas && oComparison.assumptionDeltas.length) {
-				oContainer.addItem(new Text({
-					text: this.getText("compareAssumptions"), class: "sugarKpiLabel"
-				}));
-				oComparison.assumptionDeltas.forEach(function (oRow) {
-					oContainer.addItem(new Text({
-						text: oRow.label + ": " + oRow.baseValue + " → " + oRow.otherValue +
-							" (" + (oRow.delta > 0 ? "+" : "") + oRow.delta + ")"
-					}));
+			var aColumns = oComparison.columns || [];
+			var iBaseline = 0;
+			aColumns.forEach(function (oCol, i) { if (oCol.isBaseline) { iBaseline = i; } });
+
+			function matrixTable(sTitle, aRows, bAssumption) {
+				if (!aRows || !aRows.length) {
+					return null;
+				}
+				var oTable = new Table({ class: "sugarTable sapUiSmallMarginTop" });
+				oTable.addColumn(new Column({ header: new Text({ text: sTitle }) }));
+				aColumns.forEach(function (oCol, i) {
+					var sHead = oCol.version.code +
+						(oCol.series === "ACTUAL" ? " (actual)" : "") +
+						(i === iBaseline ? " ·" : "");
+					oTable.addColumn(new Column({ hAlign: "End", header: new Text({ text: sHead }) }));
 				});
+
+				aRows.forEach(function (oRow) {
+					var aCells = [new Text({
+						text: (bAssumption ? "" : oRow.measure + " · ") + oRow.label
+					})];
+					oRow.values.forEach(function (sValue, i) {
+						if (i === iBaseline) {
+							aCells.push(new ObjectNumber({
+								number: bAssumption ? sValue : that.formatter.tons0(sValue),
+								emphasized: true
+							}));
+							return;
+						}
+						var fDelta = parseFloat(oRow.deltas[i]) || 0;
+						aCells.push(new ObjectNumber({
+							number: bAssumption ? sValue : that.formatter.tons0(sValue),
+							unit: (fDelta > 0 ? "+" : "") +
+								(bAssumption ? oRow.deltas[i] : that.formatter.tons0(oRow.deltas[i])),
+							state: fDelta === 0 ? "None" : (fDelta > 0 ? "Success" : "Warning")
+						}));
+					});
+					oTable.addItem(new ColumnListItem({ cells: aCells }));
+				});
+				return oTable;
+			}
+
+			var oAssumptions = matrixTable(this.getText("compareAssumptions"),
+				oComparison.assumptions, true);
+			if (oAssumptions) {
+				oContainer.addItem(oAssumptions);
 			} else {
 				oContainer.addItem(new Text({ text: this.getText("compareNoAssumptionChange") }));
 			}
 
+			var oTotals = matrixTable(this.getText("compareTotals"), oComparison.totals, false);
+			if (oTotals) {
+				oContainer.addItem(oTotals);
+			}
 			oContainer.addItem(new Text({
-				text: this.getText("compareTotals"), class: "sugarKpiLabel sapUiSmallMarginTop"
+				text: this.getText("compareBaselineNote", [aColumns[iBaseline].version.code]),
+				class: "sapUiSmallMarginTop"
 			}));
-			(oComparison.totals || []).forEach(function (oRow) {
-				oContainer.addItem(new Text({
-					text: oRow.measure + ": " + that.formatter.tons0(oRow.baseValue) +
-						" → " + that.formatter.tons0(oRow.otherValue) +
-						"  (" + (oRow.delta > 0 ? "+" : "") + that.formatter.tons0(oRow.delta) +
-						" t, " + that.formatter.percent(oRow.deltaPct) + ")"
-				}));
-			});
 		}
 	});
 });

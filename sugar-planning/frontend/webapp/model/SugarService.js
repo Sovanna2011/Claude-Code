@@ -210,8 +210,25 @@ sap.ui.define([
 			return this.post("/versions/compare", oPayload);
 		},
 
+		compareMatrix: function (oPayload) {
+			return this.post("/versions/compare-matrix", oPayload);
+		},
+
 		saveAssumption: function (sVersionId, oAssumption) {
 			return this.put("/versions/" + encodeURIComponent(sVersionId) + "/assumptions", oAssumption);
+		},
+
+		saveMixEntry: function (sVersionId, oEntry) {
+			return this.put("/versions/" + encodeURIComponent(sVersionId) + "/product-mix", oEntry);
+		},
+
+		deleteMixEntry: function (sVersionId, sMixId) {
+			return this.del("/versions/" + encodeURIComponent(sVersionId) + "/product-mix/" +
+				encodeURIComponent(sMixId));
+		},
+
+		createVersion: function (sSeasonId, oPayload) {
+			return this.post("/seasons/" + encodeURIComponent(sSeasonId) + "/versions", oPayload);
 		},
 
 		listRows: function (sVersionId, sKind, oParams) {

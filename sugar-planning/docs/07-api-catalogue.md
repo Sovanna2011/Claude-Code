@@ -144,6 +144,31 @@ on.
 Generating the schedule is idempotent under a repeated `Idempotency-Key`: it is
 expensive and it is exactly the request a client retries.
 
+### Comparing versions
+
+| Method | Path | Permission | Purpose |
+| --- | --- | --- | --- |
+| POST | `/versions/compare` | `plan:read` | Two versions, one against the other |
+| POST | `/versions/compare-matrix` | `plan:read` | Two or more versions side by side |
+
+The matrix is what a plan review actually reads: a budget, its what-ifs and the
+actuals so far, in columns. `includeActual` appends the season's actuals
+container, so "actual against V1 and V2" is the same request as "V1 against V2";
+naming it *and* asking for it gives one column, not two.
+
+Both go through the same aggregation, so they cannot disagree about the same
+pair — a review screen that contradicted the scenario screen would be worse than
+having only one of them.
+
+Each column reports the `series` it was read from: a plan version contributes
+its `PLAN` rows and the actuals container its `ACTUAL` ones. Without that a
+column of actuals looks like a plan nobody generated.
+
+`assumptions` carries only the settings that are *not* the same everywhere. A
+version that carries no assumptions at all — the actuals container, by design —
+takes no part in deciding what differs. Counting its absent settings as zeros
+reported all seventeen as changed and buried the one a planner had moved.
+
 ### Workflow
 
 | Method | Path | Permission |

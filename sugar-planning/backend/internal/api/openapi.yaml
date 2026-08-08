@@ -798,6 +798,54 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/PlanVersion" }
 
+  /versions/compare-matrix:
+    post:
+      tags: [Planning]
+      summary: Compare two or more versions side by side
+      description: >
+        A plan review has a budget, two or three what-ifs and the actuals so
+        far, and reads them in columns. Every column is aggregated by the same
+        code the pairwise comparison uses, so the two cannot disagree about the
+        same pair. A plan version contributes its PLAN rows and the actuals
+        container its ACTUAL ones; each column says which it read.
+      operationId: compareVersionMatrix
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [versionIds]
+              properties:
+                versionIds:
+                  type: array
+                  minItems: 1
+                  description: The columns, in the order they should be shown.
+                  items: { type: string, format: uuid }
+                baselineVersionId:
+                  type: string
+                  format: uuid
+                  description: The column differences are measured from. Empty means the first.
+                includeActual:
+                  type: boolean
+                  description: >
+                    Append the season's actuals container as a further column, so
+                    "actual against V1 and V2" is the same request as "V1 against V2".
+                dimension:
+                  type: string
+                  enum: [DATE, PROCESS, PRODUCT, WAREHOUSE, CHANNEL]
+                  default: DATE
+                from: { type: string, format: date }
+                to: { type: string, format: date }
+      responses:
+        "200":
+          description: Columns, rows, totals and the assumptions that differ.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MatrixResult" }
+        "400":
+          $ref: "#/components/responses/ValidationError"
+
   /versions/compare:
     post:
       tags: [Planning]
@@ -3498,6 +3546,47 @@ components:
         harvestTo: { type: string, format: date }
         committedTons: { $ref: "#/components/schemas/Quantity" }
         note: { type: string }
+
+    MatrixColumn:
+      type: object
+      properties:
+        version: { $ref: "#/components/schemas/PlanVersion" }
+        series:
+          type: string
+          enum: [PLAN, ACTUAL]
+          description: Which series this column was read from.
+        isBaseline: { type: boolean }
+
+    MatrixRow:
+      type: object
+      description: >
+        One key across every column. values, deltas and deltaPcts are aligned
+        with columns, so a cell is values[i] for columns[i].
+      properties:
+        key: { type: string }
+        label: { type: string }
+        measure: { type: string }
+        values: { type: array, items: { type: string } }
+        deltas: { type: array, items: { type: string } }
+        deltaPcts: { type: array, items: { type: string } }
+
+    MatrixResult:
+      type: object
+      properties:
+        dimension: { type: string }
+        columns:
+          type: array
+          items: { $ref: "#/components/schemas/MatrixColumn" }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/MatrixRow" }
+        totals:
+          type: array
+          items: { $ref: "#/components/schemas/MatrixRow" }
+        assumptions:
+          type: array
+          description: Only the assumptions that are not the same in every column.
+          items: { $ref: "#/components/schemas/MatrixRow" }
 
     CrushingStep:
       type: object

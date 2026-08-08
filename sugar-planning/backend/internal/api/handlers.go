@@ -719,6 +719,21 @@ func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
 
 // The crushing profile: how the season is shaped, and the curve that shape
 // produces against this version's own target.
+// handleCompareMatrix lays two or more versions of a season side by side.
+func (s *Server) handleCompareMatrix(w http.ResponseWriter, r *http.Request) {
+	var req service.MatrixRequest
+	if err := decodeJSON(w, r, &req); err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	result, err := s.planning.CompareMatrix(r.Context(), req)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeJSON(w, result)
+}
+
 func (s *Server) handleCrushingProfile(w http.ResponseWriter, r *http.Request) {
 	view, err := s.planning.CrushingProfile(r.Context(), r.PathValue("id"))
 	if err != nil {

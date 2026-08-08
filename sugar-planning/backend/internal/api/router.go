@@ -229,6 +229,8 @@ func (s *Server) routes(mux *http.ServeMux) {
 	s.handle(mux, "POST /api/v1/versions/{id}/generate", s.handleGenerate)
 	s.handle(mux, "POST /api/v1/versions/{id}/transition", s.handleTransition)
 	s.handle(mux, "POST /api/v1/versions/compare", s.handleCompare)
+	// Two or more versions side by side, which is what a plan review reads.
+	s.handle(mux, "POST /api/v1/versions/compare-matrix", s.handleCompareMatrix)
 
 	s.handle(mux, "PUT /api/v1/versions/{id}/assumptions", s.handleSaveAssumption)
 	s.handle(mux, "PUT /api/v1/versions/{id}/product-mix", s.handleSaveMix)

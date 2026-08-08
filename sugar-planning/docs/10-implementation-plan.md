@@ -452,6 +452,48 @@ and then cannot do it. Both are open questions Q15 and Q16.
 
 ---
 
+## Phase 11 — comparing more than two versions ✅ delivered
+
+`Compare` answered "what did changing the recovery assumption do?" — one
+scenario against one baseline. That is not the question a plan review asks. A
+review has a budget, two or three what-ifs and the actuals so far, and reads
+them in columns, because a scenario only means anything against the others on
+the table.
+
+`POST /versions/compare-matrix` takes any number of versions and lays them out,
+with a chosen baseline and an `includeActual` flag that folds in the season's
+actuals as one more column. Both comparisons go through the same aggregation on
+purpose, and a test asserts they agree figure for figure on the same pair.
+
+In the SAPUI5 client the compare dialog's two dropdowns became a multi-select
+with a baseline picker and an actuals switch, and the result is drawn as a
+matrix rather than a list of pairs.
+
+**What running it found**
+
+| Found | Fix |
+| --- | --- |
+| With the actuals included, **all seventeen assumptions reported as changed**. The actuals container carries none by design — it records what happened, not what was assumed — and counting its absent settings as zeros made every one of them differ, burying the single assumption a planner had actually moved | A version that carries no assumptions takes no part in deciding what differs. A version that *has* assumptions but is missing one still counts, because dropping a setting is a change |
+
+**Also in this phase**
+
+The product mix — how much of each finished good the season makes, and at what
+daily rate — was readable and not enterable, so the only way a site could set it
+was to have it seeded. It is a form now, on the plan detail page, with delete.
+The daily rate is explained on the form rather than left as a number: left empty
+the generator spreads the tonnage evenly, which is a different plan from running
+the refinery at 400 t a day.
+
+**Acceptance criteria — met**
+
+- The matrix and the pairwise comparison agree on the same pair, asserted row by
+  row
+- A third version is a third column, and the baseline's own difference is zero
+- The actuals are a column read as `ACTUAL`, and naming them twice gives one
+- 61 acceptance checks pass against PostgreSQL 16
+
+---
+
 ## Still open
 
 | Item | Estimate |

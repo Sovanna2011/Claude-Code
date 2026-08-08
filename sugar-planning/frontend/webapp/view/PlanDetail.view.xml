@@ -101,7 +101,15 @@
 				</l:Grid>
 
 				<!-- Product mix. -->
-				<Panel headerText="{i18n>productMixPlan}" class="sapUiSmallMarginTop" expandable="true" expanded="true">
+				<Panel class="sapUiSmallMarginTop" expandable="true" expanded="true">
+					<headerToolbar>
+						<OverflowToolbar>
+							<Title text="{i18n>productMixPlan}" level="H3"/>
+							<ToolbarSpacer/>
+							<Button text="{i18n>mixAdd}" icon="sap-icon://add" type="Transparent"
+								press=".onAddMix" enabled="{view>/editable}"/>
+						</OverflowToolbar>
+					</headerToolbar>
 					<Table items="{path: 'view>/productMix', templateShareable: false}" mode="None" class="sugarTable">
 						<columns>
 							<Column><Text text="{i18n>product}"/></Column>
@@ -109,6 +117,7 @@
 							<Column><Text text="{i18n>warehouse}"/></Column>
 							<Column hAlign="End"><Text text="{i18n>seasonTons}"/></Column>
 							<Column hAlign="End"><Text text="{i18n>dailyRate}"/></Column>
+							<Column hAlign="End"><Text text="{i18n>colAction}"/></Column>
 						</columns>
 						<items>
 							<ColumnListItem>
@@ -118,9 +127,19 @@
 									<Text text="{view>warehouseName}"/>
 									<ObjectNumber number="{path: 'view>seasonTons', formatter: '.formatter.tons0'}" unit="t"/>
 									<Text text="{= ${view>dailyRateTons} > 0 ? ${view>dailyRateTons} + ' t/day' : '—' }"/>
+									<HBox>
+										<Button icon="sap-icon://edit" type="Transparent" tooltip="{i18n>mixEdit}"
+											press=".onEditMix" enabled="{view>/editable}"/>
+										<Button icon="sap-icon://delete" type="Transparent" tooltip="{i18n>mixDelete}"
+											press=".onDeleteMix" enabled="{view>/editable}"/>
+									</HBox>
 								</cells>
 							</ColumnListItem>
 						</items>
+						<noData>
+							<IllustratedMessage illustrationType="sapIllus-NoEntries"
+								title="{i18n>noMix}" description="{i18n>noMixHint}"/>
+						</noData>
 					</Table>
 				</Panel>
 

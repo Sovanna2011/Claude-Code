@@ -5,9 +5,13 @@ sap.ui.define([
 	"sap/m/Label",
 	"sap/m/TextArea",
 	"sap/m/DatePicker",
+	"sap/m/Input",
+	"sap/m/Select",
 	"sap/m/Text",
-	"sap/m/VBox"
-], function (BaseController, Dialog, Button, Label, TextArea, DatePicker, Text, VBox) {
+	"sap/m/VBox",
+	"sap/ui/core/Item"
+], function (BaseController, Dialog, Button, Label, TextArea, DatePicker, Input, Select,
+	Text, VBox, Item) {
 	"use strict";
 
 	/**
@@ -54,6 +58,13 @@ sap.ui.define([
 					});
 				});
 
+				that._masters = {
+					products: (aResults[1].value || []).filter(function (p) { return p.isFinished; }),
+					warehouses: (aResults[2].value || []).filter(function (w) {
+						return w.storageClass === "FINISHED";
+					}),
+					packaging: aResults[3].value || []
+				};
 				that._sEtag = oDetail.__etag;
 				that.getView().getModel("view").setData({
 					version: oDetail.version,
@@ -116,6 +127,138 @@ sap.ui.define([
 			}).catch(function (oProblem) {
 				that.showError(oProblem);
 				that._load();
+			});
+		},
+
+		/**
+		 * onEditMix opens the product mix entry form.
+		 *
+		 * The mix is the planning input the whole generator runs on: how much of
+		 * each finished product the season is meant to make, and at what daily
+		 * rate. It was readable and not enterable, so the only way a site could
+		 * set it was to have it seeded.
+		 *
+		 * The daily rate matters as much as the tonnage. Left at zero the
+		 * generator spreads the season evenly, which is a different plan: the
+		 * mill runs its refinery at 400 t a day, and the refinery does not slow
+		 * down because the arithmetic would be tidier.
+		 */
+		onEditMix: function (oEvent) {
+			var oExisting = oEvent && oEvent.getSource && oEvent.getSource().getBindingContext("view")
+				? oEvent.getSource().getBindingContext("view").getObject() : null;
+			this._openMixDialog(oExisting);
+		},
+
+		onAddMix: function () {
+			this._openMixDialog(null);
+		},
+
+		_openMixDialog: function (oEntry) {
+			var that = this;
+			var m = this._masters || { products: [], warehouses: [], packaging: [] };
+
+			var oProduct = new Select({ width: "100%" });
+			m.products.forEach(function (p) {
+				oProduct.addItem(new Item({ key: p.id, text: p.code + " — " + p.name }));
+			});
+			var oPackaging = new Select({ width: "100%", forceSelection: false });
+			oPackaging.addItem(new Item({ key: "", text: "—" }));
+			m.packaging.forEach(function (p) {
+				oPackaging.addItem(new Item({ key: p.id, text: p.code + " — " + p.name }));
+			});
+			var oWarehouse = new Select({ width: "100%", forceSelection: false });
+			oWarehouse.addItem(new Item({ key: "", text: "—" }));
+			m.warehouses.forEach(function (w) {
+				oWarehouse.addItem(new Item({ key: w.id, text: w.code + " — " + w.name }));
+			});
+
+			var oTons = new Input({ width: "100%", type: "Number", placeholder: "106700" });
+			var oRate = new Input({ width: "100%", type: "Number",
+				placeholder: this.getText("mixRateHint") });
+
+			if (oEntry) {
+				oProduct.setSelectedKey(oEntry.productId);
+				oPackaging.setSelectedKey(oEntry.packagingId || "");
+				oWarehouse.setSelectedKey(oEntry.warehouseId || "");
+				oTons.setValue(String(oEntry.seasonTons));
+				if (parseFloat(oEntry.dailyRateTons) > 0) {
+					oRate.setValue(String(oEntry.dailyRateTons));
+				}
+			}
+
+			var oDialog = new Dialog({
+				title: this.getText(oEntry ? "mixEdit" : "mixAdd"),
+				contentWidth: "30rem",
+				content: [new VBox({
+					class: "sapUiSmallMargin",
+					items: [
+						new Label({ text: this.getText("product"), required: true }), oProduct,
+						new Label({ text: this.getText("packaging") }), oPackaging,
+						new Label({ text: this.getText("warehouse") }), oWarehouse,
+						new Label({ text: this.getText("seasonTons"), required: true }), oTons,
+						new Label({ text: this.getText("dailyRate") }), oRate,
+						new Text({ text: this.getText("mixRateExplain"), class: "sapUiTinyMarginTop" })
+					]
+				})],
+				beginButton: new Button({
+					text: this.getText("save"), type: "Emphasized",
+					press: function () {
+						var fTons = parseFloat(oTons.getValue());
+						if (isNaN(fTons) || fTons < 0) {
+							oTons.setValueState("Error");
+							oTons.setValueStateText(that.getText("mixTonsRequired"));
+							return;
+						}
+						oTons.setValueState("None");
+						var sRate = (oRate.getValue() || "").trim();
+						var fRate = sRate ? parseFloat(sRate) : 0;
+						if (sRate && (isNaN(fRate) || fRate < 0)) {
+							oRate.setValueState("Error");
+							oRate.setValueStateText(that.getText("mixRateInvalid"));
+							return;
+						}
+						oRate.setValueState("None");
+
+						oDialog.setBusy(true);
+						that.getService().saveMixEntry(that._sVersionId, {
+							id: oEntry ? oEntry.id : undefined,
+							versionId: that._sVersionId,
+							productId: oProduct.getSelectedKey(),
+							packagingId: oPackaging.getSelectedKey() || undefined,
+							warehouseId: oWarehouse.getSelectedKey() || undefined,
+							seasonTons: String(fTons),
+							dailyRateTons: String(fRate)
+						}).then(function () {
+							oDialog.close();
+							that.showToast(that.getText("mixSaved"));
+							that._load();
+						}).catch(function (oProblem) {
+							oDialog.setBusy(false);
+							that.showError(oProblem);
+						});
+					}
+				}),
+				endButton: new Button({ text: this.getText("cancel"), press: function () { oDialog.close(); } }),
+				afterClose: function () { oDialog.destroy(); }
+			});
+			this.getView().addDependent(oDialog);
+			oDialog.open();
+		},
+
+		/** onDeleteMix removes a line. The plan has to be regenerated afterwards
+		 * for the daily rows to stop reflecting it, which the toast says. */
+		onDeleteMix: function (oEvent) {
+			var oEntry = oEvent.getSource().getBindingContext("view").getObject();
+			var that = this;
+			this.confirm(this.getText("mixDeleteConfirm", [oEntry.productName]),
+				this.getText("mixDelete")).then(function (bConfirmed) {
+				if (!bConfirmed) {
+					return;
+				}
+				that.getService().deleteMixEntry(that._sVersionId, oEntry.id).then(function () {
+					that.showToast(that.getText("mixDeleted"));
+					that._load();
+				}).catch(function (oProblem) { that.showError(oProblem); });
 			});
 		},
 
