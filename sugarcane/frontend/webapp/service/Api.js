@@ -64,6 +64,10 @@ sap.ui.define(["sap/base/Log"], function (Log) {
 		return this._request("PUT", path, body);
 	};
 
+	Api.prototype.del = function (path) {
+		return this._request("DELETE", path);
+	};
+
 	/** The absolute URL of an endpoint, for a download the browser performs itself. */
 	Api.prototype.url = function (path, filter) {
 		return this._baseUrl + path + this.query(filter);

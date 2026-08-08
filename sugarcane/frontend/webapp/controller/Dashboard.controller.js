@@ -725,6 +725,10 @@ sap.ui.define([
 				}.bind(this));
 		},
 
+		onOpenProjections: function () {
+			this.getOwnerComponent().getRouter().navTo("projections");
+		},
+
 		onSignOut: function () {
 			this._api().signOut();
 			this._loaded = false;

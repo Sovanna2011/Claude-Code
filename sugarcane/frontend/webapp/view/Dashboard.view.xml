@@ -16,6 +16,7 @@
                     <Title text="{i18n>appTitle}" level="H1" />
                 </contentLeft>
                 <contentRight>
+                    <Button icon="sap-icon://sales-order" text="{i18n>projections}" press=".onOpenProjections" />
                     <Text text="{session>/user/fullName} · {session>/user/role}" class="faMuted sapUiTinyMarginEnd" />
                     <Button icon="sap-icon://log" text="{i18n>signOut}" press=".onSignOut" />
                 </contentRight>

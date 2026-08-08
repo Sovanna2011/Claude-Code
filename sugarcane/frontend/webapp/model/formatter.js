@@ -137,6 +137,32 @@ sap.ui.define([], function () {
 				return "None";
 			}
 			return withCane > plantable + 0.0001 ? "Error" : "Success";
+		},
+
+		// A projection's status, as a colour. Approved is the only state that has committed land,
+		// so it is the only one shown as success; a rejected plan is the only failure.
+		projectionState: function (status) {
+			switch (status) {
+				case "Approved": return "Success";
+				case "Rejected": return "Error";
+				case "Submitted":
+				case "UnderReview": return "Warning";
+				case "Closed":
+				case "Revised": return "None";
+				default: return "Information";
+			}
+		},
+
+		projectionIcon: function (status) {
+			switch (status) {
+				case "Draft": return "sap-icon://edit";
+				case "Submitted": return "sap-icon://outbox";
+				case "UnderReview": return "sap-icon://inspection";
+				case "Approved": return "sap-icon://accept";
+				case "Rejected": return "sap-icon://decline";
+				case "Revised": return "sap-icon://copy";
+				default: return "sap-icon://locked";
+			}
 		}
 	};
 });

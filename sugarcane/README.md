@@ -12,7 +12,7 @@ The port is being done module by module, each complete and tested before the nex
 | Farm area monitoring dashboard — KPIs, tree, map, plan versus actual | **ported** |
 | Planning formulas — every calculation in the specification | **ported** |
 | Growing seasons, cane varieties, the 19 planting activities and their dependency chain | **ported** |
-| Planting projections, versioning and the approval workflow | to do |
+| Planting projections, versioning and the approval workflow | **ported** |
 | Activity-plan generation over the calendar | to do |
 | Machinery, workforce and resource scheduling with its eight conflict checks | to do |
 | Material master, standards and requirement planning | to do |
@@ -24,7 +24,7 @@ The port is being done module by module, each complete and tested before the nex
 | Database | **PostgreSQL 16 + PostGIS 3.4** — real `geography(MultiPolygon, 4326)` boundaries, areas measured with `ST_Area` |
 | Backend | **Go 1.24** REST API — repository pattern, service layer, constructor injection, transactions, global error handling, JWT role-based authorisation, optimistic concurrency, pagination and filtering, audit logging |
 | Frontend | **SAPUI5 (OpenUI5 1.151)** — Fiori Horizon, `sap.ui.table.TreeTable`, KPI tiles, analytical charts, filter bar, interactive map |
-| Tests | 85 Go tests — 41 unit, 44 integration against a real PostGIS database |
+| Tests | 135 Go tests — 76 unit, 59 integration against a real PostGIS database |
 
 ```
 sugarcane/
@@ -32,7 +32,8 @@ sugarcane/
 │   ├── 001_schema.sql      hierarchy, land classification, planting records, identity, audit
 │   ├── 002_seed.sql        the sample plantation
 │   ├── 003_activities.sql  seasons, varieties, the activity master and its dependencies
-│   └── 004_activity_seed.sql  the specification's nineteen sample activities
+│   ├── 004_activity_seed.sql  the specification's nineteen sample activities
+│   └── 005_projections.sql  planting projections, their lines and the approval trail
 ├── backend/
 │   ├── cmd/api/            the composition root
 │   └── internal/
@@ -99,6 +100,35 @@ recorded reasons account for. A Report Viewer sees the dialog but no Save button
 Changing any filter refreshes the cards, the charts, the tree, the map and the comparison in one
 pass, from one filter value — they cannot end up describing different land.
 
+## Planting projections
+
+A projection is the committed answer to **what will be planted, where, when and with which
+variety**. Everything downstream is generated from an approved one, so it carries a workflow rather
+than being ordinary master data.
+
+*Planting projections* in the dashboard header opens the plan list; a plan opens on its blocks, its
+header and its approval trail, with the projected area, harvestable area, expected tonnage and seed
+cane across the top. All four are derived — from the lines, and the lines from the block, the
+variety's yield, its expected loss and its seed rate. None of them has a field to type into.
+
+| Step | Who | What it means |
+|------|-----|---------------|
+| Submit | Planner, Manager, Admin | The draft is finished. A plan with no blocks is refused. |
+| Start review | Manager, Admin | Someone is looking at it. Optional — a manager may approve straight away. |
+| Approve | Manager, Admin | **The land is committed.** No other plan may take those blocks in that window. |
+| Reject · Return for correction | Manager, Admin | Refused, or sent back to draft. Both need a reason. |
+| Open a revision | Planner, Manager, Admin | A new version carrying a copy of the blocks; this one is marked superseded. |
+| Close | Manager, Admin | Finished. Nothing further happens to it. |
+
+The buttons a screen shows come from the server, on the projection itself — the same graph the
+server enforces, so a button that appears always works and one that would be refused never appears.
+A Report Viewer is offered none of them.
+
+Two planners may draft alternatives for the same block; that is how options get compared. The land
+is taken only on approval, and a second plan overlapping an approved one in time is refused naming
+the plan that holds it. Revising an approved plan releases the commitment until the new version is
+approved in its turn.
+
 ## Land classification
 
 Only two figures about a block are ever entered: its **total area** and its **plantable area**.
@@ -133,11 +163,17 @@ PostgreSQL, so a migration script or a direct `UPDATE` cannot walk past it.
 - A dependency that would close a loop is refused — every activity in the cycle would wait for
   another that waits for it, and the schedule could never be satisfied. A recursive walk enforces
   it at commit, so a data fix applied with `psql` cannot create one either.
+- A projection line cannot exceed its block, and neither can every line one plan has on that
+  block put together — a new planting and a ratoon share the same ground.
+- An approved plan cannot be edited, only revised: other modules have already read it.
+- Two approved plans cannot hold the same block over overlapping planting dates.
 
-The last three span rows — one new-planting record plus one ratoon record on the same block — so
+Several of these span rows — one new-planting record plus one ratoon record on the same block — so
 no single `CHECK` can express them. They are deferred constraint triggers, checked at `COMMIT`,
 which lets a caller move area between the two records in either order without tripping over itself
-halfway.
+halfway. A deferred trigger's exception surfaces from `COMMIT` rather than from the statement that
+caused it, past everything the repository maps, so the projection service translates commit errors
+too — otherwise breaking a cross-row rule would answer 500 instead of naming the field.
 
 ## API
 
@@ -156,6 +192,10 @@ halfway.
 | `GET/POST /api/activities` · `GET/PUT /api/activities/{id}` | the planting activity master |
 | `GET /api/activities/chain` | the activity chain in the order the engine walks it |
 | `POST /api/activities/dependencies` · `DELETE .../{id}` | "this activity waits for that one" |
+| `GET/POST /api/projections` · `GET/PUT /api/projections/{id}` | planting projections |
+| `POST /api/projections/{id}/lines` · `PUT`/`DELETE` `.../lines/{lineId}` | the blocks a plan covers |
+| `POST /api/projections/{id}/{submit\|review\|approve\|reject\|returnforcorrection\|revise\|close}` | one step of the workflow |
+| `GET /api/projections/workflow` | the transition graph, so a client need not hold a copy |
 | `GET/POST /api/planting` · `DELETE /api/planting/{id}` | planting records, planned and actual |
 | `GET /api/summaries/farm-area` · `/zone-area` · `/block-area` | one level of the tree |
 | `GET /api/farms/tree` · `GET /api/reports/farm-area-tree` | the whole hierarchy |
@@ -184,8 +224,8 @@ curl -s "localhost:8080/api/dashboard/farm-area?cropYear=2026" -H "Authorization
 | Role | May |
 |------|-----|
 | Admin | everything, including the audit trail |
-| Manager | farm, zone and block master data, geometry, planting records |
-| Planner | planting records |
+| Manager | farm, zone and block master data, geometry, planting records, and deciding projections |
+| Planner | planting records, projections, and submitting them |
 | Viewer | read only |
 
 ## Configuration
@@ -204,18 +244,19 @@ curl -s "localhost:8080/api/dashboard/farm-area?cropYear=2026" -H "Authorization
 
 ```bash
 cd backend
-go test ./...                                   # 26 unit tests; the database tests skip
+go test ./...                                   # 76 unit tests; the database tests skip
 
 createdb farmarea_test && psql -d farmarea_test -c 'CREATE EXTENSION postgis'
 export FARMAREA_TEST_DATABASE_URL="postgres://farmarea:farmarea@127.0.0.1:5432/farmarea_test"
-go test ./...                                   # 43 tests
+go test ./...                                   # 135 tests
 ```
 
 The integration tests run over the real stack — HTTP handler, service, repository, PostGIS — and
 check what no in-memory substitute can: that the SQL is valid, that the constraint triggers fire,
 that `ST_Area` agrees with the registered figures, that the tree, the KPI cards and the map
 describe the same land under the same filter, that a stale version is a 409 rather than a silent
-overwrite, and that the exported bytes actually open as a workbook.
+overwrite, that approving a plan over land another plan already holds is refused, and that the
+exported bytes actually open as a workbook.
 
 ## Notes on the technology choices
 

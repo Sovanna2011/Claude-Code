@@ -1,0 +1,72 @@
+<core:FragmentDefinition
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core"
+    xmlns:form="sap.ui.layout.form">
+
+    <Dialog id="lineDialog" title="{i18n>lineTitle}" contentWidth="36rem" draggable="true">
+        <content>
+            <MessageStrip id="lineDialogError" type="Error" showIcon="true" visible="false"
+                          class="sapUiSmallMargin" />
+
+            <form:SimpleForm editable="true" layout="ResponsiveGridLayout" columnsM="1" columnsL="1" columnsXL="1">
+                <Label text="{i18n>block}" required="true" labelFor="dlgBlock" />
+                <ComboBox id="dlgBlock" width="100%" selectionChange=".onLineBlockChanged"
+                          items="{ path: 'lookups>/blocksOnly', templateShareable: false }">
+                    <core:Item key="{lookups>id}" text="{lookups>display}" />
+                </ComboBox>
+
+                <Label text="{i18n>variety}" required="true" labelFor="dlgVariety" />
+                <Select id="dlgVariety" width="100%" forceSelection="false"
+                        items="{ path: 'lookups>/varietiesOnly', templateShareable: false }">
+                    <core:Item key="{lookups>id}" text="{lookups>display}" />
+                </Select>
+
+                <Label text="{i18n>plantingType}" labelFor="dlgPlantingType" />
+                <Select id="dlgPlantingType" width="100%">
+                    <core:Item key="NewPlanting" text="{i18n>newPlanting}" />
+                    <core:Item key="Ratoon" text="{i18n>ratoon}" />
+                </Select>
+
+                <Label text="{i18n>projectedArea}" required="true" labelFor="dlgArea" />
+                <Input id="dlgArea" type="Number" width="100%" description="ha" />
+
+                <!-- The plantable area of the chosen block, as the server will snapshot it. Shown
+                     because a planner needs to know the ceiling before typing, not after. -->
+                <Label text="{i18n>availableArea}" />
+                <Text id="dlgAvailable" text="{view>/selectedBlockArea}" />
+
+                <Label text="{i18n>plantingStart}" required="true" labelFor="dlgLineStart" />
+                <DatePicker id="dlgLineStart" valueFormat="yyyy-MM-dd" displayFormat="yyyy-MM-dd" width="100%" />
+
+                <Label text="{i18n>plantingEnd}" required="true" labelFor="dlgLineEnd" />
+                <DatePicker id="dlgLineEnd" valueFormat="yyyy-MM-dd" displayFormat="yyyy-MM-dd" width="100%" />
+
+                <Label text="{i18n>harvestDate}" labelFor="dlgHarvest" />
+                <DatePicker id="dlgHarvest" valueFormat="yyyy-MM-dd" displayFormat="yyyy-MM-dd" width="100%"
+                            placeholder="{i18n>harvestDerived}" />
+
+                <Label text="{i18n>priority}" labelFor="dlgPriority" />
+                <Select id="dlgPriority" width="100%">
+                    <core:Item key="1" text="1" />
+                    <core:Item key="2" text="2" />
+                    <core:Item key="3" text="3" />
+                    <core:Item key="4" text="4" />
+                    <core:Item key="5" text="5" />
+                    <core:Item key="6" text="6" />
+                    <core:Item key="7" text="7" />
+                    <core:Item key="8" text="8" />
+                    <core:Item key="9" text="9" />
+                </Select>
+
+                <Label text="{i18n>remark}" labelFor="dlgLineRemark" />
+                <TextArea id="dlgLineRemark" rows="2" width="100%" />
+            </form:SimpleForm>
+        </content>
+        <beginButton>
+            <Button text="{i18n>save}" type="Emphasized" press=".onSaveLine" />
+        </beginButton>
+        <endButton>
+            <Button text="{i18n>cancel}" press=".onCloseLineDialog" />
+        </endButton>
+    </Dialog>
+</core:FragmentDefinition>
