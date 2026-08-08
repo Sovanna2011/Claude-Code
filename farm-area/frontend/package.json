@@ -1,0 +1,22 @@
+{
+  "name": "farm-area-dashboard",
+  "version": "1.0.0",
+  "description": "SAPUI5 Farm Area Monitoring dashboard: farm to zone to block",
+  "private": true,
+  "scripts": {
+    "start": "ui5 serve --port 8081 --open index.html",
+    "build": "ui5 build --clean-dest --all"
+  },
+  "devDependencies": {
+    "@ui5/cli": "^4.0.0"
+  },
+  "dependencies": {
+    "@openui5/sap.f": "1.151.0",
+    "@openui5/sap.m": "1.151.0",
+    "@openui5/sap.ui.core": "1.151.0",
+    "@openui5/sap.ui.layout": "1.151.0",
+    "@openui5/sap.ui.table": "1.151.0",
+    "@openui5/sap.ui.unified": "1.151.0",
+    "@openui5/themelib_sap_horizon": "1.151.0"
+  }
+}

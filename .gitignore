@@ -39,3 +39,6 @@ sugarcane/test-system/ca/*.crt
 
 # Local publish output from deployment smoke tests.
 publish/
+
+# The SAPUI5 runtime is fetched by npm install.
+farm-area/frontend/node_modules/

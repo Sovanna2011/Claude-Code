@@ -1,0 +1,69 @@
+/* The dashboard leans on the Horizon theme for colour; this file only handles the layout the
+   theme has no opinion about, and the two custom SVG controls. */
+
+.faLoginPage { background: var(--sapBackgroundColor); }
+.faLoginPanel { box-shadow: var(--sapContent_Shadow1); border-radius: var(--sapElement_BorderCornerRadius); }
+
+.faMuted { color: var(--sapContent_LabelColor); }
+.faSmall { font-size: 0.75rem; }
+.faNodeCode { font-weight: 600; }
+.faNodeIcon { color: var(--sapContent_IconColor); }
+
+.faFilterBar { margin: 0.5rem; }
+.faKpiGrid { margin-top: 0.5rem; }
+.faKpiTile { margin: 0.25rem 0; width: 100%; }
+.faCard { margin-bottom: 0.5rem; }
+.faCard .sapMPanelContent { padding-top: 0.25rem; }
+.faDetailGrid { margin-top: 0.25rem; }
+.faBlockDetail { margin-top: 0.5rem; background: var(--sapGroup_ContentBackground); }
+
+/* ---------------------------------------------------------------- charts */
+
+.faAreaChart { width: 100%; display: flex; align-items: center; justify-content: center; }
+.faAreaChart svg { width: 100%; height: 100%; max-height: 100%; }
+.faChartEmpty { color: var(--sapContent_LabelColor); font-size: 0.875rem; padding: 2rem 0; text-align: center; }
+
+.faDonutLayout { display: flex; align-items: center; gap: 1rem; width: 100%; height: 100%; }
+.faDonutLayout svg { flex: 0 0 auto; width: 12rem; height: 12rem; }
+.faDonutTotal { font-size: 1.5rem; font-weight: 700; fill: var(--sapTextColor); }
+.faDonutUnit  { font-size: 0.8rem; fill: var(--sapContent_LabelColor); }
+
+/* The donut's hole is painted with the panel's own background so the ring reads as a ring in
+   both the light and the dark theme. */
+.faAreaChart { --faChartBg: var(--sapGroup_ContentBackground); }
+
+.faSlice, .faBar, .faMapBlock { cursor: pointer; }
+.faSlice:hover, .faBar:hover rect { opacity: 0.85; }
+
+.faAxis { stroke: var(--sapGroup_ContentBorderColor); stroke-width: 1; }
+.faAxisLabel { font-size: 11px; fill: var(--sapContent_LabelColor); }
+.faAxisValue { font-size: 11px; fill: var(--sapContent_LabelColor); }
+
+.faLegend { list-style: none; margin: 0; padding: 0; font-size: 0.75rem; color: var(--sapTextColor); }
+.faLegend li { display: flex; align-items: center; gap: 0.4rem; padding: 0.15rem 0; }
+.faLegend i { width: 0.7rem; height: 0.7rem; border-radius: 2px; flex: 0 0 auto; }
+.faLegendRow { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center; }
+.faLegendName { flex: 1 1 auto; }
+.faLegendValue { color: var(--sapContent_LabelColor); white-space: nowrap; }
+
+/* ---------------------------------------------------------------- map */
+
+.faBlockMap {
+    position: relative; width: 100%;
+    background: var(--sapNeutralBackground, #f5f6f7);
+    border: 1px solid var(--sapGroup_ContentBorderColor);
+    border-radius: var(--sapElement_BorderCornerRadius);
+    overflow: hidden;
+}
+.faBlockMap svg { width: 100%; height: calc(100% - 2rem); display: block; }
+.faMapBlock:focus { outline: none; }
+.faMapBlock:focus polygon { stroke: var(--sapContent_FocusColor); stroke-width: 3; }
+.faMapBlock:hover polygon { fill-opacity: 0.9; }
+.faMapBlockOn polygon { filter: drop-shadow(0 0 3px var(--sapSelectedColor)); }
+.faMapLabel { font-size: 11px; font-weight: 600; }
+.faMapLegend { padding: 0.25rem 0.5rem; }
+
+@media (max-width: 48rem) {
+    .faDonutLayout { flex-direction: column; gap: 0.5rem; }
+    .faDonutLayout svg { width: 9rem; height: 9rem; }
+}

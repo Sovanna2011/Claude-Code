@@ -1,0 +1,45 @@
+# The whole stack: PostGIS, the Go API and the SAPUI5 dashboard.
+#
+#   docker compose up -d --build     then open http://localhost:8081
+#
+# The API applies db/migrations on start-up, so the sample plantation is there on first run.
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: farmarea
+      POSTGRES_USER: farmarea
+      POSTGRES_PASSWORD: farmarea
+    ports: ["5432:5432"]
+    volumes: ["farmarea-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U farmarea -d farmarea"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      FARMAREA_DATABASE_URL: postgres://farmarea:farmarea@db:5432/farmarea
+      # Override this. A signing key everyone can read is not authentication.
+      FARMAREA_JWT_SECRET: change-me-to-at-least-thirty-two-characters
+      FARMAREA_ADDR: ":8080"
+      FARMAREA_CORS_ORIGINS: http://localhost:8081
+      FARMAREA_MIGRATIONS_DIR: /app/migrations
+    ports: ["8080:8080"]
+    depends_on:
+      db: { condition: service_healthy }
+
+  dashboard:
+    image: node:22-alpine
+    working_dir: /app
+    command: sh -c "npm install --no-audit --no-fund && npx ui5 serve --port 8081 -h 0.0.0.0"
+    volumes: ["./frontend:/app"]
+    ports: ["8081:8081"]
+    depends_on: [api]
+
+volumes:
+  farmarea-data:

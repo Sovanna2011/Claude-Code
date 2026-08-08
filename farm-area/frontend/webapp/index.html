@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Farm Area Monitoring</title>
+
+    <!-- The runtime is served from the application itself (npm @openui5/*), so the dashboard runs
+         on an estate network with no route to a CDN. To use the SAP-delivered SAPUI5 distribution
+         instead — which adds sap.viz and the rest of the closed libraries — point src at
+         https://ui5.sap.com/resources/sap-ui-core.js and nothing else has to change. -->
+    <script id="sap-ui-bootstrap"
+            src="resources/sap-ui-core.js"
+            data-sap-ui-theme="sap_horizon"
+            data-sap-ui-resource-roots='{"farm.area.dashboard": "./"}'
+            data-sap-ui-on-init="module:sap/ui/core/ComponentSupport"
+            data-sap-ui-compat-version="edge"
+            data-sap-ui-async="true"
+            data-sap-ui-frame-options="trusted">
+    </script>
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="sapUiBody">
+    <div data-sap-ui-component
+         data-name="farm.area.dashboard"
+         data-id="container"
+         data-settings='{"id": "farmarea"}'
+         style="height: 100%"></div>
+</body>
+</html>
