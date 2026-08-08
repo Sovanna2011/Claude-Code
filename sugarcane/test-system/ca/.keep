@@ -1,9 +1,0 @@
-Drop any extra root certificates (*.crt, PEM format) into this directory and they are
-installed into the build containers before NuGet restore runs.
-
-This is only needed behind a TLS-intercepting proxy, where the public NuGet feed presents a
-certificate signed by an internal CA that the .NET SDK image does not trust; the symptom is
-NU1301 "The remote certificate is invalid because of errors in the certificate chain:
-UntrustedRoot". Leave the directory empty on a normal network.
-
-Certificates are deliberately not committed: they are specific to one network.

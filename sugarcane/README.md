@@ -1,159 +1,234 @@
-# Sugarcane Planting Planning Management System
+# Sugarcane Planting Planning — PostgreSQL · Go · SAPUI5
 
-An enterprise planning and control system for **sugarcane planting operations** — by
-plantation activity, tractor, equipment, material, workforce, location and schedule.
+An enterprise planning and control system for **sugarcane planting operations**, on the hierarchy
+**farm → zone → block**. This replaces the earlier ASP.NET Core / SQL Server / Blazor
+implementation — that code is in git history, and nothing of it remains in the working tree.
+
+The port is being done module by module, each complete and tested before the next.
+
+| Module | State |
+|--------|-------|
+| Farm, zone and block master data, land classification, geography | **ported** |
+| Farm area monitoring dashboard — KPIs, tree, map, plan versus actual | **ported** |
+| Planning formulas — every calculation in the specification | **ported** |
+| Growing seasons, cane varieties, the 19 planting activities and their dependency chain | **ported** |
+| Planting projections, versioning and the approval workflow | to do |
+| Activity-plan generation over the calendar | to do |
+| Machinery, workforce and resource scheduling with its eight conflict checks | to do |
+| Material master, standards and requirement planning | to do |
+| Fuel and labour, capacity analysis, what-if scenarios | to do |
+| Execution, actuals and the 22 reports | to do |
 
 | Layer | Technology |
 |-------|------------|
-| Frontend | **Blazor WebAssembly** (.NET 10) + Bootstrap 5, responsive web and mobile |
-| API | **ASP.NET Core 10 Web API** — REST, JWT bearer, Swagger |
-| Application | C# services: projection validation, scheduling engine, MRP, capacity and scenario engines |
-| Persistence | **EF Core 10** → **Microsoft SQL Server** (migrations, row-version concurrency, soft delete) |
-| Identity | **ASP.NET Core Identity** with ten roles and seventeen permission policies |
-| Reporting | 22 reports with print preview, **PDF** (QuestPDF) and **Excel** (ClosedXML) export |
-| Tests | 223 automated tests (xUnit) — 82 unit, 121 integration, 20 against a real SQL Server |
-
-The solution follows **Clean Architecture**: `Domain` has no dependencies, `Application`
-depends only on `Domain` + `Contracts`, `Infrastructure` implements the persistence
-abstractions, and `Api` / `Client` are the delivery mechanisms.
+| Database | **PostgreSQL 16 + PostGIS 3.4** — real `geography(MultiPolygon, 4326)` boundaries, areas measured with `ST_Area` |
+| Backend | **Go 1.24** REST API — repository pattern, service layer, constructor injection, transactions, global error handling, JWT role-based authorisation, optimistic concurrency, pagination and filtering, audit logging |
+| Frontend | **SAPUI5 (OpenUI5 1.151)** — Fiori Horizon, `sap.ui.table.TreeTable`, KPI tiles, analytical charts, filter bar, interactive map |
+| Tests | 85 Go tests — 41 unit, 44 integration against a real PostGIS database |
 
 ```
 sugarcane/
-├── SugarcanePlanning.sln
-├── src/
-│   ├── SugarcanePlanning.Domain/          entities · enums · PlanningFormulas
-│   ├── SugarcanePlanning.Contracts/       DTOs shared by the API and the Blazor client
-│   ├── SugarcanePlanning.Application/     services, engines, mapping, abstractions
-│   ├── SugarcanePlanning.Infrastructure/  EF Core, Identity, audit interceptor, exporters
-│   ├── SugarcanePlanning.Api/             controllers, JWT, global error handling
-│   └── SugarcanePlanning.Client/          Blazor WebAssembly UI (22 screens)
-├── tests/
-│   ├── SugarcanePlanning.UnitTests/       formulas and engine logic
-│   └── SugarcanePlanning.IntegrationTests/full process over a real service graph
-├── database/01_schema.sql                 idempotent SQL Server DDL (36 tables)
-├── database/generate-schema.sh            regenerates it from the migrations
-├── test-system/                           docker compose stack: SQL Server + API + client
-└── docs/                                  architecture · data model · deployment · user guide
+├── db/migrations/          schema and seed, applied in order on start-up
+│   ├── 001_schema.sql      hierarchy, land classification, planting records, identity, audit
+│   ├── 002_seed.sql        the sample plantation
+│   ├── 003_activities.sql  seasons, varieties, the activity master and its dependencies
+│   └── 004_activity_seed.sql  the specification's nineteen sample activities
+├── backend/
+│   ├── cmd/api/            the composition root
+│   └── internal/
+│       ├── domain/         planning formulas, area classification, validation, model types
+│       ├── repository/     every line of SQL in the system
+│       ├── service/        business rules, transactions, audit
+│       ├── httpapi/        handlers, middleware, error rendering
+│       ├── auth/           JWT and password hashing
+│       ├── database/       pool, migrations, transaction helper
+│       └── config/         environment
+├── frontend/webapp/        the SAPUI5 application
+└── scripts/api.sh          start · stop · restart the API locally
 ```
 
 ## Quick start
 
-The fastest way to see the whole thing running is the disposable test stack — SQL Server, the
-API and the client, seeded with demo data, nothing to install but Docker:
+```bash
+# 1. Database
+createdb farmarea
+psql -d farmarea -c 'CREATE EXTENSION postgis'
+
+# 2. API — applies the migrations and seeds the sample plantation on first run
+cd sugarcane && ./scripts/api.sh start          # http://localhost:8080
+
+# 3. Dashboard
+cd frontend && npm install && npx ui5 serve --port 8081   # http://localhost:8081
+```
+
+Sign in with **admin / Farm#2026**. The other accounts — `manager`, `planner`, `viewer` — share
+the password and differ in what they may change.
+
+The sample plantation is one company, one plantation, three farms, nine zones (one of them empty,
+so the roll-up is exercised against an empty branch) and twenty blocks near Lusaka, with real
+polygon boundaries, a breakdown of why each block's unplantable part cannot be planted, and two
+crop years of planting records — 2025 finished, 2026 part recorded — so variance and monthly
+progress have something to show.
+
+## What the dashboard shows
+
+**KPI cards** — total area, new planting, ratoon, area with cane, available for planting, cannot
+be planted. Each carries its hectares and its share of the total area. Every figure is calculated
+from block-level data; nothing is entered at dashboard level.
+
+**Charts** — land utilisation, new planting versus ratoon, area by farm, area by zone, planting
+progress by month. Clicking a farm or zone bar filters the whole screen to it.
+
+**Tree report** — farm → zone → block in a `TreeTable`, expandable, searchable, with a Google Maps
+link on every row and an export to Excel that mirrors the hierarchy as a real outline.
+
+**Map** — the blocks' own polygons from PostGIS, with the farm and zone outlines beneath them,
+coloured by cane status. Clicking a block selects its row in the tree and fills the detail panel;
+selecting a block row highlights it on the map.
+
+**Planning versus actual** — planned against actual by farm, zone or block, with variance and
+achievement, and a monthly breakdown beside it.
+
+**Block maintenance** — the pencil on a block row, or *Edit* on the map's detail panel, opens the
+block's master data: its fields, the breakdown of why part of it cannot be planted, and its
+planting records. The derived figures — the unplantable remainder, the area with cane, the area
+still available — move as you type and cannot be entered. A rejected save keeps the dialog open,
+puts the server's message on the field it is about, and says how much of the unplantable area the
+recorded reasons account for. A Report Viewer sees the dialog but no Save button.
+
+Changing any filter refreshes the cards, the charts, the tree, the map and the comparison in one
+pass, from one filter value — they cannot end up describing different land.
+
+## Land classification
+
+Only two figures about a block are ever entered: its **total area** and its **plantable area**.
+Everything else is derived.
+
+| Figure | Definition |
+|--------|------------|
+| Total area | Everything inside the boundary. |
+| Plantable area | The part that can carry cane. |
+| Cannot be planted | Total less plantable, itemised by reason — road, canal, pond, building, mountain, forest, flooded, infrastructure, reserved, other. |
+| New planting | Recorded planting of a fresh crop for the filtered crop year. |
+| Ratoon | Recorded ratoon area for the filtered crop year. |
+| Area with cane | New planting plus ratoon. |
+| Available for planting | Plantable area with no cane on it. |
+
+Farm and zone rows have no area columns **in the database at all**: their figures are the sum of
+the blocks beneath them, and the surest way to stop someone entering one by hand is to give them
+nowhere to enter it.
+
+## The rules the system will not let you break
+
+Section 10 of the specification is enforced twice — in Go, so the message names the field, and in
+PostgreSQL, so a migration script or a direct `UPDATE` cannot walk past it.
+
+- Total, plantable, new planting and ratoon area cannot be negative.
+- Plantable area cannot exceed the total area (`CHECK`).
+- The recorded non-plantable reasons cannot account for more than the unplantable part.
+- New planting, ratoon, and the two of them together, cannot exceed the plantable area.
+- Shrinking a block's plantable area below the cane already on it is refused.
+- An activity that needs a tractor or an implement must have a daily capacity, or the engine
+  cannot work out how long it takes.
+- A dependency that would close a loop is refused — every activity in the cycle would wait for
+  another that waits for it, and the schedule could never be satisfied. A recursive walk enforces
+  it at commit, so a data fix applied with `psql` cannot create one either.
+
+The last three span rows — one new-planting record plus one ratoon record on the same block — so
+no single `CHECK` can express them. They are deferred constraint triggers, checked at `COMMIT`,
+which lets a caller move area between the two records in either order without tripping over itself
+halfway.
+
+## API
+
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /api/auth/login` · `GET /api/auth/me` | sign in, current user |
+| `GET/POST /api/farms` · `GET/PUT /api/farms/{id}` | farm master |
+| `GET /api/farms/{id}/zones` | zones of a farm |
+| `GET/POST /api/zones` · `GET/PUT /api/zones/{id}` | zone master |
+| `GET /api/zones/{id}/blocks` | blocks of a zone |
+| `GET/POST /api/blocks` · `GET/PUT /api/blocks/{id}` | block master, with the non-plantable breakdown |
+| `GET/PUT /api/blocks/{id}/geometry` | boundary as GeoJSON; the response carries the area PostGIS measures |
+| `GET /api/land-classification` | the non-plantable reasons |
+| `GET/POST /api/seasons` · `GET/PUT /api/seasons/{id}` | growing seasons and their planting window |
+| `GET/POST /api/varieties` · `GET/PUT /api/varieties/{id}` | cane varieties: seed rate, yield, loss |
+| `GET/POST /api/activities` · `GET/PUT /api/activities/{id}` | the planting activity master |
+| `GET /api/activities/chain` | the activity chain in the order the engine walks it |
+| `POST /api/activities/dependencies` · `DELETE .../{id}` | "this activity waits for that one" |
+| `GET/POST /api/planting` · `DELETE /api/planting/{id}` | planting records, planned and actual |
+| `GET /api/summaries/farm-area` · `/zone-area` · `/block-area` | one level of the tree |
+| `GET /api/farms/tree` · `GET /api/reports/farm-area-tree` | the whole hierarchy |
+| `GET /api/reports/farm-area-tree.xlsx` | the same report as a workbook |
+| `GET /api/dashboard/farm-area` | KPI cards |
+| `GET /api/dashboard/farm-area/map` | block polygons and farm/zone outlines as GeoJSON |
+| `GET /api/dashboard/charts` | every chart series in one response |
+| `GET /api/reports/planting-plan-vs-actual` | planned against actual, by farm, zone, block and month |
+| `GET /api/lookups/{kind}` | the filter bar's values |
+| `GET /api/audit` | who changed what (administrators only) |
+
+Every read takes the same filter parameters: `companyId`, `plantationId`, `farmId`, `zoneId`,
+`blockId`, `cropYear`, `plantingYear`, `seasonId`, `varietyId`, `plantingType`, `landStatus`,
+`caneStatus`, `search`, plus `page` and `pageSize` on the list endpoints.
 
 ```bash
-cd sugarcane/test-system
-docker compose up -d --build         # then open http://localhost:5150
+TOKEN=$(curl -s -X POST localhost:8080/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"userName":"admin","password":"Farm#2026"}' | jq -r .token)
+
+curl -s "localhost:8080/api/dashboard/farm-area?cropYear=2026" -H "Authorization: Bearer $TOKEN" | jq
 ```
 
-See [test-system/README.md](test-system/README.md). To run it from source instead:
+## Roles
+
+| Role | May |
+|------|-----|
+| Admin | everything, including the audit trail |
+| Manager | farm, zone and block master data, geometry, planting records |
+| Planner | planting records |
+| Viewer | read only |
+
+## Configuration
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `FARMAREA_DATABASE_URL` | — (required) | PostgreSQL connection string |
+| `FARMAREA_JWT_SECRET` | — (required, ≥ 32 chars) | token signing key |
+| `FARMAREA_ADDR` | `:8080` | listen address |
+| `FARMAREA_CORS_ORIGINS` | `http://localhost:8081` | comma-separated origins allowed to call the API |
+| `FARMAREA_TOKEN_TTL_MINUTES` | `480` | token lifetime |
+| `FARMAREA_MIGRATE_ON_START` | `true` | apply pending migrations at start-up |
+| `FARMAREA_MIGRATIONS_DIR` | `../db/migrations` | where they live |
+
+## Tests
 
 ```bash
-cd sugarcane
+cd backend
+go test ./...                                   # 26 unit tests; the database tests skip
 
-# 1. Database — either let the API migrate on start-up (default) …
-#    … or run the script by hand:
-sqlcmd -S localhost -d SugarcanePlanning -i database/01_schema.sql
-
-# 2. API (http://localhost:5100, Swagger at /swagger)
-dotnet run --project src/SugarcanePlanning.Api
-
-# 3. Blazor client (http://localhost:5150)
-dotnet run --project src/SugarcanePlanning.Client
+createdb farmarea_test && psql -d farmarea_test -c 'CREATE EXTENSION postgis'
+export FARMAREA_TEST_DATABASE_URL="postgres://farmarea:farmarea@127.0.0.1:5432/farmarea_test"
+go test ./...                                   # 43 tests
 ```
 
-On first run the API applies the migration and seeds a complete demo tenant: one company,
-an estate with 3 farms / 6 zones / 24 blocks — each block carrying real coordinates, laid out
-as three clusters of fields near Lusaka so the location map means something — a 2026 season,
-3 varieties, the 19 sample
-planting activities with their dependency chain, 10 tractors, 14 implements with a
-compatibility matrix, 10 operators, 3 crews, 8 materials with standards and stock, and an
-approved planting projection of 12 lines — plus its generated activity plans, material
-requirements, a set of live resource bookings and part-recorded field progress on both land
-preparation and planting — so the dashboard opens at 683.56 ha planted of 1,876.8 ha projected,
-and the Gantt, MRP and variance screens all have real content.
+The integration tests run over the real stack — HTTP handler, service, repository, PostGIS — and
+check what no in-memory substitute can: that the SQL is valid, that the constraint triggers fire,
+that `ST_Area` agrees with the registered figures, that the tree, the KPI cards and the map
+describe the same land under the same filter, that a stale version is a 409 rather than a silent
+overwrite, and that the exported bytes actually open as a workbook.
 
-**Demo accounts** — password `Planner#2026` for all of them:
+## Notes on the technology choices
 
-| User | Role | Typical task |
-|------|------|--------------|
-| `admin` | System Administrator | everything, including the audit log |
-| `director` | Plantation Director | approve and close plans |
-| `manager` | Plantation Manager | approve, revise, override dependencies |
-| `planner` | Agricultural Planner | build projections, generate activity plans |
-| `machinery` | Machinery Manager | tractor / equipment master, scheduling |
-| `materials` | Material Planner | material master, standards, MRP |
-| `supervisor` | Field Supervisor | scheduling and actual progress |
-| `farmmanager` · `approver` · `viewer` | Farm Manager · Management Approver · Report Viewer | |
+**OpenUI5, not the SAP-delivered SAPUI5.** The runtime is vendored with the application from npm,
+so the dashboard starts on an estate network with no route to a CDN. The consequence is that
+`sap.viz` — the closed-source chart library — is not available, so the five analytical charts are
+drawn by a small custom control (`control/AreaChart.js`) as inline SVG, using the theme's own
+colour parameters. To switch to the SAP distribution instead, point the bootstrap in
+`webapp/index.html` at `https://ui5.sap.com/resources/sap-ui-core.js`; nothing else changes, and
+the charts can then be replaced with `VizFrame` if you prefer.
 
-## The planning process
-
-```
-Configure master data
-  → create growing season          seasons, varieties
-  → select plantation blocks       land structure
-  → create planting projection     validated per block, per season
-  → generate activity schedule     19 activities, offsets, dependency lag
-  → tractor requirement            ceil(area ÷ (capacity/day × working days))
-  → equipment requirement          per implement category
-  → material requirement           standard → base + waste, netted against stock
-  → fuel and labor requirement     by area and by hour; workers = ceil(labor-days ÷ days)
-  → capacity and shortage analysis Sufficient · At Risk · Shortage · Unavailable
-  → adjust schedule or resources   what-if scenarios, never overwriting the plan
-  → submit and approve             Draft → Submitted → Review → Approved
-  → assign tractors, equipment, operators   with eight conflict checks
-  → record actual progress
-  → compare projection with actual
-```
-
-## Key business rules
-
-- **Projected area never exceeds the block's plantable area** — checked per line and as a
-  sum over all lines for the same block.
-- **Committed plans for one block may not overlap in time** — two drafts on the same block are
-  allowed, and the rule is applied again on submission, when the block is actually taken;
-  planting dates must fall inside the season's planting window.
-- **Header totals are always derived** from the lines, never entered.
-- **A dependent activity cannot start before its blocking predecessor completes**, unless a
-  manager with the override permission records a reason (kept in the audit trail).
-- **No double-booking** of a tractor, implement or operator — enforced under a database lock, so
-  two simultaneous requests cannot both win; no booking during maintenance; the tractor must meet
-  the implement's minimum horsepower and appear on its compatibility list where one exists.
-- **Revising an approved plan** copies it, issues a new version number, freezes the previous
-  version read-only and records the reason, creator, reviewer and approver.
-- **Every company's data is isolated** by a global query filter on `CompanyId`.
-- **Five failed sign-ins lock an account** for fifteen minutes, so a password cannot be guessed
-  indefinitely; a success clears the counter.
-
-## Documentation
-
-| Document | Contents |
-|----------|----------|
-| [docs/architecture.md](docs/architecture.md) | layers, dependency rules, engines, request flow |
-| [docs/data-model.md](docs/data-model.md) | entity-relationship model and every table |
-| [docs/deployment.md](docs/deployment.md) | build, configure, deploy to IIS / Linux / Docker / Azure |
-| [docs/user-guide.md](docs/user-guide.md) | the 22 screens, step by step |
-| [docs/formulas.md](docs/formulas.md) | every calculation with a worked example |
-| [docs/demo-script.md](docs/demo-script.md) | a twenty-minute walkthrough of the seeded demo estate |
-
-## Running the tests
-
-```bash
-dotnet test                      # 203 tests, no database required
-
-# The 20 SQL Server tests skip unless a server is configured. To run them:
-export SUGARCANE_TEST_SQLSERVER="Server=127.0.0.1,1433;User Id=sa;Password=…;TrustServerCertificate=True"
-dotnet test                      # 223 tests
-```
-
-Integration tests run the real service graph (projection → activity plan → MRP → scheduling →
-capacity → actuals → reports) against an isolated in-memory database, and execute the sample
-data seeder itself so the start-up path is covered even without SQL Server.
-
-The SQL Server suite covers what no in-memory provider can: that the migration applies, that
-the multi-step operations survive their explicit transactions, that the unique indexes, check
-constraints and `rowversion` tokens actually bite, and — by firing genuinely simultaneous
-requests through separate connections — that no two callers can book the same tractor or commit
-the same block. It exists because it caught five real defects, four of them invisible to every
-other layer of testing; see
-[docs/architecture.md](docs/architecture.md#what-only-a-real-database-caught).
+**The map is drawn by the application, not by Google.** The boundaries are the system's own data
+in PostGIS, the estate has to be visible without an internet connection, and an embedded Google
+map cannot draw a polygon the system stores without an API key and a per-load charge. Google Maps
+is used where it is genuinely better — the *Open in Google Maps* action on every farm, zone and
+block, which hands the coordinates to Google for a satellite view.
