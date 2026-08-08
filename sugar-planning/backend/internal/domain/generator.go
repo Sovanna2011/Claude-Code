@@ -26,6 +26,15 @@ type GeneratorInput struct {
 	// NonWorkingDays are dates excluded from crushing (maintenance windows,
 	// approved shutdowns). Cane and production targets skip these days.
 	NonWorkingDays map[BusinessDate]bool
+	// Profile is the shape of the campaign: the start-up ramp, the wash-out
+	// cadence and the run-down. An empty profile spreads the target evenly,
+	// which is what the generator did before profiles existed.
+	//
+	// A wash-out is not a non-working day. A non-working day is removed from
+	// the calendar and pushes the end of the season out; a wash-out is a
+	// planned day of the campaign on which the mill crushes nothing. The mill
+	// plans both, and conflating them would move the end date by six days.
+	Profile CrushingProfile
 }
 
 // GeneratorOutput is a complete daily plan for one version.
@@ -51,6 +60,19 @@ type PlanSummary struct {
 	RemeltInput      Dec `json:"remeltInputTons"`
 	ShipmentPlanned  Dec `json:"shipmentPlannedTons"`
 	WorkingDays      int `json:"workingDays"`
+	// CampaignDays is the whole planning horizon: the crushing season plus the
+	// remelt season that follows it. The reference plan crushes for 137 days
+	// and goes on making and shipping sugar for 276.
+	CampaignDays int `json:"campaignDays"`
+	// CrushingDays is the days the mill actually crushes, and CleaningDays the
+	// planned wash-outs inside the campaign. They add up to WorkingDays. The
+	// reference season is 137 days of campaign, 131 of crushing and 6 of
+	// wash-out - a distinction the plan has to be able to state, because a
+	// tonnage divided by the wrong one of the two is wrong by 5 %.
+	CrushingDays int `json:"crushingDays"`
+	CleaningDays int `json:"cleaningDays"`
+	// PlateauRate is the full-rate tonnage the profile solved for.
+	PlateauRate Dec `json:"plateauRateTons"`
 }
 
 // requiredAssumptions must be present before a plan can be generated.
@@ -128,11 +150,54 @@ func Generate(in GeneratorInput) (*GeneratorOutput, error) {
 			return nil, fmt.Errorf("%w: the calendar excludes too many days to fit the season", ErrValidation)
 		}
 	}
-	out.Dates = working
+	// The campaign is longer than the crushing season, and until the reference
+	// workbook arrived nothing in this generator knew that.
+	//
+	// Kampong Speu crushes for 137 days, 1 December to 16 April. It goes on
+	// making refined and white sugar from stored raw until 2 September, and
+	// goes on shipping to the quota all the way through. Planning the finished
+	// goods over the crushing days alone compresses nine months of production
+	// into four and a half: the finished warehouse then appears to fill on
+	// 1 January rather than 28 May, and the shipment rate the plan demands
+	// comes out at 844 t/day against the 500 t/day the mill actually sells at.
+	// Both of those were reported as findings about the reference figures. They
+	// were findings about this loop.
+	//
+	// So: cane rows exist on crushing days; everything downstream runs over the
+	// campaign. A plan that does not say CAMPAIGN_DAYS gets the crushing span,
+	// which is what this did before.
+	campaignDays := int(in.Assumptions[AsmCampaignDays].IntPart())
+	campaign := []BusinessDate{in.Season.StartDate}
+	for campaign[len(campaign)-1] < working[len(working)-1] || len(campaign) < campaignDays {
+		campaign = append(campaign, in.Season.StartDate.AddDays(len(campaign)))
+		if len(campaign) > 3650 {
+			return nil, fmt.Errorf("%w: the campaign is longer than ten years", ErrValidation)
+		}
+	}
+
+	// crushIndex maps a crushing day onto its campaign day, so the two series
+	// can be added together without either having to know the other's shape.
+	crushIndex := make(map[BusinessDate]int, len(campaign))
+	for i, d := range campaign {
+		crushIndex[d] = i
+	}
+
+	out.Dates = campaign
 	out.Summary.WorkingDays = len(working)
+	out.Summary.CampaignDays = len(campaign)
 
 	// --- Cane and raw sugar -------------------------------------------------
-	caneDaily := AllocateEvenly(caneTarget, len(working))
+	// The profile decides the shape and solves the plateau rate; an empty
+	// profile gives the even spread this used to be unconditionally.
+	crushing, err := BuildCrushingPlan(caneTarget, len(working), in.Profile)
+	if err != nil {
+		return nil, err
+	}
+	caneCrush := crushing.Daily
+	out.Summary.CrushingDays = crushing.PlateauDays + crushing.ShoulderDays
+	out.Summary.CleaningDays = crushing.CleaningDays
+	out.Summary.PlateauRate = crushing.PlateauRate
+
 	crushRate := in.Assumptions[AsmCrushRateTPH]
 	availHrs := in.Assumptions[AsmAvailableHours]
 	if availHrs.IsZero() {
@@ -142,27 +207,36 @@ func Generate(in GeneratorInput) (*GeneratorOutput, error) {
 	// Raw sugar is derived from the cane series with cumulative rounding, so the
 	// daily figures still read as "cane x recovery" and the season total is
 	// exactly 2,300,000 x 11.00 % = 253,000 t rather than 252,999.955 t.
-	rawDaily := ScaleSeries(caneDaily, recoveryPct.Div(DI(100)))
+	rawCrush := ScaleSeries(caneCrush, recoveryPct.Div(DI(100)))
+
+	// Laid onto the campaign: zero on every day after the mill stops crushing.
+	caneDaily := zeroSeries(len(campaign))
+	rawDaily := zeroSeries(len(campaign))
+	for i, day := range working {
+		at := crushIndex[day]
+		caneDaily[at] = caneCrush[i]
+		rawDaily[at] = rawCrush[i]
+	}
 
 	for i, day := range working {
 		rate := crushRate
 		if rate.IsZero() {
-			rate = RoundRate(SafeDiv(caneDaily[i], availHrs))
+			rate = RoundRate(SafeDiv(caneCrush[i], availHrs))
 		}
 		out.Cane = append(out.Cane, DailyCanePlan{
 			VersionID:     in.Version.ID,
 			FactoryID:     in.Season.FactoryID,
 			BusinessDate:  day,
 			Series:        SeriesPlan,
-			CaneAvailable: caneDaily[i],
-			CaneDelivered: caneDaily[i],
-			CaneAccepted:  caneDaily[i],
-			CaneCrushed:   caneDaily[i],
+			CaneAvailable: caneCrush[i],
+			CaneDelivered: caneCrush[i],
+			CaneAccepted:  caneCrush[i],
+			CaneCrushed:   caneCrush[i],
 			CrushRateTPH:  rate,
 			AvailableHrs:  availHrs,
 		})
-		out.Summary.CaneAllocated = out.Summary.CaneAllocated.Add(caneDaily[i])
-		out.Summary.RawSugarExpected = out.Summary.RawSugarExpected.Add(rawDaily[i])
+		out.Summary.CaneAllocated = out.Summary.CaneAllocated.Add(caneCrush[i])
+		out.Summary.RawSugarExpected = out.Summary.RawSugarExpected.Add(rawCrush[i])
 	}
 	out.Summary.CaneTarget = caneTarget
 
@@ -179,20 +253,20 @@ func Generate(in GeneratorInput) (*GeneratorOutput, error) {
 		var daily []Dec
 		if m.DailyRateTons.GreaterThan(Zero) {
 			var short Dec
-			daily, short = AllocateAtRate(m.SeasonTons, m.DailyRateTons, len(working))
+			daily, short = AllocateAtRate(m.SeasonTons, m.DailyRateTons, len(campaign))
 			if short.GreaterThan(Zero) {
 				out.Warnings = append(out.Warnings, Alert{
 					Code:     "MIX_RATE_TOO_LOW",
 					Severity: SeverityWarning,
 					Title:    "Planned daily rate cannot deliver the season tonnage",
 					Detail: fmt.Sprintf("%s t of product %s cannot be produced at %s t/day within %d days; %s t is unplanned",
-						m.SeasonTons, productName(in.Products, m.ProductID), m.DailyRateTons, len(working), short),
+						m.SeasonTons, productName(in.Products, m.ProductID), m.DailyRateTons, len(campaign), short),
 					Entity:   "product_mix",
 					EntityID: m.ID,
 				})
 			}
 		} else {
-			daily = AllocateEvenly(m.SeasonTons, len(working))
+			daily = AllocateEvenly(m.SeasonTons, len(campaign))
 		}
 		mixPlans = append(mixPlans, mixPlan{
 			entry: m, daily: daily, remelt: ScaleSeries(daily, remeltFactor),
@@ -200,9 +274,9 @@ func Generate(in GeneratorInput) (*GeneratorOutput, error) {
 		out.Summary.FinishedGoods = out.Summary.FinishedGoods.Add(m.SeasonTons)
 	}
 
-	finishedPerDay := make([]Dec, len(working))
-	remeltNeedPerDay := make([]Dec, len(working))
-	for i, day := range working {
+	finishedPerDay := make([]Dec, len(campaign))
+	remeltNeedPerDay := make([]Dec, len(campaign))
+	for i, day := range campaign {
 		for _, mp := range mixPlans {
 			qty := mp.daily[i]
 			if qty.IsZero() {
@@ -232,9 +306,9 @@ func Generate(in GeneratorInput) (*GeneratorOutput, error) {
 	// beyond that is drawn from storage - but never more than the stock that
 	// exists, because a plan that empties a silo below zero is not a plan.
 	plannedDirect := ScaleSeries(rawDaily, directPct.Div(DI(100)))
-	rawDirect := make([]Dec, len(working))
-	rawToStore := make([]Dec, len(working))
-	remeltFromStore := make([]Dec, len(working))
+	rawDirect := make([]Dec, len(campaign))
+	rawToStore := make([]Dec, len(campaign))
+	remeltFromStore := make([]Dec, len(campaign))
 
 	rawOpening := Zero
 	for _, id := range in.RawWarehouseIDs {
@@ -243,7 +317,7 @@ func Generate(in GeneratorInput) (*GeneratorOutput, error) {
 	rawStock := rawOpening
 	supplyShort, firstShortDate := Zero, BusinessDate("")
 
-	for i, day := range working {
+	for i, day := range campaign {
 		need := remeltNeedPerDay[i]
 		direct := MinDec(plannedDirect[i], need)
 		toStore := RoundQty(rawDaily[i].Sub(direct))
@@ -290,7 +364,7 @@ func Generate(in GeneratorInput) (*GeneratorOutput, error) {
 		for i, id := range rawIDs {
 			weights[i] = in.Warehouses[id].UsableCapacity()
 		}
-		for i, day := range working {
+		for i, day := range campaign {
 			recvSplit := AllocateProportional(rawToStore[i], weights)
 			issueSplit := AllocateProportional(remeltFromStore[i], weights)
 			for j, id := range rawIDs {
@@ -312,7 +386,7 @@ func Generate(in GeneratorInput) (*GeneratorOutput, error) {
 	// proportion to what was produced that day, and never ships more than the
 	// stock on hand.
 	fgStock := map[string]Dec{} // warehouse|product -> running balance
-	for i, day := range working {
+	for i, day := range campaign {
 		weights := make([]Dec, len(mixPlans))
 		for j, mp := range mixPlans {
 			weights[j] = mp.daily[i]

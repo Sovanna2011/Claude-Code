@@ -359,6 +359,23 @@ func (p *Planning) CopyVersion(ctx context.Context, req CopyRequest) (domain.Pla
 			}
 		}
 
+		// The shape of the campaign travels with the copy. A what-if that
+		// silently flattened the mill's curve back to an even line would be
+		// comparing two different seasons and calling the difference a
+		// scenario.
+		steps, err := tx.Planning().ListCrushingSteps(ctx, source.ID)
+		if err != nil {
+			return err
+		}
+		if len(steps) > 0 {
+			for i := range steps {
+				steps[i].ID, steps[i].VersionID, steps[i].RowVersion = "", created.ID, 0
+			}
+			if err := tx.Planning().ReplaceCrushingSteps(ctx, created.ID, steps, caller.Username); err != nil {
+				return err
+			}
+		}
+
 		if req.CopyDailyRows {
 			if err := copyDailyRows(ctx, tx, source.ID, created.ID, caller.Username); err != nil {
 				return err

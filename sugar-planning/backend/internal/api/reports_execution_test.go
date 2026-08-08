@@ -3,6 +3,7 @@ package api_test
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/kss/sugarplan/internal/domain"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -111,23 +112,27 @@ func TestTheRecoveryReportReconcilesCaneAgainstRawSugar(t *testing.T) {
 	// The seeded actuals run at a recovery that drifts around the 11 %
 	// assumption, which is the whole reason the report exists.
 	first := tb.Rows[0]
-	if first[crushed] != "13766.423" || first[produced] != "1473.007" {
+	// 13,940 t is 82 % of the plan's 17,000 t opening day - the reference
+	// workbook's own start-up rate, while the boilers come up. It was 13,766
+	// when the generator spread the season evenly at 16,788 t a day, which is
+	// a rate the mill never runs on its first morning.
+	if first[crushed] != "13940.000" || first[produced] != "1491.580" {
 		t.Fatalf("the first day's actuals changed: %v", first)
 	}
-	// 13766.423 x 11 % = 1514.30653, rounded to three places.
-	if first[expected] != "1514.307" {
-		t.Errorf("expected raw = %s, want 1514.307 (13766.423 x 11 %%)", first[expected])
+	// 13940 x 11 % = 1533.4.
+	if first[expected] != "1533.400" {
+		t.Errorf("expected raw = %s, want 1533.400 (13940 x 11 %%)", first[expected])
 	}
-	// 1473.007 / 13766.423 = 10.700 %.
+	// 1491.580 / 13940 = 10.700 %.
 	if first[recovery] != "10.700" {
 		t.Errorf("recovery = %s, want 10.700", first[recovery])
 	}
-	// 1514.307 - 1473.007 = 41.300.
-	if first[difference] != "41.300" {
-		t.Errorf("balance difference = %s, want 41.300", first[difference])
+	// 1533.400 - 1491.580 = 41.820.
+	if first[difference] != "41.820" {
+		t.Errorf("balance difference = %s, want 41.820", first[difference])
 	}
 
-	// 41.3 t on 1514.3 t expected is 2.7 %, well past the seeded 0.5 %
+	// 41.82 t on 1533.4 t expected is 2.7 %, well past the seeded 0.5 %
 	// tolerance, so the day is an exception however healthy the recovery looks.
 	verdict := tb.column(t, "Verdict")
 	if first[verdict] != "WARNING" {
@@ -144,8 +149,18 @@ func TestTheRecoveryReportReconcilesCaneAgainstRawSugar(t *testing.T) {
 		t.Errorf("the report must name the series it reconciled: %v", tb.Notes)
 	}
 
-	if tb.Totals[crushed] != "39788.321" {
-		t.Errorf("total crushed = %s, want 39788.321", tb.Totals[crushed])
+	// The totals row is the sum of the rows above it, not a separately
+	// calculated figure - which is the point of checking it at all.
+	sum := domain.Zero
+	for _, row := range tb.Rows {
+		sum = sum.Add(domain.D(row[crushed]))
+	}
+	if !domain.D(tb.Totals[crushed]).Equal(sum) {
+		t.Errorf("total crushed = %s, but the rows add to %s", tb.Totals[crushed], sum)
+	}
+	if tb.Totals[crushed] != "41510.000" {
+		t.Errorf("total crushed = %s, want 41510.000 over the workbook's 17,000 / "+
+			"17,000 / 19,000 t opening", tb.Totals[crushed])
 	}
 }
 
@@ -172,9 +187,11 @@ func TestThePackingReportConvertsTonsToPackages(t *testing.T) {
 		t.Errorf("the report must cover both series, saw %v", seen)
 	}
 
-	// 2336.496 t of refined sugar in 50 kg bags is 46 729.92 bags, and the
-	// column is the exact conversion rather than a purchase requirement, so it
-	// truncates rather than rounding up.
+	// 1,200 t of refined sugar in 50 kg bags is exactly 24,000 bags. The
+	// tonnage is three days at the workbook's own 400 t/day refinery rate; it
+	// was 2,336.496 t when the plan spread the season's finished goods evenly
+	// across the crushing days, which is neither a rate the refinery runs at
+	// nor a period it runs over.
 	found := false
 	for _, row := range tb.Rows {
 		if !strings.HasPrefix(row[product], "REF") || row[series] != "PLAN" {
@@ -184,8 +201,8 @@ func TestThePackingReportConvertsTonsToPackages(t *testing.T) {
 		if !strings.HasPrefix(row[pack], "P50KG") {
 			t.Errorf("package = %s", row[pack])
 		}
-		if row[qty] != "2336.496" || row[count] != "46730" {
-			t.Errorf("%s t of refined sugar in 50 kg bags = %s bags, want 2336.496 t and 46730",
+		if row[qty] != "1200.000" || row[count] != "24000" {
+			t.Errorf("%s t of refined sugar in 50 kg bags = %s bags, want 1200.000 t and 24000",
 				row[qty], row[count])
 		}
 	}

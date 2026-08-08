@@ -438,8 +438,13 @@ type PlanAssumption struct {
 // Well-known assumption codes. Sites may add their own; the generator only
 // requires the ones listed here and reports a validation error when missing.
 const (
-	AsmCaneTarget         = "CANE_TARGET_TONS"
-	AsmSeasonDays         = "SEASON_DAYS"
+	AsmCaneTarget = "CANE_TARGET_TONS"
+	AsmSeasonDays = "SEASON_DAYS"
+	// AsmCampaignDays is the whole planning horizon, which is longer than the
+	// crushing season: the mill goes on refining stored raw sugar, and selling,
+	// for months after the last cane is crushed. Absent, the plan covers the
+	// crushing season only.
+	AsmCampaignDays       = "CAMPAIGN_DAYS"
 	AsmRecoveryPct        = "RAW_RECOVERY_PCT"
 	AsmDirectToRefinePct  = "RAW_DIRECT_TO_REFINE_PCT"
 	AsmRemeltInputFactor  = "REMELT_INPUT_FACTOR"
@@ -458,6 +463,11 @@ const (
 	// a season is contracted months ahead and nobody expects it to land on the
 	// tonne, but a tenth out is a different plan.
 	AsmSupplyTolerancePct = "SUPPLY_TOLERANCE_PCT"
+	// The wash-out cadence and the rate the mill winds down to the day before
+	// one. Scalars, so they are assumptions; the ramp, the run-down and any
+	// adjusted wash-out dates are ordered and live in plan_crushing_steps.
+	AsmCleaningEveryDays = "CLEANING_EVERY_DAYS"
+	AsmPreCleaningRate   = "PRE_CLEANING_RATE_TONS"
 )
 
 // ProductMixEntry is the share of finished goods output planned for one

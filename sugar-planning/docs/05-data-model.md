@@ -269,6 +269,44 @@ seed, reading "the first fourteen days" of the schedule, silently got a
 different fortnight depending on which store it was running against. The store
 conformance suite now asserts the order in both.
 
+### The crushing profile (migration 0014, 1 table)
+
+`plan_crushing_steps` holds the shape of a campaign: the start-up ramp, the
+run-down, and any wash-out day that had to be moved off the cadence. Ordered by
+`(kind, seq)`, and that order is part of the contract — a run-down written
+15,000 then 12,000 then 8,000 read the other way round ends the season at full
+rate and starts it at a crawl.
+
+It is rows rather than a `jsonb` document, which is the opposite of the choice
+made for saved views one section up. The difference is who reads it. A saved
+view is stored and handed back untouched, so the server has no opinion about
+its shape; a crushing profile is *executed* by the generator, and a document the
+server interprets but cannot constrain eventually holds something the server
+cannot run. `plan_crushing_steps_shape_ck` is the other half of that argument: a
+ramp step has a rate and a duration, a wash-out has a campaign day and neither,
+and the constraint stops either being written into the other's columns.
+
+The two scalars — the wash-out cadence and the rate the day before one — are
+plan assumptions instead, because that is what they are: one number each,
+effective-dated, and read beside the recovery and the quota rate.
+
+### The worksheet an import reads (migration 0015, no new tables)
+
+`import_mappings.sheet` names the tab. The importer read the first worksheet and
+nothing else, which is right for a file exported for the purpose and wrong for
+the file a mill actually keeps its plan in: that one opens on a summary tab and
+holds three hundred days of figures on the second. Asked to read it, the
+importer returned twenty-three rows of the summary interpreted as dates and
+tonnages, and reported them as a successful staging.
+
+Resolving the name needs two parts of the workbook — `xl/workbook.xml` lists the
+tabs with a relationship id each, `xl/_rels/workbook.xml.rels` turns that into a
+path — because sheet names and file numbers drift apart as soon as anybody
+reorders or deletes a tab. Fixing that exposed a second bug in the same place:
+"the first sheet" had meant `xl/worksheets/sheet1.xml`, which is a filename and
+not a position, so a workbook somebody had edited could have its first tab in
+`sheet3.xml` and be read as whatever happened to be in `sheet1.xml`.
+
 ---
 
 ## 5.4 Data dictionary: the tables that carry the numbers

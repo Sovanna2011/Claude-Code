@@ -392,6 +392,88 @@ func versionConflict(ctx context.Context, s *Store, table, label, id string, exp
 }
 
 // ---------------------------------------------------------------------------
+// The shape of the campaign
+// ---------------------------------------------------------------------------
+
+// ListCrushingSteps reads a version's profile in the order it is laid down.
+//
+// The ORDER BY is part of the contract, not a convenience: a run-down written
+// 15,000 then 12,000 then 8,000 has to come back that way round, or the season
+// ends at the wrong rate and nothing says so.
+func (p planning) ListCrushingSteps(ctx context.Context, versionID string) ([]domain.CrushingStepRow, error) {
+	rows, err := p.s.q.Query(ctx, `SELECT id, version_id, kind, seq, rate_tons, days, campaign_day,
+		created_at, created_by, updated_at, updated_by, row_version
+		FROM plan_crushing_steps WHERE version_id = $1 ORDER BY kind, seq`, versionID)
+	if err != nil {
+		return nil, mapError("crushing profile", err)
+	}
+	defer rows.Close()
+
+	var out []domain.CrushingStepRow
+	for rows.Next() {
+		var r domain.CrushingStepRow
+		var rate *domain.Dec
+		var days, campaignDay *int
+		if err := rows.Scan(&r.ID, &r.VersionID, &r.Kind, &r.Seq, &rate, &days, &campaignDay,
+			&r.CreatedAt, &r.CreatedBy, &r.UpdatedAt, &r.UpdatedBy, &r.RowVersion); err != nil {
+			return nil, mapError("crushing profile", err)
+		}
+		if rate != nil {
+			r.RateTons = *rate
+		}
+		if days != nil {
+			r.Days = *days
+		}
+		if campaignDay != nil {
+			r.CampaignDay = *campaignDay
+		}
+		out = append(out, r)
+	}
+	return out, mapError("crushing profile", rows.Err())
+}
+
+// ReplaceCrushingSteps swaps the whole profile for one version.
+//
+// Replace rather than upsert, and in one statement pair inside the caller's
+// transaction: a profile is read as a whole, and a run-down carrying one step
+// left over from a previous edit is not a run-down anybody wrote.
+func (p planning) ReplaceCrushingSteps(ctx context.Context, versionID string,
+	rows []domain.CrushingStepRow, actor string) error {
+
+	if _, err := p.s.q.Exec(ctx,
+		`DELETE FROM plan_crushing_steps WHERE version_id = $1`, versionID); err != nil {
+		return mapError("crushing profile", err)
+	}
+	now := nowUTC()
+	for _, r := range rows {
+		r.VersionID = versionID
+		if err := r.Validate(); err != nil {
+			return err
+		}
+		// The nullable columns are what the check constraint keys off: a ramp
+		// step has a rate and a duration, a wash-out has a day and neither.
+		var rate *domain.Dec
+		var days, campaignDay *int
+		if r.Kind == domain.CrushCleaning {
+			d := r.CampaignDay
+			campaignDay = &d
+		} else {
+			v, d := r.RateTons, r.Days
+			rate, days = &v, &d
+		}
+		if _, err := p.s.q.Exec(ctx, `INSERT INTO plan_crushing_steps
+			(id, version_id, kind, seq, rate_tons, days, campaign_day,
+			 created_at, created_by, updated_at, updated_by, row_version)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$8,$9,1)`,
+			uuid.NewString(), versionID, r.Kind, r.Seq, rate, days, campaignDay,
+			now, actor); err != nil {
+			return mapError("crushing profile", err)
+		}
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
 // Cane supply: where the cane comes from
 // ---------------------------------------------------------------------------
 

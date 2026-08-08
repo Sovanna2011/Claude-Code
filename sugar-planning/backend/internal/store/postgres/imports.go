@@ -20,7 +20,7 @@ func (s *Store) Imports() store.Imports { return imports{s} }
 // ---------------------------------------------------------------------------
 
 const mappingCols = `id, code, name, kind, columns, header_row, first_data_row,
-	delimiter, date_format, decimal_comma, note, valid_from, valid_to, active,
+	sheet, delimiter, date_format, decimal_comma, note, valid_from, valid_to, active,
 	created_at, created_by, updated_at, updated_by, row_version`
 
 func scanMapping(r scanner) (domain.ImportMapping, error) {
@@ -29,7 +29,7 @@ func scanMapping(r scanner) (domain.ImportMapping, error) {
 	var columns []byte
 	var v validityCols
 	err := r.Scan(&m.ID, &m.Code, &m.Name, &kind, &columns, &m.HeaderRow, &m.FirstDataRow,
-		&m.Delimiter, &m.DateFormat, &m.DecimalComma, &m.Note,
+		&m.Sheet, &m.Delimiter, &m.DateFormat, &m.DecimalComma, &m.Note,
 		&v.from, &v.to, &v.active,
 		&m.CreatedAt, &m.CreatedBy, &m.UpdatedAt, &m.UpdatedBy, &m.RowVersion)
 	if err != nil {
@@ -95,26 +95,26 @@ func (i imports) SaveMapping(ctx context.Context, m domain.ImportMapping, actor 
 	if m.ID == "" {
 		m.ID = uuid.NewString()
 		saved, err := scanMapping(i.s.q.QueryRow(ctx, `INSERT INTO import_mappings
-			(id, code, name, kind, columns, header_row, first_data_row, delimiter,
+			(id, code, name, kind, columns, header_row, first_data_row, sheet, delimiter,
 			 date_format, decimal_comma, note, valid_from, valid_to, active,
 			 created_at, created_by, updated_at, updated_by, row_version)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$15,$16,1)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$16,$17,1)
 			RETURNING `+mappingCols,
 			m.ID, m.Code, m.Name, string(m.Kind), columns, m.HeaderRow, m.FirstDataRow,
-			m.Delimiter, m.DateFormat, m.DecimalComma, m.Note,
+			m.Sheet, m.Delimiter, m.DateFormat, m.DecimalComma, m.Note,
 			nd(m.ValidFrom), nd(m.ValidTo), m.Active, now, actor))
 		return saved, mapError("import mapping "+m.Code, err)
 	}
 
 	saved, err := scanMapping(i.s.q.QueryRow(ctx, `UPDATE import_mappings SET
 			code=$1, name=$2, kind=$3, columns=$4, header_row=$5, first_data_row=$6,
-			delimiter=$7, date_format=$8, decimal_comma=$9, note=$10,
-			valid_from=$11, valid_to=$12, active=$13,
-			updated_at=$14, updated_by=$15, row_version = row_version + 1
-		WHERE id=$16 AND ($17 = 0 OR row_version=$17)
+			sheet=$7, delimiter=$8, date_format=$9, decimal_comma=$10, note=$11,
+			valid_from=$12, valid_to=$13, active=$14,
+			updated_at=$15, updated_by=$16, row_version = row_version + 1
+		WHERE id=$17 AND ($18 = 0 OR row_version=$18)
 		RETURNING `+mappingCols,
 		m.Code, m.Name, string(m.Kind), columns, m.HeaderRow, m.FirstDataRow,
-		m.Delimiter, m.DateFormat, m.DecimalComma, m.Note,
+		m.Sheet, m.Delimiter, m.DateFormat, m.DecimalComma, m.Note,
 		nd(m.ValidFrom), nd(m.ValidTo), m.Active, now, actor, m.ID, m.RowVersion))
 	if isNoRows(err) {
 		return domain.ImportMapping{}, versionConflict(ctx, i.s,

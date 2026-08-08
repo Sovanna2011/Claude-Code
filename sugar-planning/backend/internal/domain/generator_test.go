@@ -270,18 +270,35 @@ func TestGenerateSkipsNonWorkingDays(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
-	if len(out.Dates) != 10 {
-		t.Fatalf("working days = %d, want 10", len(out.Dates))
+	// Ten crushing days, and the mill crushes on none of the maintenance days.
+	// The assertion is on the cane rows rather than on out.Dates, because those
+	// are two different things: out.Dates is the campaign calendar, which runs
+	// continuously - the refinery and the shipping gate do not stop because the
+	// mill is down.
+	if out.Summary.WorkingDays != 10 {
+		t.Fatalf("crushing days = %d, want 10", out.Summary.WorkingDays)
 	}
-	for _, d := range out.Dates {
-		if in.NonWorkingDays[d] {
-			t.Errorf("%s is a maintenance day and must not be planned", d)
+	if len(out.Cane) != 10 {
+		t.Fatalf("cane rows = %d, want 10", len(out.Cane))
+	}
+	for _, r := range out.Cane {
+		if in.NonWorkingDays[r.BusinessDate] {
+			t.Errorf("%s is a maintenance day and must not be crushed on", r.BusinessDate)
 		}
 	}
 	// Ten working days starting 1 December, skipping the 3rd and 4th, run to
 	// 12 December: the campaign is pushed out, the tonnage is not cut.
-	if got := out.Dates[9]; got != "2026-12-12" {
+	if got := out.Cane[9].BusinessDate; got != "2026-12-12" {
 		t.Errorf("last working day = %s, want 2026-12-12", got)
+	}
+	// And the campaign covers those twelve calendar days without a hole in it.
+	if len(out.Dates) != 12 {
+		t.Errorf("campaign = %d days, want the 12 calendar days 1-12 December", len(out.Dates))
+	}
+	for i := 1; i < len(out.Dates); i++ {
+		if out.Dates[i] != out.Dates[i-1].AddDays(1) {
+			t.Errorf("the campaign calendar jumps from %s to %s", out.Dates[i-1], out.Dates[i])
+		}
 	}
 	eq(t, out.Summary.CaneAllocated, D("2300000"), "tonnage is preserved across a maintenance window")
 }

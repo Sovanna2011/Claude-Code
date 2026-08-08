@@ -717,6 +717,31 @@ func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
 // Cane supply
 // ---------------------------------------------------------------------------
 
+// The crushing profile: how the season is shaped, and the curve that shape
+// produces against this version's own target.
+func (s *Server) handleCrushingProfile(w http.ResponseWriter, r *http.Request) {
+	view, err := s.planning.CrushingProfile(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeJSON(w, view)
+}
+
+func (s *Server) handleSaveCrushingProfile(w http.ResponseWriter, r *http.Request) {
+	var profile domain.CrushingProfile
+	if err := decodeJSON(w, r, &profile); err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	view, err := s.planning.SaveCrushingProfile(r.Context(), r.PathValue("id"), profile)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeJSON(w, view)
+}
+
 func (s *Server) handleSupplyPlan(w http.ResponseWriter, r *http.Request) {
 	plan, err := s.planning.SupplyPlan(r.Context(), r.PathValue("id"))
 	if err != nil {

@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -509,9 +510,24 @@ func TestExportFormats(t *testing.T) {
 				t.Errorf("the workbook is missing %s", part)
 			}
 		}
-		// A tonnage must be a number, not a string, or the recipient cannot sum it.
-		if !strings.Contains(sheet, "<v>16788.321</v>") {
-			t.Error("tonnages must be written as numeric cells")
+		// A tonnage must be a number, not a string, or the recipient cannot sum
+		// it. Asserted as "some cell holds a bare decimal", rather than against
+		// one day's tonnage: the figure moved when the plan learned the mill's
+		// real crushing curve, and this test has no opinion about the curve.
+		// The first day of the reference plan crushes 17,000 t. It has to reach
+		// the recipient as the number 17000 and not as the text "17000", or
+		// nobody can sum the column. Whole or fractional is not the point, and
+		// pinning a fractional figure here broke the moment the plan learned
+		// the mill's real crushing curve.
+		numeric := regexp.MustCompile(`<v>\d+(\.\d+)?</v>`)
+		if !numeric.MatchString(sheet) {
+			t.Error("tonnages must be written as numeric cells, not inline strings")
+		}
+		if !strings.Contains(sheet, "<v>17000</v>") {
+			t.Errorf("the first day's 17,000 t is not in the sheet as a number")
+		}
+		if strings.Contains(sheet, "<t>17000") {
+			t.Error("a tonnage was written as text rather than a number")
 		}
 	})
 

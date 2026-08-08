@@ -107,12 +107,22 @@ func TestTheShipmentTrendIsDailyAndPerChannel(t *testing.T) {
 	}
 	// Every channel with a figure in the KPI table needs a curve, or the chart
 	// and the table below it disagree about who shipped what.
+	// Every channel is drawn on the same axis as every other, so the bands can
+	// be read against each other. That axis is the campaign, not the crushing
+	// season: the mill stops crushing in April and goes on shipping to the
+	// quota until September, and a shipment curve that stopped with the cane
+	// would end two thirds of the way through its own KPI.
 	inTrend := map[string]bool{}
+	axis := len(dash.ShipmentTrend[0].Points)
+	if axis <= len(dash.CaneTrend) {
+		t.Errorf("the shipment axis is %d days against %d of crushing; shipping "+
+			"outlasts the cane", axis, len(dash.CaneTrend))
+	}
 	for _, s := range dash.ShipmentTrend {
 		inTrend[s.Code] = true
-		if len(s.Points) != len(dash.CaneTrend) {
-			t.Errorf("channel %s has %d points against %d days",
-				s.Code, len(s.Points), len(dash.CaneTrend))
+		if len(s.Points) != axis {
+			t.Errorf("channel %s has %d points against %d for the other channels",
+				s.Code, len(s.Points), axis)
 		}
 	}
 	for _, c := range dash.Shipments {

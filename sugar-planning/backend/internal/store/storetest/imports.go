@@ -21,7 +21,7 @@ func testImports(t *testing.T, newStore Factory) {
 	column := 3
 	mapping, err := imp.SaveMapping(ctx, domain.ImportMapping{
 		Code: "CANE-DAILY", Name: "Daily cane sheet", Kind: domain.ImportCane,
-		HeaderRow: 2, FirstDataRow: 4, Delimiter: ";", DateFormat: "02/01/2006",
+		HeaderRow: 2, FirstDataRow: 4, Sheet: "Daily plan", Delimiter: ";", DateFormat: "02/01/2006",
 		DecimalComma: true, Note: "from the weighbridge office",
 		Columns: []domain.ColumnMapping{
 			{Field: "businessDate", Header: "Date"},
@@ -41,6 +41,13 @@ func testImports(t *testing.T, newStore Factory) {
 	// convention silently reads the next file wrong.
 	if back.Delimiter != ";" || !back.DecimalComma || back.DateFormat != "02/01/2006" {
 		t.Errorf("the file conventions must survive: %+v", back)
+	}
+	// The worksheet name has to survive the round trip. A mapping that came
+	// back without it would read the first sheet of the workbook and report the
+	// summary tab as the plan, which is exactly what happened before the column
+	// existed - and it did not look like a failure.
+	if back.Sheet != "Daily plan" {
+		t.Errorf("the worksheet name came back as %q, want \"Daily plan\"", back.Sheet)
 	}
 	if back.HeaderRow != 2 || back.FirstDataRow != 4 {
 		t.Errorf("the row numbers must survive: header %d, data %d",

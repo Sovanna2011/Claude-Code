@@ -42,7 +42,7 @@ Three consequences you can check:
 | --- | --- |
 | **Executive overview** | 137 days of plan, 14 of actuals, eight charts, and two real capacity alerts |
 | **Season plans** | The released budget V1 and the actuals container |
-| **Daily planning board** | Cane, production, stock and shipment rows for the whole season |
+| **Daily planning board** | Cane on 137 days, production and shipment across all 276 days of the campaign |
 | **Cane supply** | 8 sources across 6 zones committing 2,320,000 t, a 492-row delivery schedule and 14 days of arrivals at the gate |
 | **Downtime** | 7 stoppages across 4 reasons — the Pareto is 62 % boiler |
 | **Production orders** | 5 orders, released and confirmed; one closed 60 t short |
@@ -137,10 +137,13 @@ generation time and who ran it, and so does the Excel and the CSV.
 
 | | |
 | --- | --- |
-| Cane target | 2,300,000 t over 137 days |
+| Cane target | 2,300,000 t over 137 campaign days, of which **131 crush** and 6 are wash-outs |
+| Crushing curve | 17,000 t start-up, 19,000 t plateau (solved), half rate before each wash-out, run-down 15,000 → 3,000 t — the mill's own shape |
+| Campaign | 1 Dec 2026 to 2 Sep 2027: cane to 16 April, refining and shipping to September |
 | Cane committed | 2,320,000 t from 8 sources — 100.870 % coverage, 20,000 t of margin |
 | Delivery schedule | 492 rows over all 137 days, 133,195 lorry movements |
 | Recovery assumption | 11.00 %, so 253,000 t of raw sugar |
+| Refinery rates | 400 t/day refined, 500 t/day white — the workbook's own, not an even spread |
 | Finished goods | 106,700 refined + 133,400 white + 2,000 super = 242,100 t |
 | Raw storage | 45,000 + 65,000 = 110,000 t |
 | Finished storage | 22,000 + 47,000 = 69,000 t |

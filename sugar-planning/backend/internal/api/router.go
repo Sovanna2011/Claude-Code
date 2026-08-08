@@ -234,6 +234,10 @@ func (s *Server) routes(mux *http.ServeMux) {
 	s.handle(mux, "PUT /api/v1/versions/{id}/product-mix", s.handleSaveMix)
 
 	// --- cane supply: where the season's cane comes from --------------------
+	// --- the shape of the campaign ------------------------------------------
+	s.handle(mux, "GET /api/v1/versions/{id}/crushing-profile", s.handleCrushingProfile)
+	s.handle(mux, "PUT /api/v1/versions/{id}/crushing-profile", s.handleSaveCrushingProfile)
+
 	s.handle(mux, "GET /api/v1/versions/{id}/supply", s.handleSupplyPlan)
 	s.handle(mux, "PUT /api/v1/versions/{id}/supply", s.handleSaveSupply)
 	s.handle(mux, "DELETE /api/v1/versions/{id}/supply/{entryId}", s.handleDeleteSupply)

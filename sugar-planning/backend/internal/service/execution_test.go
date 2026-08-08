@@ -796,8 +796,11 @@ func TestApprovedMaintenanceLengthensTheCampaign(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}
-	if before.LastDate != "2027-04-16" {
-		t.Fatalf("baseline campaign ends %s, want 2027-04-16", before.LastDate)
+	// The last day of cane, not the end of the campaign: the refinery and the
+	// shipping gate run until September either way, and it is the crushing that
+	// a maintenance window moves.
+	if before.LastCrushingDate != "2027-04-16" {
+		t.Fatalf("baseline crushing ends %s, want 2027-04-16", before.LastCrushingDate)
 	}
 	if len(before.NonWorkingDays) != 0 {
 		t.Errorf("a proposal must not remove crushing days, got %v", before.NonWorkingDays)
@@ -826,10 +829,16 @@ func TestApprovedMaintenanceLengthensTheCampaign(t *testing.T) {
 	if len(after.NonWorkingDays) != 3 {
 		t.Errorf("non-working days = %v, want the three days of the outage", after.NonWorkingDays)
 	}
-	// The season is extended rather than shortened: the same cane still has to
-	// be crushed, so the campaign ends three days later.
-	if after.LastDate != "2027-04-19" {
-		t.Errorf("campaign now ends %s, want 2027-04-19", after.LastDate)
+	// The crushing is extended rather than shortened: the same cane still has to
+	// go through the mill, so it finishes three days later. The campaign end
+	// does not move - the refinery was always going to run into September, and
+	// three days of mill outage in December does not change that.
+	if after.LastCrushingDate != "2027-04-19" {
+		t.Errorf("crushing now ends %s, want 2027-04-19", after.LastCrushingDate)
+	}
+	if after.LastDate != before.LastDate {
+		t.Errorf("the campaign end moved from %s to %s; a mill outage does not "+
+			"move the end of the remelt season", before.LastDate, after.LastDate)
 	}
 	if after.Summary.WorkingDays != before.Summary.WorkingDays {
 		t.Errorf("working days changed from %d to %d; the outage must not cost tonnage",
@@ -866,8 +875,8 @@ func TestALineOutageDoesNotStopTheFactory(t *testing.T) {
 	if len(result.NonWorkingDays) != 0 {
 		t.Errorf("a line outage must not remove a crushing day, got %v", result.NonWorkingDays)
 	}
-	if result.LastDate != "2027-04-16" {
-		t.Errorf("campaign ends %s, want the unchanged 2027-04-16", result.LastDate)
+	if result.LastCrushingDate != "2027-04-16" {
+		t.Errorf("crushing ends %s, want the unchanged 2027-04-16", result.LastCrushingDate)
 	}
 }
 

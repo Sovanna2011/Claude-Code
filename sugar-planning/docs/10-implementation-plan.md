@@ -383,11 +383,80 @@ somewhere, not enough to plan a season.
 
 ---
 
+## Phase 10 — the reference workbook ✅ delivered
+
+The workbook the specification asked for arrived: `ProductionPlan_2627_2.3mt
+Rev.1 (corrected)`, the mill's own daily plan for 2026/27. Every headline figure
+it states was already right. Everything underneath them was not there at all.
+
+**What it confirmed**
+
+Cane 2,300,000 t, recovery 11.00 %, raw 253,000 t, the 49.387 % split, refined
+106,700 + white 133,400 + super 2,000, both warehouse pairs, the 500 t/day quota
+and the 300 t/day jumbo packing between 21 January and 30 March. It also settles
+the remelt factor, which had been an open question: the sheet feeds the refinery
+945 t of raw sugar for 900 t of output, and 945 / 900 is exactly 1.05.
+
+**What it changed**
+
+| Found | Fix |
+| --- | --- |
+| A crushing season is not a straight line. The mill opens at 17,000 t, settles at 19,000, runs at half rate the day before each of six wash-outs, stops for the wash-out, and runs down through 15,000 to 3,000 t. The generator drew 16,788 t a day for 137 days | `CrushingProfile` (C49, migration 0014). The shoulders and wash-outs are the planner's; the plateau is **solved** from the target, and against 2,300,000 t over 137 days it solves to the mill's own 19,000 t |
+| 137 days of campaign carry **131 days of crushing**. The open question asked whether 137 was calendar or crushing days; it is neither | The wash-outs live in the profile, and the summary reports crushing days and wash-outs separately |
+| The campaign is twice the crushing season: cane to 16 April, refining and shipping to 2 September. Finished goods were planned over the crushing days alone - nine months compressed into four and a half | `CAMPAIGN_DAYS`. Cane rows on crushing days, everything downstream over the campaign |
+| **Two findings in this document were wrong, and the error was ours.** "FG-WH1 fills 1 January" and "844 t/day is needed" both came from dividing 242,100 t by 137 days instead of by the campaign. The mill's own answer is 28 May and about 640 t/day | Corrected in [01-assumptions-and-questions.md](01-assumptions-and-questions.md), with what they used to say kept beside them |
+| An importer that could only read the first worksheet. Pointed at the real file it read the summary tab, interpreted its labels as dates and tonnages, and reported twenty-three rows as a successful staging | `import_mappings.sheet` (migration 0015), resolved through the workbook's own relationship parts |
+| And in fixing that: "the first sheet" had meant `xl/worksheets/sheet1.xml` - a filename, not a position. A workbook whose tabs had been reordered was read in the wrong order, silently | Resolved through tab order. Caught by a fixture that deliberately stores its second tab as `sheet1.xml` |
+
+**What it broke, and what that says**
+
+Reshaping the reference plan turned eight tests red. Six were expectations
+pinned to the old even spread and were updated. **Two were real defects the
+change introduced**, and both were the same mistake in different places:
+comparing a *crushing* quantity against a *campaign* date.
+
+- The product mix and shipment charts were drawn on an axis built from the cane
+  rows, so they stopped at the last day of cane. The chart showed 125,300 t of a
+  242,100 t plan while the KPI beside it showed the whole thing.
+- `scheduleAlerts` compared the crushing forecast against `season.EndDate`,
+  which is now September. The mill could never be behind schedule again, and the
+  alert simply stopped firing. The acceptance harness caught it - the unit tests
+  did not.
+
+**Known differences from the workbook, stated rather than tuned away**
+
+The refinery start-up is not modelled: the workbook idles it until 5 December
+and ramps it over a week, where this plan starts it on day one. That costs about
+4,500 t of raw sugar consumption, so refinery input during crushing reads
+131,565 t against the workbook's 124,950 t, and the campaign finishes 24 August
+rather than 2 September. Jumbo bagging is not modelled as a raw-sugar repack
+either, so the raw silo peaks at about 129,000 t against the workbook's
+109,720 t - the system reaches the mill's own conclusion that bagging is needed,
+and then cannot do it. Both are open questions Q15 and Q16.
+
+**Acceptance criteria — met**
+
+- The generated plan is the workbook's crushing curve, asserted date by date at
+  every point the rate changes, with 131 crushing days, 6 wash-outs and a solved
+  19,000 t plateau
+- The raw silo peaks on **2027-04-10**, the date the workbook's own tracker
+  names, and peaks over capacity, which is the workbook's own reason for
+  planning jumbo bagging
+- The mill's real file imports through the HTTP API: **305 rows, 304 valid**,
+  the one rejection being the sheet's own `SUM` line, reported against file row
+  325
+- 61 acceptance checks pass against PostgreSQL 16, and the store conformance
+  suite covers the new profile in both stores
+
+---
+
 ## Still open
 
 | Item | Estimate |
 | --- | --- |
-| A pre-canned mapping for the reference workbook — the framework is built; only the template for that one file is missing, because the file was never supplied | an hour of data entry once the file exists |
+| ~~A pre-canned mapping for the reference workbook~~ — **done in phase 10.** `KSS-PLAN-CANE` and `KSS-ACTUAL-CANE` read the mill's own sheet by position | — |
+| Jumbo bagging as a raw-sugar repack, so the plan can keep the silo inside capacity the way the mill does (Q15) | 3 days |
+| The refinery start-up ramp, so finished goods have a shape the way cane now does (Q16) | 3 days |
 | Advanced forecasting: seasonality, weather, cane maturity | 4 weeks |
 | OPA5 end-to-end journeys in a browser | 1 week |
 | Operational hardening: partitioning, read replicas, cache tuning | 2 weeks. Load testing at ten years of data is **done** - see [13-performance.md](13-performance.md); partitioning is measured as not yet justified |
@@ -447,6 +516,9 @@ container restart tripled the stoppages and the orders.
 | SAPUI5 formatter and chart unit tests, the translation bundles, and every `{i18n>key}` a view asks for (`npm test`, 33) | ✅ passing |
 | Saved views: ownership, sharing, defaults, both stores | ✅ passing |
 | Cane supply: the calculations, the schedule, ordering and upsert keys in both stores, and the seeded year of data | ✅ passing |
+| The crushing profile: the solved plateau, the wash-out cadence, the shoulders, and storage in both stores | ✅ passing |
+| The reference workbook, reconciled date by date against the generated plan | ✅ passing |
+| Reading a named worksheet, including a workbook whose tab order and file numbers disagree | ✅ passing |
 | Metrics: route labelling, no business data in the exposition | ✅ passing |
 | The demonstration scenario: contents, idempotency, reconciliation with the dashboard | ✅ passing |
 | The second tenant: its own plan, isolation both ways, idempotency | ✅ passing |

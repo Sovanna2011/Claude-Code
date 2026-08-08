@@ -156,7 +156,7 @@ func (i *Imports) Stage(ctx context.Context, req StageRequest) (Preview, error) 
 		return Preview{}, fmt.Errorf("%w: the file is empty", domain.ErrValidation)
 	}
 
-	cells, err := tabular.Read(req.FileName, req.Content, mapping.Separator())
+	cells, err := tabular.ReadSheet(req.FileName, req.Content, mapping.Separator(), mapping.Sheet)
 	if err != nil {
 		return Preview{}, fmt.Errorf("%w: %s", domain.ErrValidation, err)
 	}

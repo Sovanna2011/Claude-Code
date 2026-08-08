@@ -49,6 +49,7 @@ func Run(t *testing.T, newStore Factory) {
 	t.Run("Notifications", func(t *testing.T) { testNotifications(t, newStore) })
 	t.Run("SavedViews", func(t *testing.T) { testSavedViews(t, newStore) })
 	t.Run("CaneSupply", func(t *testing.T) { testCaneSupply(t, newStore) })
+	t.Run("CrushingProfile", func(t *testing.T) { testCrushingProfile(t, newStore) })
 }
 
 // fixture seeds the minimum master data the planning tests need and returns

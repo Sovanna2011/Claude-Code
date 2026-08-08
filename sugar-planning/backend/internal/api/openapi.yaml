@@ -516,6 +516,50 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/PlanAssumption" }
 
+  /versions/{id}/crushing-profile:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Planning]
+      summary: The shape of the crushing campaign
+      description: >
+        The start-up ramp, the wash-out cadence and the run-down, together with
+        the daily curve they produce against this version's own cane target.
+        The full rate is not part of the profile: it is solved so the season
+        comes to target, which is the figure a spreadsheet gets wrong as soon as
+        the tonnage changes.
+      operationId: getCrushingProfile
+      responses:
+        "200":
+          description: The profile and the curve it implies.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CrushingProfileView" }
+    put:
+      tags: [Planning]
+      summary: Replace the shape of the crushing campaign
+      description: >
+        Refused if the profile cannot produce a plan - shoulders that already
+        exceed the season target, or a ramp and a run-down that overlap - so a
+        version cannot be left editable but ungeneratable.
+      operationId: saveCrushingProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CrushingProfile" }
+      responses:
+        "200":
+          description: The stored profile and the curve it implies.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CrushingProfileView" }
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
   /versions/{id}/supply:
     parameters:
       - name: id
@@ -3455,6 +3499,64 @@ components:
         committedTons: { $ref: "#/components/schemas/Quantity" }
         note: { type: string }
 
+    CrushingStep:
+      type: object
+      description: A run of days at one crushing rate.
+      properties:
+        rateTons: { type: string, description: "Tons of cane a day." }
+        days: { type: integer, minimum: 1 }
+
+    CrushingProfile:
+      type: object
+      description: >
+        The shape of a campaign without its size. The shoulders and the
+        wash-outs are decided by the planner; the plateau rate is solved from
+        the cane target.
+      properties:
+        rampUp:
+          type: array
+          description: The opening shoulder, in order from the first day.
+          items: { $ref: "#/components/schemas/CrushingStep" }
+        runDown:
+          type: array
+          description: The closing shoulder, in order, ending on the last day.
+          items: { $ref: "#/components/schemas/CrushingStep" }
+        cleaningEveryDays:
+          type: integer
+          description: >
+            The wash-out cadence. Zero means no scheduled wash-outs.
+        cleaningDays:
+          type: array
+          description: >
+            Explicit one-based campaign days the mill stops, overriding the
+            cadence. The reference plan pulls its last wash-out forward from day
+            126 to 119 so it does not land in the run-down.
+          items: { type: integer }
+        preCleaningRateTons:
+          type: string
+          description: The rate the day before a wash-out. A mill winds down before it stops.
+
+    CrushingPreview:
+      type: object
+      description: The campaign a profile implies. Calculated, never stored.
+      properties:
+        campaignDays: { type: integer }
+        crushingDays: { type: integer }
+        cleaningDays: { type: integer }
+        plateauRateTons: { type: string }
+        totalTons: { type: string }
+        daily:
+          type: array
+          description: One tonnage per campaign day. A wash-out day is zero.
+          items: { type: string }
+
+    CrushingProfileView:
+      type: object
+      properties:
+        versionId: { type: string, format: uuid }
+        profile: { $ref: "#/components/schemas/CrushingProfile" }
+        preview: { $ref: "#/components/schemas/CrushingPreview" }
+
     SupplyPlan:
       type: object
       properties:
@@ -4352,6 +4454,14 @@ components:
         firstDataRow:
           type: integer
           description: The one-based row the data starts on. Zero means the row after the headings.
+        sheet:
+          type: string
+          description: |
+            The worksheet the data is on, by its tab name. Empty takes the first
+            tab, which is what a file exported for the purpose has and is not
+            what a real workbook is: a mill's own plan opens on a summary tab and
+            keeps the daily figures on the second.
+          examples: ["RW'2627(2.3mt)Rev1(re)"]
         delimiter:
           type: string
           description: The CSV separator, one character. Empty means comma.

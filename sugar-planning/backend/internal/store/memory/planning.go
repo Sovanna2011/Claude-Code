@@ -248,6 +248,54 @@ func (p planning) DeleteMix(_ context.Context, id string) error {
 	return nil
 }
 
+// The campaign shape. Ordered by kind and then sequence, which is the order the
+// generator lays the steps down in: a run-down written 15,000 then 12,000 then
+// 8,000 has to come back that way round or the season ends at the wrong rate.
+func (p planning) ListCrushingSteps(_ context.Context, versionID string) ([]domain.CrushingStepRow, error) {
+	p.s.lock()
+	defer p.s.unlock()
+	var out []domain.CrushingStepRow
+	for _, r := range p.s.d.crushSteps {
+		if r.VersionID == versionID {
+			out = append(out, r)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Kind != out[j].Kind {
+			return out[i].Kind < out[j].Kind
+		}
+		return out[i].Seq < out[j].Seq
+	})
+	return out, nil
+}
+
+// ReplaceCrushingSteps swaps the whole profile for one version.
+//
+// Replace rather than upsert: a profile is read as a whole and a run-down with
+// one step left over from a previous edit is not a run-down anybody wrote.
+func (p planning) ReplaceCrushingSteps(_ context.Context, versionID string,
+	rows []domain.CrushingStepRow, actor string) error {
+
+	p.s.lock()
+	defer p.s.unlock()
+	for id, r := range p.s.d.crushSteps {
+		if r.VersionID == versionID {
+			delete(p.s.d.crushSteps, id)
+		}
+	}
+	for _, r := range rows {
+		r.VersionID = versionID
+		if err := r.Validate(); err != nil {
+			return err
+		}
+		r.ID = uuid.NewString()
+		r.CreatedAt, r.CreatedBy = nowUTC(), actor
+		r.UpdatedAt, r.UpdatedBy, r.RowVersion = nowUTC(), actor, 1
+		p.s.d.crushSteps[r.ID] = r
+	}
+	return nil
+}
+
 // ---------------------------------------------------------------------------
 // Daily facts
 // ---------------------------------------------------------------------------

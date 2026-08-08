@@ -103,6 +103,22 @@ DELETE deactivates; master data is never removed.
 The write permission depends on the `series` in the payload: `PLAN` rows need
 `plan:write`, `ACTUAL` rows need the operator permission for that area.
 
+### The crushing profile
+
+| Method | Path | Permission | Purpose |
+| --- | --- | --- | --- |
+| GET | `/versions/{id}/crushing-profile` | `plan:read` | The campaign shape, and the daily curve it produces against this version's target |
+| PUT | `/versions/{id}/crushing-profile` | `plan:write` | Replace it |
+
+The response carries a `preview`: the whole curve, one tonnage per campaign day,
+with the solved plateau rate and the crushing / wash-out day counts. It is
+calculated on every read and never stored, because a preview that could disagree
+with the generator would be worse than no preview.
+
+A `PUT` is refused if the profile cannot produce a plan — shoulders that already
+exceed the season target, or a ramp and a run-down that overlap — so a version
+cannot be left editable but ungeneratable.
+
 ### Cane supply
 
 | Method | Path | Permission | Purpose |

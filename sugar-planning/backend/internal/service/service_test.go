@@ -73,8 +73,16 @@ func TestSeedProducesTheReferenceScenario(t *testing.T) {
 	if sum.WorkingDays != 137 {
 		t.Errorf("working days = %d, want 137", sum.WorkingDays)
 	}
-	if h.seeded.Generated.FirstDate != "2026-12-01" || h.seeded.Generated.LastDate != "2027-04-16" {
-		t.Errorf("campaign runs %s to %s", h.seeded.Generated.FirstDate, h.seeded.Generated.LastDate)
+	// The campaign is the whole planning horizon - crushing plus the remelt
+	// season that lives off the silo - and it is nine months, not four and a
+	// half. The cane stops on 16 April; the refinery and the quota do not.
+	if h.seeded.Generated.FirstDate != "2026-12-01" || h.seeded.Generated.LastCrushingDate != "2027-04-16" {
+		t.Errorf("crushing runs %s to %s", h.seeded.Generated.FirstDate,
+			h.seeded.Generated.LastCrushingDate)
+	}
+	if h.seeded.Generated.LastDate != "2027-09-02" {
+		t.Errorf("the campaign ends %s, the workbook runs to 2027-09-02",
+			h.seeded.Generated.LastDate)
 	}
 	if got := h.seeded.Generated.RowCounts["cane"]; got != 137 {
 		t.Errorf("cane rows = %d, want 137", got)

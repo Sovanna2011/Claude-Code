@@ -17,6 +17,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -36,10 +37,21 @@ const MaxColumns = 200
 // who uploads a .csv named .xlsx has made a mistake worth being told about
 // rather than worked around.
 func Read(name string, data []byte, delimiter rune) ([][]string, error) {
+	return ReadSheet(name, data, delimiter, "")
+}
+
+// ReadSheet is Read with a named worksheet.
+//
+// An empty sheet name takes the first worksheet, which is what a file exported
+// for the purpose has. A real workbook is not that: the mill's own production
+// plan opens on a summary tab and keeps the daily figures on the second one, so
+// an importer that could only read the first sheet read the summary and
+// reported twenty-three rows of nonsense rather than three hundred days of plan.
+func ReadSheet(name string, data []byte, delimiter rune, sheet string) ([][]string, error) {
 	lower := strings.ToLower(name)
 	switch {
 	case strings.HasSuffix(lower, ".xlsx"):
-		return ReadXLSX(data)
+		return ReadXLSXSheet(data, sheet)
 	case strings.HasSuffix(lower, ".csv"), strings.HasSuffix(lower, ".txt"),
 		strings.HasSuffix(lower, ".tsv"):
 		if strings.HasSuffix(lower, ".tsv") && delimiter == 0 {
@@ -105,26 +117,59 @@ func stripBOM(data []byte) []byte {
 // ---------------------------------------------------------------------------
 
 // ReadXLSX parses the first worksheet of an Office Open XML workbook.
+func ReadXLSX(data []byte) ([][]string, error) { return ReadXLSXSheet(data, "") }
+
+// ReadXLSXSheet parses one named worksheet, or the first when the name is empty.
 //
-// Only the first sheet is read, and that is said out loud in the API rather
-// than left to be discovered: a workbook whose data is on the third tab needs
-// that tab exported, and silently reading the wrong sheet would be worse than
-// refusing.
-func ReadXLSX(data []byte) ([][]string, error) {
+// A workbook names its sheets in xl/workbook.xml and stores them in files whose
+// numbering has nothing to do with tab order, so the name is resolved through
+// the relationships part rather than guessed. A name that is not there is an
+// error listing the ones that are: the alternative is reading the wrong tab and
+// reporting its contents as the plan.
+func ReadXLSXSheet(data []byte, want string) ([][]string, error) {
 	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return nil, fmt.Errorf("the file is not a readable .xlsx workbook: %w", err)
 	}
 
-	var sheet, shared *zip.File
+	var shared *zip.File
+	files := map[string]*zip.File{}
 	for _, f := range zr.File {
-		switch f.Name {
-		case "xl/worksheets/sheet1.xml":
-			sheet = f
-		case "xl/sharedStrings.xml":
+		if f.Name == "xl/sharedStrings.xml" {
 			shared = f
 		}
+		files[f.Name] = f
 	}
+
+	// "The first sheet" means the first tab, not xl/worksheets/sheet1.xml.
+	// Those are not the same thing: the part numbers are assigned as sheets are
+	// created and stay put when tabs are reordered or deleted, so a workbook
+	// somebody has edited can easily hold its first tab in sheet3.xml. Reading
+	// by file number was doing exactly that, quietly.
+	target := ""
+	order, names, err := sheetIndex(files)
+	switch {
+	case err != nil && strings.TrimSpace(want) != "":
+		return nil, err
+	case err == nil && strings.TrimSpace(want) != "":
+		path, ok := names[want]
+		if !ok {
+			have := append([]string(nil), order...)
+			sort.Strings(have)
+			return nil, fmt.Errorf("the workbook has no sheet named %q; it has %s",
+				want, strings.Join(have, ", "))
+		}
+		target = path
+	case err == nil && len(order) > 0:
+		target = names[order[0]]
+	}
+	if target == "" {
+		// A workbook that does not describe its own sheets. Fall back to the
+		// conventional name rather than refusing outright.
+		target = "xl/worksheets/sheet1.xml"
+	}
+
+	sheet := files[target]
 	if sheet == nil {
 		return nil, fmt.Errorf("the workbook has no first worksheet this system can read; " +
 			"save the sheet you want as .csv instead")
@@ -135,6 +180,85 @@ func ReadXLSX(data []byte) ([][]string, error) {
 		return nil, err
 	}
 	return readSheet(sheet, strs)
+}
+
+// sheetIndex maps a worksheet's visible name onto the zip entry that holds it.
+//
+// Two parts are needed. xl/workbook.xml lists the tabs in order with the
+// relationship id of each; xl/_rels/workbook.xml.rels turns that id into a
+// path. Sheet names and file numbers drift apart as soon as anybody reorders or
+// deletes a tab, which is why this cannot be done by counting.
+// It returns the tab names in workbook order as well, because "the first
+// sheet" is a question about that order and not about the map.
+func sheetIndex(files map[string]*zip.File) ([]string, map[string]string, error) {
+	book := files["xl/workbook.xml"]
+	rels := files["xl/_rels/workbook.xml.rels"]
+	if book == nil || rels == nil {
+		return nil, nil, fmt.Errorf("the workbook does not list its sheets; save the sheet you want as .csv instead")
+	}
+
+	relPath := map[string]string{}
+	if err := eachElement(rels, "Relationship", func(attr map[string]string) {
+		id, target := attr["Id"], attr["Target"]
+		if id == "" || target == "" {
+			return
+		}
+		target = strings.TrimPrefix(target, "/xl/")
+		if !strings.HasPrefix(target, "xl/") {
+			target = "xl/" + strings.TrimPrefix(target, "./")
+		}
+		relPath[id] = target
+	}); err != nil {
+		return nil, nil, err
+	}
+
+	var order []string
+	out := map[string]string{}
+	if err := eachElement(book, "sheet", func(attr map[string]string) {
+		name := attr["name"]
+		// The relationship id attribute is namespaced; the local name is what
+		// the decoder gives back.
+		if name == "" {
+			return
+		}
+		if path, ok := relPath[attr["id"]]; ok {
+			out[name] = path
+			order = append(order, name)
+		}
+	}); err != nil {
+		return nil, nil, err
+	}
+	return order, out, nil
+}
+
+// eachElement calls fn with the attributes of every start element of the given
+// local name.
+func eachElement(f *zip.File, local string, fn func(map[string]string)) error {
+	rc, err := f.Open()
+	if err != nil {
+		return fmt.Errorf("read %s: %w", f.Name, err)
+	}
+	defer rc.Close()
+
+	dec := xml.NewDecoder(rc)
+	for {
+		tok, err := dec.Token()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("read %s: %w", f.Name, err)
+		}
+		se, ok := tok.(xml.StartElement)
+		if !ok || se.Name.Local != local {
+			continue
+		}
+		attr := make(map[string]string, len(se.Attr))
+		for _, a := range se.Attr {
+			attr[a.Name.Local] = a.Value
+		}
+		fn(attr)
+	}
 }
 
 // readSharedStrings reads the table most .xlsx writers put text in. A workbook

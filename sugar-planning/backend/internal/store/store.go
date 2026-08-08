@@ -142,6 +142,13 @@ type Planning interface {
 	SaveMix(ctx context.Context, m domain.ProductMixEntry, actor string) (domain.ProductMixEntry, error)
 	DeleteMix(ctx context.Context, id string) error
 
+	// The shape of the campaign: the start-up ramp, the run-down and any
+	// wash-out days that had to be moved off the cadence. Ordered by kind and
+	// sequence, because the generator lays the steps down in the order the
+	// planner wrote them.
+	ListCrushingSteps(ctx context.Context, versionID string) ([]domain.CrushingStepRow, error)
+	ReplaceCrushingSteps(ctx context.Context, versionID string, rows []domain.CrushingStepRow, actor string) error
+
 	// The cane-supply commitments: what each source owes this season, and the
 	// window it will be cut in. Same shape as the product mix, and read by the
 	// generator the same way.

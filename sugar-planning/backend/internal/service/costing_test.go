@@ -416,8 +416,8 @@ func TestASeasonWithNoActualsStillCosts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cost run: %v", err)
 	}
-	if result.To != "2027-04-16" {
-		t.Errorf("with nothing recorded the range runs to the season end, got %s", result.To)
+	if result.To != "2027-09-02" {
+		t.Errorf("with nothing recorded the range runs to the end of the campaign, got %s", result.To)
 	}
 	if result.Totals.PlannedCost.LessThanOrEqual(domain.Zero) {
 		t.Error("the plan must still be costed")

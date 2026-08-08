@@ -528,6 +528,46 @@ across its window while 190 movements at 12 t carry 2,280 t — so
 
 ---
 
+## C49 The crushing profile
+
+The shape of a season, and the one rate in it that is calculated rather than
+entered. `backend/internal/domain/crushingprofile.go`, asserted against the
+mill's own workbook by `crushingprofile_test.go`.
+
+```
+shoulder tons  = Σ (ramp-up rate × days) + Σ (run-down rate × days)
+                 + (pre-cleaning rate × wash-outs preceded by a working day)
+plateau rate   = round((cane target − shoulder tons) ÷ plateau days)
+```
+
+A wash-out day is zero. The last plateau day absorbs the rounding remainder, so
+the season adds back to the target to the kilogram.
+
+The point is which way round the arithmetic goes. A planner knows the start-up
+rate, the run-down and the wash-out cadence — those are decisions and equipment.
+Nobody knows the plateau rate: it is whatever makes the season come to target,
+and it is the number a spreadsheet gets wrong the moment the tonnage changes.
+So the profile fixes the shoulders and **solves** the plateau.
+
+A profile that says nothing gives an even spread, which is what the generator
+did before profiles existed. A profile whose shoulders already exceed the target
+is refused rather than scaled: a plan silently reshaped is not the plan anybody
+wrote.
+
+*Worked example — the reference season.* Two days at 17,000 t, six wash-outs at
+zero each preceded by a day at 9,000 t, and a run-down of 15,000 ×5, 12,000 ×3,
+8,000 ×2, 4,000 ×2 and 3,000 ×2. That is 28 shouldered days accounting for
+229,000 t and 6 stopped days, leaving 109 days to carry 2,071,000 t:
+
+```
+(2,300,000 − 229,000) ÷ 109 = 19,000 t/day
+```
+
+which is the rate the mill's own plan runs at. 137 days of campaign, **131 of
+crushing**.
+
+---
+
 ## Reference reconciliation
 
 The figures section 24 requires, and the tests that assert them.

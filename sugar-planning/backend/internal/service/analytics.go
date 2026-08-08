@@ -225,6 +225,21 @@ func (a *Analytics) Dashboard(ctx context.Context, req DashboardRequest) (Dashbo
 		actualByDate[r.BusinessDate] = actualByDate[r.BusinessDate].Add(r.CaneCrushed)
 	}
 	ordered := sortedDates(dates)
+
+	// The cane axis and the campaign axis are not the same axis, and building
+	// every chart on the first one silently truncated the others.
+	//
+	// The mill stops crushing on 16 April and goes on refining and shipping
+	// until 2 September. Taking the dates from the cane rows alone - which is
+	// what this did - cut the product mix and the shipment curve off at the
+	// last day of cane, so the chart showed 125,300 t of a 242,100 t plan while
+	// the KPI beside it showed the whole thing. Two numbers for the same
+	// quantity, on the same screen.
+	campaignDates := map[domain.BusinessDate]bool{}
+	for d := range dates {
+		campaignDates[d] = true
+	}
+
 	series := domain.BuildSeries(ordered, targetByDate, actualByDate)
 	rolling := domain.RollingAverage(series, window)
 	dash.CaneTrend, dash.CaneRollingAvg = series, rolling
@@ -241,7 +256,12 @@ func (a *Analytics) Dashboard(ctx context.Context, req DashboardRequest) (Dashbo
 		seasonTarget = series[len(series)-1].CumTarget
 	}
 	dash.Cane.SeasonTarget = seasonTarget
-	dash.Cane.PlannedEndDate = season.EndDate
+	// The last day of cane, not the end of the campaign. The season now runs
+	// months past the last cane - the refinery lives off the silo and the quota
+	// keeps shipping - so comparing a crushing forecast against season.EndDate
+	// says the mill is five months ahead of schedule and silences the alert
+	// that says it is behind.
+	dash.Cane.PlannedEndDate = ordered[len(ordered)-1]
 	if idx >= 0 {
 		point := series[idx]
 		dash.Cane.CumulativeTarget = point.CumTarget
@@ -254,8 +274,11 @@ func (a *Analytics) Dashboard(ctx context.Context, req DashboardRequest) (Dashbo
 
 		if end, days, ok := domain.ForecastCompletion(asOf, dash.Cane.Remaining, rolling[idx]); ok {
 			dash.Cane.ForecastEndDate, dash.Cane.ForecastDaysToGo, dash.Cane.ForecastReliable = end, days, true
-			if season.EndDate != "" {
-				dash.Cane.DaysBehindSchedule = season.EndDate.DaysBetween(end)
+			// Against the last planned day of cane. The season's own end date is
+			// the end of the campaign, which the refinery and the shipping gate
+			// run to long after the mill has stopped.
+			if dash.Cane.PlannedEndDate != "" {
+				dash.Cane.DaysBehindSchedule = dash.Cane.PlannedEndDate.DaysBetween(end)
 			}
 		}
 	}
@@ -280,9 +303,17 @@ func (a *Analytics) Dashboard(ctx context.Context, req DashboardRequest) (Dashbo
 	}
 	dash.RawSugar = a.recoveryKPIs(assumptions, planCane, actualCane, planProd, actualProd, products)
 	dash.Products = productKPIs(planProd, actualProd, products)
+	for _, r := range planProd {
+		campaignDates[r.BusinessDate] = true
+	}
+	for _, r := range actualProd {
+		campaignDates[r.BusinessDate] = true
+	}
+	campaign := sortedDates(campaignDates)
+
 	dash.RecoveryTrend = recoveryTrend(ordered, actualCane, actualProd, products,
 		assumptions[domain.AsmRecoveryPct])
-	dash.ProductTrend = productTrend(ordered, planProd, actualProd, products)
+	dash.ProductTrend = productTrend(campaign, planProd, actualProd, products)
 
 	// --- storage and capacity ----------------------------------------------
 	dash.Storage, dash.Alerts, err = a.storageKPIs(ctx, planVersion, actualVersion, assumptions, req)
@@ -291,7 +322,7 @@ func (a *Analytics) Dashboard(ctx context.Context, req DashboardRequest) (Dashbo
 	}
 
 	// --- shipments ----------------------------------------------------------
-	dash.Shipments, dash.ShipmentTrend, err = a.shipmentKPIs(ctx, planFilter, actualFilter, ordered)
+	dash.Shipments, dash.ShipmentTrend, err = a.shipmentKPIs(ctx, planFilter, actualFilter, campaign)
 	if err != nil {
 		return Dashboard{}, err
 	}
@@ -839,8 +870,11 @@ func (a *Analytics) downtimeKPIs(ctx context.Context, season domain.Season, req 
 }
 
 // scheduleAlerts warns when the campaign is drifting past its planned end.
+// scheduleAlerts compares the crushing forecast against the last planned day of
+// cane. Against the end of the campaign it would never fire: the refinery runs
+// until September whatever the mill is doing.
 func scheduleAlerts(cane CaneKPIs, season domain.Season) []domain.Alert {
-	if !cane.ForecastReliable || season.EndDate == "" || cane.DaysBehindSchedule <= 0 {
+	if !cane.ForecastReliable || cane.PlannedEndDate == "" || cane.DaysBehindSchedule <= 0 {
 		return nil
 	}
 	severity := domain.SeverityWarning
@@ -852,7 +886,7 @@ func scheduleAlerts(cane CaneKPIs, season domain.Season) []domain.Alert {
 		Title: fmt.Sprintf("Crushing is forecast to finish %d days late", cane.DaysBehindSchedule),
 		Detail: fmt.Sprintf(
 			"At the current rolling average of %s t/day the remaining %s t finishes on %s, against a planned end of %s",
-			cane.RollingAvgPerDay, cane.Remaining, cane.ForecastEndDate, season.EndDate),
+			cane.RollingAvgPerDay, cane.Remaining, cane.ForecastEndDate, cane.PlannedEndDate),
 		Entity: "season", EntityID: season.ID, Date: cane.ForecastEndDate,
 	}}
 }

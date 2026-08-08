@@ -5,17 +5,21 @@ was decided, and what still needs a business answer.
 
 ---
 
-## 1.1 The reference workbook was not available
+## 1.1 The reference workbook
 
-The specification says:
+The specification asked for a workbook to be used as the business reference for
+field mapping and reconciliation. It was not supplied at first, and for most of
+this project everything under the season target was reasonable invention built
+from the figures quoted in section 2.
 
-> Use the attached workbook "5_6296369270787941755.xlsx" as a business reference
-> for field mapping and reconciliation.
+**The workbook has since arrived**: `ProductionPlan_2627_2.3mt Rev.1
+(corrected)`, prepared 16 July 2026, with a summary tab and a 305-row daily
+sheet named `RW'2627(2.3mt)Rev1(re)`. Every headline figure the specification
+quoted is confirmed by it. What it added is everything underneath them, and two
+of those things changed the model rather than the data — see
+[§1.2](#12-what-the-workbook-changed).
 
-**That file was not provided.** Only the specification text reached the
-development environment. Everything in this system that refers to the workbook
-is therefore built from the figures quoted in section 2 of the specification
-itself, which are reproduced exactly:
+The stated figures, all confirmed:
 
 | Figure | Value | Where it lives now |
 | --- | --- | --- |
@@ -33,14 +37,18 @@ itself, which are reproduced exactly:
 | Finished goods capacity | 22,000 t + 47,000 t = 69,000 t | `warehouses` FG-WH1, FG-WH3 |
 | Quota shipment | 500 t/day | assumption `QUOTA_SHIPMENT_TPD` |
 
-**What this means for the field-to-domain mapping.** Section 26 asks for a
-field mapping against the workbook before coding. The mapping in
-[05-data-model.md](05-data-model.md) is therefore a mapping of the *stated
-business content*, not of the workbook's actual column headers. It has to be
-reviewed against the real file before the first data migration. The reference
-reconciliation figures are covered by automated tests
-(`TestReferenceScenarioReconciliation`), so once the workbook arrives, any
-disagreement will show up as a failing test rather than as a surprise in UAT.
+**The field mapping is now against the real file.** Two import templates,
+`KSS-PLAN-CANE` and `KSS-ACTUAL-CANE`, read the daily sheet directly — column C
+for the date, D for the day's target and E for what was crushed. They map by
+*position*, not by heading, and that is deliberate: the sheet's headings are
+split across rows 5 and 6, several are blank, and "R 50kg (ton)" appears twice,
+once for the conditioning silo and once for Factory 1. Matching on a heading
+that is not unique picks whichever column comes first, silently.
+
+Run against the real file the importer reads **305 rows, 304 of them valid**.
+The one rejection is the sheet's own `SUM` totals line, reported against file
+row 325 so somebody can find it in Excel. `internal/seed/workbook_test.go`
+holds the generated plan to the workbook figure for figure.
 
 The specification also mentions the workbook tracks shipment in a column per
 trader ("Wilmar, Jie Srey, You Hour"). Those are modelled as
@@ -52,11 +60,45 @@ data would misrepresent a commercial relationship. The seed uses `TRD-A`,
 
 ---
 
-## 1.2 Two findings in the reference figures
+## 1.2 What the workbook changed
 
-These came out of building the calculation chain, and both need a business
-decision. Neither is a defect in the software: the system reports them, which
-is the point.
+Two things in it were not assumptions that turned out wrong — they were parts
+of the model that did not exist.
+
+### A crushing season is not a straight line
+
+The generator spread the cane target evenly: 2,300,000 t over 137 days is
+16,788 t every day, from the first to the last. The mill's own plan opens at
+17,000 t while the boilers come up, settles at 19,000, drops to **half rate the
+day before each wash-out**, stops for the wash-out itself, and runs down through
+15,000, 12,000, 8,000, 4,000 and 3,000 t as the last cane arrives. Six wash-outs
+inside the campaign, so **137 days of season carry 131 days of crushing**.
+
+That is now a `CrushingProfile` on the plan version (C49, migration 0014). The
+shoulders and the wash-out days are the planner's; the full rate is **solved**
+from the target, so changing the tonnage gives a plan that still looks like a
+season. Against 2,300,000 t over 137 days it solves to the workbook's own
+19,000 t.
+
+### The campaign is twice as long as the crushing season
+
+The mill crushes to 16 April and goes on refining stored raw sugar, and
+shipping to the quota, until **2 September**. The generator planned finished
+goods over the crushing days alone — nine months of production compressed into
+four and a half. Everything downstream of that was wrong by months, and two of
+those wrong answers had been written up in this document as findings about the
+business (below). They were findings about a loop.
+
+`CAMPAIGN_DAYS` now separates the two. Cane rows exist on crushing days;
+production, stock and shipment run the whole campaign.
+
+---
+
+## 1.3 The findings, corrected
+
+Two of the three findings previously recorded here were artefacts of that
+compressed horizon. They are kept rather than deleted, because a document that
+quietly removes what it got wrong teaches nobody anything.
 
 ### Finding 1 — the plan is 1,205 t of raw sugar short
 
@@ -78,29 +120,45 @@ error before the plan can be released, and names the four ways out: reduce the
 finished goods mix, raise the cane target, raise the recovery assumption, or
 plan an opening stock of raw sugar.
 
-**Question for the business:** which is intended? The most likely explanation is
-that 1.05 is an illustrative figure in the specification rather than the
-site's actual factor — at a factor of 1.0450 or below the plan balances.
+**The workbook confirms the 1.05 factor rather than dismissing it.** It does not
+state one, but it computes one: the daily sheet feeds the refinery 945 t of raw
+sugar to make 400 t of refined and 500 t of white, and 945 / 900 is exactly
+1.05. So this finding stands, and it is a real one — the mill's own plan is
+1,205 t of raw sugar short of the finished goods it schedules.
 
-### Finding 2 — 500 t/day of shipment cannot keep up with production
+**Question for the business:** where does the 1,205 t come from — opening stock,
+a slightly better recovery, or 1,205 t less finished sugar than planned?
 
-Finished goods are produced at 242,100 t / 137 days ≈ **1,767 t/day**. The
-planned quota shipment is **500 t/day**. The finished goods stores hold 69,000 t
-between them, so they fill during the campaign: FG-WH1 on 1 January 2027 and
-FG-WH3 on 23 February 2027.
+### Finding 2 — the finished goods stores fill, but not when we said
 
-The system calculates what would be needed instead: **844 t/day** for FG-WH1 and
-**470 t/day** for FG-WH3 to stay inside the alert threshold across the plan.
+**What this document used to say:** finished goods are produced at 242,100 t /
+137 days ≈ 1,767 t/day against 500 t/day of shipment, so FG-WH1 fills on
+1 January 2027 and 844 t/day would be needed instead.
 
-**Question for the business:** is the 500 t/day quota rate the *whole* shipment
-plan, or only the domestic quota channel, with export and direct sales tracked
-separately? The data model supports any number of channels; the seed only
-populates the quota channel, because that is the only rate the specification
-states.
+**That was wrong, and the error was ours.** The mill does not make 1,767 t a
+day. It makes 900 t a day — 400 refined and 500 white — for nine months. The
+1,767 t figure was 242,100 t divided by the crushing season instead of by the
+campaign, and the January date followed from it.
+
+The stores still fill. The mill's own workbook says so in its key observations:
+even at 500 t/day the finished stock passes 69,000 t of capacity on
+**28 May 2027** and ends the campaign at about 106,100 t, some 37,100 t above
+what there is room for. With no deliveries at all it would be full by
+20 February. The plan now reaches the same conclusion from the same data, and
+raises the capacity alerts across February to August rather than in the first
+week of January.
+
+The workbook also answers the rate question it left open: about **640 t/day**
+keeps ending stock inside capacity, and about **890 t/day** clears the whole
+campaign by 2 September.
+
+**Question for the business, unchanged:** is 500 t/day the whole shipment plan
+or only the domestic quota channel? 136,000 t over 272 selling days is 56 % of
+what the season produces, and the other 44 % has to go somewhere.
 
 ---
 
-## 1.3 Decisions taken, and why
+## 1.4 Decisions taken, and why
 
 Where the specification left a choice, this is what was decided. Each is
 reversible through configuration unless noted.
@@ -198,7 +256,7 @@ shortened: the same cane still has to be crushed.
 
 ---
 
-## 1.4 Open questions for the business
+## 1.5 Open questions for the business
 
 These materially affect the architecture or the numbers, which is the bar
 section 26 sets. Each has a working assumption so that development is not
@@ -206,11 +264,11 @@ blocked.
 
 | # | Question | Working assumption |
 | --- | --- | --- |
-| Q1 | Is the remelt input factor really 1.05? At 1.05 the reference plan is 1,205 t short (finding 1). | 1.05 as stated, with the shortfall reported as an error. |
+| ~~Q1~~ | ~~Is the remelt input factor really 1.05?~~ **Answered by the workbook.** Its daily sheet feeds the refinery 945 t of raw sugar for 900 t of finished output, which is exactly 1.05. The 1,205 t shortfall is real and is finding 1. | Closed. The remaining question is where the 1,205 t comes from. |
 | Q2 | Is 500 t/day the whole shipment plan or just the quota channel? Both finished goods stores overflow at that rate (finding 2). | Quota channel only; other channels are configured per site. |
 | Q3 | What usable percentage applies to each store? Nominal capacity is rarely fillable. | 100 %, so the demonstration reconciles with the stated figures. Expect 90–95 % in reality. |
-| Q4 | Is the 137-day season 137 *calendar* days or 137 *crushing* days? | Crushing days. Maintenance windows extend the campaign rather than cutting tonnage. The reference plan has no shutdowns, so both readings give 1 December to 16 April. |
-| Q5 | Should the 20,700 t of jumbo packing come out of the 242,100 t of finished goods, or is it raw sugar packed for direct sale? | Raw sugar packed for sale, i.e. *additional* to the 242,100 t. It is seeded as a separate mix entry in the tests but not in the default demo mix, because including it would change the finished goods total the specification states. |
+| ~~Q4~~ | ~~Is the 137-day season 137 calendar days or 137 crushing days?~~ **Answered, and it was neither reading.** 137 is the campaign, 1 December to 16 April; six of those days are wash-outs, so **131 are crushing days**. The working assumption said the reference plan had no shutdowns. It has six. | Closed. `SEASON_DAYS` is the campaign; the wash-outs are in the crushing profile. |
+| ~~Q5~~ | ~~Is the 20,700 t of jumbo packing part of the 242,100 t, or raw sugar packed separately?~~ **Answered.** The workbook lists it under *Raw Sugar Allocation*, not under finished goods: raw sugar packed out of the silo at 300 t/day between 21 January and 30 March, to keep the peak stock inside 110,000 t. The working assumption was right. | Closed. Still not in the default mix — it is a raw-sugar draw, not a finished good, and the system does not yet model it as one. See Q15. |
 | Q6 | What is the acceptable recovery operating window? | 9.8 % to 13.0 %, configurable as `RECOVERY_MIN_PCT` / `RECOVERY_MAX_PCT`. |
 | Q7 | What mass-balance tolerance applies per process? | 0.5 % of throughput, configurable as `MASS_BALANCE_TOLERANCE_PCT`. |
 | Q8 | Which shift pattern applies — three eight-hour shifts, or two twelve-hour? | Three eight-hour shifts (A/B/C) seeded. The model supports any pattern; daily rows may be shift-level or day-level. |
@@ -220,10 +278,12 @@ blocked.
 | Q12 | How long must audit and transaction history be retained, and may it be partitioned by season? | 10 years (section 23). Partitioning is prepared for but not enabled; see [05-data-model.md](05-data-model.md). |
 | Q13 | What margin does the mill contract above the crushing target, and what gap is worth an alert? | 2 % either way, as `SUPPLY_TOLERANCE_PCT`. The demonstration contracts 2,320,000 t against a 2,300,000 t target — 0.87 % over, which is inside the tolerance and says nothing. A shortfall is an error and a surplus only a warning, because a mill short of cane stops and a mill with too much leaves it standing. |
 | Q14 | Are the cane sources, areas, yields and haulage in the demonstration anywhere near this mill's real ones? | They are **invented**, and no part of them came from the reference figures — which gave a season target and nothing behind it. Eight sources across six Kampong Speu districts, with areas and yields chosen so the commitments add up to the target and exactly one source is short of lorries. The shape is right; the numbers need replacing with the real contracts before anyone quotes them. |
+| Q15 | The workbook keeps the raw silo inside capacity by packing 20,700 t into jumbo bags between 21 January and 30 March. The plan reproduces the overflow but not the remedy: jumbo packing is a repack out of raw storage, and the mix entry mechanism only makes finished goods. Should it be modelled as a repack? | Yes, and it is not built. The plan raises the raw-storage capacity alerts the workbook raises, and stops there. Until it is modelled, the peak reads about 129,000 t rather than the workbook's 109,720 t. |
+| Q16 | The workbook idles the refinery until 5 December and then ramps it — 350, 400, then 500 t/day — where this plan starts it on day one at full rate. Is that four-day lag a commissioning constraint or a choice? | Treated as a choice and not modelled. It is the cause of the two known differences from the workbook: refinery input during crushing reads 131,565 t against 124,950 t, and the campaign finishes 24 August rather than 2 September. |
 
 ---
 
-## 1.5 What is built, and what is not
+## 1.6 What is built, and what is not
 
 The specification describes five phases. This delivery covers **all five**.
 Nothing in the delivered scope is a placeholder: there are no stub methods, no

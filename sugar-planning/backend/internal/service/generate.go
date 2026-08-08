@@ -28,6 +28,11 @@ type GenerateResult struct {
 	RowCounts map[string]int      `json:"rowCounts"`
 	FirstDate domain.BusinessDate `json:"firstDate"`
 	LastDate  domain.BusinessDate `json:"lastDate"`
+	// LastCrushingDate is the last day cane goes through the mill, which is not
+	// the end of the campaign: the refinery works through stored raw sugar, and
+	// the quota keeps shipping, for months afterwards. A maintenance window
+	// moves this date; it does not necessarily move LastDate.
+	LastCrushingDate domain.BusinessDate `json:"lastCrushingDate"`
 	// NonWorkingDays are the dates the run skipped. The planner needs to see
 	// them: they are the reason the campaign ends later than the day count
 	// alone suggests.
@@ -79,6 +84,9 @@ func (p *Planning) Generate(ctx context.Context, versionID string, req GenerateR
 			"cane": len(output.Cane), "production": len(output.Products),
 			"storage": len(output.Storage), "shipment": len(output.Shipments),
 		},
+	}
+	if len(output.Cane) > 0 {
+		result.LastCrushingDate = output.Cane[len(output.Cane)-1].BusinessDate
 	}
 	if len(output.Dates) > 0 {
 		result.FirstDate, result.LastDate = output.Dates[0], output.Dates[len(output.Dates)-1]
@@ -299,9 +307,21 @@ func (p *Planning) buildGeneratorInput(ctx context.Context, season domain.Season
 		nonWorking[d] = true
 	}
 
+	// The shape of the campaign. Without this a regenerate would flatten the
+	// mill's own curve - the start-up, the wash-outs, the run-down - into a
+	// straight line, and move the date the raw silo fills.
+	steps, err := p.store.Planning().ListCrushingSteps(ctx, version.ID)
+	if err != nil {
+		return nil, err
+	}
+	profile := domain.ProfileFromRows(steps,
+		int(assumptions[domain.AsmCleaningEveryDays].IntPart()),
+		assumptions[domain.AsmPreCleaningRate])
+
 	return &domain.GeneratorInput{
 		Season: season, Version: version, Assumptions: assumptions, Mix: mix,
 		Products: products, Warehouses: warehouses, RawWarehouseIDs: rawWarehouses,
 		RawProductID: rawProductID, QuotaChannelID: quotaChannel, NonWorkingDays: nonWorking,
+		Profile: profile,
 	}, nil
 }

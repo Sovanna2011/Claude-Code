@@ -300,6 +300,41 @@ func Load(ctx context.Context, s store.Store, planning *service.Planning) (Resul
 				{Field: "note", Header: "Remarks"},
 			},
 		},
+		// The mill's own workbook, `ProductionPlan_2627_2.3mt Rev.1`, sheet
+		// `RW'2627(2.3mt)Rev1(re)`. This is the file the plan is actually kept
+		// in, and it is mapped by position rather than by heading for a reason:
+		// its headings are split across two rows, several are blank, and
+		// "R 50kg (ton)" appears twice - once for the conditioning silo and once
+		// for Factory 1. Matching on a heading that is not unique picks whichever
+		// column comes first, silently.
+		//
+		// Rows 7 to 18 are the tail of the 2024 season, left in the sheet. The
+		// 2026/27 plan starts on row 19, which is why FirstDataRow is set rather
+		// than left to follow a heading row.
+		{
+			Code: "KSS-PLAN-CANE", Name: "Mill production plan - cane (target)",
+			Kind: domain.ImportCane, HeaderRow: 0, FirstDataRow: 19, Validity: active(),
+			Sheet: "RW'2627(2.3mt)Rev1(re)",
+			Note: "ProductionPlan_2627 sheet RW'2627: column C is the date and column D " +
+				"the day's cane target. Mapped by position because the sheet's headings " +
+				"span two rows and repeat.",
+			Columns: []domain.ColumnMapping{
+				{Field: "businessDate", Column: at(2)}, // C
+				{Field: "caneCrushed", Column: at(3)},  // D, "Today (target)"
+				{Field: "availableHours", Default: "24"},
+			},
+		},
+		{
+			Code: "KSS-ACTUAL-CANE", Name: "Mill production plan - cane (actual)",
+			Kind: domain.ImportCane, HeaderRow: 0, FirstDataRow: 19, Validity: active(),
+			Sheet: "RW'2627(2.3mt)Rev1(re)",
+			Note:  "The same sheet, column E - what the mill actually crushed that day.",
+			Columns: []domain.ColumnMapping{
+				{Field: "businessDate", Column: at(2)}, // C
+				{Field: "caneCrushed", Column: at(4)},  // E, "Today Actual"
+				{Field: "availableHours", Default: "24"},
+			},
+		},
 	} {
 		if _, err := s.Imports().SaveMapping(ctx, m, Actor); err != nil &&
 			!errors.Is(err, domain.ErrDuplicate) {
@@ -575,8 +610,17 @@ func Load(ctx context.Context, s store.Store, planning *service.Planning) (Resul
 	for _, a := range []domain.PlanAssumption{
 		{Code: domain.AsmCaneTarget, Description: "Season cane target",
 			Value: domain.D("2300000"), UOM: "TON"},
-		{Code: domain.AsmSeasonDays, Description: "Planned crushing days",
+		// 137 days of campaign, of which 131 crush: the workbook plans six
+		// wash-outs inside the season. The distinction matters - a tonnage
+		// divided by the wrong one of the two is out by five per cent.
+		{Code: domain.AsmSeasonDays, Description: "Planned campaign days",
 			Value: domain.D("137"), UOM: "DAY"},
+		// The mill crushes for 137 days and goes on refining stored raw sugar,
+		// and selling, until 2 September - 276 days from the first day of the
+		// season. Planning the finished goods over the crushing days alone
+		// compresses nine months into four and a half.
+		{Code: domain.AsmCampaignDays, Description: "Planned campaign days including the remelt season",
+			Value: domain.D("276"), UOM: "DAY"},
 		{Code: domain.AsmRecoveryPct, Description: "Raw sugar recovery on cane",
 			Value: domain.D("11.00"), UOM: "%"},
 		{Code: domain.AsmDirectToRefinePct, Description: "Raw sugar sent straight to refining",
@@ -611,16 +655,26 @@ func Load(ctx context.Context, s store.Store, planning *service.Planning) (Resul
 		}
 	}
 
-	// Product mix: the finished goods tonnages from the workbook.
-	//   refined 106,700 + white 133,400 + super refined 2,000 = 242,100 t
-	// Jumbo bag packing of raw sugar runs at 300 t/day up to 20,700 t.
+	// Product mix: the finished goods tonnages and the rates from the workbook.
+	//   refined 106,700 t at 400 t/day + white 133,400 t at 500 t/day
+	//   + super refined 2,000 t = 242,100 t
+	//
+	// The rates matter as much as the tonnages. Spread evenly across the
+	// campaign the same totals give a lower daily output, so the refinery needs
+	// less raw sugar on a crushing day, so more of it goes to the silo: the
+	// split came out 112,828 / 140,172 against the workbook's 124,950 /
+	// 128,050. The mill does not run its refinery at whatever rate makes the
+	// arithmetic tidy - it runs at 400 and 500 t a day.
 	for _, m := range []domain.ProductMixEntry{
 		{ProductID: res.Products["REF"], PackagingID: packagingIDs["P50KG"],
-			WarehouseID: res.Warehouses["FG-WH3"], SeasonTons: domain.D("106700")},
+			WarehouseID: res.Warehouses["FG-WH3"], SeasonTons: domain.D("106700"),
+			DailyRateTons: domain.D("400")},
 		{ProductID: res.Products["WHT"], PackagingID: packagingIDs["P50KG"],
-			WarehouseID: res.Warehouses["FG-WH1"], SeasonTons: domain.D("133400")},
+			WarehouseID: res.Warehouses["FG-WH1"], SeasonTons: domain.D("133400"),
+			DailyRateTons: domain.D("500")},
 		{ProductID: res.Products["SUP"], PackagingID: packagingIDs["P1KG"],
-			WarehouseID: res.Warehouses["FG-WH1"], SeasonTons: domain.D("2000")},
+			WarehouseID: res.Warehouses["FG-WH1"], SeasonTons: domain.D("2000"),
+			DailyRateTons: domain.D("400")},
 	} {
 		m.VersionID = budget.ID
 		if _, err := planning.SaveMixEntry(ctx, m); err != nil {
@@ -637,6 +691,13 @@ func Load(ctx context.Context, s store.Store, planning *service.Planning) (Resul
 		return res, fmt.Errorf("cane supply: %w", err)
 	}
 	res.Supply = supply
+
+	// The shape of the campaign, read off the reference workbook: the start-up,
+	// the six wash-outs, and the run-down as the cane ends. Stored before the
+	// plan is generated, because it is what the generator draws.
+	if err := LoadCrushingProfile(ctx, planning, budget.ID); err != nil {
+		return res, err
+	}
 
 	generated, err := planning.Generate(ctx, budget.ID, service.GenerateRequest{Replace: true})
 	if err != nil {

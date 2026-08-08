@@ -48,9 +48,19 @@ days, the campaign runs three days longer; the tonnage is not cut. This is a
 deliberate choice (assumption Q4): a shutdown moves the end date, it does not
 reduce what the factory has to crush.
 
-**Step 2 — daily cane.** The season target is spread across the working days
-with `AllocateEvenly` (C31), which rounds the running cumulative rather than
-each day, so 137 days add back to exactly 2,300,000 t.
+**Step 2 — daily cane.** The season target is laid over the campaign by the
+crushing profile (C49): a start-up ramp, half rate the day before each wash-out,
+nothing on the wash-out itself, and a run-down as the cane thins. The full rate
+is solved so the days add back to exactly 2,300,000 t. A version with no profile
+gets an even spread, which is all this step could do before the mill's own plan
+was available — and an even line answers every date question wrongly, because
+the raw silo then fills at a constant rate and the date it fills is what the
+jumbo bagging campaign is planned around.
+
+The reference season is **137 days of campaign carrying 131 days of crushing**;
+the other six are wash-outs. A wash-out is not a non-working day: a non-working
+day is removed from the calendar and pushes the end of the season out, a
+wash-out is a planned day of the campaign on which the mill crushes nothing.
 
 **Step 3 — raw sugar.** Each day's cane is multiplied by the recovery
 assumption using `ScaleSeries` (C34), which preserves the season total exactly:
@@ -63,7 +73,13 @@ than the stock that exists. What is left over goes into storage. The split is
 exhaustive: direct + to storage always equals the raw sugar produced.
 
 **Step 5 — finished goods.** Each product mix entry is spread across the
-campaign, either evenly or at its own daily rate. The rate form is how jumbo bag
+campaign — and the campaign is not the crushing season. The mill stops crushing
+on 16 April and goes on refining stored raw sugar, and shipping, until
+2 September: 137 days of cane inside 276 days of plan. `CAMPAIGN_DAYS` says how
+long; cane rows exist on crushing days and everything downstream runs the whole
+way. Planning the finished goods over the crushing days alone compresses nine
+months into four and a half, and every storage date that follows is wrong by
+months. Each entry is spread evenly or at its own daily rate. The rate form is how jumbo bag
 packing is planned: 300 t/day until 20,700 t is reached, which is 69 working
 days. If the rate cannot deliver the tonnage in the season, the generator says
 so rather than quietly producing less.

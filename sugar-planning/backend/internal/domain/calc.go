@@ -493,3 +493,12 @@ func ThroughputPct(tons, runHours, ratedTPH Dec) Dec {
 	}
 	return RoundPct(SafePct(tons.Div(runHours), ratedTPH))
 }
+
+// zeroSeries is n zeroes, the base every campaign-length series is built on.
+func zeroSeries(n int) []Dec {
+	out := make([]Dec, n)
+	for i := range out {
+		out[i] = Zero
+	}
+	return out
+}

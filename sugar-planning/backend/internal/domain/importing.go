@@ -208,6 +208,13 @@ type ImportMapping struct {
 	// FirstDataRow is the one-based row the data starts on. Zero means the row
 	// after the headings.
 	FirstDataRow int `json:"firstDataRow"`
+	// Sheet is the worksheet the data is on, by its tab name. Empty takes the
+	// first sheet, which is what a file exported for the purpose has - and is
+	// not what a real workbook is. The mill's own production plan opens on a
+	// summary tab and keeps the daily figures on the second one, so an importer
+	// that could only read the first sheet read the summary and reported
+	// twenty-three rows of nonsense rather than three hundred days of plan.
+	Sheet string `json:"sheet,omitempty"`
 	// Delimiter is the CSV separator, as a single character. Empty means comma.
 	Delimiter string `json:"delimiter,omitempty"`
 	// DateFormat is a Go layout - "2006-01-02", "02/01/2006". Empty accepts the
