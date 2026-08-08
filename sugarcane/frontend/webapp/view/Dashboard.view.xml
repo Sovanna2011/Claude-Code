@@ -5,37 +5,50 @@
     xmlns:core="sap.ui.core"
     xmlns:l="sap.ui.layout"
     xmlns:t="sap.ui.table"
+    xmlns:f="sap.f"
     xmlns:fa="farm.area.dashboard.control"
     height="100%">
 
-    <Page id="dashboardPage" showHeader="true" class="faDashboardPage">
-        <customHeader>
-            <Bar>
-                <contentLeft>
-                    <core:Icon src="sap-icon://tree" class="sapUiTinyMarginEnd" />
-                    <Title text="{i18n>appTitle}" level="H1" />
-                </contentLeft>
-                <contentRight>
+    <!-- A DynamicPage rather than a plain Page: the filters and the KPI cards live in a header
+         that snaps away as the reader scrolls into the charts and the tree, and can be pinned open
+         when they want to keep the figures in view while they read. -->
+    <f:DynamicPage id="dashboardPage" headerExpanded="true" toggleHeaderOnTitleClick="true"
+                   preserveHeaderStateOnScroll="false" class="faDashboardPage" fitContent="false">
+        <f:title>
+            <f:DynamicPageTitle>
+                <f:heading>
+                    <HBox alignItems="Center">
+                        <core:Icon src="sap-icon://tree" class="sapUiTinyMarginEnd" />
+                        <Title text="{i18n>appTitle}" level="H1" />
+                    </HBox>
+                </f:heading>
+                <!-- What the header shows when it is collapsed: the filter in one line, so the
+                     figures below are never read without knowing what land they describe. -->
+                <f:snappedContent>
+                    <HBox alignItems="Center">
+                        <core:Icon src="sap-icon://filter" class="sapUiTinyMarginEnd faMuted" />
+                        <Text text="{view>/filterSummary}" class="faMuted" />
+                    </HBox>
+                </f:snappedContent>
+                <f:actions>
                     <Button icon="sap-icon://sales-order" text="{i18n>projections}" press=".onOpenProjections" />
                     <Text text="{session>/user/fullName} · {session>/user/role}" class="faMuted sapUiTinyMarginEnd" />
                     <Button icon="sap-icon://log" text="{i18n>signOut}" press=".onSignOut" />
-                </contentRight>
-            </Bar>
-        </customHeader>
+                </f:actions>
+            </f:DynamicPageTitle>
+        </f:title>
 
-        <content>
-            <!-- ============================ Filters ============================ -->
-            <Panel expandable="true" expanded="true" class="faFilterBar">
-                <headerToolbar>
-                    <OverflowToolbar>
-                        <core:Icon src="sap-icon://filter" />
-                        <Title text="{i18n>filters}" level="H2" />
-                        <ToolbarSpacer />
-                        <Text id="filterSummary" text="{view>/filterSummary}" class="faMuted" />
-                        <Button text="{i18n>clearFilters}" press=".onClearFilters" />
-                        <Button text="{i18n>applyFilters}" type="Emphasized" press=".onApplyFilters" />
-                    </OverflowToolbar>
-                </headerToolbar>
+        <f:header>
+            <f:DynamicPageHeader pinnable="true">
+                <!-- ============================ Filters ============================ -->
+                <Toolbar class="faFilterToolbar">
+                    <core:Icon src="sap-icon://filter" />
+                    <Title text="{i18n>filters}" level="H2" />
+                    <ToolbarSpacer />
+                    <Text id="filterSummary" text="{view>/filterSummary}" class="faMuted" />
+                    <Button text="{i18n>clearFilters}" press=".onClearFilters" />
+                    <Button text="{i18n>applyFilters}" type="Emphasized" press=".onApplyFilters" />
+                </Toolbar>
 
                 <l:Grid defaultSpan="XL2 L3 M4 S12" class="sapUiSmallMarginTop">
                     <VBox>
@@ -135,19 +148,10 @@
                         </Select>
                     </VBox>
                 </l:Grid>
-            </Panel>
 
-            <MessageStrip
-                id="errorStrip"
-                type="Error"
-                showIcon="true"
-                showCloseButton="true"
-                visible="false"
-                class="sapUiSmallMarginBeginEnd sapUiSmallMarginTop" />
-
-            <!-- ============================ KPI cards ============================ -->
-            <l:Grid id="kpiGrid" defaultSpan="XL2 L4 M6 S12" class="faKpiGrid"
-                    content="{ path: 'kpi>/kpis', templateShareable: false }">
+                <!-- ============================ KPI cards ============================ -->
+                <l:Grid id="kpiGrid" defaultSpan="XL2 L4 M6 S12" class="faKpiGrid"
+                        content="{ path: 'kpi>/kpis', templateShareable: false }">
                 <!-- OneByOne, not one of the half-height frames: those render no subheader, and
                      the specification asks for the percentage of the total area beside every
                      hectare figure. -->
@@ -164,12 +168,26 @@
                             icon="{ parts: ['kpi>key'], formatter: '.formatter.kpiIcon' }"
                             truncateValueTo="9"
                             withMargin="false" />
-                    </TileContent>
-                </GenericTile>
-            </l:Grid>
+                        </TileContent>
+                    </GenericTile>
+                </l:Grid>
+            </f:DynamicPageHeader>
+        </f:header>
+
+        <f:content>
+            <!-- DynamicPage takes a single content control, so everything below the header lives in
+                 one VBox. Without it UI5 keeps only the last child and silently drops the rest. -->
+            <VBox width="100%" class="faDashboardContent">
+            <MessageStrip
+                id="errorStrip"
+                type="Error"
+                showIcon="true"
+                showCloseButton="true"
+                visible="false"
+                class="sapUiSmallMarginBottom" />
 
             <!-- ============================ Analysis ============================ -->
-            <l:Grid defaultSpan="XL6 L6 M12 S12" class="sapUiSmallMarginTop">
+            <l:Grid defaultSpan="XL6 L6 M12 S12">
                 <Panel headerText="{i18n>chartLandUtilisation}" class="faCard">
                     <fa:AreaChart id="chartLandUtilisation" chartType="donut" unit="ha"
                                   title="{i18n>chartLandUtilisation}" height="17rem"
@@ -397,6 +415,7 @@
                     </l:Grid>
                 </Panel>
             </l:Grid>
-        </content>
-    </Page>
+            </VBox>
+        </f:content>
+    </f:DynamicPage>
 </mvc:View>

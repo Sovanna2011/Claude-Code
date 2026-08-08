@@ -405,7 +405,9 @@ sap.ui.define([
 			strip.setVisible(true);
 		},
 
-		onBack: function () {
+		// Closing the detail collapses the layout back to the list rather than navigating away —
+		// the list is already on screen beside it.
+		onCloseColumn: function () {
 			this.getOwnerComponent().getRouter().navTo("projections");
 		},
 

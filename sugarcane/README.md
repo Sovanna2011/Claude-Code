@@ -23,7 +23,7 @@ The port is being done module by module, each complete and tested before the nex
 |-------|------------|
 | Database | **PostgreSQL 16 + PostGIS 3.4** — real `geography(MultiPolygon, 4326)` boundaries, areas measured with `ST_Area` |
 | Backend | **Go 1.24** REST API — repository pattern, service layer, constructor injection, transactions, global error handling, JWT role-based authorisation, optimistic concurrency, pagination and filtering, audit logging |
-| Frontend | **SAPUI5 (OpenUI5 1.151)** — Fiori Horizon, `sap.ui.table.TreeTable`, KPI tiles, analytical charts, filter bar, interactive map |
+| Frontend | **SAPUI5 (OpenUI5 1.151)** — Fiori Horizon, `sap.f.FlexibleColumnLayout`, `sap.f.DynamicPage`, `sap.uxap.ObjectPageLayout`, `sap.ui.table.TreeTable`, KPI tiles, analytical charts, filter bar, interactive map |
 | Tests | 136 Go tests — 76 unit, 60 integration against a real PostGIS database |
 
 ```
@@ -111,15 +111,21 @@ recorded reasons account for. A Report Viewer sees the dialog but no Save button
 Changing any filter refreshes the cards, the charts, the tree, the map and the comparison in one
 pass, from one filter value — they cannot end up describing different land.
 
+The dashboard is a **DynamicPage**: the filter bar and the KPI cards sit in a header that snaps
+away as you scroll into the charts and the tree, leaving the filter summary on the title bar so a
+figure is never read without knowing what land it describes. The header can be pinned open.
+
 ## Planting projections
 
 A projection is the committed answer to **what will be planted, where, when and with which
 variety**. Everything downstream is generated from an approved one, so it carries a workflow rather
 than being ordinary master data.
 
-*Planting projections* in the dashboard header opens the plan list; a plan opens on its blocks, its
-header and its approval trail, with the projected area, harvestable area, expected tonnage and seed
-cane across the top. All four are derived — from the lines, and the lines from the block, the
+*Planting projections* in the dashboard header opens the plan list. Choosing a plan opens it in a
+second column beside the list — a **FlexibleColumnLayout**, so the planner keeps their place and
+the row of the open plan stays highlighted — as an **ObjectPageLayout** whose Blocks, Plan and
+Approval trail are anchored sections rather than tabs, with the projected area, harvestable area,
+expected tonnage and seed cane in a collapsing header. All four are derived — from the lines, and the lines from the block, the
 variety's yield, its expected loss and its seed rate. None of them has a field to type into.
 
 | Step | Who | What it means |

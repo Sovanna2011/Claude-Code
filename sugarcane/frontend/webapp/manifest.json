@@ -45,7 +45,8 @@
         "sap.f": {},
         "sap.ui.layout": {},
         "sap.ui.table": {},
-        "sap.ui.unified": {}
+        "sap.ui.unified": {},
+        "sap.uxap": {}
       }
     },
     "contentDensities": {
@@ -74,52 +75,62 @@
     },
     "routing": {
       "config": {
-        "routerClass": "sap.m.routing.Router",
+        "routerClass": "sap.f.routing.Router",
         "type": "View",
         "viewType": "XML",
         "path": "farm.area.dashboard.view",
-        "controlId": "app",
-        "controlAggregation": "pages",
+        "controlId": "fcl",
         "async": true
       },
       "routes": [
         {
           "pattern": "",
           "name": "login",
-          "target": "login"
+          "target": "login",
+          "layout": "OneColumn"
         },
         {
           "pattern": "dashboard",
           "name": "dashboard",
-          "target": "dashboard"
+          "target": "dashboard",
+          "layout": "OneColumn"
         },
         {
           "pattern": "projections",
           "name": "projections",
-          "target": "projections"
+          "target": "projections",
+          "layout": "OneColumn"
         },
         {
           "pattern": "projections/{id}",
           "name": "projection",
-          "target": "projection"
+          "target": [
+            "projections",
+            "projection"
+          ],
+          "layout": "TwoColumnsMidExpanded"
         }
       ],
       "targets": {
         "login": {
           "id": "login",
-          "name": "Login"
+          "name": "Login",
+          "controlAggregation": "beginColumnPages"
         },
         "dashboard": {
           "id": "dashboard",
-          "name": "Dashboard"
+          "name": "Dashboard",
+          "controlAggregation": "beginColumnPages"
         },
         "projections": {
           "id": "projections",
-          "name": "Projections"
+          "name": "Projections",
+          "controlAggregation": "beginColumnPages"
         },
         "projection": {
           "id": "projection",
-          "name": "Projection"
+          "name": "Projection",
+          "controlAggregation": "midColumnPages"
         }
       }
     }

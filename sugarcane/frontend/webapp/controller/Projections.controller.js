@@ -31,15 +31,22 @@ sap.ui.define([
 				}))
 			}), "lookups");
 
-			this.getOwnerComponent().getRouter().getRoute("projections")
-				.attachPatternMatched(this._onRouteMatched, this);
+			// Both routes, because the two-column route shows this list beside the plan. Without the
+			// second the list column would be shown but never filled on a direct link to a plan.
+			var router = this.getOwnerComponent().getRouter();
+			router.getRoute("projections").attachPatternMatched(this._onRouteMatched, this);
+			router.getRoute("projection").attachPatternMatched(this._onRouteMatched, this);
 		},
 
 		_api: function () {
 			return this.getOwnerComponent().getApi();
 		},
 
-		_onRouteMatched: function () {
+		_onRouteMatched: function (event) {
+			var args = event.getParameter("arguments") || {};
+			if (args.id) {
+				this._openId = Number(args.id);
+			}
 			if (!this._api().isSignedIn()) {
 				this.getOwnerComponent().getRouter().navTo("login");
 				return;
@@ -129,6 +136,7 @@ sap.ui.define([
 				var area = items.reduce(function (sum, p) { return sum + p.totalProjectedAreaHa; }, 0);
 				this.getView().getModel("view").setProperty("/summary",
 					items.length + " plan(s) · " + formatter.hectares(area) + " ha projected");
+				this._syncSelection();
 			}.bind(this)).catch(this._showError.bind(this));
 		},
 
@@ -137,8 +145,26 @@ sap.ui.define([
 		},
 
 		onOpenProjection: function (event) {
-			var projection = event.getSource().getBindingContext("list").getObject();
-			this.getOwnerComponent().getRouter().navTo("projection", { id: projection.id });
+			var item = event.getParameter("listItem") || event.getSource();
+			var context = item.getBindingContext("list");
+			if (!context) {
+				return;
+			}
+			this._openId = context.getObject().id;
+			this.getOwnerComponent().getRouter().navTo("projection", { id: this._openId });
+		},
+
+		// Keep the row of the plan on the right highlighted, including after a reload or when the
+		// plan was reached by a direct link rather than by clicking.
+		_syncSelection: function () {
+			var table = this.byId("projectionTable");
+			if (!table || !this._openId) {
+				return;
+			}
+			table.getItems().forEach(function (item) {
+				var context = item.getBindingContext("list");
+				table.setSelectedItem(item, !!context && context.getObject().id === this._openId);
+			}.bind(this));
 		},
 
 		// ---------------------------------------------------------------- new plan

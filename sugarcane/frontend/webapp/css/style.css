@@ -67,3 +67,14 @@
     .faDonutLayout { flex-direction: column; gap: 0.5rem; }
     .faDonutLayout svg { width: 9rem; height: 9rem; }
 }
+
+/* The FlexibleColumnLayout sizes itself from its container, unlike the sap.m.App it replaced —
+   that positioned itself absolutely and so filled the window whatever the document did. Without a
+   height chain all the way up from the body, the columns render zero pixels tall and the
+   application looks blank. */
+html, body { height: 100%; }
+/* The component container and the UIArea it wraps carry no height of their own, so the chain has
+   to be closed explicitly from the body down to the shell. */
+.sapUiComponentContainer,
+.sapUiComponentContainer > div { height: 100%; }
+.faShell { height: 100%; }

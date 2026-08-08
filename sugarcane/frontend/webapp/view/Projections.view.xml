@@ -86,18 +86,21 @@
                 </l:Grid>
             </Panel>
 
+            <!-- selectionChange, not itemPress: in SingleSelectMaster the row click is the
+                 selection, and press never fires. Selecting is also what should open the plan, and
+                 it leaves the row highlighted so the list shows which one is on the right. -->
             <Table id="projectionTable" class="sapUiSmallMargin" mode="SingleSelectMaster"
-                   itemPress=".onOpenProjection"
+                   autoPopinMode="true" selectionChange=".onOpenProjection"
                    items="{ path: 'list>/items', templateShareable: false }"
                    noDataText="{i18n>noProjections}">
                 <columns>
                     <Column><Text text="{i18n>projectionNo}" /></Column>
-                    <Column hAlign="End" width="5rem"><Text text="{i18n>revision}" /></Column>
-                    <Column><Text text="{i18n>season}" /></Column>
-                    <Column><Text text="{i18n>planningWindow}" /></Column>
-                    <Column hAlign="End"><Text text="{i18n>lines}" /></Column>
+                    <Column hAlign="End" width="5rem" importance="Medium"><Text text="{i18n>revision}" /></Column>
+                    <Column importance="Low"><Text text="{i18n>season}" /></Column>
+                    <Column importance="Low"><Text text="{i18n>planningWindow}" /></Column>
+                    <Column hAlign="End" importance="Low"><Text text="{i18n>lines}" /></Column>
                     <Column hAlign="End"><Text text="{i18n>projectedArea}" /></Column>
-                    <Column hAlign="End"><Text text="{i18n>expectedTons}" /></Column>
+                    <Column hAlign="End" importance="Medium"><Text text="{i18n>expectedTons}" /></Column>
                     <Column><Text text="{i18n>status}" /></Column>
                 </columns>
                 <items>
