@@ -108,7 +108,11 @@ func Authenticate(tokens *auth.Tokens, log *slog.Logger) func(http.Handler) http
 				writeError(w, r, domain.Unauthorized("Your session has expired. Sign in again."), log)
 				return
 			}
-			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxUser, user)))
+			// The user goes into the context twice: once as the whole record for the handlers,
+			// and once as a name for the database layer, which stamps every row written under
+			// this request with who wrote it.
+			ctx := context.WithValue(r.Context(), ctxUser, user)
+			next.ServeHTTP(w, r.WithContext(domain.WithActor(ctx, user.Username)))
 		})
 	}
 }

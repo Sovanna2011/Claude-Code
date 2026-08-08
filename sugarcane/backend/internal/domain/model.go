@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // Roles. Read is open to every signed-in user; writing master data and planting records is not.
 const (
@@ -398,3 +401,25 @@ var (
 	ValidApplicableCropTypes = []string{"NewPlanting", "Ratoon", "Both"}
 	ValidSeasonStatuses      = []string{"Planned", "Open", "Closed"}
 )
+
+// ---------------------------------------------------------------- the acting user
+
+// actorKey is the context key carrying the signed-in user's name down to the database layer, so a
+// write can be stamped with who made it without every repository threading the name through its
+// own signature. It is unexported and of a private type, so nothing outside can collide with it.
+type actorKey struct{}
+
+// WithActor returns a context that names the user responsible for whatever is written under it.
+func WithActor(ctx context.Context, username string) context.Context {
+	if username == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, actorKey{}, username)
+}
+
+// ActorFrom returns the user named by WithActor, or "" when the work has no signed-in user behind
+// it — a migration, or a start-up task.
+func ActorFrom(ctx context.Context) string {
+	name, _ := ctx.Value(actorKey{}).(string)
+	return name
+}

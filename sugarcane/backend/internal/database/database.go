@@ -16,6 +16,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/sovanna2011/sugarcane-go/backend/internal/domain"
 )
 
 // DB wraps the pool so callers depend on this package rather than on pgx directly.
@@ -79,6 +81,15 @@ func (d *DB) InTx(ctx context.Context, fn func(tx Querier) error) (err error) {
 			}
 		}
 	}()
+
+	// Tell the transaction who is writing, so the stamp trigger can record it without every
+	// statement carrying the name. SET LOCAL scopes it to this transaction, so a pooled connection
+	// handed to the next request never inherits the previous caller's identity.
+	if actor := domain.ActorFrom(ctx); actor != "" {
+		if _, err = tx.Exec(ctx, "SELECT set_config('app.actor', $1, true)", actor); err != nil {
+			return fmt.Errorf("set actor: %w", err)
+		}
+	}
 
 	if err = fn(tx); err != nil {
 		return err

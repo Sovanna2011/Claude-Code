@@ -811,3 +811,135 @@ func TestCORSAllowsTheDashboardOriginAndRefusesOthers(t *testing.T) {
 		t.Errorf("an unlisted origin was allowed: %q", got)
 	}
 }
+
+// ---------------------------------------------------------------- audit columns
+
+// Every business table records who created a row and when, and who last changed it and when. The
+// times come from the database clock and the names from the signed-in user, so neither can be
+// supplied by a caller.
+func TestEveryTableRecordsWhoWroteItAndWhen(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+
+	var missing []string
+	rows, err := h.db.Pool().Query(ctx, `
+		SELECT c.relname
+		  FROM pg_class c
+		  JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = 'public'
+		 WHERE c.relkind = 'r'
+		   -- The trail tables record the same two facts under the names at and actor, and are
+		   -- append-only, so they are deliberately excluded.
+		   AND c.relname NOT IN ('schema_migrations', 'spatial_ref_sys', 'audit_log', 'projection_approval')
+		   AND NOT (
+		       EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid AND NOT a.attisdropped AND a.attname = 'created_at')
+		   AND EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid AND NOT a.attisdropped AND a.attname = 'created_by')
+		   AND EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid AND NOT a.attisdropped AND a.attname = 'updated_at')
+		   AND EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid AND NOT a.attisdropped AND a.attname = 'updated_by'))
+		 ORDER BY c.relname`)
+	if err != nil {
+		t.Fatalf("inspect columns: %v", err)
+	}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			t.Fatal(err)
+		}
+		missing = append(missing, name)
+	}
+	rows.Close()
+	if len(missing) > 0 {
+		t.Fatalf("these tables carry no audit columns: %s", strings.Join(missing, ", "))
+	}
+
+	// And every one of them is stamped by a trigger, not by whichever statement remembered to.
+	var unstamped []string
+	rows, err = h.db.Pool().Query(ctx, `
+		SELECT c.relname
+		  FROM pg_class c
+		  JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = 'public'
+		 WHERE c.relkind = 'r'
+		   AND EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid AND NOT a.attisdropped AND a.attname = 'created_by')
+		   AND NOT EXISTS (SELECT 1 FROM pg_trigger g
+		                    WHERE g.tgrelid = c.oid AND NOT g.tgisinternal AND g.tgname = 'stamp_' || c.relname)
+		 ORDER BY c.relname`)
+	if err != nil {
+		t.Fatalf("inspect triggers: %v", err)
+	}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			t.Fatal(err)
+		}
+		unstamped = append(unstamped, name)
+	}
+	rows.Close()
+	if len(unstamped) > 0 {
+		t.Fatalf("these tables have the columns but no stamp trigger: %s", strings.Join(unstamped, ", "))
+	}
+}
+
+// The stamps name the signed-in user and cannot be set by the caller: a create by one person and
+// an edit by another must leave the creation stamp on the first and the change stamp on the second,
+// whatever the request bodies claimed.
+func TestTheStampsNameTheCallerAndCannotBeForged(t *testing.T) {
+	h := newHarness(t)
+	code := fmt.Sprintf("STAMP-%d", time.Now().UnixNano()%100000)
+
+	// The manager creates it, trying to backdate it and sign it as somebody else. Unknown fields
+	// are refused outright, which is the first line of defence.
+	h.do(t, "POST", "/api/varieties", h.token(t, "manager"), map[string]any{
+		"code": code, "name": "Stamp test", "growingPeriodMonths": 12,
+		"seedRatePerHa": 8, "expectedYieldPerHa": 90, "expectedLossPercent": 5,
+		"createdBy": "somebody-else", "createdAt": "1999-01-01T00:00:00Z",
+	}, http.StatusBadRequest)
+
+	var created struct {
+		ID      int `json:"id"`
+		Version int `json:"version"`
+	}
+	decode(t, h.do(t, "POST", "/api/varieties", h.token(t, "manager"), map[string]any{
+		"code": code, "name": "Stamp test", "growingPeriodMonths": 12,
+		"seedRatePerHa": 8, "expectedYieldPerHa": 90, "expectedLossPercent": 5,
+	}, http.StatusCreated), &created)
+
+	var createdBy, updatedBy string
+	var createdAt, updatedAt time.Time
+	row := h.db.Pool().QueryRow(context.Background(),
+		`SELECT created_by, updated_by, created_at, updated_at FROM cane_variety WHERE id = $1`, created.ID)
+	if err := row.Scan(&createdBy, &updatedBy, &createdAt, &updatedAt); err != nil {
+		t.Fatalf("read stamps: %v", err)
+	}
+	if createdBy != "manager" || updatedBy != "manager" {
+		t.Fatalf("a new row should be stamped with its creator, got created_by=%s updated_by=%s",
+			createdBy, updatedBy)
+	}
+	if time.Since(createdAt) > time.Minute || time.Since(createdAt) < 0 {
+		t.Fatalf("created_at is not the database's own clock: %s", createdAt)
+	}
+
+	// The administrator edits it. The creation stamp must not move.
+	h.do(t, "PUT", "/api/varieties/"+itoa(created.ID), h.token(t, "admin"), map[string]any{
+		"code": code, "name": "Stamp test edited", "growingPeriodMonths": 12,
+		"seedRatePerHa": 8, "expectedYieldPerHa": 90, "expectedLossPercent": 5,
+		"version": created.Version,
+	}, http.StatusOK)
+
+	var createdBy2, updatedBy2 string
+	var createdAt2, updatedAt2 time.Time
+	row = h.db.Pool().QueryRow(context.Background(),
+		`SELECT created_by, updated_by, created_at, updated_at FROM cane_variety WHERE id = $1`, created.ID)
+	if err := row.Scan(&createdBy2, &updatedBy2, &createdAt2, &updatedAt2); err != nil {
+		t.Fatalf("read stamps after the edit: %v", err)
+	}
+	if createdBy2 != "manager" || !createdAt2.Equal(createdAt) {
+		t.Errorf("the creation stamp moved: %s at %s, was manager at %s", createdBy2, createdAt2, createdAt)
+	}
+	if updatedBy2 != "admin" {
+		t.Errorf("the change stamp should name the editor, got %s", updatedBy2)
+	}
+	if !updatedAt2.After(updatedAt) {
+		t.Errorf("updated_at did not move forward: %s then %s", updatedAt, updatedAt2)
+	}
+
+	_, _ = h.db.Pool().Exec(context.Background(), `DELETE FROM cane_variety WHERE id = $1`, created.ID)
+}

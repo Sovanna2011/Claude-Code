@@ -24,7 +24,7 @@ The port is being done module by module, each complete and tested before the nex
 | Database | **PostgreSQL 16 + PostGIS 3.4** — real `geography(MultiPolygon, 4326)` boundaries, areas measured with `ST_Area` |
 | Backend | **Go 1.24** REST API — repository pattern, service layer, constructor injection, transactions, global error handling, JWT role-based authorisation, optimistic concurrency, pagination and filtering, audit logging |
 | Frontend | **SAPUI5 (OpenUI5 1.151)** — Fiori Horizon, `sap.f.FlexibleColumnLayout`, `sap.f.DynamicPage`, `sap.uxap.ObjectPageLayout`, `sap.ui.table.TreeTable`, KPI tiles, analytical charts, filter bar, interactive map |
-| Tests | 136 Go tests — 76 unit, 60 integration against a real PostGIS database |
+| Tests | 138 Go tests — 76 unit, 62 integration against a real PostGIS database |
 
 ```
 sugarcane/
@@ -33,7 +33,8 @@ sugarcane/
 │   ├── 002_seed.sql        the sample plantation
 │   ├── 003_activities.sql  seasons, varieties, the activity master and its dependencies
 │   ├── 004_activity_seed.sql  the specification's nineteen sample activities
-│   └── 005_projections.sql  planting projections, their lines and the approval trail
+│   ├── 005_projections.sql  planting projections, their lines and the approval trail
+│   └── 006_audit_columns.sql  who created and last changed every row, stamped by the database
 ├── backend/
 │   ├── cmd/api/            the composition root
 │   └── internal/
@@ -165,6 +166,26 @@ Farm and zone rows have no area columns **in the database at all**: their figure
 the blocks beneath them, and the surest way to stop someone entering one by hand is to give them
 nowhere to enter it.
 
+## Who changed what
+
+Every business table carries four columns — `created_at`, `created_by`, `updated_at`, `updated_by` —
+and the database fills all four itself.
+
+The times are the database's own clock. A caller cannot supply one, so rows cannot be backdated and
+two servers with drifting clocks still agree. The names are the signed-in user: the API publishes
+them to the transaction with `set_config('app.actor', …, true)`, and a `BEFORE INSERT OR UPDATE`
+trigger on each table reads that rather than trusting the statement. A write with no signed-in user
+behind it — a migration, or a fix applied with `psql` — is stamped `system` rather than left blank.
+
+The creation stamp is copied from the old row on every update, so nothing can rewrite who created a
+record or when, whatever the `UPDATE` says. A test asserts this by trying: it creates a variety as
+`manager`, edits it as `admin`, and checks the creation stamp still reads `manager` at its original
+time while the change stamp reads `admin`.
+
+`audit_log` and `projection_approval` are deliberately excluded. They are the trail itself — append
+only, and already recording the same two facts as `at` and `actor`, the names their readers and
+indexes use. A second pair would give each row two creation stamps that could disagree.
+
 ## The rules the system will not let you break
 
 Section 10 of the specification is enforced twice — in Go, so the message names the field, and in
@@ -265,7 +286,7 @@ go test ./...                                   # 76 unit tests; the database te
 
 createdb farmarea_test && psql -d farmarea_test -c 'CREATE EXTENSION postgis'
 export FARMAREA_TEST_DATABASE_URL="postgres://farmarea:farmarea@127.0.0.1:5432/farmarea_test"
-go test ./...                                   # 136 tests
+go test ./...                                   # 138 tests
 ```
 
 The integration tests run over the real stack — HTTP handler, service, repository, PostGIS — and
