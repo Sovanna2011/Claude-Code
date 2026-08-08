@@ -84,11 +84,32 @@ public static class DbSeeder
         await db.SaveChangesAsync(ct);
 
         var soils = new[] { SoilType.ClayLoam, SoilType.SandyLoam, SoilType.Loam, SoilType.Clay };
+
+        // Each farm is a cluster of fields near Lusaka, its second zone lying south-east of the
+        // first and the four blocks of a zone forming a 2 x 2 grid. Deriving the coordinates from
+        // the block number alone put the whole estate on one straight diagonal, which is fine for
+        // arithmetic but nonsense on a map — the location screen is now the thing that reads them.
+        var farmCentres = new Dictionary<string, (decimal Lat, decimal Lng)>
+        {
+            ["FRM-01"] = (-15.474m, 28.232m),
+            ["FRM-02"] = (-15.398m, 28.318m),
+            ["FRM-03"] = (-15.322m, 28.404m)
+        };
+        const decimal blockStep = 0.0115m;      // ≈ 1.3 km between block centres
+        var zoneOffsets = new[] { (Lat: 0m, Lng: 0m), (Lat: -0.021m, Lng: 0.028m) };
+
         var blocks = new List<PlantationBlock>();
         var blockNo = 1;
         foreach (var zone in zones)
+        {
+            var farm = farms.First(f => f.Id == zone.FarmId);
+            var centre = farmCentres.TryGetValue(farm.Code, out var c) ? c : (Lat: -15.4m, Lng: 28.3m);
+            var offset = zoneOffsets[(int.Parse(zone.Code[^1..]) - 1) % zoneOffsets.Length];
+
             for (var i = 1; i <= 4; i++)
             {
+                var row = (i - 1) / 2;
+                var col = (i - 1) % 2;
                 var total = 150m + i * 25m;
                 blocks.Add(new PlantationBlock
                 {
@@ -102,12 +123,13 @@ public static class DbSeeder
                     LandCondition = blockNo % 3 == 0 ? LandCondition.Undulating : LandCondition.Flat,
                     Irrigation = blockNo % 4 == 0 ? IrrigationType.Drip : IrrigationType.Furrow,
                     CurrentCropStatus = CropStatus.Fallow,
-                    Latitude = Math.Round(-15.5m + blockNo * 0.01m, 6),
-                    Longitude = Math.Round(28.2m + blockNo * 0.01m, 6),
+                    Latitude = Math.Round(centre.Lat + offset.Lat - row * blockStep, 6),
+                    Longitude = Math.Round(centre.Lng + offset.Lng + col * blockStep, 6),
                     MapReference = $"SHEET-{blockNo:D3}"
                 });
                 blockNo++;
             }
+        }
         db.Blocks.AddRange(blocks);
         await db.SaveChangesAsync(ct);
 

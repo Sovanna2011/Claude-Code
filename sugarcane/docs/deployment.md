@@ -72,8 +72,18 @@ export Database__SeedSampleData=false
 The Blazor client reads its API address from `wwwroot/appsettings.json`:
 
 ```json
-{ "ApiBaseUrl": "https://api.plan.example.com/" }
+{
+  "ApiBaseUrl": "https://api.plan.example.com/",
+  "GoogleMaps": { "ApiKey": "", "MapType": "hybrid" }
+}
 ```
+
+`GoogleMaps:ApiKey` is optional and drives the **Block locations** screen. With a key the screen
+loads the Google Maps JavaScript API and shows the blocks on a satellite map; leave it empty — or
+deploy somewhere with no route to `maps.googleapis.com` — and the screen draws the same blocks
+from their stored coordinates and says why. Restrict the key to your client's HTTP referrer in the
+Google Cloud console: it is served to the browser and cannot be kept secret. The key needs only
+the *Maps JavaScript API*. The "Open in Google Maps" links are plain URLs and work without one.
 
 The API and the client run on different origins, so `Cors:AllowedOrigins` must list the
 client's address. The policy also exposes `Content-Disposition`; without that the browser hides
@@ -84,11 +94,11 @@ the header and every exported report is saved as `report.pdf` rather than its re
 ```bash
 dotnet restore
 dotnet build -c Release
-dotnet test  -c Release                      # 173 tests
+dotnet test  -c Release                      # 189 tests
 
 # Optional: also run the 20 tests that need a real SQL Server.
 export SUGARCANE_TEST_SQLSERVER="Server=127.0.0.1,1433;User Id=sa;Password=…;TrustServerCertificate=True"
-dotnet test  -c Release                      # 193 tests
+dotnet test  -c Release                      # 209 tests
 
 dotnet publish src/SugarcanePlanning.Api    -c Release -o ./publish/api
 dotnet publish src/SugarcanePlanning.Client -c Release -o ./publish/client
