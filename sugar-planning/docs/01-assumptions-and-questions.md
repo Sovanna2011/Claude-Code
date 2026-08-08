@@ -50,6 +50,16 @@ The one rejection is the sheet's own `SUM` totals line, reported against file
 row 325 so somebody can find it in Excel. `internal/seed/workbook_test.go`
 holds the generated plan to the workbook figure for figure.
 
+**The workbook itself is not in this repository** — it is the mill's own
+production plan. What is committed is
+`backend/internal/seed/testdata/production-plan-2627-cane.csv`, a 6 KB extract of
+the daily sheet holding only the date and the two cane columns, with every row
+and column *position* preserved. That is what makes it worth having: the shipped
+`KSS-PLAN-CANE` mapping reads it with no change at all, so
+`workbookimport_test.go` proves the mapping a site would really use rather than
+one written for a test. Point the mapping one column wrong and seven assertions
+fail by name.
+
 The specification also mentions the workbook tracks shipment in a column per
 trader ("Wilmar, Jie Srey, You Hour"). Those are modelled as
 `shipment_channels` master records rather than as columns, so a new trader is

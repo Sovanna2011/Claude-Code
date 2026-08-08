@@ -444,7 +444,9 @@ and then cannot do it. Both are open questions Q15 and Q16.
   planning jumbo bagging
 - The mill's real file imports through the HTTP API: **305 rows, 304 valid**,
   the one rejection being the sheet's own `SUM` line, reported against file row
-  325
+  325. The workbook stays out of the repository; a 6 KB extract of its date and
+  cane columns, with the row and column positions kept, lets CI run the same
+  import against the shipped mapping
 - 61 acceptance checks pass against PostgreSQL 16, and the store conformance
   suite covers the new profile in both stores
 
