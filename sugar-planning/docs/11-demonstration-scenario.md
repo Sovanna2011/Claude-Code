@@ -43,6 +43,7 @@ Three consequences you can check:
 | **Executive overview** | 137 days of plan, 14 of actuals, eight charts, and two real capacity alerts |
 | **Season plans** | The released budget V1 and the actuals container |
 | **Daily planning board** | Cane, production, stock and shipment rows for the whole season |
+| **Cane supply** | 8 sources across 6 zones committing 2,320,000 t, a 492-row delivery schedule and 14 days of arrivals at the gate |
 | **Downtime** | 7 stoppages across 4 reasons — the Pareto is 62 % boiler |
 | **Production orders** | 5 orders, released and confirmed; one closed 60 t short |
 | **Warehouse / Stock** | 10 documents: 5 goods receipts from the confirmations, a transfer, a stock correction and its reversal, and the quality hold and its release — because blocking stock is a movement, not a flag |
@@ -137,6 +138,8 @@ generation time and who ran it, and so does the Excel and the CSV.
 | | |
 | --- | --- |
 | Cane target | 2,300,000 t over 137 days |
+| Cane committed | 2,320,000 t from 8 sources — 100.870 % coverage, 20,000 t of margin |
+| Delivery schedule | 492 rows over all 137 days, 133,195 lorry movements |
 | Recovery assumption | 11.00 %, so 253,000 t of raw sugar |
 | Finished goods | 106,700 refined + 133,400 white + 2,000 super = 242,100 t |
 | Raw storage | 45,000 + 65,000 = 110,000 t |
@@ -146,6 +149,7 @@ generation time and who ran it, and so does the Excel and the CSV.
 | Orders | 1,452 t planned, 1,403 t confirmed — 96.625 % |
 | Quality | 6 results, 2 outside specification, 1 hold of 240 t placed and released |
 | Mass balance | 11 of 14 days outside the 0.5 % tolerance |
+| Cane delivered | 14 days from the estate block cutting that fortnight, 86,362.961 t against 86,921.744 t scheduled |
 
 The three findings the reference figures themselves contain are in
 [01-assumptions-and-questions.md](01-assumptions-and-questions.md) and are worth

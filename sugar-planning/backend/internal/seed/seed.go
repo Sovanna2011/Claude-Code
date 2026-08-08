@@ -33,6 +33,9 @@ type Result struct {
 	Channels   map[string]string // code -> id
 	Packaging  map[string]string // code -> id
 	Materials  map[string]string // code -> id
+	// Supply is the cane-supply plan: the sources, their commitments and the
+	// delivery schedule generated from them.
+	Supply SupplyResult
 }
 
 // Actor is the user recorded against seeded rows.
@@ -626,6 +629,15 @@ func Load(ctx context.Context, s store.Store, planning *service.Planning) (Resul
 	}
 
 	// --- generate the daily plan -------------------------------------------
+	// Where the cane comes from. Eight sources, their harvest windows, and the
+	// delivery schedule spread across the season - the half of the crushing
+	// plan the reference figures leave out.
+	supply, err := LoadCaneSupply(ctx, s, planning, factory.ID, budget.ID, season.StartDate)
+	if err != nil {
+		return res, fmt.Errorf("cane supply: %w", err)
+	}
+	res.Supply = supply
+
 	generated, err := planning.Generate(ctx, budget.ID, service.GenerateRequest{Replace: true})
 	if err != nil {
 		return res, fmt.Errorf("generate plan: %w", err)
@@ -731,6 +743,16 @@ func LoadWithActuals(ctx context.Context, s store.Store, planning *service.Plann
 	if _, err := planning.UpsertProduction(ctx, res.ActualID, rawRows, service.UpsertOptions{}); err != nil {
 		return res, fmt.Errorf("seed actual raw sugar: %w", err)
 	}
+
+	// What came through the gate, per source, for the same fortnight. The
+	// deliveries deliberately do not match the schedule: a demonstration where
+	// the gate agrees with the plan every day teaches nobody what the screen is
+	// for.
+	delivered, err := LoadCaneDeliveries(ctx, s, planning, res.BudgetID, res.ActualID, days)
+	if err != nil {
+		return res, fmt.Errorf("seed cane deliveries: %w", err)
+	}
+	res.Supply.DeliveryRows = delivered
 	return res, nil
 }
 

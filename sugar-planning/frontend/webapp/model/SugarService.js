@@ -234,6 +234,34 @@ sap.ui.define([
 			return this.get("/versions/" + encodeURIComponent(sVersionId) + "/material-requirements");
 		},
 
+		supplyPlan: function (sVersionId) {
+			return this.get("/versions/" + encodeURIComponent(sVersionId) + "/supply");
+		},
+
+		saveSupplyEntry: function (sVersionId, oEntry) {
+			return this.put("/versions/" + encodeURIComponent(sVersionId) + "/supply", oEntry);
+		},
+
+		deleteSupplyEntry: function (sVersionId, sEntryId) {
+			return this.del("/versions/" + encodeURIComponent(sVersionId) + "/supply/" +
+				encodeURIComponent(sEntryId));
+		},
+
+		generateSupplySchedule: function (sVersionId) {
+			return this.post("/versions/" + encodeURIComponent(sVersionId) + "/supply/generate", {});
+		},
+
+		caneSupply: function (sVersionId, oParams) {
+			var aQuery = [];
+			Object.keys(oParams || {}).forEach(function (sKey) {
+				if (oParams[sKey]) {
+					aQuery.push(encodeURIComponent(sKey) + "=" + encodeURIComponent(oParams[sKey]));
+				}
+			});
+			var sQuery = aQuery.length ? "?" + aQuery.join("&") : "";
+			return this.get("/versions/" + encodeURIComponent(sVersionId) + "/cane-supply" + sQuery);
+		},
+
 		listReports: function () {
 			return this.get("/reports");
 		},

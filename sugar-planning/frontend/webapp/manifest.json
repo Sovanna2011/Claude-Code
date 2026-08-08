@@ -107,6 +107,11 @@
           "target": "board"
         },
         {
+          "pattern": "canesupply",
+          "name": "canesupply",
+          "target": "canesupply"
+        },
+        {
           "pattern": "warehouse:?query:",
           "name": "warehouse",
           "target": "warehouse"
@@ -197,6 +202,10 @@
         "board": {
           "viewName": "PlanningBoard",
           "viewLevel": 3
+        },
+        "canesupply": {
+          "viewName": "CaneSupply",
+          "viewLevel": 2
         },
         "warehouse": {
           "viewName": "Warehouse",

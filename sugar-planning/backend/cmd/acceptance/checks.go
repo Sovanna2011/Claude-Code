@@ -355,6 +355,115 @@ func planCreation(r *run) {
 		}
 		return nil
 	})
+
+	// A cane target with nothing behind it is a number somebody typed. The
+	// harness commits its own season to a real source and then checks that the
+	// system reconciles the two rather than accepting the commitment silently.
+	r.check("a planner commits cane sources and the plan reconciles against them", func() error {
+		var sources page[domain.CaneSource]
+		if err := r.getOK("planner", "/api/v1/master/cane-sources?$top=200", &sources); err != nil {
+			return err
+		}
+		if len(sources.Value) == 0 {
+			return skipped("this instance has no cane sources to commit")
+		}
+		source := sources.Value[0]
+
+		// Deliberately short of the 300,000 t the harness season needs, so the
+		// gap is one the system has to notice rather than one it can round away.
+		res, err := r.put("planner", "/api/v1/versions/"+r.state.versionID+"/supply",
+			domain.CaneSupplyEntry{
+				VersionID: r.state.versionID, SourceID: source.ID,
+				HarvestFrom: accStartDate, HarvestTo: domain.BusinessDate(accStartDate).AddDays(accDays - 1),
+				CommittedTons: domain.D("200000"), Note: "acceptance harness",
+			})
+		if err != nil {
+			return err
+		}
+		if res.Status != http.StatusOK {
+			return fmt.Errorf("committing a source: %d %s", res.Status, res.snippet())
+		}
+
+		var plan service.SupplyPlan
+		if err := r.getOK("planner", "/api/v1/versions/"+r.state.versionID+"/supply", &plan); err != nil {
+			return err
+		}
+		if !plan.Reconcile.CommittedTons.Equal(domain.D("200000")) {
+			return fmt.Errorf("committed reads back as %s, want 200000", plan.Reconcile.CommittedTons)
+		}
+		// 200,000 against 300,000 is a third short: an ERROR, not a warning,
+		// because a mill short of cane stops.
+		short := false
+		for _, w := range plan.Warnings {
+			if w.Code == "SUPPLY_COVERAGE" && w.Severity == domain.SeverityError {
+				short = true
+			}
+		}
+		if !short {
+			return fmt.Errorf("committing 200,000 t against a 300,000 t season raised no "+
+				"shortfall error; warnings were %v", codesOf(plan.Warnings))
+		}
+
+		// The required daily rate is what the haulage is judged against, and it
+		// is derived rather than entered: 200,000 t over 30 days.
+		if len(plan.Entries) != 1 {
+			return fmt.Errorf("%d commitments, want 1", len(plan.Entries))
+		}
+		if want := domain.D("6666.667"); !plan.Entries[0].RequiredDailyRate.Equal(want) {
+			return fmt.Errorf("required daily rate = %s, want %s",
+				plan.Entries[0].RequiredDailyRate, want)
+		}
+		return nil
+	})
+
+	r.check("the delivery schedule sums to exactly what was committed", func() error {
+		if r.state.versionID == "" {
+			return skipped("no version was created")
+		}
+		res, err := r.post("planner", "/api/v1/versions/"+r.state.versionID+"/supply/generate", map[string]any{})
+		if err != nil {
+			return err
+		}
+		if res.Status != http.StatusOK {
+			return skipped("generating the schedule: %d %s", res.Status, res.snippet())
+		}
+
+		var rows page[domain.DailyCaneSupply]
+		if err := r.getOK("planner", "/api/v1/versions/"+r.state.versionID+
+			"/cane-supply?series=PLAN&$top=1000", &rows); err != nil {
+			return err
+		}
+		if len(rows.Value) != accDays {
+			return fmt.Errorf("%d delivery days, want %d", len(rows.Value), accDays)
+		}
+		// Exactly. The generator puts the rounding remainder on the last day of
+		// the window precisely so a schedule can be added up and quoted.
+		total := domain.Zero
+		for _, row := range rows.Value {
+			total = total.Add(row.Tons)
+		}
+		if !total.Equal(domain.D("200000.000")) {
+			return fmt.Errorf("the schedule totals %s t against a 200,000 t commitment", total)
+		}
+		// And it comes back in date order, which is what a caller taking the
+		// first fortnight depends on.
+		for i := 1; i < len(rows.Value); i++ {
+			if rows.Value[i].BusinessDate < rows.Value[i-1].BusinessDate {
+				return fmt.Errorf("the schedule is not in date order: %s after %s",
+					rows.Value[i].BusinessDate, rows.Value[i-1].BusinessDate)
+			}
+		}
+		return nil
+	})
+}
+
+// codesOf names the warnings a check was expecting to find one among.
+func codesOf(alerts []domain.Alert) []string {
+	out := make([]string, 0, len(alerts))
+	for _, a := range alerts {
+		out = append(out, a.Code)
+	}
+	return out
 }
 
 func accAssumptions() map[string]string {
@@ -691,6 +800,88 @@ func operatorEntry(r *run) {
 		}
 		if len(graded.Sample.Results) == 0 || graded.Sample.Results[0].Status == "" {
 			return fmt.Errorf("the result came back ungraded: %s", res.snippet())
+		}
+		return nil
+	})
+
+	// Cane arrives per source, not as a single daily figure. The weighbridge
+	// records which farm each load came from, because that is the only way the
+	// delivery schedule can be compared with what turned up.
+	r.check("the weighbridge records arrivals against the source they came from", func() error {
+		var sources page[domain.CaneSource]
+		if err := r.getOK("weighbridge", "/api/v1/master/cane-sources?$top=200", &sources); err != nil {
+			return err
+		}
+		if len(sources.Value) == 0 {
+			return skipped("this instance has no cane sources to deliver from")
+		}
+		source := sources.Value[0]
+
+		res, err := r.post("weighbridge", "/api/v1/versions/"+r.state.demoActual+"/cane-supply",
+			map[string]any{"rows": []domain.DailyCaneSupply{{
+				SourceID: source.ID, BusinessDate: day, Series: domain.SeriesActual,
+				Tons: domain.D("4800"), Trips: 267, PolPct: domain.D("12.4"),
+			}}})
+		if err != nil {
+			return err
+		}
+		if res.Status != http.StatusOK {
+			return fmt.Errorf("recording a delivery: %d %s", res.Status, res.snippet())
+		}
+		var out service.UpsertResult
+		if err := res.decode(&out); err != nil {
+			return err
+		}
+		if out.Accepted != 1 {
+			return fmt.Errorf("%d deliveries accepted, %d rejected: %v",
+				out.Accepted, out.Rejected, out.Issues)
+		}
+
+		// Written once and read back once. The same day recorded twice is a
+		// correction, not a second lorry queue.
+		if _, err := r.post("weighbridge", "/api/v1/versions/"+r.state.demoActual+"/cane-supply",
+			map[string]any{"rows": []domain.DailyCaneSupply{{
+				SourceID: source.ID, BusinessDate: day, Series: domain.SeriesActual,
+				Tons: domain.D("4950"), Trips: 275, PolPct: domain.D("12.4"),
+			}}}); err != nil {
+			return err
+		}
+		var rows page[domain.DailyCaneSupply]
+		if err := r.getOK("weighbridge", "/api/v1/versions/"+r.state.demoActual+
+			"/cane-supply?series=ACTUAL&sourceId="+source.ID+
+			"&from="+string(day)+"&to="+string(day), &rows); err != nil {
+			return err
+		}
+		if len(rows.Value) != 1 {
+			return fmt.Errorf("one source on one day came back as %d rows", len(rows.Value))
+		}
+		if !rows.Value[0].Tons.Equal(domain.D("4950.000")) {
+			return fmt.Errorf("the correction stored %s t, want 4950", rows.Value[0].Tons)
+		}
+		return nil
+	})
+
+	r.check("a planner cannot record what came through the gate", func() error {
+		// The weighbridge clerk records arrivals and the planner does not, the
+		// same separation that keeps a planner from approving their own plan.
+		var sources page[domain.CaneSource]
+		if err := r.getOK("planner", "/api/v1/master/cane-sources?$top=1", &sources); err != nil {
+			return err
+		}
+		if len(sources.Value) == 0 {
+			return skipped("this instance has no cane sources")
+		}
+		res, err := r.post("planner", "/api/v1/versions/"+r.state.demoActual+"/cane-supply",
+			map[string]any{"rows": []domain.DailyCaneSupply{{
+				SourceID: sources.Value[0].ID, BusinessDate: day,
+				Series: domain.SeriesActual, Tons: domain.D("1000"), Trips: 56,
+			}}})
+		if err != nil {
+			return err
+		}
+		if res.Status != http.StatusForbidden {
+			return fmt.Errorf("a planner recording a cane delivery was answered %d, want 403",
+				res.Status)
 		}
 		return nil
 	})

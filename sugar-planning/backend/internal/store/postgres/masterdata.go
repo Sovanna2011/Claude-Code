@@ -453,3 +453,32 @@ func (m masterData) DeletePackagingBOM(ctx context.Context, id string) error {
 	}
 	return nil
 }
+
+func (m masterData) CaneSources() store.Repo[domain.CaneSource] {
+	return pgRepo[domain.CaneSource]{s: m.s, sp: pgSpec[domain.CaneSource]{
+		name: "cane source", table: "cane_sources", codeCol: "code",
+		cols: []string{"factory_id", "code", "name", "source_type", "zone", "distance_km",
+			"hectares", "variety", "expected_yield_tph", "expected_pol_pct",
+			"truck_capacity_tons", "trucks_per_day", "valid_from", "valid_to", "active"},
+		parentCol: "factory_id", textCols: []string{"code", "name", "zone"}, activeCol: "active",
+		id:    func(x *domain.CaneSource) *string { return &x.ID },
+		code:  func(x domain.CaneSource) string { return x.Code },
+		audit: func(x *domain.CaneSource) *domain.AuditFields { return &x.AuditFields },
+		values: func(x domain.CaneSource) []any {
+			return []any{x.FactoryID, x.Code, x.Name, string(x.Type), x.Zone, x.DistanceKm,
+				x.Hectares, x.Variety, x.ExpectedYieldTPH, x.ExpectedPolPct,
+				x.TruckCapacityTons, x.TrucksPerDay, nd(x.ValidFrom), nd(x.ValidTo), x.Active}
+		},
+		scan: func(r scanner) (domain.CaneSource, error) {
+			var x domain.CaneSource
+			var v validityCols
+			var kind string
+			err := r.Scan(&x.ID, &x.FactoryID, &x.Code, &x.Name, &kind, &x.Zone, &x.DistanceKm,
+				&x.Hectares, &x.Variety, &x.ExpectedYieldTPH, &x.ExpectedPolPct,
+				&x.TruckCapacityTons, &x.TrucksPerDay, &v.from, &v.to, &v.active,
+				&x.CreatedAt, &x.CreatedBy, &x.UpdatedAt, &x.UpdatedBy, &x.RowVersion)
+			x.Type, x.Validity = domain.SourceType(kind), v.toDomain()
+			return x, err
+		},
+	}}
+}

@@ -712,3 +712,79 @@ func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
 		Skip: atoiOr(q.Get("$skip"), 0), Top: atoiOr(q.Get("$top"), 100),
 	})
 }
+
+// ---------------------------------------------------------------------------
+// Cane supply
+// ---------------------------------------------------------------------------
+
+func (s *Server) handleSupplyPlan(w http.ResponseWriter, r *http.Request) {
+	plan, err := s.planning.SupplyPlan(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeJSON(w, plan)
+}
+
+func (s *Server) handleSaveSupply(w http.ResponseWriter, r *http.Request) {
+	var e domain.CaneSupplyEntry
+	if err := decodeJSON(w, r, &e); err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	e.VersionID = r.PathValue("id")
+	saved, err := s.planning.SaveSupplyEntry(r.Context(), e)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeJSON(w, saved)
+}
+
+func (s *Server) handleDeleteSupply(w http.ResponseWriter, r *http.Request) {
+	if err := s.planning.DeleteSupplyEntry(r.Context(),
+		r.PathValue("id"), r.PathValue("entryId")); err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleGenerateSupply(w http.ResponseWriter, r *http.Request) {
+	// Building a season's delivery schedule is expensive and repeatable, so a
+	// retried request replays the first result rather than rebuilding it.
+	s.postOnce(w, r, func() (any, error) {
+		return s.planning.GenerateSupplySchedule(r.Context(), r.PathValue("id"))
+	})
+}
+
+func (s *Server) handleListCaneSupply(w http.ResponseWriter, r *http.Request) {
+	f := planFilter(r, r.PathValue("id"))
+	if ids := r.URL.Query()["sourceId"]; len(ids) > 0 {
+		f.SourceIDs = ids
+	}
+	rows, err := s.planning.ListCaneSupply(r.Context(), f)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeJSON(w, pageResponse[domain.DailyCaneSupply]{Value: rows, Count: len(rows)})
+}
+
+func (s *Server) handleUpsertCaneSupply(w http.ResponseWriter, r *http.Request) {
+	var req bulkRequest[domain.DailyCaneSupply]
+	if err := decodeJSON(w, r, &req); err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	if len(req.Rows) == 0 {
+		writeProblem(w, r, wrapValidation("the request contains no rows"))
+		return
+	}
+	result, err := s.planning.UpsertCaneSupply(r.Context(), r.PathValue("id"), req.Rows)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeJSON(w, result)
+}

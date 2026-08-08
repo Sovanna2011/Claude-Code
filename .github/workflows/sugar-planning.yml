@@ -239,9 +239,15 @@ jobs:
         # npm ci, not npm install: it installs exactly the tree in
         # package-lock.json and fails if the lock and the manifest disagree, so
         # a transitive dependency cannot change under the project between runs.
+        # The lint step used to end in `|| true` while no ruleset existed, which
+        # made it a step that could not fail: eslint found no configuration,
+        # exited non-zero, and the `|| true` turned that into a green tick. A
+        # check that cannot run is worse than no check, because the tick is
+        # read as evidence. There is a ruleset now and the webapp passes it, so
+        # the step is allowed to fail.
         run: |
           npm ci --no-audit --no-fund
-          npx eslint webapp --ext .js || true   # advisory until the ruleset is agreed
+          npx eslint webapp --ext .js
 
       # The chart renderers and the formatters are pure functions with no UI5
       # dependencies, so they run under plain Node without a browser or a CDN.

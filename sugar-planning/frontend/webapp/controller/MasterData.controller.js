@@ -26,6 +26,7 @@ sap.ui.define([
 		{ key: "customers", text: "Customers", columns: ["code", "name", "country"] },
 		{ key: "shipment-channels", text: "Shipment channels", columns: ["code", "name", "category"] },
 		{ key: "materials", text: "Materials", columns: ["code", "name", "uom", "safetyStock", "leadTimeDays", "onHand"] },
+		{ key: "cane-sources", text: "Cane sources", columns: ["code", "name", "sourceType", "zone", "hectares", "expectedYieldTonsPerHectare", "truckCapacityTons", "trucksPerDay"] },
 		{ key: "reason-codes", text: "Reason codes", columns: ["code", "name", "category"] }
 	];
 

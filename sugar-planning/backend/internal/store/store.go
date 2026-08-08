@@ -95,6 +95,8 @@ type MasterData interface {
 	Channels() Repo[domain.ShipmentChannel]
 	Materials() Repo[domain.Material]
 	ReasonCodes() Repo[domain.ReasonCode]
+	// CaneSources are the farms, estates and outgrowers cane arrives from.
+	CaneSources() Repo[domain.CaneSource]
 
 	// The packaging bill of materials is not a Repo: its business key is the
 	// pair (packaging, material) rather than a code, and forcing it into the
@@ -115,6 +117,7 @@ type PlanFilter struct {
 	WarehouseIDs []string
 	ChannelIDs   []string
 	LineIDs      []string
+	SourceIDs    []string
 	Series       domain.Series
 	Skip         int
 	Top          int
@@ -139,6 +142,13 @@ type Planning interface {
 	SaveMix(ctx context.Context, m domain.ProductMixEntry, actor string) (domain.ProductMixEntry, error)
 	DeleteMix(ctx context.Context, id string) error
 
+	// The cane-supply commitments: what each source owes this season, and the
+	// window it will be cut in. Same shape as the product mix, and read by the
+	// generator the same way.
+	ListSupply(ctx context.Context, versionID string) ([]domain.CaneSupplyEntry, error)
+	SaveSupply(ctx context.Context, e domain.CaneSupplyEntry, actor string) (domain.CaneSupplyEntry, error)
+	DeleteSupply(ctx context.Context, id string) error
+
 	// --- daily facts ---
 	// The Upsert* methods match on the natural key of the row (version, date,
 	// dimensions and series) so that re-running an import or re-generating a
@@ -151,6 +161,10 @@ type Planning interface {
 
 	ListStorage(ctx context.Context, f PlanFilter) ([]domain.DailyStoragePlan, error)
 	UpsertStorage(ctx context.Context, rows []domain.DailyStoragePlan, actor string) (int, error)
+
+	// The delivery schedule, a row per source per day.
+	ListCaneSupply(ctx context.Context, f PlanFilter) ([]domain.DailyCaneSupply, error)
+	UpsertCaneSupply(ctx context.Context, rows []domain.DailyCaneSupply, actor string) (int, error)
 
 	ListShipments(ctx context.Context, f PlanFilter) ([]domain.DailyShipmentPlan, error)
 	UpsertShipments(ctx context.Context, rows []domain.DailyShipmentPlan, actor string) (int, error)

@@ -206,6 +206,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 	registerMasterData(mux, "shipment-channels", md.Channels())
 	registerMasterData(mux, "materials", md.Materials())
 	registerMasterData(mux, "reason-codes", md.ReasonCodes())
+	registerMasterData(mux, "cane-sources", md.CaneSources())
 
 	// The packaging bill of materials is not a Repo - its key is the pair
 	// (packaging, material) rather than a code - so it gets its own three
@@ -231,6 +232,14 @@ func (s *Server) routes(mux *http.ServeMux) {
 
 	s.handle(mux, "PUT /api/v1/versions/{id}/assumptions", s.handleSaveAssumption)
 	s.handle(mux, "PUT /api/v1/versions/{id}/product-mix", s.handleSaveMix)
+
+	// --- cane supply: where the season's cane comes from --------------------
+	s.handle(mux, "GET /api/v1/versions/{id}/supply", s.handleSupplyPlan)
+	s.handle(mux, "PUT /api/v1/versions/{id}/supply", s.handleSaveSupply)
+	s.handle(mux, "DELETE /api/v1/versions/{id}/supply/{entryId}", s.handleDeleteSupply)
+	s.handle(mux, "POST /api/v1/versions/{id}/supply/generate", s.handleGenerateSupply)
+	s.handle(mux, "GET /api/v1/versions/{id}/cane-supply", s.handleListCaneSupply)
+	s.handle(mux, "POST /api/v1/versions/{id}/cane-supply", s.handleUpsertCaneSupply)
 	s.handle(mux, "DELETE /api/v1/versions/{id}/product-mix/{mixId}", s.handleDeleteMix)
 
 	// --- daily plan rows ----------------------------------------------------

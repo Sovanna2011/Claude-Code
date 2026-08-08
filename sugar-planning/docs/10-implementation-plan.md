@@ -333,7 +333,53 @@ only the second would blame an index for a small server.
 - The one with no margin is named rather than averaged away: documents filtered
   to one warehouse, 494 ms against 500 ms
 - Both stores report the same bounded count, held there by the conformance suite
-- All 61 acceptance checks still pass after the store change
+- All acceptance checks still pass after the store change (57 at the time; 61 now)
+
+---
+
+## Phase 9 — cane supply ✅ delivered
+
+Section 5 asks for "cane source/zone/farm, delivery schedule, transport
+capacity, queue, and expected quality". The crushing half of that had been built
+since phase 2; the agricultural half had not. What existed was a grower code as
+free text on a weighbridge ticket — enough to know a lorry had come from
+somewhere, not enough to plan a season.
+
+**What was built**
+
+- `cane_sources` as master data: estates, contract farms and outgrower groups,
+  each with a zone, distance, area, variety, expected yield, expected
+  polarisation and the lorry movements that serve it
+- Season commitments per source with a harvest window, reconciled against the
+  cane target (C44–C48), raising a shortfall as an error and a surplus only as a
+  warning
+- A generated delivery schedule, one row per source per day, summing to the
+  commitment exactly; and the arrivals recorded against it by the weighbridge as
+  an ACTUAL series
+- Six endpoints, the master data entity, and a screen: coverage, the commitments
+  with required rate against haulage capacity side by side, and the schedule
+  drawn with what actually arrived on top of it
+- A year of data in the seed: eight sources across six Kampong Speu districts
+  committing 2,320,000 t against the 2,300,000 t target, a 492-row schedule
+  covering all 137 days, and a fortnight of arrivals
+
+**What running it found**
+
+| Found | Fix |
+| --- | --- |
+| The two stores disagreed on the order of the delivery schedule — SQL by date then source, in-memory by source then date. The same rows in a different list, and the seed reading "the first fourteen days" got a different fortnight depending on which store it ran against: deliveries started 2026-12-31 instead of 2026-12-01 | The in-memory sort was corrected, the seed sorts explicitly rather than trusting a repository, and `storetest.testCaneSupply` now asserts the order in both stores — ordering is part of the contract whenever a caller takes a prefix |
+| The first haulage figures were nonsense: 26 lorries moving 6,208 t a day | `TrucksPerDay` counts vehicle **movements**, not vehicles, and is documented as such. Recomputed, one source is now genuinely short of haulage, which is what makes the warning worth having |
+| `npm run lint` could not fail: eslint had no configuration, exited non-zero, and CI's `\|\| true` turned that into a green tick | A ruleset, which the webapp passes, and the `\|\| true` removed |
+| Nothing checked that an `{i18n>key}` in a view exists. A typo renders the key itself on screen and the page still works | `frontend/test/i18n.test.js` now walks every view and fragment |
+
+**Acceptance criteria — met**
+
+- The reconciliation, the warnings and the schedule are asserted by unit tests,
+  by the store conformance suite in **both** stores, and by the seed tests
+- Two new acceptance checks under criteria 1 and 3, run against a live instance
+  on PostgreSQL 16: a planner commits sources and the plan reconciles; the
+  weighbridge records arrivals and a planner cannot
+- 61 acceptance checks pass, 0 failed — 57 before this phase, plus the four above
 
 ---
 
@@ -398,8 +444,9 @@ container restart tripled the stoppages and the orders.
 | Spreadsheet reading: separators, serial dates, blank cells, .xlsx | ✅ passing |
 | Import staging, validation, duplicate detection, partial commit | ✅ passing |
 | Alert evaluation, deduplication, inbox addressing | ✅ passing |
-| SAPUI5 formatter and chart unit tests (`npm test`, 18) | ✅ passing |
+| SAPUI5 formatter and chart unit tests, the translation bundles, and every `{i18n>key}` a view asks for (`npm test`, 33) | ✅ passing |
 | Saved views: ownership, sharing, defaults, both stores | ✅ passing |
+| Cane supply: the calculations, the schedule, ordering and upsert keys in both stores, and the seeded year of data | ✅ passing |
 | Metrics: route labelling, no business data in the exposition | ✅ passing |
 | The demonstration scenario: contents, idempotency, reconciliation with the dashboard | ✅ passing |
 | The second tenant: its own plan, isolation both ways, idempotency | ✅ passing |

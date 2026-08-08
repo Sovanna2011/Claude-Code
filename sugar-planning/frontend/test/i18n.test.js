@@ -156,3 +156,43 @@ test("the manifest declares exactly the locales that have a bundle", () => {
 		"a locale declared with no bundle serves English under a language name; " +
 		"a bundle with no locale declared is never loaded at all");
 });
+
+/**
+ * Every {i18n>key} a view or fragment asks for has to exist.
+ *
+ * A missing key is not an error at runtime: SAPUI5 renders the key itself, so
+ * a button reads "supplyGenrate" and the page still works. That is the kind of
+ * defect that ships, which is why it is checked here rather than left to
+ * somebody noticing on screen.
+ */
+test("every i18n key a view asks for exists in the English source", () => {
+	const VIEWS = path.join(__dirname, "..", "webapp", "view");
+	const files = [];
+	(function walk(dir) {
+		fs.readdirSync(dir, { withFileTypes: true }).forEach(function (entry) {
+			const full = path.join(dir, entry.name);
+			if (entry.isDirectory()) {
+				walk(full);
+			} else if (entry.name.endsWith(".xml")) {
+				files.push(full);
+			}
+		});
+	}(VIEWS));
+	assert.ok(files.length > 0, "no views were found to check");
+
+	const missing = [];
+	files.forEach(function (file) {
+		const text = fs.readFileSync(file, "utf8");
+		const seen = {};
+		(text.match(/i18n>[A-Za-z0-9_.]+/g) || []).forEach(function (match) {
+			const key = match.slice("i18n>".length);
+			if (seen[key] || Object.prototype.hasOwnProperty.call(sourceByKey, key)) {
+				return;
+			}
+			seen[key] = true;
+			missing.push(path.relative(VIEWS, file) + ": " + key);
+		});
+	});
+	assert.deepStrictEqual(missing, [],
+		"views reference i18n keys that do not exist:\n" + missing.join("\n"));
+});

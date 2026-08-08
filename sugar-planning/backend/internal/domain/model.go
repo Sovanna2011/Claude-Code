@@ -453,6 +453,11 @@ const (
 	AsmMassBalanceTolPct  = "MASS_BALANCE_TOLERANCE_PCT"
 	AsmRecoveryMinPct     = "RECOVERY_MIN_PCT"
 	AsmRecoveryMaxPct     = "RECOVERY_MAX_PCT"
+	// AsmSupplyTolerancePct is how far the committed cane may sit from the
+	// season target before the supply plan says so. Two per cent by default:
+	// a season is contracted months ahead and nobody expects it to land on the
+	// tonne, but a tenth out is a different plan.
+	AsmSupplyTolerancePct = "SUPPLY_TOLERANCE_PCT"
 )
 
 // ProductMixEntry is the share of finished goods output planned for one

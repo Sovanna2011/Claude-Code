@@ -16,6 +16,7 @@ flowchart TD
     P --> PD[Plan detail]
     PD --> B[Daily planning board]
     P --> B
+    H --> CS[Cane supply]
     H --> W[Warehouse and silo]
     H --> ST[Stock]
     H --> PO[Production orders]
@@ -250,6 +251,31 @@ which is the case that moves the end of the season; a line outage does not.
 Planned against actual by channel, plus what the finished goods stores require:
 the smallest constant daily rate that keeps each inside its threshold.
 
+### Cane supply
+
+Where the season's cane comes from, and whether it can actually get to the gate.
+
+Three parts, top to bottom. **Season coverage** is six figures: the cane target,
+what the sources have committed, coverage as a percentage, the difference, what
+the land should yield and how many sources are behind it. Then the warnings the
+reconciliation raised — a shortfall in red, a surplus in amber, a source
+committed to more than its land grows or more than its lorries can move.
+
+The **commitments** table is one row per source: area, expected yield, what it
+has committed, its harvest window, and the pair that decides whether the promise
+is keepable — the tonnage it must move each day against the tonnage its lorries
+carry. Those two sit next to each other and the second changes colour, because
+that comparison is the reason a planner opens this page.
+
+At the bottom, the **delivery schedule** the commitments generate, drawn as one
+bar a day with what actually arrived at the gate on top of it. The two series
+are summed across sources rather than shown per source: the queue at the
+weighbridge is one queue, and a day where one zone over-delivers while another
+fails is still a day the mill was short.
+
+Building the schedule asks first. It overwrites the planned rows, and a planner
+who has hand-adjusted a week of deliveries would lose that work.
+
 ### Materials
 
 The packaging requirement from the plan: gross requirement, safety stock,
@@ -265,7 +291,7 @@ server-side builder, so they cannot disagree.
 
 ### Master data
 
-One generic screen for all fourteen entities. Because every master entity has
+One generic screen for all fifteen entities. Because every master entity has
 the same API shape, the table is built from a column list per entity and a new
 entity needs no new page.
 
@@ -414,7 +440,7 @@ text or an icon beside it.
 
 English is the source language in `i18n/i18n.properties`; every user-visible
 string is there. `i18n_km.properties` and `i18n_th.properties` carry **the same
-580 keys** — Khmer and Thai are complete, not seeded, and the manifest declares
+626 keys** — Khmer and Thai are complete, not seeded, and the manifest declares
 both as supported locales. Adding a language is a properties file and one entry
 in `supportedLocales`.
 

@@ -442,6 +442,92 @@ Unit: the component's own unit, scale 3. Go: `ComponentQuantity`.
 
 ---
 
+## C44–C48 Cane supply
+
+Where the season's cane comes from. The crushing plan (C1–C10) says how much
+cane goes through the mill each day; these say which farms it arrives from and
+whether that is physically possible. They live in
+`backend/internal/domain/canesupply.go` and are asserted by `canesupply_test.go`.
+
+### C44 Expected tonnage of a source
+```
+expected tons = hectares × expected yield per hectare
+```
+What the land should grow, against which a commitment is a promise that may or
+may not be keepable. A contract is a negotiation; a hectare is a fact. Unit:
+tonnes, scale 3. Go: `CaneSource.ExpectedTons`.
+
+*Worked example.* 4,200 ha at 68 t/ha is 285,600 t.
+
+### C45 Daily transport capacity
+```
+capacity per day = truck capacity × truck movements per day
+```
+The most a source can physically deliver in a day, however much is standing in
+the field. `TrucksPerDay` counts **movements**, not vehicles: a lorry doing
+three round trips is three movements, and movements are what the weighbridge
+sees. Unit: tonnes, scale 3. Go: `CaneSource.DailyTransportCapacity`.
+
+*Worked example.* 360 movements of 18 t is 6,480 t a day.
+
+### C46 Required daily rate
+```
+required per day = committed tons ÷ harvest days
+```
+The rate a source has to sustain to keep its commitment, and the number C45 is
+judged against. The harvest window is **inclusive**: a block cut on the 1st and
+the 1st is one day of cutting, not zero. Unit: tonnes, scale 3. Go:
+`CaneSupplyEntry.RequiredDailyRate`, `CaneSupplyEntry.HarvestDays`.
+
+*Worked example.* 285,600 t between 1 December and 15 January is 46 days, so
+6,208.696 t a day — inside the 6,480 t that source's lorries can carry.
+
+### C47 Trips
+```
+trips = ceiling(tons ÷ truck capacity)
+```
+Rounded **up**, unlike every other calculation in this catalogue. The last
+lorry of the day travels whether it is full or not, and a queue planned on
+fractional vehicles is always one vehicle short. A source with no vehicles
+moves nothing rather than dividing by zero. Unit: whole vehicles. Go:
+`TripsFor`.
+
+*Worked example.* 37 t at 18 t a load is 3 trips, not 2.06.
+
+### C48 Supply reconciliation
+```
+committed  = Σ committed tons over the sources
+expected   = Σ (C44) over the sources
+difference = committed − season cane target
+coverage % = committed ÷ season cane target × 100
+```
+The season target with the farms behind it added up. A cane target no source
+covers is a number somebody typed. Units: tonnes scale 3, percent scale 3. Go:
+`ReconcileSupply`, `SupplyWarnings`.
+
+Three warnings come out of it, and the first is deliberately asymmetric:
+
+| Code | Raised when | Severity |
+| --- | --- | --- |
+| `SUPPLY_COVERAGE` | committed is short of the target by more than the tolerance | **error** |
+| `SUPPLY_COVERAGE` | committed is over the target by more than the tolerance | warning |
+| `SUPPLY_OVER_YIELD` | a source is committed to more than its land grows (C44) | warning |
+| `SUPPLY_OVER_HAULAGE` | a source's required rate (C46) exceeds its capacity (C45) | warning |
+
+Short and over are not the same thing. A mill short of cane stops; a mill with
+too much leaves cane standing, which costs money and stops nothing. The
+tolerance is the `SUPPLY_TOLERANCE_PCT` assumption, 2 % by default: a season is
+contracted months ahead, nobody expects it to land on the tonne, and a system
+that complains about one per cent is a system people learn to ignore.
+
+*Worked example.* The reference season commits 2,320,000 t against a 2,300,000 t
+target: 100.870 % coverage, 20,000 t of margin, silent because 0.87 % is inside
+the tolerance. One source, the Oral smallholders, must move 2,432.258 t a day
+across its window while 190 movements at 12 t carry 2,280 t — so
+`SUPPLY_OVER_HAULAGE` is raised against it and nothing else is.
+
+---
+
 ## Reference reconciliation
 
 The figures section 24 requires, and the tests that assert them.

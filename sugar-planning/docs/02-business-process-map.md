@@ -80,6 +80,33 @@ and on what date, whether the raw sugar supply covers refining, and whether any
 mix entry's rate is too low. In the reference scenario it finds three real
 problems — see [01-assumptions-and-questions.md](01-assumptions-and-questions.md).
 
+### Where the cane comes from
+
+The generator takes the cane target as given. Cane supply planning is the other
+direction: the sources behind that number, and whether the tonnage can actually
+reach the gate.
+
+A planner commits each source — an estate block, a contract farm, an outgrower
+group — to a tonnage and a harvest window. Three things then follow without
+anybody entering them: what the land should yield from its area and expected
+yield (C44), the rate the source has to sustain across its window (C46), and
+the tonnage its lorries can carry in a day (C45). The reconciliation adds the
+commitments up against the season target (C48) and says whether the season is
+covered.
+
+The three warnings it raises are the ones that stop a season: a target no
+source covers, a source promising more than its land grows, and a source with
+nowhere near enough lorries. The last is the one people are surprised by. A
+grower can be entirely honest about what is standing in the field and still be
+unable to move it in the window they have agreed, and nothing on a crushing
+plan shows that.
+
+The commitments then generate a delivery schedule — a row per source per day of
+its window, with the tonnage spread evenly and the rounding remainder on the
+last day so the rows sum to the commitment exactly. What arrives at the gate is
+recorded against the same days as an ACTUAL series, which is what makes the two
+comparable at all.
+
 ---
 
 ## 2.3 Approval: draft to released baseline

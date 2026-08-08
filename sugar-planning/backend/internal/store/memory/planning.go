@@ -522,3 +522,105 @@ func paginate[T any](items []T, opts store.ListOptions) store.Page[T] {
 	}
 	return store.Page[T]{Items: items[opts.Skip:end], Count: total}
 }
+
+// ---------------------------------------------------------------------------
+// Cane supply: where the cane comes from
+// ---------------------------------------------------------------------------
+
+func (p planning) ListSupply(_ context.Context, versionID string) ([]domain.CaneSupplyEntry, error) {
+	p.s.lock()
+	defer p.s.unlock()
+	var out []domain.CaneSupplyEntry
+	for _, e := range p.s.d.supply {
+		if e.VersionID == versionID {
+			out = append(out, e)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].SourceID < out[j].SourceID })
+	return out, nil
+}
+
+func (p planning) SaveSupply(_ context.Context, e domain.CaneSupplyEntry, actor string) (domain.CaneSupplyEntry, error) {
+	p.s.lock()
+	defer p.s.unlock()
+
+	// One commitment per source per version: saving the same pair again is a
+	// correction, not a second contract.
+	if e.ID == "" {
+		for _, prev := range p.s.d.supply {
+			if prev.VersionID == e.VersionID && prev.SourceID == e.SourceID {
+				e.ID, e.RowVersion = prev.ID, prev.RowVersion
+				e.CreatedAt, e.CreatedBy = prev.CreatedAt, prev.CreatedBy
+				break
+			}
+		}
+	}
+	if e.ID == "" {
+		e.ID = uuid.NewString()
+		e.CreatedAt, e.CreatedBy, e.RowVersion = nowUTC(), actor, 0
+	}
+	e.UpdatedAt, e.UpdatedBy, e.RowVersion = nowUTC(), actor, e.RowVersion+1
+	p.s.d.supply[e.ID] = e
+	return e, nil
+}
+
+func (p planning) DeleteSupply(_ context.Context, id string) error {
+	p.s.lock()
+	defer p.s.unlock()
+	if _, ok := p.s.d.supply[id]; !ok {
+		return fmt.Errorf("%w: cane supply entry %s", domain.ErrNotFound, id)
+	}
+	delete(p.s.d.supply, id)
+	return nil
+}
+
+func caneSupplyKey(r domain.DailyCaneSupply) string {
+	return r.VersionID + "|" + r.SourceID + "|" + string(r.BusinessDate) + "|" + string(r.Series)
+}
+
+func (p planning) ListCaneSupply(_ context.Context, f store.PlanFilter) ([]domain.DailyCaneSupply, error) {
+	p.s.lock()
+	defer p.s.unlock()
+	var out []domain.DailyCaneSupply
+	for _, r := range p.s.d.caneSup {
+		if !matchIn(f.VersionIDs, r.VersionID) || !inDateRange(f, r.BusinessDate) {
+			continue
+		}
+		if !matchIn(f.SourceIDs, r.SourceID) {
+			continue
+		}
+		if f.FactoryID != "" && r.FactoryID != f.FactoryID {
+			continue
+		}
+		if f.Series != "" && r.Series != f.Series {
+			continue
+		}
+		out = append(out, r)
+	}
+	// Date first, then source - the order the SQL store returns and the order a
+	// delivery schedule is read in. Sorting by the storage key instead grouped
+	// the rows by source, which is a different list with the same rows in it.
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].BusinessDate != out[j].BusinessDate {
+			return out[i].BusinessDate < out[j].BusinessDate
+		}
+		return out[i].SourceID < out[j].SourceID
+	})
+	return out, nil
+}
+
+func (p planning) UpsertCaneSupply(_ context.Context, rows []domain.DailyCaneSupply, actor string) (int, error) {
+	p.s.lock()
+	defer p.s.unlock()
+	for _, r := range rows {
+		k := caneSupplyKey(r)
+		if prev, ok := p.s.d.caneSup[k]; ok {
+			r.ID, r.CreatedAt, r.CreatedBy, r.RowVersion = prev.ID, prev.CreatedAt, prev.CreatedBy, prev.RowVersion
+		} else {
+			r.ID, r.CreatedAt, r.CreatedBy = uuid.NewString(), nowUTC(), actor
+		}
+		r.UpdatedAt, r.UpdatedBy, r.RowVersion = nowUTC(), actor, r.RowVersion+1
+		p.s.d.caneSup[k] = r
+	}
+	return len(rows), nil
+}

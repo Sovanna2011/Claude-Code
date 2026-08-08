@@ -390,3 +390,71 @@ func versionConflict(ctx context.Context, s *Store, table, label, id string, exp
 	return fmt.Errorf("%w: %s %s was changed by %s (version %d, you have %d)",
 		domain.ErrConflict, label, id, updatedBy, current, expected)
 }
+
+// ---------------------------------------------------------------------------
+// Cane supply: where the cane comes from
+// ---------------------------------------------------------------------------
+
+const supplyCols = `id, version_id, source_id, harvest_from, harvest_to, committed_tons, note,
+	created_at, created_by, updated_at, updated_by, row_version`
+
+func (p planning) ListSupply(ctx context.Context, versionID string) ([]domain.CaneSupplyEntry, error) {
+	rows, err := p.s.q.Query(ctx, "SELECT "+supplyCols+
+		" FROM cane_supply_entries WHERE version_id = $1 ORDER BY source_id", versionID)
+	if err != nil {
+		return nil, mapError("cane supply", err)
+	}
+	defer rows.Close()
+
+	var out []domain.CaneSupplyEntry
+	for rows.Next() {
+		var e domain.CaneSupplyEntry
+		var from, to time.Time
+		if err := rows.Scan(&e.ID, &e.VersionID, &e.SourceID, &from, &to,
+			&e.CommittedTons, &e.Note,
+			&e.CreatedAt, &e.CreatedBy, &e.UpdatedAt, &e.UpdatedBy, &e.RowVersion); err != nil {
+			return nil, mapError("cane supply", err)
+		}
+		e.HarvestFrom, e.HarvestTo = mustDate(from), mustDate(to)
+		out = append(out, e)
+	}
+	return out, mapError("cane supply", rows.Err())
+}
+
+func (p planning) SaveSupply(ctx context.Context, e domain.CaneSupplyEntry, actor string) (domain.CaneSupplyEntry, error) {
+	now := nowUTC()
+	if e.ID == "" {
+		e.ID = uuid.NewString()
+	}
+	// One commitment per source per version: saving the same pair again is a
+	// correction, not a second contract.
+	err := p.s.q.QueryRow(ctx, `INSERT INTO cane_supply_entries
+		(id, version_id, source_id, harvest_from, harvest_to, committed_tons, note,
+		 created_at, created_by, updated_at, updated_by, row_version)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$8,$9,1)
+		ON CONFLICT (version_id, source_id) DO UPDATE SET
+			harvest_from = EXCLUDED.harvest_from, harvest_to = EXCLUDED.harvest_to,
+			committed_tons = EXCLUDED.committed_tons, note = EXCLUDED.note,
+			updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by,
+			row_version = cane_supply_entries.row_version + 1
+		RETURNING id, created_at, created_by, row_version`,
+		e.ID, e.VersionID, e.SourceID, nd(e.HarvestFrom), nd(e.HarvestTo),
+		e.CommittedTons, e.Note, now, actor).
+		Scan(&e.ID, &e.CreatedAt, &e.CreatedBy, &e.RowVersion)
+	if err != nil {
+		return domain.CaneSupplyEntry{}, mapError("cane supply", err)
+	}
+	e.UpdatedAt, e.UpdatedBy = now, actor
+	return e, nil
+}
+
+func (p planning) DeleteSupply(ctx context.Context, id string) error {
+	tag, err := p.s.q.Exec(ctx, "DELETE FROM cane_supply_entries WHERE id = $1", id)
+	if err != nil {
+		return mapError("cane supply", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("%w: cane supply entry %s", domain.ErrNotFound, id)
+	}
+	return nil
+}

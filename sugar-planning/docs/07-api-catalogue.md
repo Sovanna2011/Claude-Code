@@ -103,6 +103,31 @@ DELETE deactivates; master data is never removed.
 The write permission depends on the `series` in the payload: `PLAN` rows need
 `plan:write`, `ACTUAL` rows need the operator permission for that area.
 
+### Cane supply
+
+| Method | Path | Permission | Purpose |
+| --- | --- | --- | --- |
+| GET | `/versions/{id}/supply` | `plan:read` | The commitments, the reconciliation against the season target, and the warnings |
+| PUT | `/versions/{id}/supply` | `plan:write` | Commit a source to the season, or correct its commitment |
+| DELETE | `/versions/{id}/supply/{entryId}` | `plan:write` | Remove a commitment |
+| POST | `/versions/{id}/supply/generate` | `plan:write` | Build the delivery schedule from the commitments |
+| GET | `/versions/{id}/cane-supply` | `plan:read` | The schedule, or the deliveries recorded against it |
+| POST | `/versions/{id}/cane-supply` | `plan:write` or `actual:cane` | Write schedule rows, or record what arrived at the gate |
+
+`PUT` on `/supply` rather than `POST`: there is one commitment per source per
+version, so writing the same pair again is a correction and not a second
+contract. The same asymmetry as the daily rows applies to `/cane-supply` —
+`PLAN` rows need `plan:write`, `ACTUAL` rows need `actual:cane`, so a planner
+cannot record what came through the gate.
+
+`/cane-supply` takes `series`, `from`, `to`, `sourceId` (repeatable) and
+`$top`. It comes back ordered by date and then by source, which is the order a
+delivery schedule is read in and what a caller taking the first N rows depends
+on.
+
+Generating the schedule is idempotent under a repeated `Idempotency-Key`: it is
+expensive and it is exactly the request a client retries.
+
 ### Workflow
 
 | Method | Path | Permission |

@@ -516,6 +516,137 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/PlanAssumption" }
 
+  /versions/{id}/supply:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Planning]
+      summary: The cane supply plan, reconciled against the season target
+      description: >
+        What each source is committed to for this season, with the harvest
+        window, the haulage it needs, and whether the commitments add up to the
+        cane the plan intends to crush.
+      operationId: getSupplyPlan
+      responses:
+        "200":
+          description: The supply plan.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupplyPlan" }
+    put:
+      tags: [Planning]
+      summary: Create or update one source's commitment
+      operationId: saveSupplyEntry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CaneSupplyEntry" }
+      responses:
+        "200":
+          description: The stored commitment.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CaneSupplyEntry" }
+
+  /versions/{id}/supply/{entryId}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: entryId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Planning]
+      summary: Remove a commitment from the version
+      operationId: deleteSupplyEntry
+      responses:
+        "204": { description: Removed. }
+
+  /versions/{id}/supply/generate:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Planning]
+      summary: Build the delivery schedule from the commitments
+      description: >
+        Spreads each source's committed tonnage evenly across its harvest
+        window, one row per source per day, and puts the rounding remainder on
+        the last day so the schedule sums to the commitment exactly.
+      operationId: generateSupplySchedule
+      responses:
+        "200":
+          description: What the run wrote.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  versionId: { type: string, format: uuid }
+                  sources: { type: integer }
+                  rows: { type: integer }
+
+  /versions/{id}/cane-supply:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - { $ref: "#/components/parameters/From" }
+      - { $ref: "#/components/parameters/To" }
+      - { $ref: "#/components/parameters/Series" }
+      - name: sourceId
+        in: query
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Planning]
+      summary: The delivery schedule, or the deliveries recorded against it
+      operationId: listCaneSupply
+      responses:
+        "200":
+          description: Delivery rows.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  value:
+                    type: array
+                    items: { $ref: "#/components/schemas/DailyCaneSupply" }
+                  count: { type: integer }
+    post:
+      tags: [Planning]
+      summary: Record deliveries at the gate
+      description: >
+        A PLAN row needs plan:write; an ACTUAL row needs actual:cane, because a
+        weighbridge clerk records what arrived and a planner does not.
+      operationId: upsertCaneSupply
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rows:
+                  type: array
+                  items: { $ref: "#/components/schemas/DailyCaneSupply" }
+      responses:
+        "200":
+          description: How many rows were accepted.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UpsertResult" }
+
   /versions/{id}/product-mix:
     parameters:
       - name: id
@@ -3279,6 +3410,102 @@ components:
             Caps the daily output for this line. Zero spreads the season
             tonnage evenly; a positive value runs at that rate until the
             tonnage is used up, which is how jumbo bag packing is planned.
+
+    CaneSource:
+      type: object
+      description: A farm, estate block or outgrower group that supplies cane.
+      required: [factoryId, code, name, sourceType]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        factoryId: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        sourceType:
+          type: string
+          enum: [ESTATE, CONTRACT, OUTGROWER]
+          description: |
+            Who owns the cane, and therefore how much notice the mill has of it
+            arriving. An estate block is the mill's own land and the first thing
+            a planner moves; an outgrower's tonnage is a forecast rather than a
+            commitment.
+        zone: { type: string, description: The harvesting district trucks are allocated to. }
+        distanceKm:
+          allOf: [{ $ref: "#/components/schemas/Quantity" }]
+          description: Drives haulage cost and staleness - cane deteriorates from the moment it is cut.
+        hectares: { $ref: "#/components/schemas/Quantity" }
+        variety: { type: string }
+        expectedYieldTonsPerHectare: { $ref: "#/components/schemas/Quantity" }
+        expectedPolPct: { $ref: "#/components/schemas/Percent" }
+        truckCapacityTons: { $ref: "#/components/schemas/Quantity" }
+        trucksPerDay: { type: integer }
+        validFrom: { type: string, format: date }
+        validTo: { type: string, format: date }
+        active: { type: boolean }
+
+    CaneSupplyEntry:
+      type: object
+      description: What one source is committed to for one season, and its harvest window.
+      required: [sourceId, harvestFrom, harvestTo]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        versionId: { type: string, format: uuid, readOnly: true }
+        sourceId: { type: string, format: uuid }
+        harvestFrom: { type: string, format: date }
+        harvestTo: { type: string, format: date }
+        committedTons: { $ref: "#/components/schemas/Quantity" }
+        note: { type: string }
+
+    SupplyPlan:
+      type: object
+      properties:
+        versionId: { type: string, format: uuid }
+        entries:
+          type: array
+          items:
+            allOf:
+              - { $ref: "#/components/schemas/CaneSupplyEntry" }
+              - type: object
+                properties:
+                  sourceCode: { type: string }
+                  sourceName: { type: string }
+                  sourceType: { type: string, enum: [ESTATE, CONTRACT, OUTGROWER] }
+                  zone: { type: string }
+                  hectares: { $ref: "#/components/schemas/Quantity" }
+                  expectedTons: { $ref: "#/components/schemas/Quantity" }
+                  requiredDailyRateTons: { $ref: "#/components/schemas/Rate" }
+                  transportCapacityTons: { $ref: "#/components/schemas/Quantity" }
+                  harvestDays: { type: integer }
+        reconciliation:
+          type: object
+          description: Whether the committed cane covers what the plan intends to crush.
+          properties:
+            targetTons: { $ref: "#/components/schemas/Quantity" }
+            committedTons: { $ref: "#/components/schemas/Quantity" }
+            differenceTons: { $ref: "#/components/schemas/Quantity" }
+            coveragePct: { $ref: "#/components/schemas/Percent" }
+            expectedTons: { $ref: "#/components/schemas/Quantity" }
+            sources: { type: integer }
+        warnings:
+          type: array
+          items: { $ref: "#/components/schemas/Alert" }
+
+    DailyCaneSupply:
+      type: object
+      description: One source's delivery on one day - scheduled on a PLAN row, weighed in on an ACTUAL one.
+      required: [sourceId, businessDate, series]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        versionId: { type: string, format: uuid, readOnly: true }
+        sourceId: { type: string, format: uuid }
+        factoryId: { type: string, format: uuid, readOnly: true }
+        businessDate: { type: string, format: date }
+        series: { type: string, enum: [PLAN, ACTUAL] }
+        tons: { $ref: "#/components/schemas/Quantity" }
+        trips:
+          type: integer
+          description: Vehicle movements, rounded up - the last truck travels whether it is full or not.
+        polPct: { $ref: "#/components/schemas/Percent" }
+        note: { type: string }
 
     DailyCanePlan:
       type: object

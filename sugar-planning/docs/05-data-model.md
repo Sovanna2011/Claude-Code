@@ -236,6 +236,39 @@ single data-modifying CTE, and PostgreSQL refused it, because CTE branches see
 one snapshot and run in an unspecified order. Clearing has to happen in its own
 statement, before the set, inside the transaction.
 
+### Cane supply (migration 0013, 3 tables)
+
+`cane_sources` is master data: the estates, contract farms and outgrower groups
+the cane comes from, each with its zone, area, expected yield, expected
+polarisation and the lorries that serve it. `trucks_per_day` counts vehicle
+**movements**, not vehicles — a lorry doing three round trips is three
+movements, and movements are what the weighbridge sees. Unique on
+`(factory_id, code)`, like every other master entity.
+
+`cane_supply_entries` is the season commitment: one row per source per plan
+version, carrying the harvest window and the tonnage promised. Unique on
+`(version_id, source_id)`, because writing the same pair again is a correction
+rather than a second contract.
+
+`daily_cane_supply` is the delivery schedule and the deliveries themselves,
+keyed `(version_id, source_id, business_date, series)` — the same PLAN/ACTUAL
+separation as the rest of the daily facts, so a lorry arriving never overwrites
+the schedule it is measured against.
+
+Two indexes, and which comes first in each is the point.
+`daily_cane_supply_date_idx` is `(version_id, business_date, series)`: the
+schedule is read a day at a time and a caller taking a prefix is taking the
+earliest days, so date leads. `daily_cane_supply_source_idx` is
+`(source_id, business_date)` for a grower's own page, where the source is
+already known and the date narrows it.
+
+That ordering is part of the contract and not an implementation detail. The
+in-memory store originally sorted by source and then date while the SQL store
+sorted by date and then source — the same rows in a different list — and the
+seed, reading "the first fourteen days" of the schedule, silently got a
+different fortnight depending on which store it was running against. The store
+conformance suite now asserts the order in both.
+
 ---
 
 ## 5.4 Data dictionary: the tables that carry the numbers

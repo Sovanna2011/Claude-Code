@@ -21,7 +21,8 @@ service; nothing reaches around a service into another module's tables.
 | masterdata | `internal/store` (master data) | Products, units, conversions, packaging, warehouses, customers, channels, materials, reason codes | organization |
 | seasons | `internal/service` (planning) | Seasons, plan versions, assumptions, product mix | organization, identity |
 | planning | `internal/domain`, `internal/service` | Plan generation, daily cane/production/storage/shipment rows | seasons, masterdata |
-| cane | within planning | Cane supply, crushing, utilisation | planning |
+| cane | within planning | Crushing, utilisation, and the daily cane series | planning |
+| cane supply | `internal/domain` (canesupply), `0013` schema | Cane sources, season commitments, the delivery schedule and what arrives at the gate | planning, masterdata |
 | production | within planning | Finished goods output, remelt, loss, rework | planning |
 | inventory | within planning + `0003` schema | Stock ledger, balances, documents, reversals | planning, masterdata |
 | shipment | within planning | Shipment plan and actual by channel | planning, masterdata |
@@ -96,6 +97,13 @@ the caller holds the permission the backend will check.
 | Interface (machine) | R | R | – | – | W | – | – | – | W | – | – | – | – | – |
 
 ### What the matrix is saying
+
+Cane supply introduces no permission of its own, deliberately. A commitment is
+part of the plan, so it is written with `plan:write` and follows the version's
+lock; a delivery is an actual, so it is written with `actual:cane` by the
+weighbridge. That is the same split as everywhere else, and it means a planner
+cannot record what came through the gate and a weighbridge clerk cannot rewrite
+the season's contracts.
 
 **Least privilege.** A weighbridge operator can post cane weights and read the
 plan they are working to. They cannot post production, touch stock, or edit a

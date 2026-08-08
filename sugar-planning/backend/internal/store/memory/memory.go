@@ -35,13 +35,16 @@ type data struct {
 	channels   map[string]domain.ShipmentChannel
 	materials  map[string]domain.Material
 	reasons    map[string]domain.ReasonCode
+	caneSrc    map[string]domain.CaneSource
 
 	seasons     map[string]domain.Season
 	versions    map[string]domain.PlanVersion
 	assumptions map[string]domain.PlanAssumption
 	mix         map[string]domain.ProductMixEntry
+	supply      map[string]domain.CaneSupplyEntry
 
 	cane      map[string]domain.DailyCanePlan
+	caneSup   map[string]domain.DailyCaneSupply
 	prodPlans map[string]domain.DailyProductPlan
 	storage   map[string]domain.DailyStoragePlan
 	shipments map[string]domain.DailyShipmentPlan
@@ -95,7 +98,9 @@ func newData() *data {
 		materials: map[string]domain.Material{}, reasons: map[string]domain.ReasonCode{},
 		seasons: map[string]domain.Season{}, versions: map[string]domain.PlanVersion{},
 		assumptions: map[string]domain.PlanAssumption{}, mix: map[string]domain.ProductMixEntry{},
-		cane: map[string]domain.DailyCanePlan{}, prodPlans: map[string]domain.DailyProductPlan{},
+		caneSrc: map[string]domain.CaneSource{}, supply: map[string]domain.CaneSupplyEntry{},
+		caneSup: map[string]domain.DailyCaneSupply{},
+		cane:    map[string]domain.DailyCanePlan{}, prodPlans: map[string]domain.DailyProductPlan{},
 		storage: map[string]domain.DailyStoragePlan{}, shipments: map[string]domain.DailyShipmentPlan{},
 		downtime:       map[string]domain.DowntimeEvent{},
 		batches:        map[string]domain.Batch{},
@@ -148,6 +153,7 @@ func (d *data) clone() *data {
 		materials: cloneMap(d.materials), reasons: cloneMap(d.reasons),
 		seasons: cloneMap(d.seasons), versions: cloneMap(d.versions),
 		assumptions: cloneMap(d.assumptions), mix: cloneMap(d.mix),
+		caneSrc: cloneMap(d.caneSrc), supply: cloneMap(d.supply), caneSup: cloneMap(d.caneSup),
 		cane: cloneMap(d.cane), prodPlans: cloneMap(d.prodPlans),
 		storage: cloneMap(d.storage), shipments: cloneMap(d.shipments),
 		downtime: cloneMap(d.downtime),

@@ -84,6 +84,7 @@
 								<tnt:NavigationListItem text="{i18n>navHome}" icon="sap-icon://home" key="launchpad"/>
 								<tnt:NavigationListItem text="{i18n>navOverview}" icon="sap-icon://business-objects-experience" key="overview"/>
 								<tnt:NavigationListItem text="{i18n>navPlans}" icon="sap-icon://document-text" key="plans"/>
+								<tnt:NavigationListItem text="{i18n>navCaneSupply}" icon="sap-icon://tree" key="canesupply"/>
 								<tnt:NavigationListItem text="{i18n>navWarehouse}" icon="sap-icon://warehouse" key="warehouse"/>
 								<tnt:NavigationListItem text="{i18n>navStock}" icon="sap-icon://inventory" key="stock"/>
 								<tnt:NavigationListItem text="{i18n>navOrders}" icon="sap-icon://factory" key="orders"/>

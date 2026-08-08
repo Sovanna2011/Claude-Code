@@ -478,3 +478,72 @@ func (p planning) SaveDowntime(ctx context.Context, e domain.DowntimeEvent, acto
 	e.CreatedAt, e.CreatedBy, e.UpdatedAt, e.UpdatedBy, e.RowVersion = created, createdBy, now, actor, version
 	return e, nil
 }
+
+// ---------------------------------------------------------------------------
+// The delivery schedule
+// ---------------------------------------------------------------------------
+
+const caneSupplyCols = `id, version_id, source_id, factory_id, business_date, series,
+	tons, trips, pol_pct, note, created_at, created_by, updated_at, updated_by, row_version`
+
+func (p planning) ListCaneSupply(ctx context.Context, f store.PlanFilter) ([]domain.DailyCaneSupply, error) {
+	w := &factWhere{}
+	w.addIn("version_id", f.VersionIDs)
+	w.addIn("source_id", f.SourceIDs)
+	if f.FactoryID != "" {
+		w.add("factory_id", f.FactoryID)
+	}
+	if f.Series != "" {
+		w.add("series", string(f.Series))
+	}
+	w.addRange("business_date", f.From, f.To)
+	clause := w.sql()
+	limit := w.limit(f)
+
+	rows, err := p.s.q.Query(ctx, "SELECT "+caneSupplyCols+" FROM daily_cane_supply"+clause+
+		" ORDER BY business_date, source_id"+limit, w.args...)
+	if err != nil {
+		return nil, mapError("daily cane supply", err)
+	}
+	defer rows.Close()
+
+	var out []domain.DailyCaneSupply
+	for rows.Next() {
+		var r domain.DailyCaneSupply
+		var date time.Time
+		var series string
+		if err := rows.Scan(&r.ID, &r.VersionID, &r.SourceID, &r.FactoryID, &date, &series,
+			&r.Tons, &r.Trips, &r.PolPct, &r.Note,
+			&r.CreatedAt, &r.CreatedBy, &r.UpdatedAt, &r.UpdatedBy, &r.RowVersion); err != nil {
+			return nil, mapError("daily cane supply", err)
+		}
+		r.BusinessDate, r.Series = mustDate(date), domain.Series(series)
+		out = append(out, r)
+	}
+	return out, mapError("daily cane supply", rows.Err())
+}
+
+func (p planning) UpsertCaneSupply(ctx context.Context, rows []domain.DailyCaneSupply, actor string) (int, error) {
+	now := nowUTC()
+	const stmt = `INSERT INTO daily_cane_supply
+		(id, version_id, source_id, factory_id, business_date, series, tons, trips, pol_pct, note,
+		 created_at, created_by, updated_at, updated_by, row_version)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$11,$12,1)
+		ON CONFLICT (version_id, source_id, business_date, series) DO UPDATE SET
+			factory_id = EXCLUDED.factory_id, tons = EXCLUDED.tons, trips = EXCLUDED.trips,
+			pol_pct = EXCLUDED.pol_pct, note = EXCLUDED.note,
+			updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by,
+			row_version = daily_cane_supply.row_version + 1`
+
+	for i, r := range rows {
+		if r.ID == "" {
+			r.ID = uuid.NewString()
+		}
+		if _, err := p.s.q.Exec(ctx, stmt, r.ID, r.VersionID, r.SourceID, r.FactoryID,
+			nd(r.BusinessDate), string(r.Series), r.Tons, r.Trips, r.PolPct, r.Note,
+			now, actor); err != nil {
+			return i, mapError(fmt.Sprintf("daily cane supply for %s", r.BusinessDate), err)
+		}
+	}
+	return len(rows), nil
+}

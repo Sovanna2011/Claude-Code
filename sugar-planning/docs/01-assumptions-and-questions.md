@@ -214,10 +214,12 @@ blocked.
 | Q6 | What is the acceptable recovery operating window? | 9.8 % to 13.0 %, configurable as `RECOVERY_MIN_PCT` / `RECOVERY_MAX_PCT`. |
 | Q7 | What mass-balance tolerance applies per process? | 0.5 % of throughput, configurable as `MASS_BALANCE_TOLERANCE_PCT`. |
 | Q8 | Which shift pattern applies — three eight-hour shifts, or two twelve-hour? | Three eight-hour shifts (A/B/C) seeded. The model supports any pattern; daily rows may be shift-level or day-level. |
-| Q9 | Are Khmer and Thai needed in printed PDF output, or only on screen? | Screen only for now. Both languages are **fully translated on screen** — 580 of 580 keys, held there by `frontend/test/i18n.test.js` — but the PDF writer uses the standard fonts and substitutes non-Latin characters. Embedding a Khmer font is a small, contained change when the answer is yes. |
+| Q9 | Are Khmer and Thai needed in printed PDF output, or only on screen? | Screen only for now. Both languages are **fully translated on screen** — 626 of 626 keys, held there by `frontend/test/i18n.test.js` — but the PDF writer uses the standard fonts and substitutes non-Latin characters. Embedding a Khmer font is a small, contained change when the answer is yes. |
 | Q10 | Do the Khmer and Thai industry terms match this mill's house vocabulary? | The translations follow general Cambodian and Thai mill usage. A mill's own words for recovery, remelt, bagasse and the like often differ, and no test can check word choice. Worth an hour with the people who read these screens daily. |
-| Q10 | Which system is the source of truth for cane weights — the weighbridge, or this system? | The weighbridge. The import and API path is designed for it (section 22); until it is connected, weights are entered by hand. |
-| Q11 | How long must audit and transaction history be retained, and may it be partitioned by season? | 10 years (section 23). Partitioning is prepared for but not enabled; see [05-data-model.md](05-data-model.md). |
+| Q11 | Which system is the source of truth for cane weights — the weighbridge, or this system? | The weighbridge. The import and API path is designed for it (section 22); until it is connected, weights are entered by hand. |
+| Q12 | How long must audit and transaction history be retained, and may it be partitioned by season? | 10 years (section 23). Partitioning is prepared for but not enabled; see [05-data-model.md](05-data-model.md). |
+| Q13 | What margin does the mill contract above the crushing target, and what gap is worth an alert? | 2 % either way, as `SUPPLY_TOLERANCE_PCT`. The demonstration contracts 2,320,000 t against a 2,300,000 t target — 0.87 % over, which is inside the tolerance and says nothing. A shortfall is an error and a surplus only a warning, because a mill short of cane stops and a mill with too much leaves it standing. |
+| Q14 | Are the cane sources, areas, yields and haulage in the demonstration anywhere near this mill's real ones? | They are **invented**, and no part of them came from the reference figures — which gave a season target and nothing behind it. Eight sources across six Kampong Speu districts, with areas and yields chosen so the commitments add up to the target and exactly one source is short of lorries. The shape is right; the numbers need replacing with the real contracts before anyone quotes them. |
 
 ---
 
@@ -230,12 +232,14 @@ fake success responses and no unexplained TODOs.
 **Built and tested**
 
 - Identity, authorisation, data scoping, audit trail
-- Organisation and master data (14 entity types, full CRUD, effective dating)
+- Organisation and master data (15 entity types, full CRUD, effective dating)
 - Seasons, plan versions, assumptions, product mix, the full workflow
 - Plan generation from assumptions, scenario copy, version comparison
 - Daily cane, production, stock ledger and shipment planning, plan and actual
 - Capacity forecasting, required-shipment-rate calculation, alerting
 - Packaging material requirement planning
+- Cane supply planning: sources, season commitments reconciled against the cane
+  target, a generated delivery schedule and the arrivals recorded against it
 - Executive dashboard and nine reports, exported to CSV, Excel and PDF
 - PostgreSQL schema for every table group, with reversible migrations
 

@@ -280,3 +280,17 @@ func (m masterData) DeletePackagingBOM(_ context.Context, id string) error {
 	delete(m.s.d.packagingBOM, id)
 	return nil
 }
+
+func (m masterData) CaneSources() store.Repo[domain.CaneSource] {
+	return memRepo[domain.CaneSource]{s: m.s,
+		sel: func(d *data) map[string]domain.CaneSource { return d.caneSrc },
+		sp: spec[domain.CaneSource]{
+			name:   "cane source",
+			id:     func(x *domain.CaneSource) *string { return &x.ID },
+			code:   func(x domain.CaneSource) string { return x.Code },
+			audit:  func(x *domain.CaneSource) *domain.AuditFields { return &x.AuditFields },
+			active: func(x *domain.CaneSource) *bool { return &x.Active },
+			parent: func(x domain.CaneSource) string { return x.FactoryID },
+			text:   func(x domain.CaneSource) string { return x.Code + " " + x.Name + " " + x.Zone },
+		}}
+}
