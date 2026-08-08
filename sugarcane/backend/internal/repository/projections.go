@@ -80,17 +80,15 @@ func (r *ProjectionRepository) ListProjections(ctx context.Context, f domain.Fil
 	if f.CurrentOnly {
 		b.raw("p.is_current")
 	}
-	// A projection filtered by block is one whose lines touch that block — the natural question
-	// when standing on a block row and asking "what is planned here?".
-	if f.BlockID != nil {
-		b.raw(fmt.Sprintf(
-			"EXISTS (SELECT 1 FROM projection_line l WHERE l.projection_id = p.id AND l.block_id = %s)",
-			b.add(*f.BlockID)))
-	}
-	if f.FarmID != nil {
+	// Filtering a projection by land means "which plans touch this ground?" — the natural question
+	// when standing on a farm, a zone or a block. All three narrow the same subquery over the
+	// lines rather than one subquery each, so asking for a zone and a block is a single pass that
+	// answers with the plans matching both, not two independent scans.
+	if land := landConditions(b, f); len(land) > 0 {
 		b.raw(fmt.Sprintf(`EXISTS (SELECT 1 FROM projection_line l
-			JOIN block bk ON bk.id = l.block_id JOIN zone z ON z.id = bk.zone_id
-			 WHERE l.projection_id = p.id AND z.farm_id = %s)`, b.add(*f.FarmID)))
+			JOIN block bk ON bk.id = l.block_id
+			JOIN zone z   ON z.id = bk.zone_id
+			 WHERE l.projection_id = p.id AND %s)`, strings.Join(land, " AND ")))
 	}
 	if s := strings.TrimSpace(f.Search); s != "" {
 		key := b.add("%" + strings.ToLower(s) + "%")
@@ -121,6 +119,22 @@ func (r *ProjectionRepository) ListProjections(ctx context.Context, f domain.Fil
 		out = append(out, p)
 	}
 	return out, total, rows.Err()
+}
+
+// landConditions renders the farm, zone and block filters against the aliases the lines subquery
+// above establishes: l for the line, bk for its block, z for the block's zone.
+func landConditions(b *builder, f domain.Filter) []string {
+	var out []string
+	if f.FarmID != nil {
+		out = append(out, "z.farm_id = "+b.add(*f.FarmID))
+	}
+	if f.ZoneID != nil {
+		out = append(out, "bk.zone_id = "+b.add(*f.ZoneID))
+	}
+	if f.BlockID != nil {
+		out = append(out, "l.block_id = "+b.add(*f.BlockID))
+	}
+	return out
 }
 
 func (r *ProjectionRepository) GetProjection(ctx context.Context, tx database.Querier, id int) (domain.Projection, error) {

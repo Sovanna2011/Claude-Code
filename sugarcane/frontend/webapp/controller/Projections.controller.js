@@ -23,6 +23,9 @@ sap.ui.define([
 			view.setModel(new JSONModel({
 				seasons: [],
 				seasonsOnly: [],
+				farms: [],
+				zones: [],
+				blocks: [],
 				statuses: [{ id: "", display: "" }].concat(STATUSES.map(function (s) {
 					return { id: s, display: s };
 				}))
@@ -56,21 +59,66 @@ sap.ui.define([
 		},
 
 		_loadLookups: function () {
+			var model = this.getView().getModel("lookups");
 			this._api().get("lookups/seasons").then(function (seasons) {
-				var model = this.getView().getModel("lookups");
 				model.setProperty("/seasons", [{ id: "", display: "" }].concat(seasons || []));
 				model.setProperty("/seasonsOnly", seasons || []);
-			}.bind(this)).catch(this._showError.bind(this));
+			}).catch(this._showError.bind(this));
+			// Farms and every zone and block beneath them. The two lower lists are narrowed as the
+			// user chooses, but they are loaded whole so an unfiltered list still offers everything.
+			["farms", "zones", "blocks"].forEach(function (kind) {
+				this._api().get("lookups/" + kind).then(function (items) {
+					model.setProperty("/" + kind, [{ id: "", display: "" }].concat(items || []));
+				}).catch(this._showError.bind(this));
+			}.bind(this));
 		},
 
 		_filter: function () {
 			return {
 				seasonId: this.byId("filterSeason").getSelectedKey(),
+				farmId: this.byId("filterFarm").getSelectedKey(),
+				zoneId: this.byId("filterZone").getSelectedKey(),
+				blockId: this.byId("filterBlock").getSelectedKey(),
 				projectionStatus: this.byId("filterStatus").getSelectedKey(),
 				search: this.byId("filterSearch").getValue(),
 				currentOnly: this.byId("filterCurrent").getSelected() ? "true" : "",
 				pageSize: 200
 			};
+		},
+
+		// Choosing a farm narrows the zones and clears anything below it, so the bar can never
+		// describe land that does not nest — a zone in one farm with a block in another.
+		onFarmFilterChanged: function () {
+			var farmId = this.byId("filterFarm").getSelectedKey();
+			this.byId("filterZone").setSelectedKey("");
+			this.byId("filterBlock").setSelectedKey("");
+			this._narrow("zones", farmId);
+			this._narrow("blocks", "");
+			this._reload();
+		},
+
+		onZoneFilterChanged: function () {
+			var zoneId = this.byId("filterZone").getSelectedKey();
+			this.byId("filterBlock").setSelectedKey("");
+			this._narrow("blocks", zoneId);
+			this._reload();
+		},
+
+		_narrow: function (kind, parentId) {
+			return this._api().get("lookups/" + kind, parentId ? { parentId: parentId } : {})
+				.then(function (items) {
+					this.getView().getModel("lookups")
+						.setProperty("/" + kind, [{ id: "", display: "" }].concat(items || []));
+				}.bind(this)).catch(this._showError.bind(this));
+		},
+
+		onClearFilters: function () {
+			["filterSeason", "filterFarm", "filterZone", "filterBlock", "filterStatus"]
+				.forEach(function (id) { this.byId(id).setSelectedKey(""); }.bind(this));
+			this.byId("filterSearch").setValue("");
+			this.byId("filterCurrent").setSelected(true);
+			this._loadLookups();
+			this._reload();
 		},
 
 		_reload: function () {

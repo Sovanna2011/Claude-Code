@@ -32,16 +32,40 @@
                         <Title text="{i18n>filters}" level="H2" />
                         <ToolbarSpacer />
                         <Text text="{view>/summary}" class="faMuted" />
+                        <Button text="{i18n>clearFilters}" press=".onClearFilters" />
                         <Button text="{i18n>newProjection}" type="Emphasized" icon="sap-icon://add"
                                 visible="{session>/canPlan}" press=".onNewProjection" />
                     </OverflowToolbar>
                 </headerToolbar>
 
-                <l:Grid defaultSpan="XL3 L3 M4 S12" class="sapUiSmallMarginTop">
+                <l:Grid defaultSpan="XL2 L3 M4 S12" class="sapUiSmallMarginTop">
                     <VBox>
                         <Label text="{i18n>season}" labelFor="filterSeason" />
                         <Select id="filterSeason" width="100%" forceSelection="false" change=".onFilterChanged"
                                 items="{ path: 'lookups>/seasons', templateShareable: false }">
+                            <core:Item key="{lookups>id}" text="{lookups>display}" />
+                        </Select>
+                    </VBox>
+                    <!-- Farm narrows the zones and zone narrows the blocks, as on the dashboard: a
+                         list that offers zones from another farm invites an empty answer. -->
+                    <VBox>
+                        <Label text="{i18n>farm}" labelFor="filterFarm" />
+                        <Select id="filterFarm" width="100%" forceSelection="false" change=".onFarmFilterChanged"
+                                items="{ path: 'lookups>/farms', templateShareable: false }">
+                            <core:Item key="{lookups>id}" text="{lookups>display}" />
+                        </Select>
+                    </VBox>
+                    <VBox>
+                        <Label text="{i18n>zone}" labelFor="filterZone" />
+                        <Select id="filterZone" width="100%" forceSelection="false" change=".onZoneFilterChanged"
+                                items="{ path: 'lookups>/zones', templateShareable: false }">
+                            <core:Item key="{lookups>id}" text="{lookups>display}" />
+                        </Select>
+                    </VBox>
+                    <VBox>
+                        <Label text="{i18n>block}" labelFor="filterBlock" />
+                        <Select id="filterBlock" width="100%" forceSelection="false" change=".onFilterChanged"
+                                items="{ path: 'lookups>/blocks', templateShareable: false }">
                             <core:Item key="{lookups>id}" text="{lookups>display}" />
                         </Select>
                     </VBox>

@@ -653,6 +653,62 @@ func TestProjectionsCanBeFoundByBlockAndStatus(t *testing.T) {
 	h.do(t, "GET", "/api/projections?projectionStatus=Blessed", manager, nil, http.StatusBadRequest)
 }
 
+// Farm, zone and block all ask the same question of a projection — "does this plan touch that
+// ground?" — and they have to agree with the hierarchy: the farm and zone a block sits in find it,
+// and a sibling zone does not.
+func TestProjectionsCanBeFoundByFarmZoneAndBlock(t *testing.T) {
+	h := newHarness(t)
+	manager := h.token(t, "manager")
+	const block = 16
+
+	// Where this block actually sits, straight from the block master.
+	var blk struct {
+		ZoneID int `json:"zoneId"`
+		FarmID int `json:"farmId"`
+	}
+	decode(t, h.do(t, "GET", "/api/blocks/"+itoa(block), manager, nil, http.StatusOK), &blk)
+
+	p := newProjection(t, h, manager, "PRJ-LAND")
+	addLine(t, h, manager, p.ID, line(block, 20), http.StatusCreated)
+
+	found := func(query string) bool {
+		var page struct {
+			Items []projection `json:"items"`
+		}
+		decode(t, h.do(t, "GET", "/api/projections?pageSize=200&"+query, manager, nil, http.StatusOK), &page)
+		return containsProjection(page.Items, p.ID)
+	}
+
+	for _, query := range []string{
+		"farmId=" + itoa(blk.FarmID),
+		"zoneId=" + itoa(blk.ZoneID),
+		"blockId=" + itoa(block),
+		// The three together still find it: they narrow one subquery, they do not fight.
+		"farmId=" + itoa(blk.FarmID) + "&zoneId=" + itoa(blk.ZoneID) + "&blockId=" + itoa(block),
+	} {
+		if !found(query) {
+			t.Errorf("the plan on block %d was not found by %s", block, query)
+		}
+	}
+
+	// A zone the block is not in must not find it, even when the farm does.
+	var zones struct {
+		Items []struct {
+			ID int `json:"id"`
+		} `json:"items"`
+	}
+	decode(t, h.do(t, "GET", "/api/zones?pageSize=100", manager, nil, http.StatusOK), &zones)
+	for _, z := range zones.Items {
+		if z.ID == blk.ZoneID {
+			continue
+		}
+		if found("zoneId=" + itoa(z.ID) + "&blockId=" + itoa(block)) {
+			t.Fatalf("zone %d found a plan whose only block lives in zone %d", z.ID, blk.ZoneID)
+		}
+		break
+	}
+}
+
 func containsProjection(items []projection, id int) bool {
 	for _, item := range items {
 		if item.ID == id {

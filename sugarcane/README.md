@@ -24,7 +24,7 @@ The port is being done module by module, each complete and tested before the nex
 | Database | **PostgreSQL 16 + PostGIS 3.4** — real `geography(MultiPolygon, 4326)` boundaries, areas measured with `ST_Area` |
 | Backend | **Go 1.24** REST API — repository pattern, service layer, constructor injection, transactions, global error handling, JWT role-based authorisation, optimistic concurrency, pagination and filtering, audit logging |
 | Frontend | **SAPUI5 (OpenUI5 1.151)** — Fiori Horizon, `sap.ui.table.TreeTable`, KPI tiles, analytical charts, filter bar, interactive map |
-| Tests | 135 Go tests — 76 unit, 59 integration against a real PostGIS database |
+| Tests | 136 Go tests — 76 unit, 60 integration against a real PostGIS database |
 
 ```
 sugarcane/
@@ -192,7 +192,7 @@ too — otherwise breaking a cross-row rule would answer 500 instead of naming t
 | `GET/POST /api/activities` · `GET/PUT /api/activities/{id}` | the planting activity master |
 | `GET /api/activities/chain` | the activity chain in the order the engine walks it |
 | `POST /api/activities/dependencies` · `DELETE .../{id}` | "this activity waits for that one" |
-| `GET/POST /api/projections` · `GET/PUT /api/projections/{id}` | planting projections |
+| `GET/POST /api/projections` · `GET/PUT /api/projections/{id}` | planting projections; the list filters by season, farm, zone, block, status and current-version |
 | `POST /api/projections/{id}/lines` · `PUT`/`DELETE` `.../lines/{lineId}` | the blocks a plan covers |
 | `POST /api/projections/{id}/{submit\|review\|approve\|reject\|returnforcorrection\|revise\|close}` | one step of the workflow |
 | `GET /api/projections/workflow` | the transition graph, so a client need not hold a copy |
@@ -248,7 +248,7 @@ go test ./...                                   # 76 unit tests; the database te
 
 createdb farmarea_test && psql -d farmarea_test -c 'CREATE EXTENSION postgis'
 export FARMAREA_TEST_DATABASE_URL="postgres://farmarea:farmarea@127.0.0.1:5432/farmarea_test"
-go test ./...                                   # 135 tests
+go test ./...                                   # 136 tests
 ```
 
 The integration tests run over the real stack — HTTP handler, service, repository, PostGIS — and
