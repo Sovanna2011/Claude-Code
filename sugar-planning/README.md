@@ -165,6 +165,7 @@ periods are locked, and the trail is append-only.
 | [11. Demonstration scenario](docs/11-demonstration-scenario.md) | What `./demo.sh` loads, and a walkthrough of it |
 | [12. Test system](docs/12-test-system.md) | The second tenant, the acceptance harness, and what running it found |
 | [13. Performance](docs/13-performance.md) | The section 25 targets, measured at ten years of history, and the three things that fixed |
+| [14. User testing log](docs/14-user-testing-log.md) | 28 cases for a person to work through, with the expected results read off a running instance |
 | [Runbook](docs/runbook.md) | Environment variables, deployment, backup and restore, troubleshooting |
 
 The API contract is `backend/internal/api/openapi.yaml`, served live at
