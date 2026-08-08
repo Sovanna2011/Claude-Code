@@ -9,11 +9,14 @@ service, including the problem-detail bodies. Nothing is written by hand.
 import json
 import os
 import urllib.error
+from decimal import Decimal
 import urllib.request
 
 B = os.environ.get("API", "http://localhost:8080/api/v1")
 # The last day the seed records an actual for, with SEED_ACTUAL_DAYS=14.
 SEEDED_AS_OF = "2026-12-14"
+# The first day of the campaign.
+D_FIRST = "2026-12-01"
 OUT = os.environ.get("OUT", "system-data.json")
 
 # The accounts the service itself offers in development mode, taken from its own
@@ -77,6 +80,8 @@ sid, fid = season["id"], factory["id"]
 versions = get(f"/seasons/{sid}/versions", P)["value"]
 by_code = {v["code"]: v for v in versions}
 v1 = by_code["V1"]["id"]
+actual_id_for_daily = next(
+    (v["id"] for v in versions if v["planType"] == "ACTUAL"), "")
 
 # The write probes at the end of this script really do write. Run it twice
 # against one database and the second run's *reads* see the first run's probe
@@ -96,6 +101,64 @@ supply = get(f"/versions/{v1}/supply", P)
 matrix = raw("/versions/compare-matrix", P, "POST", {
     "versionIds": [by_code[c]["id"] for c in ("V1", "V2", "V3") if c in by_code],
     "includeActual": True, "dimension": "DATE"})[1]
+
+
+def daily_board(plan_version, actual_version, token):
+    """Roll the daily rows up to one entry per campaign day."""
+    days = {}
+
+    def day(d):
+        if d not in days:
+            days[d] = {"date": d, "canePlan": "0", "caneActual": "0",
+                       "hoursPlan": "0", "hoursActual": "0", "stoppage": "0",
+                       "productionPlan": {}, "productionActual": {},
+                       "remeltPlan": "0", "shipmentPlan": "0", "shipmentActual": "0",
+                       "storagePlan": {}}
+        return days[d]
+
+    def add(a, b):
+        return str(Decimal(a or "0") + Decimal(b or "0"))
+
+    for version, series in ((plan_version, "PLAN"), (actual_version, "ACTUAL")):
+        if not version:
+            continue
+        plan = series == "PLAN"
+        for r in rows(f"/versions/{version}/cane?top=2000", token):
+            if r.get("series") != series:
+                continue
+            e = day(r["businessDate"])
+            e["canePlan" if plan else "caneActual"] = add(
+                e["canePlan" if plan else "caneActual"], r.get("caneCrushed"))
+            e["hoursPlan" if plan else "hoursActual"] = add(
+                e["hoursPlan" if plan else "hoursActual"], r.get("availableHours"))
+            if not plan:
+                e["stoppage"] = add(e["stoppage"], r.get("stoppageHours"))
+
+        for r in rows(f"/versions/{version}/production?top=4000", token):
+            if r.get("series") != series:
+                continue
+            e = day(r["businessDate"])
+            bucket = e["productionPlan" if plan else "productionActual"]
+            pid = r.get("productId") or ""
+            bucket[pid] = add(bucket.get(pid), r.get("quantity"))
+            if plan:
+                e["remeltPlan"] = add(e["remeltPlan"], r.get("remeltInput"))
+
+        for r in rows(f"/versions/{version}/shipments?top=4000", token):
+            if r.get("series") != series:
+                continue
+            e = day(r["businessDate"])
+            k = "shipmentPlan" if plan else "shipmentActual"
+            e[k] = add(e[k], r.get("quantity"))
+
+    for r in rows(f"/versions/{plan_version}/storage?top=8000", token):
+        if r.get("series") != "PLAN":
+            continue
+        e = day(r["businessDate"])
+        wid = r.get("warehouseId") or ""
+        e["storagePlan"][wid] = add(e["storagePlan"].get(wid), r.get("endingBalance"))
+
+    return [days[d] for d in sorted(days)]
 
 
 def rows(path, token, limit=None):
@@ -168,6 +231,14 @@ data = {
     "audit": rows("/audit?$top=40", tokens["auditor"]),
     "events": rows("/integration/events?$top=40", tokens["auditor"]),
 
+    # The daily planning board: one row per campaign day, PLAN beside ACTUAL.
+    #
+    # The underlying rows are per product, per warehouse and per channel, which
+    # is right for a store and wrong for a board a planner reads down. They are
+    # rolled up to the day here, keeping the per-product production split
+    # because that is the one breakdown the board shows in place.
+    "daily": daily_board(v1, actual_id_for_daily, P),
+
     # Lookups, so a screen can show "Refined sugar" where a row carries an id.
     # Without these the tables read as columns of UUIDs.
     "master": {
@@ -187,6 +258,15 @@ data = {
 # rest of the demonstration shows.
 actual_id = next(v["id"] for v in versions if v["planType"] == "ACTUAL")
 v3 = by_code["V3"]["id"] if "V3" in by_code else v1
+# The first campaign day exactly as the plan already has it.
+_first = next(r for r in data["daily"] if r["date"] == D_FIRST)
+planned_day = {"versionId": v1, "factoryId": fid, "businessDate": D_FIRST,
+               "series": "PLAN", "caneCrushed": _first["canePlan"],
+               "caneAvailable": _first["canePlan"],
+               "caneDelivered": _first["canePlan"],
+               "caneAccepted": _first["canePlan"],
+               "availableHours": _first["hoursPlan"]}
+
 cane_row = {"rows": [{"versionId": actual_id, "factoryId": fid,
                       "businessDate": "2026-12-20", "series": "ACTUAL",
                       "caneAvailable": "18000", "caneDelivered": "18000",
@@ -203,6 +283,11 @@ PROBES = [
     ("See interface events", "GET", "/integration/events", None),
     ("Record a day of cane", "POST", f"/versions/{actual_id}/cane", cane_row),
     ("Generate a plan", "POST", f"/versions/{v3}/generate", {"replace": True}),
+    # Editing one planned day, which is plan:write rather than actual:cane -
+    # the daily planning board needs to know who may change a figure on it.
+    # The row written back is the row already there, so the probe is a genuine
+    # no-op whichever account passes the permission check.
+    ("Change a planned day", "POST", f"/versions/{v1}/cane", {"rows": [planned_day]}),
 ]
 
 matrix_rows = []
