@@ -1,0 +1,60 @@
+<mvc:View
+	controllerName="sugarplan.controller.SeasonPlans"
+	xmlns="sap.m"
+	xmlns:mvc="sap.ui.core.mvc">
+
+	<!-- A list report over the season's planning versions. -->
+	<Page id="plansPage" title="{i18n>plansTitle}" showNavButton="true" navButtonPress=".onNavBack">
+		<headerContent>
+			<Button text="{i18n>compareVersions}" icon="sap-icon://compare-2" press=".onCompare"/>
+			<Button text="{i18n>newScenario}" icon="sap-icon://add" type="Emphasized"
+				press=".onNewScenario" visible="{= ${app>/permissions}.indexOf('plan:write') >= 0 }"/>
+		</headerContent>
+
+		<content>
+			<Table id="versionTable"
+				items="{path: 'view>/versions', templateShareable: false}"
+				mode="SingleSelectMaster" itemPress=".onOpenVersion"
+				growing="true" growingThreshold="50" sticky="ColumnHeaders,HeaderToolbar"
+				class="sugarTable">
+				<headerToolbar>
+					<OverflowToolbar>
+						<Title text="{i18n>versions}" level="H3"/>
+						<ObjectStatus text="{= ${view>/versions}.length + '' }" class="sapUiTinyMarginBegin"/>
+						<ToolbarSpacer/>
+						<SearchField width="18rem" liveChange=".onSearch" placeholder="{i18n>searchVersions}"/>
+					</OverflowToolbar>
+				</headerToolbar>
+				<columns>
+					<Column><Text text="{i18n>version}"/></Column>
+					<Column><Text text="{i18n>planType}"/></Column>
+					<Column><Text text="{i18n>status}"/></Column>
+					<Column><Text text="{i18n>owner}"/></Column>
+					<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>lockedThrough}"/></Column>
+					<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>approvedBy}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>actions}"/></Column>
+				</columns>
+				<items>
+					<ColumnListItem type="Navigation" press=".onOpenVersion">
+						<cells>
+							<ObjectIdentifier title="{view>code}" text="{view>description}"/>
+							<Text text="{path: 'view>planType', formatter: '.formatter.statusText'}"/>
+							<ObjectStatus text="{path: 'view>status', formatter: '.formatter.statusText'}"
+								state="{path: 'view>status', formatter: '.formatter.statusState'}"
+								inverted="true"/>
+							<Text text="{view>owner}"/>
+							<Text text="{path: 'view>lockedThrough', formatter: '.formatter.date'}"/>
+							<Text text="{view>approvedBy}"/>
+							<Button icon="sap-icon://grid" tooltip="{i18n>openBoard}" type="Transparent"
+								press=".onOpenBoard"/>
+						</cells>
+					</ColumnListItem>
+				</items>
+				<noData>
+					<IllustratedMessage illustrationType="sapIllus-NoEntries"
+						title="{i18n>noVersions}" description="{i18n>noVersionsHint}"/>
+				</noData>
+			</Table>
+		</content>
+	</Page>
+</mvc:View>

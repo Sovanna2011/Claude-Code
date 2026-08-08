@@ -1,0 +1,64 @@
+<mvc:View controllerName="sugarplan.controller.Materials" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" xmlns:core="sap.ui.core">
+	<Page id="materialsPage" title="{i18n>materialsTitle}" showNavButton="true" navButtonPress=".onNavBack">
+		<headerContent>
+			<Label text="{i18n>planVersion}" class="sapUiTinyMarginEnd"/>
+			<Select selectedKey="{view>/versionId}" change=".onVersionChange"
+				items="{path: 'view>/versions', templateShareable: false}">
+				<core:Item key="{view>id}" text="{view>code}"/>
+			</Select>
+		</headerContent>
+		<content>
+			<VBox class="sapUiSmallMargin">
+				<MessageStrip class="sapUiSmallMarginBottom" showIcon="true"
+					type="{= ${view>/shortages} > 0 ? 'Error' : 'Success' }"
+					text="{= ${view>/shortages} > 0 ? ${view>/shortages} + ' material(s) will run short before they are needed.' : 'Every packaging material is covered by stock and open orders.' }"/>
+
+				<Table items="{path: 'view>/requirements', templateShareable: false}" mode="None"
+					sticky="ColumnHeaders" class="sugarTable">
+					<headerToolbar>
+						<OverflowToolbar>
+							<Title text="{i18n>materialRequirements}" level="H3"/>
+							<ToolbarSpacer/>
+							<Text text="{i18n>materialsFormula}"/>
+						</OverflowToolbar>
+					</headerToolbar>
+					<columns>
+						<Column><Text text="{i18n>material}"/></Column>
+						<Column><Text text="{i18n>unit}"/></Column>
+						<Column hAlign="End"><Text text="{i18n>required}"/></Column>
+						<Column hAlign="End"><Text text="{i18n>safetyStock}"/></Column>
+						<Column hAlign="End"><Text text="{i18n>available}"/></Column>
+						<Column hAlign="End"><Text text="{i18n>onOrder}"/></Column>
+						<Column hAlign="End"><Text text="{i18n>shortage}"/></Column>
+						<Column hAlign="End"><Text text="{i18n>purchase}"/></Column>
+						<Column><Text text="{i18n>requiredBy}"/></Column>
+						<Column><Text text="{i18n>orderBy}"/></Column>
+					</columns>
+					<items>
+						<ColumnListItem>
+							<cells>
+								<ObjectIdentifier title="{view>materialName}" text="{view>materialCode}"/>
+								<Text text="{view>uom}"/>
+								<Text text="{path: 'view>grossRequirement', formatter: '.formatter.units'}"/>
+								<Text text="{path: 'view>safetyStock', formatter: '.formatter.units'}"/>
+								<Text text="{path: 'view>available', formatter: '.formatter.units'}"/>
+								<Text text="{path: 'view>openPurchase', formatter: '.formatter.units'}"/>
+								<ObjectNumber number="{path: 'view>shortage', formatter: '.formatter.units'}"
+									state="{path: 'view>severity', formatter: '.formatter.severityState'}"/>
+								<ObjectNumber number="{path: 'view>purchaseRequirement', formatter: '.formatter.units'}"
+									emphasized="true"/>
+								<Text text="{path: 'view>requiredBy', formatter: '.formatter.date'}"/>
+								<ObjectStatus text="{path: 'view>suggestedOrderDate', formatter: '.formatter.date'}"
+									state="{path: 'view>severity', formatter: '.formatter.severityState'}"/>
+							</cells>
+						</ColumnListItem>
+					</items>
+					<noData>
+						<IllustratedMessage illustrationType="sapIllus-NoEntries"
+							title="{i18n>noMaterials}" description="{i18n>noMaterialsHint}"/>
+					</noData>
+				</Table>
+			</VBox>
+		</content>
+	</Page>
+</mvc:View>

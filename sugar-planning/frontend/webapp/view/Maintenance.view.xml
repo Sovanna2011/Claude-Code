@@ -1,0 +1,50 @@
+<mvc:View
+	controllerName="sugarplan.controller.Maintenance"
+	xmlns="sap.m"
+	xmlns:mvc="sap.ui.core.mvc">
+
+	<Page id="maintenancePage" title="{i18n>maintenanceTitle}" showNavButton="true"
+		navButtonPress=".onNavBack">
+		<headerContent>
+			<Button icon="sap-icon://add" text="{i18n>maintenanceNew}" type="Emphasized"
+				enabled="{= ${view>/canWrite} || ${view>/canApprove} }" press=".onNewWindow"/>
+			<Button icon="sap-icon://refresh" press=".onRefresh" tooltip="{i18n>refresh}"/>
+		</headerContent>
+
+		<content>
+			<MessageStrip class="sapUiSmallMargin" type="Warning" showIcon="true"
+				text="{i18n>maintenanceEffect}"/>
+
+			<Table id="maintenanceTable" items="{view>/windows}" mode="SingleSelectMaster"
+				itemPress=".onEditWindow" class="sapUiResponsiveMargin" width="auto"
+				noDataText="{i18n>maintenanceEmpty}">
+				<columns>
+					<Column><Text text="{i18n>colFrom}"/></Column>
+					<Column><Text text="{i18n>colTo}"/></Column>
+					<Column><Text text="{i18n>colDescription}"/></Column>
+					<Column minScreenWidth="Tablet" demandPopin="true">
+						<Text text="{i18n>colScope}"/>
+					</Column>
+					<Column><Text text="{i18n>colStatus}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>colAction}"/></Column>
+				</columns>
+				<items>
+					<ColumnListItem type="Navigation" press=".onEditWindow">
+						<cells>
+							<Text text="{path: 'view>startDate', formatter: '.formatter.date'}"/>
+							<Text text="{path: 'view>endDate', formatter: '.formatter.date'}"/>
+							<ObjectIdentifier title="{view>description}" text="{view>approvedBy}"/>
+							<Text text="{= ${view>lineId} ? ${i18n>maintenanceLineScope} : ${i18n>maintenanceFactoryScope} }"/>
+							<ObjectStatus text="{view>status}"
+								state="{path: 'view>status', formatter: '.formatter.maintenanceState'}"/>
+							<Button icon="sap-icon://accept" type="Transparent"
+								text="{i18n>approve}"
+								enabled="{= ${view>/canApprove} &amp;&amp; ${view>status} === 'PLANNED' }"
+								press=".onApproveWindow"/>
+						</cells>
+					</ColumnListItem>
+				</items>
+			</Table>
+		</content>
+	</Page>
+</mvc:View>

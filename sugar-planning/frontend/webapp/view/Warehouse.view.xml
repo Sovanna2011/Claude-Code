@@ -1,0 +1,90 @@
+<mvc:View
+	controllerName="sugarplan.controller.Warehouse"
+	xmlns="sap.m"
+	xmlns:mvc="sap.ui.core.mvc"
+	xmlns:core="sap.ui.core">
+
+	<Page id="warehousePage" title="{i18n>warehouseTitle}" showNavButton="true" navButtonPress=".onNavBack">
+		<content>
+			<VBox class="sapUiSmallMargin">
+				<Text text="{i18n>warehouseIntro}" class="sapUiSmallMarginBottom"/>
+
+				<!-- Capacity position for every store. -->
+				<Table items="{path: 'view>/storage', templateShareable: false}"
+					mode="SingleSelectMaster" selectionChange=".onSelectWarehouse"
+					sticky="ColumnHeaders" class="sugarTable sapUiSmallMarginBottom">
+					<headerToolbar>
+						<OverflowToolbar>
+							<Title text="{i18n>capacityPosition}" level="H3"/>
+							<ToolbarSpacer/>
+							<Button icon="sap-icon://refresh" type="Transparent" press=".onRefresh"/>
+						</OverflowToolbar>
+					</headerToolbar>
+					<columns>
+						<Column><Text text="{i18n>warehouse}"/></Column>
+						<Column><Text text="{i18n>storageClass}"/></Column>
+						<Column hAlign="End"><Text text="{i18n>capacityTons}"/></Column>
+						<Column hAlign="End"><Text text="{i18n>usableTons}"/></Column>
+						<Column hAlign="End"><Text text="{i18n>closingStock}"/></Column>
+						<Column hAlign="End" width="13rem"><Text text="{i18n>capacityUse}"/></Column>
+						<Column><Text text="{i18n>firstWarning}"/></Column>
+						<Column><Text text="{i18n>firstFull}"/></Column>
+						<Column hAlign="End"><Text text="{i18n>shipmentNeeded}"/></Column>
+					</columns>
+					<items>
+						<ColumnListItem type="Active">
+							<cells>
+								<ObjectIdentifier title="{view>warehouseName}" text="{view>warehouseCode}"/>
+								<Text text="{view>storageClass}"/>
+								<Text text="{path: 'view>capacityTons', formatter: '.formatter.tons0'}"/>
+								<Text text="{path: 'view>usableCapacityTons', formatter: '.formatter.tons0'}"/>
+								<ObjectNumber number="{path: 'view>balanceTons', formatter: '.formatter.tons0'}" unit="t"
+									state="{path: 'view>capacityUsePct', formatter: '.formatter.capacityState'}"/>
+								<ProgressIndicator
+									percentValue="{= Math.min(100, parseFloat(${view>capacityUsePct}) || 0) }"
+									displayValue="{path: 'view>capacityUsePct', formatter: '.formatter.percent'}"
+									state="{path: 'view>capacityUsePct', formatter: '.formatter.capacityState'}"/>
+								<ObjectStatus text="{path: 'view>firstWarningDate', formatter: '.formatter.date'}"
+									state="{= ${view>firstWarningDate} ? 'Warning' : 'Success' }"/>
+								<ObjectStatus text="{path: 'view>firstFullDate', formatter: '.formatter.date'}"
+									state="{= ${view>firstFullDate} ? 'Error' : 'Success' }"/>
+								<ObjectNumber number="{path: 'view>requiredShipmentTonsPerDay', formatter: '.formatter.tons'}"
+									unit="t/day" emphasized="true"/>
+							</cells>
+						</ColumnListItem>
+					</items>
+				</Table>
+
+				<!-- The selected store's stock curve against its capacity lines. -->
+				<Panel headerText="{view>/selectedName}" visible="{= !!${view>/selectedId} }"
+					expandable="true" expanded="true">
+					<core:HTML content="{view>/chartHtml}" sanitizeContent="false"/>
+					<Table items="{path: 'view>/ledger', templateShareable: false}" mode="None"
+						growing="true" growingThreshold="30" sticky="ColumnHeaders" class="sugarTable">
+						<columns>
+							<Column><Text text="{i18n>date}"/></Column>
+							<Column hAlign="End"><Text text="{i18n>beginningBalance}"/></Column>
+							<Column hAlign="End"><Text text="{i18n>receipt}"/></Column>
+							<Column hAlign="End"><Text text="{i18n>remeltIssue}"/></Column>
+							<Column hAlign="End"><Text text="{i18n>shipment}"/></Column>
+							<Column hAlign="End"><Text text="{i18n>endingBalance}"/></Column>
+						</columns>
+						<items>
+							<ColumnListItem>
+								<cells>
+									<Text text="{path: 'view>businessDate', formatter: '.formatter.date'}"/>
+									<Text text="{path: 'view>beginningBalance', formatter: '.formatter.tons'}"/>
+									<Text text="{path: 'view>productionReceipt', formatter: '.formatter.tons'}"/>
+									<Text text="{path: 'view>remeltIssue', formatter: '.formatter.tons'}"/>
+									<Text text="{path: 'view>shipmentQty', formatter: '.formatter.tons'}"/>
+									<ObjectNumber number="{path: 'view>endingBalance', formatter: '.formatter.tons'}"
+										emphasized="true"/>
+								</cells>
+							</ColumnListItem>
+						</items>
+					</Table>
+				</Panel>
+			</VBox>
+		</content>
+	</Page>
+</mvc:View>

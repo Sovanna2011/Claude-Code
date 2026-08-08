@@ -1,0 +1,22 @@
+-- Reverses 0001_core.
+DROP TABLE IF EXISTS equipment;
+DROP TABLE IF EXISTS reason_codes;
+DROP TABLE IF EXISTS packaging_bom;
+ALTER TABLE IF EXISTS packaging_types DROP CONSTRAINT IF EXISTS packaging_types_material_fk;
+DROP TABLE IF EXISTS materials;
+DROP TABLE IF EXISTS shipment_channels;
+DROP TABLE IF EXISTS customers;
+DROP TABLE IF EXISTS storage_zones;
+DROP TABLE IF EXISTS warehouses;
+DROP TABLE IF EXISTS packaging_types;
+DROP TABLE IF EXISTS uom_conversions;
+DROP TABLE IF EXISTS products;
+DROP TABLE IF EXISTS units_of_measure;
+DROP TABLE IF EXISTS product_categories;
+DROP TABLE IF EXISTS work_calendar_days;
+DROP TABLE IF EXISTS shifts;
+DROP TABLE IF EXISTS stations;
+DROP TABLE IF EXISTS production_lines;
+DROP TABLE IF EXISTS production_areas;
+DROP TABLE IF EXISTS factories;
+DROP TABLE IF EXISTS companies;

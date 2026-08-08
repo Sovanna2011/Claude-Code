@@ -1,0 +1,60 @@
+<mvc:View controllerName="sugarplan.controller.Reports" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" xmlns:core="sap.ui.core" xmlns:data="sap.ui.core:CustomData">
+	<Page id="reportsPage" title="{i18n>reportsTitle}" showNavButton="true" navButtonPress=".onNavBack">
+		<content>
+			<SplitContainer id="reportSplit" class="sugarReportSplit">
+				<masterPages>
+					<Page title="{i18n>reportCatalogue}">
+						<List items="{path: 'view>/catalogue', templateShareable: false}"
+							mode="SingleSelectMaster" selectionChange=".onSelectReport">
+							<StandardListItem title="{view>title}" description="{view>description}"
+								type="Active" wrapping="true"/>
+						</List>
+					</Page>
+				</masterPages>
+				<detailPages>
+					<Page title="{= ${view>/report/title} || ${i18n>selectReport} }">
+						<subHeader>
+							<OverflowToolbar>
+								<Label text="{i18n>planVersion}"/>
+								<Select selectedKey="{view>/versionId}"
+									items="{path: 'view>/versions', templateShareable: false}">
+									<core:Item key="{view>id}" text="{view>code}"/>
+								</Select>
+								<Label text="{i18n>from}"/>
+								<DatePicker value="{view>/from}" valueFormat="yyyy-MM-dd"
+									displayFormat="yyyy-MM-dd" width="9rem"/>
+								<Label text="{i18n>to}"/>
+								<DatePicker value="{view>/to}" valueFormat="yyyy-MM-dd"
+									displayFormat="yyyy-MM-dd" width="9rem"/>
+								<Button text="{i18n>run}" icon="sap-icon://begin" press=".onRun" type="Emphasized"/>
+								<ToolbarSpacer/>
+								<Button text="Excel" icon="sap-icon://excel-attachment" press=".onExport" data:format="xlsx"/>
+								<Button text="CSV" icon="sap-icon://attachment-text-file" press=".onExport" data:format="csv"/>
+								<Button text="PDF" icon="sap-icon://pdf-attachment" press=".onExport" data:format="pdf"/>
+							</OverflowToolbar>
+						</subHeader>
+						<content>
+							<VBox class="sapUiSmallMargin">
+								<VBox items="{path: 'view>/report/metadata', templateShareable: false}"
+									class="sugarReportMeta sapUiSmallMarginBottom">
+									<Text text="{view>}"/>
+								</VBox>
+								<Table id="previewTable" mode="None" sticky="ColumnHeaders"
+									growing="true" growingThreshold="60" class="sugarTable">
+									<noData>
+										<IllustratedMessage illustrationType="sapIllus-SearchEarth"
+											title="{i18n>selectReport}" description="{i18n>selectReportHint}"/>
+									</noData>
+								</Table>
+								<VBox items="{path: 'view>/report/notes', templateShareable: false}"
+									class="sugarReportNotes sapUiSmallMarginTop">
+									<Text text="{view>}"/>
+								</VBox>
+							</VBox>
+						</content>
+					</Page>
+				</detailPages>
+			</SplitContainer>
+		</content>
+	</Page>
+</mvc:View>

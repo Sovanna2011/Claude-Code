@@ -1,0 +1,242 @@
+<mvc:View
+	controllerName="sugarplan.controller.Overview"
+	xmlns="sap.m"
+	xmlns:mvc="sap.ui.core.mvc"
+	xmlns:core="sap.ui.core"
+	xmlns:l="sap.ui.layout"
+	xmlns:app="http://schemas.sap.com/sapui5/extension/sap.ui.core.CustomData/1">
+
+	<Page id="overviewPage" title="{i18n>overviewTitle}" showNavButton="true" navButtonPress=".onNavBack">
+		<headerContent>
+			<Label text="{i18n>planVersion}" class="sapUiTinyMarginEnd"/>
+			<Select id="versionSelect" selectedKey="{view>/versionId}" change=".onVersionChange"
+				items="{path: 'view>/versions', templateShareable: false}">
+				<core:Item key="{view>id}" text="{view>code} — {view>description}"/>
+			</Select>
+			<Button icon="sap-icon://refresh" type="Transparent" press=".onRefresh" tooltip="{i18n>refresh}"/>
+		</headerContent>
+
+		<content>
+			<VBox class="sapUiSmallMargin">
+
+				<!-- Exceptions first: the dashboard leads with what is wrong. -->
+				<MessageStrip
+					visible="{= ${dash>/alerts}.length === 0 }"
+					type="Success" showIcon="true" class="sapUiSmallMarginBottom"
+					text="{i18n>noAlerts}"/>
+				<List id="alertList" items="{path: 'dash>/alerts', templateShareable: false}"
+					visible="{= ${dash>/alerts}.length > 0 }"
+					class="sapUiSmallMarginBottom" backgroundDesign="Transparent">
+					<headerToolbar>
+						<Toolbar>
+							<Title text="{i18n>alerts}" level="H3"/>
+							<ToolbarSpacer/>
+							<ObjectStatus text="{= ${dash>/alerts}.length + ' ' + ${i18n>open} }" state="Warning"/>
+						</Toolbar>
+					</headerToolbar>
+					<StandardListItem
+						title="{dash>title}"
+						description="{dash>detail}"
+						icon="{path: 'dash>severity', formatter: '.formatter.severityIcon'}"
+						info="{path: 'dash>date', formatter: '.formatter.date'}"
+						infoState="{path: 'dash>severity', formatter: '.formatter.severityState'}"/>
+				</List>
+
+				<!-- Headline KPIs. -->
+				<l:Grid defaultSpan="XL3 L3 M6 S12" class="sapUiSmallMarginBottom">
+					<VBox class="sugarKpiBox">
+						<Text text="{i18n>kpiCaneCrushed}" class="sugarKpiLabel"/>
+						<ObjectNumber
+							number="{path: 'dash>/cane/cumulativeActualTons', formatter: '.formatter.tons0'}"
+							unit="t" emphasized="true"
+							state="{path: 'dash>/cane/achievementPct', formatter: '.formatter.achievementState'}"/>
+						<Text class="sugarKpiFoot"
+							text="{parts: ['i18n>kpiOfTarget', 'dash>/cane/cumulativeTargetTons'], formatter: '.formatOfTarget'}"/>
+						<ProgressIndicator
+							percentValue="{= Math.min(100, parseFloat(${dash>/cane/achievementPct}) || 0) }"
+							displayValue="{path: 'dash>/cane/achievementPct', formatter: '.formatter.percent'}"
+							state="{path: 'dash>/cane/achievementPct', formatter: '.formatter.achievementState'}"
+							class="sapUiTinyMarginTop"/>
+						<Link text="{i18n>drillDown}" press=".onDrillDown" app:target="cane" class="sapUiTinyMarginTop"/>
+					</VBox>
+
+					<VBox class="sugarKpiBox">
+						<Text text="{i18n>kpiRemaining}" class="sugarKpiLabel"/>
+						<ObjectNumber number="{path: 'dash>/cane/remainingTons', formatter: '.formatter.tons0'}"
+							unit="t" emphasized="true"/>
+						<Text class="sugarKpiFoot" text="{parts: ['i18n>kpiAtRate', 'dash>/cane/rollingAverageTonsPerDay'], formatter: '.formatAtRate'}"/>
+						<Link text="{i18n>drillDown}" press=".onDrillDown" app:target="cane" class="sapUiTinyMarginTop"/>
+					</VBox>
+
+					<VBox class="sugarKpiBox">
+						<Text text="{i18n>kpiCompletionForecast}" class="sugarKpiLabel"/>
+						<ObjectStatus
+							text="{path: 'dash>/cane/forecastEndDate', formatter: '.formatter.date'}"
+							state="{path: 'dash>/cane/daysBehindSchedule', formatter: '.formatter.daysState'}"
+							class="sugarKpiValue"/>
+						<Text class="sugarKpiFoot"
+							text="{parts: ['i18n>kpiPlannedEnd', 'dash>/cane/plannedEndDate'], formatter: '.formatPlannedEnd'}"/>
+						<ObjectStatus
+							text="{path: 'dash>/cane/daysBehindSchedule', formatter: '.formatter.daysLabel'}"
+							state="{path: 'dash>/cane/daysBehindSchedule', formatter: '.formatter.daysState'}"/>
+						<Link text="{i18n>drillDown}" press=".onDrillDown" app:target="cane" class="sapUiTinyMarginTop"/>
+					</VBox>
+
+					<VBox class="sugarKpiBox">
+						<Text text="{i18n>kpiRecoveryRate}" class="sugarKpiLabel"/>
+						<ObjectNumber
+							number="{path: 'dash>/rawSugar/actualRecoveryPct', formatter: '.formatter.percent'}"
+							emphasized="true"
+							state="{path: 'dash>/rawSugar/verdict', formatter: '.formatter.severityState'}"/>
+						<Text class="sugarKpiFoot"
+							text="{parts: ['i18n>kpiTargetRecovery', 'dash>/rawSugar/targetRecoveryPct'], formatter: '.formatTargetRecovery'}"/>
+						<Text class="sugarKpiFoot"
+							text="{parts: ['i18n>kpiRawSugar', 'dash>/rawSugar/actualTons'], formatter: '.formatRawSugar'}"/>
+						<Link text="{i18n>drillDown}" press=".onDrillDown" app:target="production" class="sapUiTinyMarginTop"/>
+					</VBox>
+				</l:Grid>
+
+				<!-- Cumulative target versus actual. -->
+				<Panel headerText="{i18n>chartCumulative}" class="sapUiSmallMarginBottom" expandable="true" expanded="true">
+					<core:HTML id="trendChart" content="{view>/chartHtml}" sanitizeContent="false"/>
+					<!-- The legend swatches mirror the stroke of each line, dashed
+					     for the target and solid for the actual, so the key reads
+					     the same as the chart. -->
+					<HBox class="sapUiSmallMarginBegin sapUiTinyMarginBottom" alignItems="Center">
+						<core:HTML content="&lt;span class=&quot;sugarSwatch sugarSwatchTarget&quot;&gt;&lt;/span&gt;"/>
+						<Text text="{i18n>legendTarget}" class="sapUiMediumMarginEnd"/>
+						<core:HTML content="&lt;span class=&quot;sugarSwatch sugarSwatchActual&quot;&gt;&lt;/span&gt;"/>
+						<Text text="{i18n>legendActual}"/>
+					</HBox>
+				</Panel>
+
+				<!-- The cumulative curve answers "are we on track for the
+				     season"; this one answers "how did yesterday go". -->
+				<Panel headerText="{i18n>chartDaily}" class="sapUiSmallMarginBottom"
+					expandable="true" expanded="true">
+					<core:HTML id="dailyChart" content="{view>/dailyHtml}" sanitizeContent="false"/>
+					<Text class="sapUiSmallMarginBegin sugarChartFoot" text="{i18n>chartDailyFoot}"/>
+				</Panel>
+
+				<!-- Which particular days went wrong, which a line chart of 137
+				     points cannot show. -->
+				<Panel headerText="{i18n>chartCalendar}" class="sapUiSmallMarginBottom"
+					expandable="true" expanded="false">
+					<core:HTML id="calendarChart" content="{view>/calendarHtml}" sanitizeContent="false"/>
+				</Panel>
+
+				<Panel headerText="{i18n>chartRecovery}" class="sapUiSmallMarginBottom"
+					expandable="true" expanded="true">
+					<core:HTML id="recoveryChart" content="{view>/recoveryHtml}" sanitizeContent="false"/>
+					<Text class="sapUiSmallMarginBegin sugarChartFoot" text="{i18n>chartRecoveryFoot}"/>
+				</Panel>
+
+				<!-- Storage capacity. -->
+				<Panel headerText="{i18n>storageCapacity}" class="sapUiSmallMarginBottom" expandable="true" expanded="true">
+					<Table id="storageTable" items="{path: 'dash>/storage', templateShareable: false}"
+						sticky="ColumnHeaders" mode="None" class="sugarTable">
+						<columns>
+							<Column><Text text="{i18n>warehouse}"/></Column>
+							<Column hAlign="End"><Text text="{i18n>capacityTons}"/></Column>
+							<Column hAlign="End"><Text text="{i18n>usableTons}"/></Column>
+							<Column hAlign="End"><Text text="{i18n>closingStock}"/></Column>
+							<Column hAlign="End" width="12rem"><Text text="{i18n>capacityUse}"/></Column>
+							<Column><Text text="{i18n>firstFull}"/></Column>
+							<Column hAlign="End"><Text text="{i18n>shipmentNeeded}"/></Column>
+						</columns>
+						<items>
+							<ColumnListItem>
+								<cells>
+									<VBox>
+										<ObjectIdentifier title="{dash>warehouseName}" text="{dash>warehouseCode}"/>
+										<Link text="{i18n>drillDownLedger}" press=".onDrillDown" app:target="storage"/>
+									</VBox>
+									<Text text="{path: 'dash>capacityTons', formatter: '.formatter.tons0'}"/>
+									<Text text="{path: 'dash>usableCapacityTons', formatter: '.formatter.tons0'}"/>
+									<ObjectNumber number="{path: 'dash>balanceTons', formatter: '.formatter.tons0'}"
+										unit="t" state="{path: 'dash>capacityUsePct', formatter: '.formatter.capacityState'}"/>
+									<ProgressIndicator
+										percentValue="{= Math.min(100, parseFloat(${dash>capacityUsePct}) || 0) }"
+										displayValue="{path: 'dash>capacityUsePct', formatter: '.formatter.percent'}"
+										state="{path: 'dash>capacityUsePct', formatter: '.formatter.capacityState'}"/>
+									<ObjectStatus text="{path: 'dash>firstFullDate', formatter: '.formatter.date'}"
+										state="{= ${dash>firstFullDate} ? 'Error' : 'Success' }"/>
+									<ObjectNumber number="{path: 'dash>requiredShipmentTonsPerDay', formatter: '.formatter.tons'}"
+										unit="t/day"/>
+								</cells>
+							</ColumnListItem>
+						</items>
+					</Table>
+				</Panel>
+
+				<!-- Product mix and shipment. -->
+				<l:Grid defaultSpan="XL6 L6 M12 S12">
+					<Panel headerText="{i18n>productMix}" expandable="true" expanded="true">
+						<core:HTML id="mixChart" content="{view>/mixHtml}" sanitizeContent="false"/>
+						<Table items="{path: 'dash>/products', templateShareable: false}" mode="None" class="sugarTable">
+							<columns>
+								<Column><Text text="{i18n>product}"/></Column>
+								<Column hAlign="End"><Text text="{i18n>target}"/></Column>
+								<Column hAlign="End"><Text text="{i18n>actual}"/></Column>
+								<Column hAlign="End"><Text text="{i18n>variance}"/></Column>
+							</columns>
+							<items>
+								<ColumnListItem>
+									<cells>
+										<ObjectIdentifier title="{dash>productName}" text="{dash>productCode}"/>
+										<Text text="{path: 'dash>targetTons', formatter: '.formatter.tons0'}"/>
+										<Text text="{path: 'dash>actualTons', formatter: '.formatter.tons0'}"/>
+										<ObjectNumber number="{path: 'dash>varianceTons', formatter: '.formatter.tons0'}"
+											state="{path: 'dash>varianceTons', formatter: '.formatter.varianceState'}"/>
+									</cells>
+								</ColumnListItem>
+							</items>
+						</Table>
+					</Panel>
+
+					<Panel headerText="{i18n>shipmentByChannel}" expandable="true" expanded="true">
+						<core:HTML id="channelChart" content="{view>/channelHtml}" sanitizeContent="false"/>
+						<Table items="{path: 'dash>/shipments', templateShareable: false}" mode="None" class="sugarTable">
+							<columns>
+								<Column><Text text="{i18n>channel}"/></Column>
+								<Column hAlign="End"><Text text="{i18n>planned}"/></Column>
+								<Column hAlign="End"><Text text="{i18n>actual}"/></Column>
+								<Column hAlign="End"><Text text="{i18n>variance}"/></Column>
+							</columns>
+							<items>
+								<ColumnListItem>
+									<cells>
+										<VBox>
+											<ObjectIdentifier title="{dash>channelName}" text="{dash>channelCode}"/>
+											<Link text="{i18n>drillDownDispatches}" press=".onDrillDown" app:target="shipment"/>
+										</VBox>
+										<Text text="{path: 'dash>plannedTons', formatter: '.formatter.tons0'}"/>
+										<Text text="{path: 'dash>actualTons', formatter: '.formatter.tons0'}"/>
+										<ObjectNumber number="{path: 'dash>varianceTons', formatter: '.formatter.tons0'}"
+											state="{path: 'dash>varianceTons', formatter: '.formatter.varianceState'}"/>
+									</cells>
+								</ColumnListItem>
+							</items>
+						</Table>
+					</Panel>
+				</l:Grid>
+
+				<!-- Three numbers about downtime say there is a problem; the
+				     ranking says which one to go and fix. -->
+				<Panel headerText="{i18n>downtimeSummary}" class="sapUiSmallMarginTop"
+					expandable="true" expanded="true">
+					<HBox class="sapUiSmallMarginBegin sapUiSmallMarginBottom" alignItems="Center">
+						<ObjectNumber number="{path: 'dash>/downtime/hours', formatter: '.formatter.tons'}"
+							unit="h" class="sapUiMediumMarginEnd"/>
+						<ObjectNumber number="{path: 'dash>/downtime/lostTons', formatter: '.formatter.tons0'}"
+							unit="t lost" state="Warning" class="sapUiMediumMarginEnd"/>
+						<ObjectNumber number="{dash>/downtime/eventCount}" unit="events"
+							class="sapUiMediumMarginEnd"/>
+						<Link text="{i18n>drillDownDowntime}" press=".onDrillDown" app:target="downtime"/>
+					</HBox>
+					<core:HTML id="paretoChart" content="{view>/paretoHtml}" sanitizeContent="false"/>
+				</Panel>
+			</VBox>
+		</content>
+	</Page>
+</mvc:View>

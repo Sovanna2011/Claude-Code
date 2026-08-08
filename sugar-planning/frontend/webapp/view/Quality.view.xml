@@ -1,0 +1,93 @@
+<mvc:View
+	controllerName="sugarplan.controller.Quality"
+	xmlns="sap.m"
+	xmlns:mvc="sap.ui.core.mvc">
+
+	<Page id="qualityPage" title="{i18n>qualityTitle}" showNavButton="true" navButtonPress=".onNavBack">
+		<headerContent>
+			<Button icon="sap-icon://add" text="{i18n>qualityNewSample}" type="Emphasized"
+				enabled="{view>/canWrite}" press=".onOpenSample"/>
+			<Button icon="sap-icon://refresh" press=".onRefresh" tooltip="{i18n>refresh}"/>
+		</headerContent>
+
+		<content>
+			<Table id="sampleTable" items="{view>/samples}" mode="SingleSelectMaster"
+				itemPress=".onEnterResults" class="sapUiResponsiveMargin" width="auto"
+				noDataText="{i18n>qualityNoSamples}">
+				<headerToolbar>
+					<Toolbar>
+						<Title text="{i18n>qualitySamples}" level="H3"/>
+						<ToolbarSpacer/>
+						<Text text="{i18n>qualitySamplesHint}"/>
+						<Button icon="sap-icon://sort" type="Transparent" press=".onOpenTableSettings"
+							tooltip="{i18n>tableSettingsTitle}"/>
+					</Toolbar>
+				</headerToolbar>
+				<columns>
+					<Column><Text text="{i18n>colSample}"/></Column>
+					<Column><Text text="{i18n>colDate}"/></Column>
+					<Column minScreenWidth="Tablet" demandPopin="true">
+						<Text text="{i18n>colLabUser}"/>
+					</Column>
+					<Column hAlign="End"><Text text="{i18n>colResults}"/></Column>
+					<Column><Text text="{i18n>colStatus}"/></Column>
+					<Column width="11rem"><Text text=""/></Column>
+				</columns>
+				<items>
+					<ColumnListItem type="Navigation" press=".onEnterResults">
+						<cells>
+							<ObjectIdentifier title="{view>sampleNo}" text="{view>comment}"/>
+							<Text text="{path: 'view>businessDate', formatter: '.formatter.date'}"/>
+							<Text text="{view>labUser}"/>
+							<Text text="{= ${view>results} ? ${view>results}.length : 0 }"/>
+							<ObjectStatus text="{view>status}"
+								state="{= ${view>status} === 'COMPLETE' ? 'Success' : 'Information' }"/>
+							<!-- Only a completed sample can be certified: a
+							     certificate is read as a guarantee, and an
+							     unfinished sheet is not one the laboratory has
+							     given yet. -->
+							<Button text="{i18n>certificate}" icon="sap-icon://pdf-attachment"
+								press=".onCertificate" visible="{= ${view>status} === 'COMPLETE' }"/>
+						</cells>
+					</ColumnListItem>
+				</items>
+			</Table>
+
+			<Table id="holdTable" items="{view>/holds}" class="sapUiResponsiveMargin" width="auto"
+				noDataText="{i18n>qualityNoHolds}">
+				<headerToolbar>
+					<Toolbar>
+						<Title text="{i18n>qualityHolds}" level="H3"/>
+						<ToolbarSpacer/>
+						<CheckBox text="{i18n>qualityOpenOnly}" selected="{view>/openHoldsOnly}"
+							select=".onToggleOpenHolds"/>
+					</Toolbar>
+				</headerToolbar>
+				<columns>
+					<Column><Text text="{i18n>colPlacedOn}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>colQuantity}"/></Column>
+					<Column><Text text="{i18n>colReason}"/></Column>
+					<Column><Text text="{i18n>colStatus}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>colAction}"/></Column>
+				</columns>
+				<items>
+					<ColumnListItem>
+						<cells>
+							<Text text="{path: 'view>placedOn', formatter: '.formatter.date'}"/>
+							<ObjectNumber number="{path: 'view>quantity', formatter: '.formatter.tons'}"
+								unit="t"/>
+							<Text text="{view>reason}"/>
+							<ObjectStatus
+								text="{path: 'view>releasedOn', formatter: '.formatter.holdStatus'}"
+								state="{path: 'view>releasedOn', formatter: '.formatter.holdState'}"/>
+							<Button icon="sap-icon://unlocked" type="Transparent"
+								text="{i18n>qualityRelease}"
+								enabled="{= ${view>/canRelease} &amp;&amp; !${view>releasedOn} }"
+								press=".onReleaseHold"/>
+						</cells>
+					</ColumnListItem>
+				</items>
+			</Table>
+		</content>
+	</Page>
+</mvc:View>

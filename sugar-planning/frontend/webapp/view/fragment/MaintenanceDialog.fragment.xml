@@ -1,0 +1,44 @@
+<core:FragmentDefinition
+	xmlns="sap.m"
+	xmlns:core="sap.ui.core"
+	xmlns:f="sap.ui.layout.form">
+
+	<!--
+	  Leaving the line empty means the whole factory stops, which is the case
+	  that removes crushing days. A line outage does not.
+	-->
+	<Dialog id="maintenanceDialog" title="{i18n>maintenanceDialogTitle}" contentWidth="30rem">
+		<content>
+			<f:SimpleForm editable="true" layout="ResponsiveGridLayout"
+				labelSpanM="4" columnsM="1" class="sapUiNoMarginTop">
+				<f:content>
+					<Label text="{i18n>fieldFrom}" required="true"/>
+					<DatePicker value="{view>/window/startDate}" valueFormat="yyyy-MM-dd"
+						displayFormat="yyyy-MM-dd" width="100%"/>
+
+					<Label text="{i18n>fieldTo}" required="true"/>
+					<DatePicker value="{view>/window/endDate}" valueFormat="yyyy-MM-dd"
+						displayFormat="yyyy-MM-dd" width="100%"/>
+
+					<Label text="{i18n>fieldDescription}" required="true"/>
+					<Input value="{view>/window/description}" width="100%"/>
+
+					<Label text="{i18n>fieldLine}"/>
+					<Select forceSelection="false" selectedKey="{view>/window/lineId}" width="100%"
+						items="{path: 'view>/lines', sorter: {path: 'code'}}">
+						<core:Item key="{view>id}" text="{view>code} — {view>name}"/>
+					</Select>
+
+					<Label text=""/>
+					<Text text="{i18n>maintenanceScopeHint}"/>
+				</f:content>
+			</f:SimpleForm>
+		</content>
+		<beginButton>
+			<Button text="{i18n>save}" type="Emphasized" press=".onSaveWindow"/>
+		</beginButton>
+		<endButton>
+			<Button text="{i18n>cancel}" press=".onCancelWindow"/>
+		</endButton>
+	</Dialog>
+</core:FragmentDefinition>

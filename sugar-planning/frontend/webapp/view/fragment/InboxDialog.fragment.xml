@@ -1,0 +1,37 @@
+<core:FragmentDefinition xmlns="sap.m" xmlns:core="sap.ui.core">
+	<Dialog title="{i18n>inboxTitle}" contentWidth="46rem" contentHeight="30rem"
+		resizable="true" draggable="true">
+		<content>
+			<VBox class="sapUiSmallMargin">
+				<!-- What an inbox is for, said once: these were raised for the
+				     roles this person holds, and they stay until somebody
+				     clears them. -->
+				<MessageStrip class="sapUiSmallMarginBottom" type="Information" showIcon="true"
+					text="{i18n>inboxIntro}"/>
+
+				<List items="{path: 'app>/notifications', templateShareable: false}"
+					noDataText="{i18n>inboxEmpty}">
+					<CustomListItem>
+						<HBox alignItems="Center" class="sapUiSmallMarginBegin sapUiTinyMarginTopBottom">
+							<core:Icon class="sapUiSmallMarginEnd"
+								src="{path: 'app>severity', formatter: '.formatter.severityIcon'}"
+								color="{path: 'app>severity', formatter: '.formatter.severityIconColor'}"/>
+							<VBox width="100%">
+								<Text text="{app>title}"
+									class="{= ${app>readAt} ? 'sugarRead' : 'sugarUnread' }"/>
+								<Text text="{app>detail}" class="sapUiTinyMarginTop"/>
+								<Text class="sapUiTinyMarginTop"
+									text="{path: 'app>createdAt', formatter: '.formatter.dateTime'}"/>
+							</VBox>
+							<Button text="{i18n>inboxMarkRead}" press=".onReadNotification"
+								visible="{= !${app>readAt} }" class="sapUiSmallMarginBegin"/>
+						</HBox>
+					</CustomListItem>
+				</List>
+			</VBox>
+		</content>
+		<beginButton>
+			<Button text="{i18n>close}" press=".onCloseInbox"/>
+		</beginButton>
+	</Dialog>
+</core:FragmentDefinition>

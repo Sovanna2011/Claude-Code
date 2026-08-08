@@ -1,0 +1,86 @@
+# Local development stack: PostgreSQL, the migration job, and the application.
+#
+#   docker compose --env-file .env up --build
+#
+# The demo profile needs no identity provider: it signs in with local
+# development accounts and seeds the Kampong Speu 2026-2027 scenario.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sugarplan}
+      POSTGRES_USER: ${POSTGRES_USER:-sugarplan}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      # Deterministic collation, so ordering does not depend on the host locale.
+      POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sugarplan} -d ${POSTGRES_DB:-sugarplan}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # Migrations run to completion before the API starts. In production this is a
+  # separate, observable step rather than something the API does on boot.
+  migrate:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    entrypoint: ["/app/migrate"]
+    command: ["up"]
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      STORE: postgres
+      DATABASE_URL: postgres://${POSTGRES_USER:-sugarplan}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-sugarplan}?sslmode=disable
+      AUTH_MODE: ${AUTH_MODE:-dev}
+      AUTH_DEV_SECRET: ${AUTH_DEV_SECRET:-local-development-secret-change-me}
+      AUTH_ISSUER: ${AUTH_ISSUER:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      APP_VERSION: ${APP_VERSION:-dev}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+
+      STORE: postgres
+      DATABASE_URL: postgres://${POSTGRES_USER:-sugarplan}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-sugarplan}?sslmode=disable
+      DB_MAX_CONNS: ${DB_MAX_CONNS:-20}
+
+      AUTH_MODE: ${AUTH_MODE:-dev}
+      AUTH_DEV_SECRET: ${AUTH_DEV_SECRET:-local-development-secret-change-me}
+      AUTH_ISSUER: ${AUTH_ISSUER:-}
+      AUTH_AUDIENCE: ${AUTH_AUDIENCE:-}
+      AUTH_ROLES_CLAIM: ${AUTH_ROLES_CLAIM:-roles}
+      AUTH_ROLE_MAPPING: ${AUTH_ROLE_MAPPING:-}
+
+      SEED_DEMO: ${SEED_DEMO:-true}
+      SEED_ACTUAL_DAYS: ${SEED_ACTUAL_DAYS:-14}
+      # Also plays a fortnight of factory life through the plan: orders,
+      # stoppages, stock movements, laboratory results, a cost run and the
+      # alerts they raise. Set it false for the planning half alone.
+      SEED_EXECUTION: ${SEED_EXECUTION:-true}
+      FACTORY_TIMEZONE: ${FACTORY_TIMEZONE:-Asia/Phnom_Penh}
+    ports:
+      - "${HTTP_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  db-data:

@@ -1,0 +1,160 @@
+<mvc:View controllerName="sugarplan.controller.CaneSupply" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" xmlns:core="sap.ui.core" xmlns:f="sap.f">
+	<Page id="caneSupplyPage" title="{i18n>caneSupplyTitle}" showNavButton="true" navButtonPress=".onNavBack">
+		<headerContent>
+			<Label text="{i18n>planVersion}" class="sapUiTinyMarginEnd"/>
+			<Select selectedKey="{view>/versionId}" change=".onVersionChange"
+				items="{path: 'view>/versions', templateShareable: false}">
+				<core:Item key="{view>id}" text="{view>code}"/>
+			</Select>
+			<Button text="{i18n>supplyGenerate}" icon="sap-icon://generate-shortcut"
+				press=".onGenerate" enabled="{view>/canWrite}"/>
+		</headerContent>
+		<content>
+			<VBox class="sapUiSmallMargin">
+
+				<!-- What the season needs, what the farms have promised, and the
+				     gap between them. This is the whole point of the page. -->
+				<Panel headerText="{i18n>supplyReconciliation}" class="sapUiSmallMarginBottom">
+					<f:GridContainer>
+						<f:layout>
+							<f:GridContainerSettings rowSize="4.5rem" columnSize="9rem" gap="0.75rem"/>
+						</f:layout>
+						<GenericTile class="sugarTile" header="{i18n>supplyTarget}"
+							subheader="{i18n>supplyTons}">
+							<TileContent>
+								<NumericContent value="{path: 'view>/reconciliation/targetTons', formatter: '.formatter.tons'}"
+									valueColor="Neutral"/>
+							</TileContent>
+						</GenericTile>
+						<GenericTile class="sugarTile" header="{i18n>supplyCommitted}"
+							subheader="{i18n>supplyTons}">
+							<TileContent>
+								<NumericContent value="{path: 'view>/reconciliation/committedTons', formatter: '.formatter.tons'}"
+									valueColor="Neutral"/>
+							</TileContent>
+						</GenericTile>
+						<GenericTile class="sugarTile" header="{i18n>supplyCoverage}"
+							subheader="{i18n>supplyPctOfTarget}">
+							<TileContent>
+								<NumericContent value="{path: 'view>/reconciliation/coveragePct', formatter: '.formatter.percent'}"
+									state="{= ${view>/reconciliation/coveragePct} ? 'Loaded' : 'Loading' }"
+									valueColor="{= parseFloat(${view>/reconciliation/coveragePct}) &lt; 98 ? 'Error' : (parseFloat(${view>/reconciliation/coveragePct}) &gt; 105 ? 'Critical' : 'Good') }"/>
+							</TileContent>
+						</GenericTile>
+						<GenericTile class="sugarTile" header="{i18n>supplyDifference}"
+							subheader="{i18n>supplyTons}">
+							<TileContent>
+								<NumericContent value="{path: 'view>/reconciliation/differenceTons', formatter: '.formatter.tons'}"
+									valueColor="{= parseFloat(${view>/reconciliation/differenceTons}) &lt; 0 ? 'Error' : 'Good' }"/>
+							</TileContent>
+						</GenericTile>
+						<GenericTile class="sugarTile" header="{i18n>supplyLandYield}"
+							subheader="{i18n>supplyTons}">
+							<TileContent>
+								<NumericContent value="{path: 'view>/reconciliation/expectedTons', formatter: '.formatter.tons'}"
+									valueColor="Neutral"/>
+							</TileContent>
+						</GenericTile>
+						<GenericTile class="sugarTile" header="{i18n>supplySourceCount}"
+							subheader="{i18n>supplySources}">
+							<TileContent>
+								<NumericContent value="{view>/reconciliation/sources}" valueColor="Neutral"/>
+							</TileContent>
+						</GenericTile>
+					</f:GridContainer>
+				</Panel>
+
+				<!-- The warnings the reconciliation raised. An empty list here is
+				     itself the message, so it says so rather than showing nothing. -->
+				<MessageStrip class="sapUiSmallMarginBottom" showIcon="true" type="Success"
+					visible="{= ${view>/warnings}.length === 0 &amp;&amp; ${view>/entries}.length &gt; 0 }"
+					text="{i18n>supplyNoWarnings}"/>
+				<List items="{path: 'view>/warnings', templateShareable: false}"
+					class="sapUiSmallMarginBottom" visible="{= ${view>/warnings}.length &gt; 0 }">
+					<StandardListItem title="{view>title}" description="{view>detail}"
+						icon="{path: 'view>severity', formatter: '.formatter.severityIcon'}"
+						iconInset="false"
+						info="{path: 'view>severity', formatter: '.formatter.statusText'}"
+						infoState="{path: 'view>severity', formatter: '.formatter.severityState'}"/>
+				</List>
+
+				<!-- The commitments themselves. Required daily rate against
+				     transport capacity is the pair that says whether a promise is
+				     keepable, so they sit next to each other. -->
+				<Table id="supplyTable" items="{path: 'view>/entries', templateShareable: false}"
+					mode="None" sticky="ColumnHeaders" class="sugarTable">
+					<headerToolbar>
+						<OverflowToolbar>
+							<Title text="{i18n>supplyCommitments}" level="H3"/>
+							<ToolbarSpacer/>
+							<Text text="{i18n>supplyFormula}"/>
+							<Button text="{i18n>supplyAdd}" icon="sap-icon://add" type="Transparent"
+								press=".onAddEntry" enabled="{view>/canWrite}"/>
+						</OverflowToolbar>
+					</headerToolbar>
+					<columns>
+						<Column><Text text="{i18n>supplySource}"/></Column>
+						<Column><Text text="{i18n>supplyType}"/></Column>
+						<Column><Text text="{i18n>supplyZone}"/></Column>
+						<Column hAlign="End"><Text text="{i18n>supplyHectares}"/></Column>
+						<Column hAlign="End"><Text text="{i18n>supplyExpected}"/></Column>
+						<Column hAlign="End"><Text text="{i18n>supplyCommittedTons}"/></Column>
+						<Column><Text text="{i18n>supplyWindow}"/></Column>
+						<Column hAlign="End"><Text text="{i18n>supplyDays}"/></Column>
+						<Column hAlign="End"><Text text="{i18n>supplyRequiredRate}"/></Column>
+						<Column hAlign="End"><Text text="{i18n>supplyHaulage}"/></Column>
+						<Column hAlign="End"><Text text="{i18n>colAction}"/></Column>
+					</columns>
+					<items>
+						<ColumnListItem>
+							<cells>
+								<ObjectIdentifier title="{view>sourceName}" text="{view>sourceCode}"/>
+								<Text text="{view>sourceType}"/>
+								<Text text="{view>zone}"/>
+								<Text text="{path: 'view>hectares', formatter: '.formatter.units'}"/>
+								<ObjectNumber number="{path: 'view>expectedTons', formatter: '.formatter.tons'}"
+									state="{parts: ['view>committedTons', 'view>expectedTons'], formatter: '.yieldState'}"/>
+								<ObjectNumber number="{path: 'view>committedTons', formatter: '.formatter.tons'}"
+									emphasized="true"/>
+								<Text text="{path: 'view>harvestFrom', formatter: '.formatter.date'} &#8211; {path: 'view>harvestTo', formatter: '.formatter.date'}"/>
+								<Text text="{view>harvestDays}"/>
+								<Text text="{path: 'view>requiredDailyRateTons', formatter: '.formatter.tons'}"/>
+								<ObjectNumber number="{path: 'view>transportCapacityTons', formatter: '.formatter.tons'}"
+									state="{parts: ['view>requiredDailyRateTons', 'view>transportCapacityTons'], formatter: '.haulageState'}"/>
+								<HBox>
+									<Button icon="sap-icon://edit" type="Transparent" press=".onEditEntry"
+										tooltip="{i18n>supplyEdit}" enabled="{view>/canWrite}"/>
+									<Button icon="sap-icon://delete" type="Transparent" press=".onDeleteEntry"
+										tooltip="{i18n>supplyDelete}" enabled="{view>/canWrite}"/>
+								</HBox>
+							</cells>
+						</ColumnListItem>
+					</items>
+					<noData>
+						<IllustratedMessage illustrationType="sapIllus-NoEntries"
+							title="{i18n>noSupply}" description="{i18n>noSupplyHint}"/>
+					</noData>
+				</Table>
+
+				<!-- The schedule those commitments generate, with what actually
+				     came through the gate drawn on top of it. -->
+				<Panel headerText="{i18n>supplySchedule}" class="sapUiSmallMarginTop">
+					<headerToolbar>
+						<OverflowToolbar>
+							<Title text="{i18n>supplySchedule}" level="H3"/>
+							<ToolbarSpacer/>
+							<Text text="{view>/scheduleDays} {i18n>supplyScheduleDays}"/>
+						</OverflowToolbar>
+					</headerToolbar>
+					<core:HTML id="supplyChart" content="{view>/scheduleHtml}" sanitizeContent="false"/>
+					<HBox class="sapUiTinyMarginTop sugarLegend">
+						<core:HTML content="&lt;span class=&quot;sugarSwatch sugarSwatchTarget&quot;&gt;&lt;/span&gt;"/>
+						<Text text="{i18n>supplyLegendPlan}" class="sapUiTinyMarginEnd"/>
+						<core:HTML content="&lt;span class=&quot;sugarSwatch sugarSwatchActual&quot;&gt;&lt;/span&gt;"/>
+						<Text text="{i18n>supplyLegendActual}"/>
+					</HBox>
+				</Panel>
+			</VBox>
+		</content>
+	</Page>
+</mvc:View>

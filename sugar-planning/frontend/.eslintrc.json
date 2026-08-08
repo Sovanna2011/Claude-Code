@@ -1,0 +1,24 @@
+{
+	"root": true,
+	"env": {
+		"browser": true,
+		"es6": true
+	},
+	"parserOptions": {
+		"ecmaVersion": 2017,
+		"sourceType": "script"
+	},
+	"globals": {
+		"sap": "readonly",
+		"Promise": "readonly"
+	},
+	"extends": "eslint:recommended",
+	"rules": {
+		"no-console": "error",
+		"no-unused-vars": ["error", { "args": "none" }],
+		"eqeqeq": ["error", "smart"],
+		"no-eval": "error",
+		"no-implied-eval": "error",
+		"curly": "error"
+	}
+}

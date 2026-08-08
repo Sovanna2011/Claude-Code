@@ -1,0 +1,101 @@
+<mvc:View
+	controllerName="sugarplan.controller.Stock"
+	xmlns="sap.m"
+	xmlns:mvc="sap.ui.core.mvc"
+	xmlns:core="sap.ui.core">
+
+	<!--
+	  The stock page shows the position first and the movements below it. A
+	  keeper wants to know what is in the shed before they want to know how it
+	  got there.
+	-->
+	<Page id="stockPage" title="{i18n>stockTitle}" showNavButton="true" navButtonPress=".onNavBack">
+		<headerContent>
+			<Button icon="sap-icon://add" text="{i18n>stockPost}" type="Emphasized"
+				enabled="{view>/canPost}" press=".onOpenPosting"/>
+			<Button icon="sap-icon://refresh" press=".onRefresh" tooltip="{i18n>refresh}"/>
+		</headerContent>
+
+		<content>
+			<Table id="stockTable" items="{view>/stock}" class="sapUiResponsiveMargin"
+				width="auto" noDataText="{i18n>stockEmpty}">
+				<headerToolbar>
+					<Toolbar>
+						<Title text="{i18n>stockPositions}" level="H3"/>
+						<ToolbarSpacer/>
+						<Text text="{i18n>stockAvailableNote}" class="sapUiTinyMarginEnd"/>
+					</Toolbar>
+				</headerToolbar>
+				<columns>
+					<Column><Text text="{i18n>colWarehouse}"/></Column>
+					<Column><Text text="{i18n>colProduct}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>colOnHand}"/></Column>
+					<Column hAlign="End" minScreenWidth="Tablet" demandPopin="true">
+						<Text text="{i18n>colHeld}"/>
+					</Column>
+					<Column hAlign="End"><Text text="{i18n>colAvailable}"/></Column>
+					<Column hAlign="End" minScreenWidth="Tablet" demandPopin="true">
+						<Text text="{i18n>colCapacity}"/>
+					</Column>
+					<Column hAlign="End"><Text text="{i18n>colUtilisation}"/></Column>
+				</columns>
+				<items>
+					<ColumnListItem>
+						<cells>
+							<ObjectIdentifier title="{view>warehouseCode}" text="{view>warehouseName}"/>
+							<ObjectIdentifier title="{view>productCode}" text="{view>productName}"/>
+							<ObjectNumber number="{path: 'view>quantity', formatter: '.formatter.tons'}"
+								unit="{view>uom}"/>
+							<ObjectNumber number="{path: 'view>holdQuantity', formatter: '.formatter.tons'}"
+								state="{path: 'view>holdQuantity', formatter: '.formatter.heldState'}"/>
+							<ObjectNumber number="{path: 'view>available', formatter: '.formatter.tons'}"
+								emphasized="true"/>
+							<ObjectNumber number="{path: 'view>capacity', formatter: '.formatter.tons'}"/>
+							<ObjectNumber number="{path: 'view>utilisedPct', formatter: '.formatter.percent'}"
+								state="{path: 'view>utilisedPct', formatter: '.formatter.utilisationState'}"/>
+						</cells>
+					</ColumnListItem>
+				</items>
+			</Table>
+
+			<Table id="documentTable" items="{view>/documents}" class="sapUiResponsiveMargin"
+				width="auto" noDataText="{i18n>stockNoDocuments}">
+				<headerToolbar>
+					<Toolbar>
+						<Title text="{i18n>stockMovements}" level="H3"/>
+						<ToolbarSpacer/>
+						<Text text="{i18n>stockLedgerNote}"/>
+					</Toolbar>
+				</headerToolbar>
+				<columns>
+					<Column><Text text="{i18n>colDocument}"/></Column>
+					<Column><Text text="{i18n>colType}"/></Column>
+					<Column><Text text="{i18n>colDate}"/></Column>
+					<Column minScreenWidth="Tablet" demandPopin="true">
+						<Text text="{i18n>colLines}"/>
+					</Column>
+					<Column minScreenWidth="Tablet" demandPopin="true">
+						<Text text="{i18n>colPostedBy}"/>
+					</Column>
+					<Column hAlign="End"><Text text="{i18n>colAction}"/></Column>
+				</columns>
+				<items>
+					<ColumnListItem>
+						<cells>
+							<ObjectIdentifier title="{view>documentNo}" text="{view>note}"/>
+							<ObjectStatus text="{path: 'view>docType', formatter: '.formatter.docTypeLabel'}"
+								state="{= ${view>reversed} ? 'Error' : 'None' }"/>
+							<Text text="{path: 'view>businessDate', formatter: '.formatter.date'}"/>
+							<Text text="{= ${view>items} ? ${view>items}.length : 0 }"/>
+							<Text text="{view>createdBy}"/>
+							<Button icon="sap-icon://undo" type="Transparent"
+								text="{i18n>stockReverse}"
+								enabled="{= ${view>/canPost} &amp;&amp; !${view>reversed} &amp;&amp; ${view>docType} !== 'REVERSAL' }"
+								press=".onReverseDocument"/>
+						</cells>
+					</ColumnListItem>
+				</items>
+			</Table>
+		</content>
+	</Page>
+</mvc:View>

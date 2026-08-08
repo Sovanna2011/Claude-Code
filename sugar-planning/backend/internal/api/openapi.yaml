@@ -1,0 +1,4923 @@
+openapi: 3.1.0
+info:
+  title: Sugar Production Planning and Execution API
+  version: "1.0.0"
+  summary: Season planning, daily execution and analytics for a sugar factory.
+  description: |
+    The API behind the sugar production planning system. It replaces the daily
+    Excel workbook with a controlled, auditable service.
+
+    ## Conventions
+
+    * Every path is prefixed `/api/v1`.
+    * Timestamps are ISO 8601 and stored in UTC. Business dates are calendar
+      days in the factory time zone and carry no time component.
+    * Quantities, rates and percentages are transported as **JSON strings**
+      holding a decimal literal, for example `"16788.321"`, and are held as
+      exact decimals server-side. A JSON number would be read back as a binary
+      float by most clients, and 2,300,000 t of cane split across 137 days does
+      not survive that. Clients must parse them with a decimal type and must
+      never round-trip them through binary floating point. A request may send
+      either a string or a number; a response is always a string.
+    * List endpoints accept `$top`, `$skip` and `$search`, and return
+      `{ value, count, skip, top }`.
+    * Filtering uses documented, allow-listed query parameters only.
+    * Editable resources return an `ETag` carrying the row version; send it back
+      in `If-Match` to update. A mismatch is answered with `412`.
+    * Posting endpoints accept an `Idempotency-Key` header; a repeated key
+      replays the first response instead of posting twice.
+    * Errors are RFC 9457 problem documents. Field-level messages appear in
+      `errors[]`, addressed by `row` and `field`, ready for the SAPUI5
+      MessagePopover.
+  contact:
+    name: Sugar planning platform team
+  license:
+    name: Proprietary
+
+servers:
+  - url: /api/v1
+    description: Same-origin deployment, the SAPUI5 application and the API behind one host
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Session
+    description: Who the caller is and what they may do.
+  - name: Master data
+    description: Configuration shared by every plan.
+  - name: Seasons
+    description: Crushing campaigns and their planning versions.
+  - name: Planning
+    description: Daily cane, production, storage and shipment rows.
+  - name: Workflow
+    description: Submit, approve, release, reopen.
+  - name: Analytics
+    description: Dashboard aggregates and capacity forecasting.
+  - name: Materials
+    description: Packaging requirement planning.
+  - name: Inventory
+    description: Stock positions and the document-based ledger that moves them.
+  - name: Production
+    description: Production orders, confirmations and their reversals.
+  - name: Quality
+    description: Parameters, effective-dated specifications, samples and holds.
+  - name: Maintenance
+    description: Planned outages, which remove crushing days once approved.
+  - name: Costing
+    description: Cost structure, rates, and what a ton of sugar costs.
+  - name: Inbox
+    description: |
+      Alerts that have been raised for the roles the caller holds, at the
+      factories they may see.
+  - name: Imports
+    description: |
+      The controlled import: mapping templates, a staging area, a preview with
+      row-level errors, and a commit that goes through the ordinary planning
+      service.
+  - name: Interfaces
+    description: |
+      The transactional outbox this system publishes from, and the two readings
+      it accepts: gate tickets from the weighbridge and measurements from the
+      laboratory system.
+  - name: Reports
+    description: Report catalogue and exports.
+  - name: Audit
+    description: The append-only audit trail.
+  - name: Operations
+    description: Health, readiness and the specification itself.
+
+paths:
+  /session:
+    get:
+      tags: [Session]
+      summary: The current caller's profile, roles and permissions
+      operationId: getSession
+      responses:
+        "200":
+          description: The session profile.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionProfile" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+
+  /auth/dev-users:
+    get:
+      tags: [Session]
+      summary: The demonstration accounts
+      description: |
+        Lists the development sign-in accounts so that the application does not
+        have to keep a copy of them. In `oidc` mode the list is empty and the
+        sign-in page redirects to the identity provider instead.
+      operationId: listDevUsers
+      security: []
+      responses:
+        "200":
+          description: The accounts, or an empty list outside development mode.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            username: { type: string }
+                            displayName: { type: string }
+                            roles: { type: array, items: { type: string } }
+
+  /auth/dev-login:
+    post:
+      tags: [Session]
+      summary: Issue a token for a development account
+      description: |
+        Available only when the server runs with `AUTH_MODE=dev`. In `oidc`
+        mode it returns 400, so a misconfigured production box cannot mint
+        tokens. Production sign-in goes through the identity provider.
+      operationId: devLogin
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username]
+              properties:
+                username:
+                  type: string
+                  examples: ["planner"]
+      responses:
+        "200":
+          description: A bearer token and the profile it carries.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken: { type: string }
+                  tokenType: { type: string, const: Bearer }
+                  expiresIn: { type: integer }
+                  profile: { $ref: "#/components/schemas/SessionProfile" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /master/{entity}:
+    parameters:
+      - name: entity
+        in: path
+        required: true
+        description: |
+          One of: companies, factories, production-lines, shifts,
+          product-categories, products, units, unit-conversions,
+          packaging-types, warehouses, customers, shipment-channels,
+          materials, reason-codes.
+        schema: { type: string }
+    get:
+      tags: [Master data]
+      summary: List master records
+      operationId: listMasterData
+      parameters:
+        - $ref: "#/components/parameters/Top"
+        - $ref: "#/components/parameters/Skip"
+        - $ref: "#/components/parameters/Search"
+        - name: active
+          in: query
+          description: Restrict to active or inactive records.
+          schema: { type: boolean }
+        - name: parentId
+          in: query
+          description: The entity's natural parent, for example the factory of a warehouse.
+          schema: { type: string }
+      responses:
+        "200":
+          description: A page of records.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      tags: [Master data]
+      summary: Create a master record
+      operationId: createMasterData
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "201":
+          description: The created record.
+          content:
+            application/json:
+              schema: { type: object }
+        "409": { $ref: "#/components/responses/Duplicate" }
+
+  /master/packaging-bom:
+    get:
+      tags: [Master data]
+      summary: The packaging bill of materials
+      description: |
+        Requires `masterdata:read`. What a package consumes besides its own bag:
+        the liner inside the jumbo bag, the thread that sews it, the label on
+        the consumer pack, a share of the pallet it is stacked on.
+
+        The primary bag is not held here - a packaging type points at its own
+        bag material - because a bag is one per package by definition, and
+        giving it a quantity would invite somebody to set it to two.
+      operationId: listPackagingBOM
+      parameters:
+        - name: packagingId
+          in: query
+          description: Restrict to one packaging type. Omit for the whole table.
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: The lines, ordered by packaging type and material.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  value:
+                    type: array
+                    items: { $ref: "#/components/schemas/PackagingBOMLine" }
+                  count: { type: integer }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    put:
+      tags: [Master data]
+      summary: Add or change a bill of materials line
+      description: |
+        Requires `masterdata:write`. The business key is the pair of packaging
+        type and material, so the same material cannot be added twice to one
+        package. A quantity of zero is refused: a component consumed in no
+        quantity is not a component, and the line should be removed instead.
+      operationId: savePackagingBOMLine
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PackagingBOMLine" }
+      responses:
+        "200":
+          description: The stored line.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PackagingBOMLine" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Duplicate" }
+        "412": { $ref: "#/components/responses/VersionConflict" }
+
+  /master/packaging-bom/{id}:
+    delete:
+      tags: [Master data]
+      summary: Remove a bill of materials line
+      description: |
+        Requires `masterdata:write`. Unlike master data, a bill of materials
+        line is removed rather than deactivated: it is a relationship, and a
+        deactivated relationship that nothing points at is only clutter.
+      operationId: deletePackagingBOMLine
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "204": { description: Removed. }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /master/{entity}/{id}:
+    parameters:
+      - name: entity
+        in: path
+        required: true
+        schema: { type: string }
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Master data]
+      summary: Read one master record
+      operationId: getMasterData
+      responses:
+        "200":
+          description: The record, with its row version in the ETag.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { type: object }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: [Master data]
+      summary: Update a master record
+      operationId: updateMasterData
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: The updated record.
+          content:
+            application/json:
+              schema: { type: object }
+        "412": { $ref: "#/components/responses/VersionConflict" }
+    delete:
+      tags: [Master data]
+      summary: Deactivate a master record
+      description: |
+        Master data is deactivated, never deleted, so transactions keep their
+        references. `If-Match` is required.
+      operationId: deactivateMasterData
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "204": { description: Deactivated. }
+        "412": { $ref: "#/components/responses/VersionConflict" }
+
+  /seasons:
+    get:
+      tags: [Seasons]
+      summary: List seasons within the caller's data scope
+      operationId: listSeasons
+      parameters:
+        - $ref: "#/components/parameters/Top"
+        - $ref: "#/components/parameters/Skip"
+        - $ref: "#/components/parameters/Search"
+      responses:
+        "200":
+          description: A page of seasons.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+    post:
+      tags: [Seasons]
+      summary: Create a season
+      description: Creating a season also opens its single actuals container.
+      operationId: createSeason
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Season" }
+      responses:
+        "201":
+          description: The created season.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Season" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /seasons/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Seasons]
+      summary: Read a season
+      operationId: getSeason
+      responses:
+        "200":
+          description: The season.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Season" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: [Seasons]
+      summary: Update a season
+      operationId: updateSeason
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Season" }
+      responses:
+        "200":
+          description: The updated season.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Season" }
+
+  /seasons/{id}/versions:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Seasons]
+      summary: List the plan versions of a season
+      operationId: listVersions
+      responses:
+        "200":
+          description: A page of versions.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+    post:
+      tags: [Seasons]
+      summary: Create a plan version
+      operationId: createVersion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlanVersion" }
+      responses:
+        "201":
+          description: The created version.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlanVersion" }
+
+  /versions/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Seasons]
+      summary: Read a version with its assumptions, mix and available actions
+      operationId: getVersion
+      responses:
+        "200":
+          description: The version detail.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VersionDetail" }
+    put:
+      tags: [Seasons]
+      summary: Update a version header
+      description: |
+        Status is owned by the workflow and cannot be changed here; use
+        `/versions/{id}/transition`.
+      operationId: updateVersion
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlanVersion" }
+      responses:
+        "200":
+          description: The updated version.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlanVersion" }
+        "409":
+          description: The version is not editable in its current status.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
+  /versions/{id}/assumptions:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      tags: [Planning]
+      summary: Create or update a planning assumption
+      description: |
+        The business key is (version, code, validFrom), so re-sending the same
+        assumption updates it rather than adding a duplicate.
+      operationId: saveAssumption
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlanAssumption" }
+      responses:
+        "200":
+          description: The stored assumption.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlanAssumption" }
+
+  /versions/{id}/crushing-profile:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Planning]
+      summary: The shape of the crushing campaign
+      description: >
+        The start-up ramp, the wash-out cadence and the run-down, together with
+        the daily curve they produce against this version's own cane target.
+        The full rate is not part of the profile: it is solved so the season
+        comes to target, which is the figure a spreadsheet gets wrong as soon as
+        the tonnage changes.
+      operationId: getCrushingProfile
+      responses:
+        "200":
+          description: The profile and the curve it implies.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CrushingProfileView" }
+    put:
+      tags: [Planning]
+      summary: Replace the shape of the crushing campaign
+      description: >
+        Refused if the profile cannot produce a plan - shoulders that already
+        exceed the season target, or a ramp and a run-down that overlap - so a
+        version cannot be left editable but ungeneratable.
+      operationId: saveCrushingProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CrushingProfile" }
+      responses:
+        "200":
+          description: The stored profile and the curve it implies.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CrushingProfileView" }
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /versions/{id}/supply:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Planning]
+      summary: The cane supply plan, reconciled against the season target
+      description: >
+        What each source is committed to for this season, with the harvest
+        window, the haulage it needs, and whether the commitments add up to the
+        cane the plan intends to crush.
+      operationId: getSupplyPlan
+      responses:
+        "200":
+          description: The supply plan.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupplyPlan" }
+    put:
+      tags: [Planning]
+      summary: Create or update one source's commitment
+      operationId: saveSupplyEntry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CaneSupplyEntry" }
+      responses:
+        "200":
+          description: The stored commitment.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CaneSupplyEntry" }
+
+  /versions/{id}/supply/{entryId}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: entryId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Planning]
+      summary: Remove a commitment from the version
+      operationId: deleteSupplyEntry
+      responses:
+        "204": { description: Removed. }
+
+  /versions/{id}/supply/generate:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Planning]
+      summary: Build the delivery schedule from the commitments
+      description: >
+        Spreads each source's committed tonnage evenly across its harvest
+        window, one row per source per day, and puts the rounding remainder on
+        the last day so the schedule sums to the commitment exactly.
+      operationId: generateSupplySchedule
+      responses:
+        "200":
+          description: What the run wrote.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  versionId: { type: string, format: uuid }
+                  sources: { type: integer }
+                  rows: { type: integer }
+
+  /versions/{id}/cane-supply:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - { $ref: "#/components/parameters/From" }
+      - { $ref: "#/components/parameters/To" }
+      - { $ref: "#/components/parameters/Series" }
+      - name: sourceId
+        in: query
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Planning]
+      summary: The delivery schedule, or the deliveries recorded against it
+      operationId: listCaneSupply
+      responses:
+        "200":
+          description: Delivery rows.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  value:
+                    type: array
+                    items: { $ref: "#/components/schemas/DailyCaneSupply" }
+                  count: { type: integer }
+    post:
+      tags: [Planning]
+      summary: Record deliveries at the gate
+      description: >
+        A PLAN row needs plan:write; an ACTUAL row needs actual:cane, because a
+        weighbridge clerk records what arrived and a planner does not.
+      operationId: upsertCaneSupply
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rows:
+                  type: array
+                  items: { $ref: "#/components/schemas/DailyCaneSupply" }
+      responses:
+        "200":
+          description: How many rows were accepted.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UpsertResult" }
+
+  /versions/{id}/product-mix:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      tags: [Planning]
+      summary: Create or update a product mix line
+      operationId: saveProductMix
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProductMixEntry" }
+      responses:
+        "200":
+          description: The stored mix line.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductMixEntry" }
+
+  /versions/{id}/product-mix/{mixId}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: mixId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Planning]
+      summary: Remove a product mix line
+      operationId: deleteProductMix
+      responses:
+        "204": { description: Removed. }
+
+  /versions/{id}/generate:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Planning]
+      summary: Generate the daily plan from the assumptions and product mix
+      description: |
+        Rebuilds cane, production, stock ledger and shipment rows in a single
+        transaction. Warnings such as a capacity breach or a raw sugar shortfall
+        are returned rather than silently accepted.
+      operationId: generatePlan
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                replace:
+                  type: boolean
+                  description: Required to overwrite an existing daily plan.
+                nonWorkingDays:
+                  type: array
+                  description: Dates excluded from crushing; the campaign is extended, not shortened.
+                  items: { type: string, format: date }
+      responses:
+        "200":
+          description: The generated summary and warnings.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GenerateResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409":
+          description: The version is locked, or already has a plan and `replace` was not sent.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
+  /versions/{id}/copy:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Planning]
+      summary: Copy a version into a new scenario
+      description: |
+        Copies the assumptions and product mix, optionally the daily rows, and
+        applies any assumption overrides. This is how a what-if scenario is
+        created.
+      operationId: copyVersion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CopyRequest" }
+      responses:
+        "201":
+          description: The new version.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlanVersion" }
+
+  /versions/compare-matrix:
+    post:
+      tags: [Planning]
+      summary: Compare two or more versions side by side
+      description: >
+        A plan review has a budget, two or three what-ifs and the actuals so
+        far, and reads them in columns. Every column is aggregated by the same
+        code the pairwise comparison uses, so the two cannot disagree about the
+        same pair. A plan version contributes its PLAN rows and the actuals
+        container its ACTUAL ones; each column says which it read.
+      operationId: compareVersionMatrix
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [versionIds]
+              properties:
+                versionIds:
+                  type: array
+                  minItems: 1
+                  description: The columns, in the order they should be shown.
+                  items: { type: string, format: uuid }
+                baselineVersionId:
+                  type: string
+                  format: uuid
+                  description: The column differences are measured from. Empty means the first.
+                includeActual:
+                  type: boolean
+                  description: >
+                    Append the season's actuals container as a further column, so
+                    "actual against V1 and V2" is the same request as "V1 against V2".
+                dimension:
+                  type: string
+                  enum: [DATE, PROCESS, PRODUCT, WAREHOUSE, CHANNEL]
+                  default: DATE
+                from: { type: string, format: date }
+                to: { type: string, format: date }
+      responses:
+        "200":
+          description: Columns, rows, totals and the assumptions that differ.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MatrixResult" }
+        "400":
+          $ref: "#/components/responses/ValidationError"
+
+  /versions/compare:
+    post:
+      tags: [Planning]
+      summary: Compare two versions
+      operationId: compareVersions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [baseVersionId, otherVersionId]
+              properties:
+                baseVersionId: { type: string, format: uuid }
+                otherVersionId: { type: string, format: uuid }
+                dimension:
+                  type: string
+                  enum: [DATE, PROCESS, PRODUCT, WAREHOUSE, CHANNEL]
+                  default: DATE
+                from: { type: string, format: date }
+                to: { type: string, format: date }
+      responses:
+        "200":
+          description: Rows, totals and the assumptions that differ.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CompareResult" }
+
+  /versions/{id}/transition:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Workflow]
+      summary: Apply a workflow action
+      description: |
+        Valid transitions are DRAFT→IN_REVIEW→APPROVED→RELEASED, with REJECT,
+        RECALL, SUPERSEDE, CLOSE and REOPEN. REJECT, CLOSE, SUPERSEDE and REOPEN
+        require a reason, which is written to the audit trail. The submitter of a
+        plan cannot approve it.
+      operationId: transitionVersion
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [SUBMIT, RECALL, APPROVE, REJECT, RELEASE, SUPERSEDE, CLOSE, REOPEN]
+                reason: { type: string }
+                lockThrough:
+                  type: string
+                  format: date
+                  description: On RELEASE, dates up to and including this become read-only.
+      responses:
+        "200":
+          description: The version in its new status.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlanVersion" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          description: The action is not available in the current status.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
+  /versions/{id}/cane:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Planning]
+      summary: List daily cane rows
+      operationId: listCane
+      parameters:
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - $ref: "#/components/parameters/Series"
+      responses:
+        "200":
+          description: The rows.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+    post:
+      tags: [Planning]
+      summary: Bulk create or update daily cane rows
+      description: |
+        Rows are matched on their natural key, so re-sending a day replaces it.
+        By default the batch is all-or-nothing; send `partial: true` to accept
+        the valid rows and receive the rest as issues.
+      operationId: upsertCane
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rows]
+              properties:
+                partial: { type: boolean, default: false }
+                rows:
+                  type: array
+                  maxItems: 20000
+                  items: { $ref: "#/components/schemas/DailyCanePlan" }
+      responses:
+        "200":
+          description: The write result.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UpsertResult" }
+        "400":
+          description: One or more rows were rejected; `errors[]` addresses them by row and field.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
+  /versions/{id}/production:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Planning]
+      summary: List daily production rows
+      operationId: listProduction
+      parameters:
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - $ref: "#/components/parameters/Series"
+        - name: productId
+          in: query
+          schema: { type: string }
+          description: Comma-separated product ids.
+      responses:
+        "200":
+          description: The rows.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+    post:
+      tags: [Planning]
+      summary: Bulk create or update daily production rows
+      operationId: upsertProduction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rows]
+              properties:
+                partial: { type: boolean }
+                rows:
+                  type: array
+                  items: { $ref: "#/components/schemas/DailyProductPlan" }
+      responses:
+        "200":
+          description: The write result.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UpsertResult" }
+
+  /versions/{id}/storage:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Planning]
+      summary: List stock ledger rows
+      operationId: listStorage
+      parameters:
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - $ref: "#/components/parameters/Series"
+        - name: warehouseId
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: The rows, each carrying its beginning and ending balance.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+    post:
+      tags: [Planning]
+      summary: Bulk create or update stock ledger rows
+      description: |
+        Writing a movement rebuilds the running balances of the affected
+        warehouse and product to the end of the plan, so the ledger stays
+        continuous.
+      operationId: upsertStorage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rows]
+              properties:
+                partial: { type: boolean }
+                rows:
+                  type: array
+                  items: { $ref: "#/components/schemas/DailyStoragePlan" }
+      responses:
+        "200":
+          description: The write result.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UpsertResult" }
+
+  /versions/{id}/shipments:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Planning]
+      summary: List daily shipment rows
+      operationId: listShipments
+      parameters:
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - $ref: "#/components/parameters/Series"
+        - name: channelId
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: The rows.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+    post:
+      tags: [Planning]
+      summary: Bulk create or update daily shipment rows
+      operationId: upsertShipments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rows]
+              properties:
+                partial: { type: boolean }
+                rows:
+                  type: array
+                  items: { $ref: "#/components/schemas/DailyShipmentPlan" }
+      responses:
+        "200":
+          description: The write result.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UpsertResult" }
+
+  /versions/{id}/material-requirements:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Materials]
+      summary: Packaging material requirements for a plan
+      operationId: materialRequirements
+      parameters:
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+      responses:
+        "200":
+          description: One row per material with cover, shortage and order dates.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+
+  /dashboard:
+    get:
+      tags: [Analytics]
+      summary: Executive dashboard for a season
+      operationId: getDashboard
+      parameters:
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: versionId
+          in: query
+          description: Defaults to the season's released baseline.
+          schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - name: asOf
+          in: query
+          description: Defaults to the last day with a recorded actual.
+          schema: { type: string, format: date }
+        - name: rollingWindow
+          in: query
+          schema: { type: integer, default: 7, minimum: 1, maximum: 90 }
+      responses:
+        "200":
+          description: KPIs, trends and alerts.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dashboard" }
+
+  /downtime:
+    get:
+      tags: [Analytics]
+      summary: List downtime events
+      operationId: listDowntime
+      parameters:
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - name: factoryId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: lineId
+          in: query
+          description: Comma-separated production line ids.
+          schema: { type: string }
+      responses:
+        "200":
+          description: The events.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+    post:
+      tags: [Analytics]
+      summary: Record a downtime event
+      description: |
+        Requires `downtime:write` and data scope over the factory.
+
+        The duration is derived from `startAt` and `endAt` when it is not
+        supplied, from whole minutes rather than through a float, so eight hours
+        and twenty minutes is recorded as 8.333. A stoppage that ran past
+        midnight keeps the business date of the shift that began it, so `endAt`
+        may fall on the following calendar day.
+
+        `reasonCode` is checked against the reason codes of category `DOWNTIME`.
+        An unknown code, or a real code from another family, is refused with a
+        field error addressed to `reasonCode`; the code may be omitted entirely
+        when the shift does not yet know why the line stopped.
+      operationId: saveDowntime
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DowntimeEvent" }
+      responses:
+        "201":
+          description: The stored event.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DowntimeEvent" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  # --------------------------------------------------------------------------
+  # Costing
+  # --------------------------------------------------------------------------
+
+  /costing/elements:
+    get:
+      tags: [Costing]
+      summary: The cost structure
+      description: Requires `masterdata:read`.
+      operationId: listCostElements
+      parameters:
+        - $ref: "#/components/parameters/Top"
+        - $ref: "#/components/parameters/Skip"
+        - $ref: "#/components/parameters/Search"
+      responses:
+        "200":
+          description: The cost elements, by category then code.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/CostElement" } }
+    put:
+      tags: [Costing]
+      summary: Create or update a cost element
+      description: |
+        Requires `masterdata:write`. The code is the business key, so a repeat
+        updates in place and re-running a seed or an import is idempotent.
+      operationId: saveCostElement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CostElement" }
+      responses:
+        "200":
+          description: The saved element.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CostElement" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /costing/rates:
+    get:
+      tags: [Costing]
+      summary: Cost rates
+      description: |
+        Requires `cost:read`. What a factory pays for cane is commercially
+        sensitive in a way that how much cane it crushed is not, so the rates
+        sit behind their own permission rather than behind `plan:read`.
+
+        Every rate matching the filter is returned; the effective dating is
+        resolved by the caller. Where two rates for one element and type are
+        both in force, the later start date is the one that applies.
+      operationId: listCostRates
+      parameters:
+        - $ref: "#/components/parameters/FactoryId"
+        - name: seasonId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: elementId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: rateType
+          in: query
+          schema: { type: string, enum: [STANDARD, ACTUAL] }
+        - name: on
+          in: query
+          description: Restrict to the rates in force on this date.
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: The rates.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/CostRate" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    put:
+      tags: [Costing]
+      summary: Create or correct a rate
+      description: |
+        Requires `cost:write`. The element, factory, rate type and start date
+        are the business key: re-entering a rate for a date that already has one
+        corrects it rather than leaving two rates silently competing. A price
+        change is a new rate with a later start date.
+      operationId: saveCostRate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CostRate" }
+      responses:
+        "200":
+          description: The saved rate.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CostRate" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /costing/rates/{id}:
+    delete:
+      tags: [Costing]
+      summary: Remove a rate entered in error
+      operationId: deleteCostRate
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "204": { description: Removed. }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /costing/exchange-rates:
+    get:
+      tags: [Costing]
+      summary: Currency quotations
+      operationId: listExchangeRates
+      responses:
+        "200":
+          description: The quotations.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/ExchangeRate" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    put:
+      tags: [Costing]
+      summary: Record a quotation
+      description: |
+        Requires `cost:write`. Only one direction of a pair need be entered: a
+        conversion with no direct quotation uses the inverse of the one that
+        exists. A conversion to the same currency needs no quotation at all, so
+        a single-currency site configures nothing.
+      operationId: saveExchangeRate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExchangeRate" }
+      responses:
+        "200":
+          description: The saved quotation.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExchangeRate" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /costing/runs:
+    get:
+      tags: [Costing]
+      summary: Saved cost runs
+      operationId: listCostRuns
+      parameters:
+        - name: seasonId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: versionId
+          in: query
+          schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/FactoryId"
+        - $ref: "#/components/parameters/Top"
+        - $ref: "#/components/parameters/Skip"
+      responses:
+        "200":
+          description: A page of runs with their totals. The lines belong to the detail view.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/CostRun" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      tags: [Costing]
+      summary: Cost a period
+      description: |
+        Requires `cost:read`. Prices every cost element against its own driver -
+        cane on tons crushed, fuel on hours run, packaging on tons of sugar
+        made, salaried staff on days elapsed - and splits the difference from
+        plan into the part caused by paying a different price and the part
+        caused by using a different quantity.
+
+        The driver quantities come from the same daily rows the dashboard
+        reports on, so a cost figure and a tonnage figure cannot disagree.
+
+        The rates are read as at the **last day** of the range, so a price
+        change inside the range applies to the whole of it. Splitting the range
+        is how a site prices either side of a change separately.
+
+        A run never fails on missing data: an element with no rate in force
+        contributes nothing, says so in `missing` on its line, and raises a
+        warning. Refusing the whole run because one rate is absent would make
+        the report useless exactly when it is most needed.
+
+        `save: true` stores the run under `code` so the figure can be reproduced
+        later after the rates have moved on; it requires `cost:write`, and the
+        season and code are the business key, so re-running a period replaces it.
+      operationId: runCosting
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [seasonId]
+              properties:
+                seasonId: { type: string, format: uuid }
+                versionId:
+                  type: string
+                  format: uuid
+                  description: The plan to cost against. Defaults to the released one.
+                from: { type: string, format: date, description: Defaults to the season start. }
+                to: { type: string, format: date, description: Defaults to the season end, or today. }
+                currency:
+                  type: string
+                  description: Defaults to the company's currency.
+                save: { type: boolean }
+                code: { type: string, description: Required in practice when saving; defaults to the date range. }
+                note: { type: string }
+      responses:
+        "200":
+          description: The costing, with the driver quantities it was built from.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CostRunResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /costing/runs/{id}:
+    get:
+      tags: [Costing]
+      summary: Read a saved run
+      description: |
+        The stored run keeps the rates it used, so the figure is reproducible
+        after those rates have changed.
+      operationId: getCostRun
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: The run with its lines.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CostRun" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  # --------------------------------------------------------------------------
+  # Saved views (variant management)
+  # --------------------------------------------------------------------------
+
+  /views:
+    get:
+      tags: [Views]
+      summary: The saved views a caller may use
+      description: |
+        A view is a named set of filters, sorts and column choices for one
+        screen — variant management, saved views and personalization are the
+        same thing stored.
+
+        These endpoints carry no permission check. A view belongs to whoever
+        made it, the way a notification is addressed to a role, and there is no
+        operation here that reaches anybody else's. Gating personalization
+        behind a permission would mean a role that can open a screen could not
+        remember how they like to look at it.
+
+        The list is the caller's own views plus the shared ones from factories
+        within their data scope, own first and then by name.
+      operationId: listViews
+      parameters:
+        - name: page
+          in: query
+          description: Restrict to one screen. The value is a route name.
+          schema:
+            type: string
+            enum: [board, downtime, orders, quality, stock, shipments, warehouse,
+                   materials, audit, interfaces, import, reports]
+      responses:
+        "200":
+          description: The views, own first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value:
+                        type: array
+                        items: { $ref: "#/components/schemas/SavedView" }
+    put:
+      tags: [Views]
+      summary: Save a view
+      description: |
+        Saving over one of your own names replaces it, which is what "save" on a
+        variant control means.
+
+        The payload is stored and not read: what a view holds is a property of
+        the screen it belongs to, and modelling it here would mean changing the
+        API every time a screen grew a filter. It must be valid JSON and at most
+        16 KiB.
+
+        The factory a shared view is published to comes from the caller's data
+        scope, not from the request: letting a client name one would let
+        somebody publish a variant into a plant they cannot see. An account
+        scoped to more than one factory cannot share.
+      operationId: saveView
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SaveViewRequest" }
+      responses:
+        "200":
+          description: The stored view.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SavedView" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /views/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Views]
+      summary: Delete one of your own views
+      description: |
+        The owner is part of the match, so somebody else's variant is `404`
+        rather than `403`: who has which variants is not a question this answers
+        to a caller.
+      operationId: deleteView
+      responses:
+        "204": { description: Deleted. }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /views/{id}/default:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Views]
+      summary: Apply this view when the screen opens
+      description: |
+        At most one default per person per page; setting one clears the
+        previous in the same statement, so two tabs cannot both win.
+
+        A separate command rather than a field on the save, because setting a
+        default is a different act from changing a filter and should not require
+        re-sending a payload the caller may no longer have.
+      operationId: setDefaultView
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                default:
+                  type: boolean
+                  description: >
+                    Omit or send true to make this the default; send false to
+                    clear it.
+      responses:
+        "204": { description: Done. }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /notifications:
+    get:
+      tags: [Inbox]
+      summary: The caller's inbox
+      description: |
+        A notification is addressed to a **role at a factory**, not to a named
+        person: there is no user directory here, and identity, roles and data
+        scope all come from the token. So somebody's inbox is what their roles
+        and their scope entitle them to see - and an alert addressed to a person
+        who has left is an alert nobody owns.
+
+        The distinction from an alert matters. An alert is calculated: it is true
+        of the plan at the moment somebody looks at the dashboard. A notification
+        is a record - this was raised, somebody was told, it has or has not been
+        read - and it survives the alert ceasing to be true, which is what makes
+        an inbox an account of what happened rather than a second dashboard.
+
+        The unread count comes back with the list, so the badge in the shell is
+        right without a second request.
+      operationId: listNotifications
+      parameters:
+        - name: unreadOnly
+          in: query
+          schema: { type: boolean }
+        - $ref: "#/components/parameters/Top"
+        - $ref: "#/components/parameters/Skip"
+      responses:
+        "200":
+          description: The notifications, newest first, with the unread count.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value:
+                        type: array
+                        items: { $ref: "#/components/schemas/Notification" }
+                      unread: { type: integer }
+
+  /notifications/{id}/read:
+    post:
+      tags: [Inbox]
+      summary: Mark one read
+      description: |
+        A notification is read once, by whoever gets to it first: it is addressed
+        to a role, and the point of that is that somebody deals with it - not
+        that everyone holding the role ticks it off separately.
+
+        A notification addressed to a role the caller does not hold is **not
+        found** rather than forbidden: whose inbox holds what is not a question
+        this system answers to a caller.
+      operationId: markNotificationRead
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: The caller's new unread count.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  unread: { type: integer }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /notifications/evaluate:
+    post:
+      tags: [Inbox]
+      summary: Evaluate the alerts now
+      description: |
+        Requires `plan:read`. Calculates the alerts for every open season and
+        puts the new ones in the right inboxes, exactly as the scheduled job
+        does. It is here so that somebody who has just fixed a plan can see the
+        effect without waiting for the next tick.
+
+        An alert already sitting unread in an inbox is not raised again - that is
+        what `suppressed` counts, and without it every tick would repeat the same
+        warning until nobody read any of them.
+      operationId: evaluateAlerts
+      responses:
+        "200":
+          description: What the pass did.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  seasons: { type: integer }
+                  alerts: { type: integer }
+                  raised: { type: integer }
+                  suppressed:
+                    type: integer
+                    description: Alerts already waiting unread, so not raised again.
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /import-fields:
+    get:
+      tags: [Imports]
+      summary: What each kind of file may contain
+      description: |
+        Requires `plan:read`. The catalogue a mapping screen builds itself from:
+        the fields of each kind of import, which are required, and which make up
+        the key that decides whether two rows are the same row.
+      operationId: listImportFields
+      responses:
+        "200":
+          description: One entry per kind.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  value:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        kind: { $ref: "#/components/schemas/ImportKind" }
+                        fields:
+                          type: array
+                          items: { $ref: "#/components/schemas/ImportField" }
+                        keys:
+                          type: array
+                          description: The fields that identify a row within its kind.
+                          items: { type: string }
+                  count: { type: integer }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /import-mappings:
+    get:
+      tags: [Imports]
+      summary: The mapping templates
+      description: |
+        Requires `plan:read`. A template says which column of which shape of file
+        holds which field, and how the dates and numbers in it are written. It is
+        master data because it is the thing a site gets right once: an import
+        that asked for the column positions on every upload would be re-entering
+        the mapping every time, which is where a mistake gets made.
+      operationId: listImportMappings
+      parameters:
+        - name: kind
+          in: query
+          schema: { $ref: "#/components/schemas/ImportKind" }
+      responses:
+        "200":
+          description: The templates.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  value:
+                    type: array
+                    items: { $ref: "#/components/schemas/ImportMapping" }
+                  count: { type: integer }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    put:
+      tags: [Imports]
+      summary: Create or change a mapping template
+      description: |
+        Requires `masterdata:write`. A mapping decides what a column means, and
+        somebody who can change that can change what every future import records
+        without touching a single figure.
+
+        A template that could not work is refused here rather than when a file is
+        uploaded: a field mapped twice, a required field not mapped at all, data
+        starting above the headings, or a date format written as `dd/mm/yyyy`
+        rather than as an example of 2 January 2006.
+      operationId: saveImportMapping
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ImportMapping" }
+      responses:
+        "200":
+          description: The stored template.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportMapping" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Duplicate" }
+        "412": { $ref: "#/components/responses/VersionConflict" }
+
+  /imports:
+    post:
+      tags: [Imports]
+      summary: Upload a file and stage it
+      description: |
+        The body is the file itself - `.csv`, `.tsv` or `.xlsx` - and everything
+        else is a query parameter, so a nightly export can be posted with curl
+        without building a multipart form.
+
+        **Nothing is written to the plan here.** The file is read through its
+        mapping, every row is validated, business codes are resolved, and the
+        result is held for review. What comes back is what *would* be written,
+        with every problem attached to the line of the file it is on.
+
+        Three things are reported that are not errors and matter anyway: columns
+        of the file that the mapping ignores, mapped columns the file does not
+        have, and rows whose key already exists in the plan and would therefore
+        be replaced. A renamed column looks exactly like an absent one, and a
+        default quietly standing in for it is how a wrong figure gets imported
+        without anybody noticing.
+
+        The permission the commit will need is checked *now*, so nobody uploads a
+        file and reads a preview of figures they may not post. `series=ACTUAL`
+        needs the posting permission for that kind; `PLAN` needs `plan:write`.
+
+        Send an `Idempotency-Key`: a client that retried because the connection
+        dropped must not stage the same file twice.
+      operationId: stageImport
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: mapping
+          in: query
+          description: The mapping template's code. Give this or `mappingId`.
+          schema: { type: string }
+        - name: mappingId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: versionId
+          in: query
+          required: true
+          description: The plan version the rows will be written to.
+          schema: { type: string, format: uuid }
+        - name: series
+          in: query
+          description: |
+            Whether the file holds plan or actual figures. Asked for rather than
+            inferred: a file of actuals loaded into the plan would overwrite the
+            baseline somebody is measuring against.
+          schema: { type: string, enum: [PLAN, ACTUAL], default: PLAN }
+        - name: fileName
+          in: query
+          description: Falls back to the `Content-Disposition` filename.
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          text/csv:
+            schema: { type: string }
+          application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+            schema: { type: string, format: binary }
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        "200":
+          description: The staged job, its rows and what did not line up.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportPreview" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Locked" }
+    get:
+      tags: [Imports]
+      summary: The import history
+      description: |
+        Requires `plan:read`. Every upload is kept, including the ones that were
+        refused: what somebody tried to import and could not is part of the
+        record.
+      operationId: listImports
+      parameters:
+        - name: kind
+          in: query
+          schema: { $ref: "#/components/schemas/ImportKind" }
+        - name: status
+          in: query
+          schema: { type: string, enum: [PENDING, VALIDATED, COMMITTED, FAILED, CANCELLED] }
+        - name: versionId
+          in: query
+          schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/Top"
+        - $ref: "#/components/parameters/Skip"
+      responses:
+        "200":
+          description: A page of jobs, newest first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/ImportJob" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /imports/{id}:
+    get:
+      tags: [Imports]
+      summary: Read a staged import
+      description: |
+        Requires `plan:read`. `errorsOnly=true` narrows the rows to the ones that
+        failed, which is what the preview screen shows when a file is mostly
+        sound.
+      operationId: getImport
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - name: errorsOnly
+          in: query
+          schema: { type: boolean }
+        - $ref: "#/components/parameters/Top"
+        - $ref: "#/components/parameters/Skip"
+      responses:
+        "200":
+          description: The job and a page of its staged rows.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportPreview" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /imports/{id}/errors:
+    get:
+      tags: [Imports]
+      summary: Download the rows that failed
+      description: |
+        Requires `plan:read`. A CSV of row, field, problem and value, to be
+        opened next to the file that was uploaded. The row number is the first
+        column because it is the line in that spreadsheet, and fixing an import
+        means going to those lines.
+      operationId: downloadImportErrors
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: The error rows.
+          content:
+            text/csv:
+              schema: { type: string }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /imports/{id}/commit:
+    post:
+      tags: [Imports]
+      summary: Write a staged import into the plan
+      description: |
+        The commit goes through the ordinary planning service, so an imported row
+        meets the same validation, the same period locking, the same
+        authorisation and the same audit trail as a row somebody types into the
+        grid. An import that could write what a person could not would be a hole
+        in every rule above it.
+
+        The default is **all or nothing**, which is what section 22 asks for: a
+        file with any bad row is refused whole, and the sound rows are committed
+        only when the caller asks for that explicitly with `partial: true`.
+
+        Rows whose key already exists are replaced rather than added, and the
+        count of those is reported back.
+      operationId: commitImport
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                partial:
+                  type: boolean
+                  description: Commit the sound rows and leave the rest.
+      responses:
+        "200":
+          description: What was written.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportCommitResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: The import has already been committed or cancelled.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
+  /imports/{id}/cancel:
+    post:
+      tags: [Imports]
+      summary: Abandon a staged import
+      description: |
+        Requires `plan:read`. The job and its rows stay: what was uploaded and
+        refused is part of the record.
+      operationId: cancelImport
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: The cancelled job.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportJob" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: The import is already committed or cancelled.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
+  /integration/events:
+    get:
+      tags: [Interfaces]
+      summary: The outbox
+      description: |
+        Requires `integration:read`. Every change this system publishes is
+        written to an outbox in the same transaction as the change itself, so an
+        event can never describe something that was rolled back, and a dispatcher
+        delivers it afterwards.
+
+        Delivery is **at least once**. A crash between delivering an event and
+        recording that it was delivered sends it again, which is why every
+        envelope carries an `id` a consumer deduplicates on. Exactly-once across
+        two systems is not a promise this or any other system can keep.
+
+        Filter with `exhausted=true` to see the events that have stopped being
+        retried and are waiting for somebody. They are never discarded.
+      operationId: listIntegrationEvents
+      parameters:
+        - name: topic
+          in: query
+          schema: { $ref: "#/components/schemas/Topic" }
+        - name: unpublished
+          in: query
+          description: Only events still waiting to be delivered.
+          schema: { type: boolean }
+        - name: exhausted
+          in: query
+          description: Only events that have reached the retry ceiling.
+          schema: { type: boolean }
+        - $ref: "#/components/parameters/Top"
+        - $ref: "#/components/parameters/Skip"
+      responses:
+        "200":
+          description: A page of events, newest first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/OutboxEvent" } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /integration/events/{id}/retry:
+    post:
+      tags: [Interfaces]
+      summary: Deliver one event now
+      description: |
+        Requires `integration:read`. Delivers the event immediately whatever its
+        backoff says, which is what an operator does once the far end is fixed.
+        An event that has given up after twenty-five attempts is retried by this
+        endpoint like any other.
+
+        A delivery that fails still records the attempt and the new error, and
+        answers `502` quoting what the far end said.
+      operationId: retryIntegrationEvent
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: The event, now published.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OutboxEvent" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "502": { $ref: "#/components/responses/Upstream" }
+
+  /integration/dispatch:
+    post:
+      tags: [Interfaces]
+      summary: Run the dispatcher now
+      description: |
+        Requires `integration:read`. Publishes the events whose backoff has
+        elapsed, exactly as the scheduled dispatcher does. It is here so that a
+        backlog can be drained on demand after an outage rather than waiting for
+        the next tick.
+      operationId: dispatchIntegrationEvents
+      parameters:
+        - name: limit
+          in: query
+          description: How many events this pass takes. Defaults to 50.
+          schema: { type: integer, minimum: 1, maximum: 500 }
+      responses:
+        "200":
+          description: What the pass did.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DispatchResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /integration/jobs:
+    get:
+      tags: [Interfaces]
+      summary: What the background jobs last did
+      description: |
+        Requires `integration:read`. The recurring work runs inside the server
+        process rather than in a separate worker, and two instances behind a
+        load balancer both have a scheduler - so each job is taken under a lease
+        and only one instance runs it per tick.
+
+        "Is the dispatcher running?" is a question somebody asks in the evening,
+        and the honest answer is a timestamp. A `finishedAt` far in the past
+        means the scheduler has stopped, whatever the process says about itself.
+      operationId: listJobs
+      responses:
+        "200":
+          description: One record per job.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  value:
+                    type: array
+                    items: { $ref: "#/components/schemas/JobRun" }
+                  count: { type: integer }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /integration/weighbridge:
+    post:
+      tags: [Interfaces]
+      summary: Gate tickets from the weighbridge
+      description: |
+        Requires `integration:write`, which is held by the `INTEGRATION` machine
+        account and by nothing else.
+
+        Each ticket carries the gross and tare weights rather than only the net,
+        because a dispute about a delivery is settled by the two weights. The
+        accepted tonnage is `(gross - tare - rejected) / 1000`, and cane refused
+        at the gate needs a reason code, since that is what the grower is shown.
+
+        Tickets are **added** to the day they name, at the factory they name -
+        the gate weighs a lorry at a time and each message carries what has
+        arrived since the last one. The crushed figure is never touched: it comes
+        from the mill, and a gate reading is not evidence about it.
+
+        The default is all or nothing, so a terminal that sent a bad batch
+        resends the batch rather than working out what got through. Send
+        `partial: true` to accept the sound tickets and be told about the rest.
+
+        Send an `Idempotency-Key`: a terminal that lost the network mid-send
+        retries, and the retry must not weigh the same lorries twice.
+      operationId: postWeighbridgeTickets
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tickets]
+              properties:
+                tickets:
+                  type: array
+                  minItems: 1
+                  items: { $ref: "#/components/schemas/WeighbridgeTicket" }
+                partial:
+                  type: boolean
+                  description: Accept the sound tickets and report the rest.
+      responses:
+        "200":
+          description: What was recorded, by factory and day.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WeighbridgeResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /integration/lab-results:
+    post:
+      tags: [Interfaces]
+      summary: Measurements from the laboratory system
+      description: |
+        Requires `integration:write`. The message names the sample by the number
+        printed on the bottle and the parameters by their codes, because that is
+        what an instrument knows.
+
+        The readings are then judged by the ordinary quality service: the same
+        effective-dated specifications, the same verdict, and the same hold on
+        the failing material. An interface that could reach a different verdict
+        from a technician entering the same numbers would be worse than no
+        interface.
+
+        `complete: false` saves an interim sheet without producing a verdict,
+        which is what an instrument reporting one parameter at a time needs.
+      operationId: postLabResults
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LabResultMessage" }
+      responses:
+        "200":
+          description: The sample, its verdict and any hold that was placed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ResultsOutcome" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /reports:
+    get:
+      tags: [Reports]
+      summary: The report catalogue
+      operationId: listReports
+      responses:
+        "200":
+          description: Available reports with their parameters and formats.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+
+  /reports/{code}:
+    parameters:
+      - name: code
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+            - daily-plan
+            - target-vs-actual
+            - cane-crushing
+            - recovery-mass-balance
+            - remelt-refining
+            - packing
+            - order-variance
+            - downtime
+            - quality-results
+            - stock-ledger
+            - capacity-forecast
+            - shipment-plan
+            - material-requirements
+            - season-summary
+            - approval-history
+    get:
+      tags: [Reports]
+      summary: Run a report
+      description: |
+        Exports preserve the filters, units, totals and report metadata:
+        company, factory, season, plan version, generated date and generated-by
+        user appear in every format.
+      operationId: runReport
+      parameters:
+        - name: format
+          in: query
+          schema: { type: string, enum: [json, csv, xlsx, pdf], default: json }
+        - name: versionId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: seasonId
+          in: query
+          schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - name: warehouseId
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: The report.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportTable" }
+            text/csv:
+              schema: { type: string }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+            application/pdf:
+              schema: { type: string, format: binary }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  # --------------------------------------------------------------------------
+  # Execution: stock, postings, production orders, quality, maintenance
+  # --------------------------------------------------------------------------
+
+  /stock:
+    get:
+      tags: [Inventory]
+      summary: Current stock positions
+      description: |
+        The balance of every product in the warehouses the caller may see, with
+        the held quantity and what is therefore available to ship. Requires
+        `plan:read`.
+      operationId: listStock
+      parameters:
+        - name: warehouseId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: productId
+          in: query
+          description: One id or a comma separated list.
+          schema: { type: string }
+      responses:
+        "200":
+          description: One line per warehouse and product.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/StockLine" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /inventory/documents:
+    get:
+      tags: [Inventory]
+      summary: List postings
+      operationId: listInventoryDocuments
+      parameters:
+        - $ref: "#/components/parameters/FactoryId"
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - name: warehouseId
+          in: query
+          description: Restrict to documents with a line touching this warehouse.
+          schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/Top"
+        - $ref: "#/components/parameters/Skip"
+      responses:
+        "200":
+          description: A page of documents, newest business date first, each with its lines.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/InventoryDocument" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      tags: [Inventory]
+      summary: Move stock
+      description: |
+        Posts a receipt, issue, transfer, adjustment, count, hold, release or
+        shipment. Requires `actual:stock`.
+
+        Quantities are entered unsigned; the document type gives them their
+        sign. A transfer names the receiving warehouse and becomes a pair of
+        signed lines, so both balances move together or neither does.
+
+        The posting is refused, with the offending line named in `errors[]`, if
+        it would drive a balance below zero, move stock that quality has held,
+        or take a store past its usable capacity. The overrides in the request
+        need the `capacity:override` permission and are recorded on the audit
+        event.
+      operationId: postInventoryDocument
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PostingRequest" }
+      responses:
+        "200":
+          description: The posted document with its lines and assigned number.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InventoryDocument" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Duplicate" }
+
+  /inventory/documents/{id}:
+    get:
+      tags: [Inventory]
+      summary: Read one posting
+      operationId: getInventoryDocument
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: The document with its lines.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InventoryDocument" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /inventory/documents/{id}/reverse:
+    post:
+      tags: [Inventory]
+      summary: Reverse a posting
+      description: |
+        Posts the counter-document and flags the original. Nothing is deleted
+        and nothing is edited: both documents stay in the ledger. A document may
+        be reversed once.
+
+        A reversal restores a position the original moved away from, and the
+        stock may have moved on since, so it is allowed to take a balance below
+        zero: leaving a posting standing that everybody agrees never happened is
+        worse than a balance that shows the truth.
+      operationId: reverseInventoryDocument
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                businessDate: { type: string, format: date, description: Defaults to the original's date. }
+                reason: { type: string, description: Required; it is what the audit trail records. }
+      responses:
+        "200":
+          description: The reversal document.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InventoryDocument" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /production-orders:
+    get:
+      tags: [Production]
+      summary: List production orders
+      operationId: listProductionOrders
+      parameters:
+        - $ref: "#/components/parameters/FactoryId"
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - name: lineId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: productId
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          description: One status or a comma separated list.
+          schema: { type: string }
+        - name: openOnly
+          in: query
+          description: Only orders that are not completed, closed or cancelled.
+          schema: { type: boolean }
+        - $ref: "#/components/parameters/Top"
+        - $ref: "#/components/parameters/Skip"
+      responses:
+        "200":
+          description: A page of orders.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/ProductionOrder" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      tags: [Production]
+      summary: Create one order by hand
+      description: Requires `actual:production`. The order number is issued by the server.
+      operationId: createProductionOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [factoryId, businessDate, productId, plannedQty]
+              properties:
+                factoryId: { type: string, format: uuid }
+                lineId: { type: string, format: uuid }
+                versionId: { type: string, format: uuid }
+                businessDate: { type: string, format: date }
+                shiftId: { type: string, format: uuid }
+                productId: { type: string, format: uuid }
+                packagingId: { type: string, format: uuid }
+                plannedQty: { $ref: "#/components/schemas/Quantity" }
+                priority: { type: integer, minimum: 1, maximum: 9 }
+                team: { type: string }
+      responses:
+        "201":
+          description: The created order.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductionOrder" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /production-orders/{id}:
+    get:
+      tags: [Production]
+      summary: Read one order with its confirmations
+      operationId: getProductionOrder
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: The order, its confirmations and what may be done to it next.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  order: { $ref: "#/components/schemas/ProductionOrder" }
+                  confirmations:
+                    type: array
+                    items: { $ref: "#/components/schemas/ProductionConfirmation" }
+                  openQty: { $ref: "#/components/schemas/Quantity" }
+                  variancePct: { $ref: "#/components/schemas/Decimal" }
+                  allowedActions:
+                    type: array
+                    items: { type: string, enum: [RELEASE, CONFIRM, COMPLETE, TECHNICALLY_CLOSE, CANCEL] }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /production-orders/{id}/action:
+    post:
+      tags: [Production]
+      summary: Move an order through its life cycle
+      description: |
+        `PLANNED` releases or cancels; a confirmed order completes or is
+        technically closed. Closing an order whose confirmed quantity is more
+        than the tolerance away from its plan needs a `varianceReason` that is a
+        configured reason code, and the caller must hold `plan:approve`.
+      operationId: actOnProductionOrder
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [RELEASE, COMPLETE, TECHNICALLY_CLOSE, CANCEL] }
+                reason: { type: string }
+                varianceReason: { type: string, description: A reason code, required when closing outside tolerance. }
+                rowVersion: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: The order in its new status.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductionOrder" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          description: The action is not legal in the order's current status.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "412": { $ref: "#/components/responses/VersionConflict" }
+
+  /production-orders/{id}/confirm:
+    post:
+      tags: [Production]
+      summary: Record what a shift produced
+      description: |
+        Writes the confirmation, receipts the good output into the named
+        warehouse, advances the order's confirmed quantity and status, and
+        records the audit event - all in one transaction. Scrap and rework are
+        recorded but not receipted: scrap has left the process and rework has
+        not finished it.
+
+        Omitting `warehouseId` records the production without moving stock,
+        which is what a site keeping its inventory elsewhere wants.
+      operationId: confirmProductionOrder
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ConfirmRequest" }
+      responses:
+        "200":
+          description: The confirmation, the updated order and the goods receipt.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  confirmation: { $ref: "#/components/schemas/ProductionConfirmation" }
+                  order: { $ref: "#/components/schemas/ProductionOrder" }
+                  document: { $ref: "#/components/schemas/InventoryDocument" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          description: The order cannot be confirmed in its current status.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
+  /confirmations/{id}/reverse:
+    post:
+      tags: [Production]
+      summary: Undo a confirmation
+      description: |
+        Reverses the goods receipt, brings the order's confirmed quantity back
+        down and flags the confirmation. Both records stay in place.
+      operationId: reverseConfirmation
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                businessDate: { type: string, format: date }
+                reason: { type: string }
+      responses:
+        "200":
+          description: The reversed confirmation, the updated order and the counter-posting.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  confirmation: { $ref: "#/components/schemas/ProductionConfirmation" }
+                  order: { $ref: "#/components/schemas/ProductionOrder" }
+                  document: { $ref: "#/components/schemas/InventoryDocument" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /versions/{id}/production-orders:
+    post:
+      tags: [Production]
+      summary: Create orders from the released plan
+      description: |
+        Turns the daily production plan of a **released** version into orders. A
+        draft may not be used: an order is an instruction to the floor, and
+        instructions do not come from a plan somebody is still editing.
+
+        A day and product that already has an order is skipped and reported
+        rather than duplicated, so the run can be repeated as the season
+        advances.
+      operationId: createOrdersFromPlan
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [from, to]
+              properties:
+                from: { type: string, format: date }
+                to: { type: string, format: date }
+                products:
+                  type: array
+                  items: { type: string, format: uuid }
+      responses:
+        "200":
+          description: The orders created and the planned rows that were skipped.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created:
+                    type: array
+                    items: { $ref: "#/components/schemas/ProductionOrder" }
+                  skipped:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        businessDate: { type: string, format: date }
+                        productId: { type: string, format: uuid }
+                        reason: { type: string }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          description: The version is not released.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
+  /quality/parameters:
+    get:
+      tags: [Quality]
+      summary: List measurable properties
+      operationId: listQualityParameters
+      responses:
+        "200":
+          description: The parameter catalogue.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/QualityParameter" } }
+    put:
+      tags: [Quality]
+      summary: Create or update a parameter
+      description: Requires `masterdata:write`. The code is the business key, so a repeat updates in place.
+      operationId: saveQualityParameter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/QualityParameter" }
+      responses:
+        "200":
+          description: The saved parameter.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QualityParameter" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /quality/specs:
+    get:
+      tags: [Quality]
+      summary: Specifications in force for a product on a date
+      operationId: listQualitySpecs
+      parameters:
+        - name: productId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: on
+          in: query
+          description: The date the limits are read for. Defaults to today.
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: The effective specifications.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/QualitySpec" } }
+    put:
+      tags: [Quality]
+      summary: Create or update a specification
+      description: |
+        Limits are effective dated, so tightening one does not retrospectively
+        fail last season's production. The business key is the product, the
+        parameter and the start date; changing a limit already in force means
+        ending the current specification and starting a new one.
+      operationId: saveQualitySpec
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/QualitySpec" }
+      responses:
+        "200":
+          description: The saved specification.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QualitySpec" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /quality/samples:
+    get:
+      tags: [Quality]
+      summary: List samples
+      operationId: listQualitySamples
+      parameters:
+        - $ref: "#/components/parameters/FactoryId"
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - name: productId
+          in: query
+          schema: { type: string }
+        - $ref: "#/components/parameters/Top"
+        - $ref: "#/components/parameters/Skip"
+      responses:
+        "200":
+          description: A page of samples with their results.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/QualitySample" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      tags: [Quality]
+      summary: Open a sample
+      description: Requires `quality:write`. The sample number is issued by the server.
+      operationId: createQualitySample
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId, factoryId, businessDate]
+              properties:
+                productId: { type: string, format: uuid }
+                batchId: { type: string, format: uuid }
+                batchCode:
+                  type: string
+                  description: |
+                    The batch by the code on the pallet card, which is what a
+                    technician has. It must already exist: a sample of a batch
+                    nobody produced is a sample of nothing.
+                factoryId: { type: string, format: uuid }
+                businessDate: { type: string, format: date }
+                shiftId: { type: string, format: uuid }
+                comment: { type: string }
+      responses:
+        "201":
+          description: The open sample.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QualitySample" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /quality/samples/{id}:
+    get:
+      tags: [Quality]
+      summary: Read one sample with its results
+      operationId: getQualitySample
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: The sample.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QualitySample" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /batches:
+    get:
+      tags: [Production]
+      summary: Batches
+      description: |
+        Requires `plan:read`. A batch is a row rather than a string typed twice:
+        it is what a certificate of analysis is about, what a quality hold
+        blocks, and what a customer quotes back when something is wrong with a
+        consignment. A free-text batch would make all three unanswerable.
+
+        Batches are created by the production that made them — a confirmation
+        carrying a `batchCode` nobody has used yet brings one into existence.
+        Nothing else creates one: a laboratory sample or a stock movement naming
+        an unknown batch is refused, because a sample of a batch nobody produced
+        is a sample of nothing.
+      operationId: listBatches
+      parameters:
+        - $ref: "#/components/parameters/FactoryId"
+        - name: number
+          in: query
+          description: The batch code, as written on the pallet card.
+          schema: { type: string }
+        - name: productId
+          in: query
+          schema: { type: string }
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - name: status
+          in: query
+          schema: { type: string, enum: [OPEN, RELEASED, BLOCKED, CONSUMED] }
+        - $ref: "#/components/parameters/Top"
+        - $ref: "#/components/parameters/Skip"
+      responses:
+        "200":
+          description: A page of batches, newest code first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/Batch" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /batches/{id}:
+    get:
+      tags: [Production]
+      summary: Read one batch
+      operationId: getBatch
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: The batch.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Batch" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /quality/samples/{id}/certificate:
+    get:
+      tags: [Quality]
+      summary: Certificate of analysis
+      description: |
+        Requires `report:read`. The document that goes to the customer with a
+        consignment: the sample, its measurements, the limits each was judged
+        against and the verdict.
+
+        Only a **completed** sample can produce one. A certificate says the
+        material was tested and met its specification, and issuing one from a
+        half-finished sheet would be a statement the laboratory has not made -
+        the kind of document that is read as a guarantee.
+
+        The limits printed are those copied onto each result when the sample was
+        completed, not the specification in force today. A limit tightened next
+        season must not retrospectively change what a customer was told about
+        sugar shipped this one.
+      operationId: getCertificateOfAnalysis
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - name: format
+          in: query
+          description: |
+            `json` for the screen; `pdf` is what is sent with a consignment.
+          schema: { type: string, enum: [json, csv, xlsx, pdf], default: json }
+      responses:
+        "200":
+          description: The certificate, as JSON or as a file.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Certificate" }
+            application/pdf:
+              schema: { type: string, format: binary }
+            text/csv:
+              schema: { type: string }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+        "400":
+          description: The sample is not complete, or has no measurements to certify.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /quality/samples/{id}/results:
+    post:
+      tags: [Quality]
+      summary: Enter the laboratory sheet
+      description: |
+        Judges each measurement against the specification in force on the
+        sample's business date and copies the limits onto the result, so a
+        result keeps saying what it was judged against even after somebody edits
+        the specification.
+
+        A measurement whose parameter has no specification in force is recorded
+        and reported in `unspecified`: it judges nothing, and an unspecified
+        parameter is a configuration gap rather than a quality event.
+
+        A completed sheet whose verdict is `FAIL` blocks the quantity named in
+        `holdQuantity`, posting the HOLD document that moves the held quantity
+        on the balance.
+      operationId: recordQualityResults
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [results]
+              properties:
+                results:
+                  type: array
+                  items:
+                    type: object
+                    required: [parameterId, value]
+                    properties:
+                      parameterId: { type: string, format: uuid }
+                      value: { $ref: "#/components/schemas/Decimal" }
+                      uom: { type: string }
+                      comment: { type: string }
+                complete: { type: boolean, description: Closes the sample and produces a verdict. }
+                holdWarehouse: { type: string, format: uuid }
+                holdQuantity: { $ref: "#/components/schemas/Quantity" }
+      responses:
+        "200":
+          description: The sample, its verdict, any hold placed and the unspecified parameters.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ResultsOutcome" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409":
+          description: The sample is already complete and takes no more results.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
+  /quality/holds:
+    get:
+      tags: [Quality]
+      summary: List holds on stock
+      operationId: listQualityHolds
+      parameters:
+        - name: warehouseId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: productId
+          in: query
+          schema: { type: string }
+        - name: openOnly
+          in: query
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: The holds.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/QualityHold" } }
+    post:
+      tags: [Quality]
+      summary: Block stock by hand
+      description: |
+        Requires `quality:write`. The hold record and the HOLD posting that
+        moves the held quantity are written together, so a hold on the quality
+        record and a balance that still shows the sugar as available cannot
+        drift apart.
+      operationId: placeQualityHold
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [warehouseId, productId, quantity, placedOn, reason]
+              properties:
+                warehouseId: { type: string, format: uuid }
+                productId: { type: string, format: uuid }
+                batchId: { type: string, format: uuid }
+                sampleId: { type: string, format: uuid }
+                quantity: { $ref: "#/components/schemas/Quantity" }
+                placedOn: { type: string, format: date }
+                reason: { type: string }
+      responses:
+        "200":
+          description: The hold.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QualityHold" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /quality/holds/{id}/release:
+    post:
+      tags: [Quality]
+      summary: Free held stock
+      description: |
+        Requires `quality:release`, which is a different permission from the one
+        that places a hold, so a site can put the two in different hands. Posts
+        the RELEASE document that frees the held quantity.
+      operationId: releaseQualityHold
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                releasedOn: { type: string, format: date, description: Defaults to today. }
+                reason: { type: string }
+                rowVersion: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: The released hold.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QualityHold" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "412": { $ref: "#/components/responses/VersionConflict" }
+
+  /maintenance:
+    get:
+      tags: [Maintenance]
+      summary: The outage calendar
+      operationId: listMaintenance
+      parameters:
+        - $ref: "#/components/parameters/FactoryId"
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - name: status
+          in: query
+          description: One status or a comma separated list.
+          schema: { type: string }
+      responses:
+        "200":
+          description: The windows overlapping the range.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      value: { type: array, items: { $ref: "#/components/schemas/MaintenanceWindow" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    put:
+      tags: [Maintenance]
+      summary: Create, amend or approve a window
+      description: |
+        Writing a window needs `downtime:write`. Setting the status to
+        `APPROVED` needs `plan:approve` as well, because an approved,
+        factory-wide window lengthens the campaign: the plan generator treats
+        its days as non-working and the season's end date moves. A line-specific
+        window does not stop the mill and never removes a crushing day.
+      operationId: saveMaintenance
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MaintenanceWindow" }
+      responses:
+        "200":
+          description: The saved window.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MaintenanceWindow" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "412": { $ref: "#/components/responses/VersionConflict" }
+
+  /audit:
+    get:
+      tags: [Audit]
+      summary: Read the audit trail
+      description: Requires the `audit:read` permission. Records are append only.
+      operationId: listAudit
+      parameters:
+        - name: entity
+          in: query
+          schema: { type: string }
+        - name: entityId
+          in: query
+          schema: { type: string }
+        - name: actor
+          in: query
+          schema: { type: string }
+        - name: action
+          in: query
+          schema: { type: string }
+        - $ref: "#/components/parameters/Top"
+        - $ref: "#/components/parameters/Skip"
+      responses:
+        "200":
+          description: A page of audit events, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /openapi.yaml:
+    get:
+      tags: [Operations]
+      summary: This document
+      operationId: getOpenAPI
+      security: []
+      responses:
+        "200":
+          description: The specification.
+          content:
+            application/yaml:
+              schema: { type: string }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        An access token from the enterprise identity provider. Roles are read
+        from the configured claim and mapped onto application roles; the data
+        scope restricts the caller to their companies and factories.
+
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    FactoryId:
+      name: factoryId
+      in: query
+      description: Restrict to one factory. A caller with more than one in scope should always send it.
+      schema: { type: string, format: uuid }
+    Top:
+      name: $top
+      in: query
+      description: Page size, capped at 1000.
+      schema: { type: integer, default: 100, minimum: 1, maximum: 1000 }
+    Skip:
+      name: $skip
+      in: query
+      schema: { type: integer, default: 0, minimum: 0 }
+    Search:
+      name: $search
+      in: query
+      description: Case-insensitive match on the entity's code and name.
+      schema: { type: string }
+    From:
+      name: from
+      in: query
+      description: Inclusive lower bound on the business date.
+      schema: { type: string, format: date }
+    To:
+      name: to
+      in: query
+      description: Inclusive upper bound on the business date.
+      schema: { type: string, format: date }
+    Series:
+      name: series
+      in: query
+      description: Restrict to planned values or recorded actuals.
+      schema: { type: string, enum: [PLAN, ACTUAL] }
+    IfMatch:
+      name: If-Match
+      in: header
+      description: The row version read earlier, as returned in the ETag.
+      schema: { type: string }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      description: A client-generated key; a repeat replays the first response.
+      schema: { type: string, maxLength: 128 }
+
+  headers:
+    ETag:
+      description: The record's row version, for optimistic concurrency.
+      schema: { type: string }
+
+  responses:
+    BadRequest:
+      description: The request was not valid.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Unauthenticated:
+      description: No usable access token was presented.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Forbidden:
+      description: The caller lacks the permission or the data scope.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    NotFound:
+      description: No such record.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Duplicate:
+      description: The business key already exists.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    VersionConflict:
+      description: The record was changed by somebody else.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Locked:
+      description: |
+        The period or the plan version is locked, so it cannot be written to.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Upstream:
+      description: |
+        A connected system refused or could not be reached. This system did its
+        part; the detail names the one that did not, so the reader knows whom to
+        call.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+
+  schemas:
+    Problem:
+      type: object
+      description: RFC 9457 problem details, extended with field errors.
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        correlationId: { type: string }
+        errors:
+          type: array
+          items: { $ref: "#/components/schemas/FieldError" }
+
+    FieldError:
+      type: object
+      description: |
+        One problem, addressed by the row and field it is about so a table can
+        highlight the control that caused it.
+      properties:
+        row: { type: integer, description: Index of the offending row in a bulk request. }
+        field: { type: string }
+        code: { type: string }
+        message: { type: string }
+
+    Page:
+      type: object
+      properties:
+        value: { type: array, items: { type: object } }
+        count: { type: integer }
+        skip: { type: integer }
+        top: { type: integer }
+
+    Quantity:
+      type: string
+      description: |
+        An exact decimal quantity in tons, scale 3, carried as a string so that
+        no client turns it into a binary float on the way past.
+      pattern: '^-?[0-9]+(\.[0-9]+)?$'
+      examples: ["16788.321"]
+
+    Decimal:
+      type: string
+      description: An exact decimal, carried as a string. Rates use scale 3, factors scale 6.
+      pattern: '^-?[0-9]+(\.[0-9]+)?$'
+      examples: ["11.000"]
+
+    SessionProfile:
+      type: object
+      properties:
+        subject: { type: string }
+        username: { type: string }
+        displayName: { type: string }
+        email: { type: string }
+        roles: { type: array, items: { type: string } }
+        permissions: { type: array, items: { type: string } }
+        companies: { type: array, items: { type: string } }
+        factories: { type: array, items: { type: string } }
+
+    Season:
+      type: object
+      required: [companyId, factoryId, code, startDate]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        companyId: { type: string, format: uuid }
+        factoryId: { type: string, format: uuid }
+        code: { type: string, examples: ["2026-2027"] }
+        name: { type: string }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        plannedDays: { type: integer, examples: [137] }
+        status: { type: string, enum: [OPEN, CLOSED] }
+        rowVersion: { type: integer, readOnly: true }
+
+    PlanVersion:
+      type: object
+      required: [code, planType]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        seasonId: { type: string, format: uuid }
+        versionNo: { type: integer, readOnly: true }
+        code: { type: string, examples: ["V1"] }
+        description: { type: string }
+        planType:
+          type: string
+          enum: [BUDGET, FORECAST, REVISED, WHATIF, BASELINE, ACTUAL, LATEST_ESTIMATE]
+        status:
+          type: string
+          enum: [DRAFT, IN_REVIEW, APPROVED, RELEASED, SUPERSEDED, REJECTED, CLOSED]
+          readOnly: true
+        owner: { type: string }
+        sourceVersionId: { type: string, format: uuid }
+        effectiveFrom: { type: string, format: date }
+        effectiveTo: { type: string, format: date }
+        lockedThrough: { type: string, format: date }
+        approvedBy: { type: string, readOnly: true }
+        approvedAt: { type: string, format: date-time, readOnly: true }
+        releasedAt: { type: string, format: date-time, readOnly: true }
+        comment: { type: string }
+        rowVersion: { type: integer, readOnly: true }
+
+    VersionDetail:
+      type: object
+      properties:
+        version: { $ref: "#/components/schemas/PlanVersion" }
+        assumptions:
+          type: array
+          items: { $ref: "#/components/schemas/PlanAssumption" }
+        productMix:
+          type: array
+          items: { $ref: "#/components/schemas/ProductMixEntry" }
+        allowedActions:
+          type: array
+          description: Only the actions this caller could actually complete.
+          items: { type: string }
+        editable: { type: boolean }
+
+    PlanAssumption:
+      type: object
+      required: [code, value]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        versionId: { type: string, format: uuid, readOnly: true }
+        code:
+          type: string
+          description: |
+            A well-known code such as CANE_TARGET_TONS, RAW_RECOVERY_PCT,
+            REMELT_INPUT_FACTOR, QUOTA_SHIPMENT_TPD, or a site-defined one.
+          examples: ["RAW_RECOVERY_PCT"]
+        description: { type: string }
+        value: { type: number, examples: [11.0] }
+        uom: { type: string, examples: ["%"] }
+        validFrom: { type: string, format: date }
+        validTo: { type: string, format: date }
+
+    ProductMixEntry:
+      type: object
+      required: [productId]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        versionId: { type: string, format: uuid, readOnly: true }
+        productId: { type: string, format: uuid }
+        packagingId: { type: string, format: uuid }
+        warehouseId: { type: string, format: uuid }
+        lineId: { type: string, format: uuid }
+        seasonTons: { $ref: "#/components/schemas/Quantity" }
+        dailyRateTons:
+          allOf: [{ $ref: "#/components/schemas/Quantity" }]
+          description: |
+            Caps the daily output for this line. Zero spreads the season
+            tonnage evenly; a positive value runs at that rate until the
+            tonnage is used up, which is how jumbo bag packing is planned.
+
+    CaneSource:
+      type: object
+      description: A farm, estate block or outgrower group that supplies cane.
+      required: [factoryId, code, name, sourceType]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        factoryId: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        sourceType:
+          type: string
+          enum: [ESTATE, CONTRACT, OUTGROWER]
+          description: |
+            Who owns the cane, and therefore how much notice the mill has of it
+            arriving. An estate block is the mill's own land and the first thing
+            a planner moves; an outgrower's tonnage is a forecast rather than a
+            commitment.
+        zone: { type: string, description: The harvesting district trucks are allocated to. }
+        distanceKm:
+          allOf: [{ $ref: "#/components/schemas/Quantity" }]
+          description: Drives haulage cost and staleness - cane deteriorates from the moment it is cut.
+        hectares: { $ref: "#/components/schemas/Quantity" }
+        variety: { type: string }
+        expectedYieldTonsPerHectare: { $ref: "#/components/schemas/Quantity" }
+        expectedPolPct: { $ref: "#/components/schemas/Percent" }
+        truckCapacityTons: { $ref: "#/components/schemas/Quantity" }
+        trucksPerDay: { type: integer }
+        validFrom: { type: string, format: date }
+        validTo: { type: string, format: date }
+        active: { type: boolean }
+
+    CaneSupplyEntry:
+      type: object
+      description: What one source is committed to for one season, and its harvest window.
+      required: [sourceId, harvestFrom, harvestTo]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        versionId: { type: string, format: uuid, readOnly: true }
+        sourceId: { type: string, format: uuid }
+        harvestFrom: { type: string, format: date }
+        harvestTo: { type: string, format: date }
+        committedTons: { $ref: "#/components/schemas/Quantity" }
+        note: { type: string }
+
+    MatrixColumn:
+      type: object
+      properties:
+        version: { $ref: "#/components/schemas/PlanVersion" }
+        series:
+          type: string
+          enum: [PLAN, ACTUAL]
+          description: Which series this column was read from.
+        isBaseline: { type: boolean }
+
+    MatrixRow:
+      type: object
+      description: >
+        One key across every column. values, deltas and deltaPcts are aligned
+        with columns, so a cell is values[i] for columns[i].
+      properties:
+        key: { type: string }
+        label: { type: string }
+        measure: { type: string }
+        values: { type: array, items: { type: string } }
+        deltas: { type: array, items: { type: string } }
+        deltaPcts: { type: array, items: { type: string } }
+
+    MatrixResult:
+      type: object
+      properties:
+        dimension: { type: string }
+        columns:
+          type: array
+          items: { $ref: "#/components/schemas/MatrixColumn" }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/MatrixRow" }
+        totals:
+          type: array
+          items: { $ref: "#/components/schemas/MatrixRow" }
+        assumptions:
+          type: array
+          description: Only the assumptions that are not the same in every column.
+          items: { $ref: "#/components/schemas/MatrixRow" }
+
+    CrushingStep:
+      type: object
+      description: A run of days at one crushing rate.
+      properties:
+        rateTons: { type: string, description: "Tons of cane a day." }
+        days: { type: integer, minimum: 1 }
+
+    CrushingProfile:
+      type: object
+      description: >
+        The shape of a campaign without its size. The shoulders and the
+        wash-outs are decided by the planner; the plateau rate is solved from
+        the cane target.
+      properties:
+        rampUp:
+          type: array
+          description: The opening shoulder, in order from the first day.
+          items: { $ref: "#/components/schemas/CrushingStep" }
+        runDown:
+          type: array
+          description: The closing shoulder, in order, ending on the last day.
+          items: { $ref: "#/components/schemas/CrushingStep" }
+        cleaningEveryDays:
+          type: integer
+          description: >
+            The wash-out cadence. Zero means no scheduled wash-outs.
+        cleaningDays:
+          type: array
+          description: >
+            Explicit one-based campaign days the mill stops, overriding the
+            cadence. The reference plan pulls its last wash-out forward from day
+            126 to 119 so it does not land in the run-down.
+          items: { type: integer }
+        preCleaningRateTons:
+          type: string
+          description: The rate the day before a wash-out. A mill winds down before it stops.
+
+    CrushingPreview:
+      type: object
+      description: The campaign a profile implies. Calculated, never stored.
+      properties:
+        campaignDays: { type: integer }
+        crushingDays: { type: integer }
+        cleaningDays: { type: integer }
+        plateauRateTons: { type: string }
+        totalTons: { type: string }
+        daily:
+          type: array
+          description: One tonnage per campaign day. A wash-out day is zero.
+          items: { type: string }
+
+    CrushingProfileView:
+      type: object
+      properties:
+        versionId: { type: string, format: uuid }
+        profile: { $ref: "#/components/schemas/CrushingProfile" }
+        preview: { $ref: "#/components/schemas/CrushingPreview" }
+
+    SupplyPlan:
+      type: object
+      properties:
+        versionId: { type: string, format: uuid }
+        entries:
+          type: array
+          items:
+            allOf:
+              - { $ref: "#/components/schemas/CaneSupplyEntry" }
+              - type: object
+                properties:
+                  sourceCode: { type: string }
+                  sourceName: { type: string }
+                  sourceType: { type: string, enum: [ESTATE, CONTRACT, OUTGROWER] }
+                  zone: { type: string }
+                  hectares: { $ref: "#/components/schemas/Quantity" }
+                  expectedTons: { $ref: "#/components/schemas/Quantity" }
+                  requiredDailyRateTons: { $ref: "#/components/schemas/Rate" }
+                  transportCapacityTons: { $ref: "#/components/schemas/Quantity" }
+                  harvestDays: { type: integer }
+        reconciliation:
+          type: object
+          description: Whether the committed cane covers what the plan intends to crush.
+          properties:
+            targetTons: { $ref: "#/components/schemas/Quantity" }
+            committedTons: { $ref: "#/components/schemas/Quantity" }
+            differenceTons: { $ref: "#/components/schemas/Quantity" }
+            coveragePct: { $ref: "#/components/schemas/Percent" }
+            expectedTons: { $ref: "#/components/schemas/Quantity" }
+            sources: { type: integer }
+        warnings:
+          type: array
+          items: { $ref: "#/components/schemas/Alert" }
+
+    DailyCaneSupply:
+      type: object
+      description: One source's delivery on one day - scheduled on a PLAN row, weighed in on an ACTUAL one.
+      required: [sourceId, businessDate, series]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        versionId: { type: string, format: uuid, readOnly: true }
+        sourceId: { type: string, format: uuid }
+        factoryId: { type: string, format: uuid, readOnly: true }
+        businessDate: { type: string, format: date }
+        series: { type: string, enum: [PLAN, ACTUAL] }
+        tons: { $ref: "#/components/schemas/Quantity" }
+        trips:
+          type: integer
+          description: Vehicle movements, rounded up - the last truck travels whether it is full or not.
+        polPct: { $ref: "#/components/schemas/Percent" }
+        note: { type: string }
+
+    DailyCanePlan:
+      type: object
+      required: [businessDate]
+      properties:
+        businessDate: { type: string, format: date }
+        shiftId: { type: string, format: uuid }
+        series: { type: string, enum: [PLAN, ACTUAL], default: PLAN }
+        caneAvailable: { $ref: "#/components/schemas/Quantity" }
+        caneDelivered: { $ref: "#/components/schemas/Quantity" }
+        caneAccepted: { $ref: "#/components/schemas/Quantity" }
+        caneRejected: { $ref: "#/components/schemas/Quantity" }
+        caneDiverted: { $ref: "#/components/schemas/Quantity" }
+        caneCrushed: { $ref: "#/components/schemas/Quantity" }
+        crushRateTph: { type: number }
+        availableHours: { type: number, maximum: 24 }
+        stoppageHours: { type: number, maximum: 24 }
+        reasonCode: { type: string }
+        note: { type: string }
+
+    DailyProductPlan:
+      type: object
+      required: [businessDate, productId]
+      properties:
+        businessDate: { type: string, format: date }
+        lineId: { type: string, format: uuid }
+        shiftId: { type: string, format: uuid }
+        productId: { type: string, format: uuid }
+        packagingId: { type: string, format: uuid }
+        series: { type: string, enum: [PLAN, ACTUAL] }
+        quantity: { $ref: "#/components/schemas/Quantity" }
+        remeltInput: { $ref: "#/components/schemas/Quantity" }
+        processLoss: { $ref: "#/components/schemas/Quantity" }
+        rework: { $ref: "#/components/schemas/Quantity" }
+        rejected: { $ref: "#/components/schemas/Quantity" }
+        holdQty: { $ref: "#/components/schemas/Quantity" }
+        reasonCode: { type: string }
+
+    DailyStoragePlan:
+      type: object
+      required: [businessDate, warehouseId, productId]
+      properties:
+        businessDate: { type: string, format: date }
+        warehouseId: { type: string, format: uuid }
+        productId: { type: string, format: uuid }
+        series: { type: string, enum: [PLAN, ACTUAL] }
+        beginningBalance: { $ref: "#/components/schemas/Quantity" }
+        productionReceipt: { $ref: "#/components/schemas/Quantity" }
+        transferIn: { $ref: "#/components/schemas/Quantity" }
+        transferOut: { $ref: "#/components/schemas/Quantity" }
+        repackIn: { $ref: "#/components/schemas/Quantity" }
+        repackOut: { $ref: "#/components/schemas/Quantity" }
+        remeltIssue: { $ref: "#/components/schemas/Quantity" }
+        shipmentQty: { $ref: "#/components/schemas/Quantity" }
+        adjustment:
+          allOf: [{ $ref: "#/components/schemas/Quantity" }]
+          description: Signed. Every other movement is a magnitude.
+        processLoss: { $ref: "#/components/schemas/Quantity" }
+        holdQty: { $ref: "#/components/schemas/Quantity" }
+        endingBalance:
+          allOf: [{ $ref: "#/components/schemas/Quantity" }]
+          readOnly: true
+        physicalBalance:
+          allOf: [{ $ref: "#/components/schemas/Quantity" }]
+          description: A recorded stock count, used for reconciliation.
+
+    DailyShipmentPlan:
+      type: object
+      required: [businessDate, productId, channelId]
+      properties:
+        businessDate: { type: string, format: date }
+        warehouseId: { type: string, format: uuid }
+        productId: { type: string, format: uuid }
+        channelId: { type: string, format: uuid }
+        series: { type: string, enum: [PLAN, ACTUAL] }
+        quantity: { $ref: "#/components/schemas/Quantity" }
+        note: { type: string }
+
+    DowntimeEvent:
+      type: object
+      required: [factoryId, businessDate, startAt, endAt, reasonCode]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        factoryId: { type: string, format: uuid }
+        lineId: { type: string, format: uuid }
+        businessDate: { type: string, format: date }
+        shiftId: { type: string, format: uuid }
+        startAt: { type: string, format: date-time }
+        endAt: { type: string, format: date-time }
+        durationHours: { type: number, description: Derived from the period when omitted. }
+        planned: { type: boolean }
+        reasonCode: { type: string }
+        rootCause: { type: string }
+        team: { type: string }
+        correctiveAction: { type: string }
+
+    UpsertResult:
+      type: object
+      properties:
+        accepted: { type: integer }
+        rejected: { type: integer }
+        issues:
+          type: array
+          items: { $ref: "#/components/schemas/RowIssue" }
+
+    RowIssue:
+      type: object
+      description: |
+        A problem with one row of a bulk request, addressed by its position in
+        the payload so a table can highlight the right line.
+      properties:
+        row: { type: integer }
+        field: { type: string }
+        code: { type: string }
+        message: { type: string }
+
+    CopyRequest:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string }
+        description: { type: string }
+        planType:
+          type: string
+          enum: [BUDGET, FORECAST, REVISED, WHATIF, BASELINE, LATEST_ESTIMATE]
+          default: WHATIF
+        copyDailyRows: { type: boolean }
+        assumptionOverrides:
+          type: object
+          additionalProperties: { type: number }
+          description: Assumption code to new value.
+
+    GenerateResult:
+      type: object
+      properties:
+        summary:
+          type: object
+          properties:
+            caneTargetTons: { $ref: "#/components/schemas/Quantity" }
+            caneAllocatedTons: { $ref: "#/components/schemas/Quantity" }
+            rawSugarExpectedTons: { $ref: "#/components/schemas/Quantity" }
+            rawDirectToRefiningTons: { $ref: "#/components/schemas/Quantity" }
+            rawToStorageTons: { $ref: "#/components/schemas/Quantity" }
+            finishedGoodsTons: { $ref: "#/components/schemas/Quantity" }
+            remeltInputTons: { $ref: "#/components/schemas/Quantity" }
+            shipmentPlannedTons: { $ref: "#/components/schemas/Quantity" }
+            workingDays: { type: integer }
+        warnings:
+          type: array
+          items: { $ref: "#/components/schemas/Alert" }
+        rowCounts:
+          type: object
+          additionalProperties: { type: integer }
+        firstDate: { type: string, format: date }
+        lastDate: { type: string, format: date }
+
+    Alert:
+      type: object
+      properties:
+        code: { type: string, examples: ["CAPACITY_EXCEEDED"] }
+        severity: { type: string, enum: [INFO, SUCCESS, WARNING, ERROR] }
+        title: { type: string }
+        detail: { type: string }
+        entity: { type: string }
+        entityId: { type: string }
+        date: { type: string, format: date }
+
+    CompareResult:
+      type: object
+      properties:
+        baseVersion: { $ref: "#/components/schemas/PlanVersion" }
+        otherVersion: { $ref: "#/components/schemas/PlanVersion" }
+        dimension: { type: string }
+        rows: { type: array, items: { $ref: "#/components/schemas/CompareRow" } }
+        totals: { type: array, items: { $ref: "#/components/schemas/CompareRow" } }
+        assumptionDeltas:
+          type: array
+          description: The assumptions that differ, which is usually the explanation.
+          items: { $ref: "#/components/schemas/CompareRow" }
+
+    CompareRow:
+      type: object
+      properties:
+        key: { type: string }
+        label: { type: string }
+        measure: { type: string }
+        baseValue: { type: number }
+        otherValue: { type: number }
+        delta: { type: number }
+        deltaPct: { type: number }
+
+    Dashboard:
+      type: object
+      properties:
+        season: { $ref: "#/components/schemas/Season" }
+        planVersion: { $ref: "#/components/schemas/PlanVersion" }
+        actualVersion: { $ref: "#/components/schemas/PlanVersion" }
+        asOf: { type: string, format: date }
+        cane:
+          type: object
+          properties:
+            seasonTargetTons: { $ref: "#/components/schemas/Quantity" }
+            cumulativeTargetTons: { $ref: "#/components/schemas/Quantity" }
+            cumulativeActualTons: { $ref: "#/components/schemas/Quantity" }
+            remainingTons: { $ref: "#/components/schemas/Quantity" }
+            achievementPct: { type: number }
+            rollingAverageTonsPerDay: { type: number }
+            plannedEndDate: { type: string, format: date }
+            forecastEndDate: { type: string, format: date }
+            forecastReliable: { type: boolean }
+            daysBehindSchedule: { type: integer }
+        rawSugar:
+          type: object
+          properties:
+            targetTons: { $ref: "#/components/schemas/Quantity" }
+            actualTons: { $ref: "#/components/schemas/Quantity" }
+            targetRecoveryPct: { type: number }
+            actualRecoveryPct: { type: number }
+            recoveryVariancePct: { type: number }
+            verdict: { type: string, enum: [INFO, SUCCESS, WARNING, ERROR] }
+        products: { type: array, items: { type: object } }
+        storage: { type: array, items: { $ref: "#/components/schemas/StorageKPI" } }
+        shipments: { type: array, items: { type: object } }
+        downtime:
+          type: object
+          properties:
+            hours: { type: number }
+            lostTons: { $ref: "#/components/schemas/Quantity" }
+            eventCount: { type: integer }
+        alerts: { type: array, items: { $ref: "#/components/schemas/Alert" } }
+        caneTrend: { type: array, items: { $ref: "#/components/schemas/SeriesPoint" } }
+        caneRollingAverage: { type: array, items: { type: number } }
+
+    StorageKPI:
+      type: object
+      properties:
+        warehouseId: { type: string, format: uuid }
+        warehouseCode: { type: string }
+        warehouseName: { type: string }
+        storageClass: { type: string, enum: [RAW, FINISHED, MATERIAL] }
+        capacityTons: { $ref: "#/components/schemas/Quantity" }
+        usableCapacityTons: { $ref: "#/components/schemas/Quantity" }
+        balanceTons: { $ref: "#/components/schemas/Quantity" }
+        capacityUsePct: { type: number }
+        firstWarningDate: { type: string, format: date }
+        firstFullDate: { type: string, format: date }
+        requiredShipmentTonsPerDay:
+          type: number
+          description: The smallest constant daily rate that keeps the store inside its threshold.
+        severity: { type: string, enum: [INFO, SUCCESS, WARNING, ERROR] }
+
+    SeriesPoint:
+      type: object
+      properties:
+        date: { type: string, format: date }
+        target: { $ref: "#/components/schemas/Quantity" }
+        actual: { $ref: "#/components/schemas/Quantity" }
+        cumTarget: { $ref: "#/components/schemas/Quantity" }
+        cumActual: { $ref: "#/components/schemas/Quantity" }
+        variance: { $ref: "#/components/schemas/Quantity" }
+        cumVariance: { $ref: "#/components/schemas/Quantity" }
+        achievementPct: { type: number }
+        hasActual:
+          type: boolean
+          description: False for days with no recorded actual, so the curve can stop at today.
+
+    StockLine:
+      type: object
+      description: The balance of one product in one warehouse.
+      properties:
+        warehouseId: { type: string, format: uuid }
+        warehouseCode: { type: string }
+        warehouseName: { type: string }
+        productId: { type: string, format: uuid }
+        productCode: { type: string }
+        productName: { type: string }
+        quantity: { $ref: "#/components/schemas/Quantity" }
+        holdQuantity: { $ref: "#/components/schemas/Quantity" }
+        available:
+          allOf: [{ $ref: "#/components/schemas/Quantity" }]
+          description: What may actually be issued - what is there, less what quality has blocked.
+        capacity: { $ref: "#/components/schemas/Quantity" }
+        utilisedPct: { $ref: "#/components/schemas/Decimal" }
+        uom: { type: string }
+
+    PostingRequest:
+      type: object
+      required: [docType, businessDate, factoryId, lines]
+      properties:
+        docType:
+          type: string
+          enum: [RECEIPT, ISSUE, TRANSFER, ADJUSTMENT, COUNT, HOLD, RELEASE, SHIPMENT]
+          description: A reversal is posted through the reverse endpoint, never by hand.
+        businessDate: { type: string, format: date }
+        factoryId: { type: string, format: uuid }
+        reference: { type: string }
+        reasonCode: { type: string }
+        note: { type: string }
+        allowNegativeStock:
+          type: boolean
+          description: Needs `capacity:override`. Recorded on the audit event.
+        capacityOverride:
+          type: boolean
+          description: Needs `capacity:override`. Recorded on the audit event.
+        lines:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [warehouseId, productId, quantity]
+            properties:
+              warehouseId: { type: string, format: uuid }
+              toWarehouse:
+                type: string
+                format: uuid
+                description: Required on a transfer; the receiving warehouse.
+              productId: { type: string, format: uuid }
+              batchId: { type: string, format: uuid }
+              batchCode:
+                type: string
+                description: |
+                  The batch by its code. It must already exist: moving stock is
+                  not what brings a batch into existence.
+              quantity:
+                allOf: [{ $ref: "#/components/schemas/Quantity" }]
+                description: |
+                  Unsigned; the document type gives it its sign. An adjustment
+                  or a count carries its own sign, because a correction can go
+                  either way.
+              uom: { type: string, description: Defaults to the product's base unit. }
+
+    InventoryDocument:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        documentNo: { type: string, examples: ["MD-F1-2026-00017"] }
+        docType:
+          type: string
+          enum: [RECEIPT, ISSUE, TRANSFER, ADJUSTMENT, COUNT, HOLD, RELEASE, SHIPMENT, REVERSAL]
+        businessDate: { type: string, format: date }
+        postedAt: { type: string, format: date-time }
+        factoryId: { type: string, format: uuid }
+        reference: { type: string }
+        reversalOf: { type: string, format: uuid }
+        reversed: { type: boolean }
+        reasonCode: { type: string }
+        note: { type: string }
+        createdAt: { type: string, format: date-time }
+        createdBy: { type: string }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              documentId: { type: string, format: uuid }
+              lineNo: { type: integer }
+              warehouseId: { type: string, format: uuid }
+              productId: { type: string, format: uuid }
+              batchId: { type: string, format: uuid }
+              quantity:
+                allOf: [{ $ref: "#/components/schemas/Quantity" }]
+                description: Signed. A receipt is positive, an issue negative.
+              uom: { type: string }
+              toWarehouse: { type: string, format: uuid }
+
+    ProductionOrder:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        orderNo: { type: string, examples: ["PO-F1-2026-00042"] }
+        companyId: { type: string, format: uuid }
+        factoryId: { type: string, format: uuid }
+        lineId: { type: string, format: uuid }
+        versionId: { type: string, format: uuid, description: The plan the order came from. }
+        businessDate: { type: string, format: date }
+        shiftId: { type: string, format: uuid }
+        productId: { type: string, format: uuid }
+        packagingId: { type: string, format: uuid }
+        plannedQty: { $ref: "#/components/schemas/Quantity" }
+        confirmedQty: { $ref: "#/components/schemas/Quantity" }
+        batchId: { type: string, format: uuid }
+        bomVersion: { type: string }
+        priority: { type: integer, minimum: 1, maximum: 9 }
+        status:
+          type: string
+          enum: [PLANNED, RELEASED, IN_PROCESS, PARTIALLY_CONFIRMED, COMPLETED, TECHNICALLY_CLOSED, CANCELLED]
+        team: { type: string }
+        varianceReason: { type: string }
+        rowVersion: { type: integer, format: int64 }
+        createdAt: { type: string, format: date-time }
+        createdBy: { type: string }
+        updatedAt: { type: string, format: date-time }
+        updatedBy: { type: string }
+
+    ConfirmRequest:
+      type: object
+      properties:
+        businessDate: { type: string, format: date, description: Defaults to the order's date. }
+        shiftId: { type: string, format: uuid }
+        yieldQty:
+          allOf: [{ $ref: "#/components/schemas/Quantity" }]
+          description: The good output. This is what is receipted into stock.
+        scrapQty: { $ref: "#/components/schemas/Quantity" }
+        reworkQty: { $ref: "#/components/schemas/Quantity" }
+        labourHours: { $ref: "#/components/schemas/Decimal" }
+        machineHours: { $ref: "#/components/schemas/Decimal" }
+        batchId: { type: string, format: uuid }
+        batchCode:
+          type: string
+          description: |
+            The code written on the pallet card. A confirmation is the one place
+            a batch comes into existence: production is what makes a batch, so a
+            code nobody has used yet creates it, inside the same transaction as
+            the confirmation.
+        reasonCode: { type: string }
+        warehouseId:
+          type: string
+          format: uuid
+          description: Receives the yield. Omit to record production without moving stock.
+        consumptions:
+          type: array
+          description: |
+            What the shift consumed. Leave it out and the components are taken
+            from the packaging bill of materials — an operator is not going to
+            key how many liners went into 300 jumbo bags, and a consumption
+            nobody records is a stock figure that drifts until somebody counts
+            the shed. Send them and only what was sent is recorded.
+          items:
+            type: object
+            required: [materialId, quantity]
+            properties:
+              materialId: { type: string, format: uuid }
+              quantity: { $ref: "#/components/schemas/Quantity" }
+              uom: { type: string }
+        overrides:
+          type: object
+          properties:
+            capacityOverride: { type: boolean, description: Needs `capacity:override`. }
+
+    ProductionConfirmation:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        orderId: { type: string, format: uuid }
+        confirmationNo: { type: string, examples: ["CF-F1-2026-00108"] }
+        businessDate: { type: string, format: date }
+        shiftId: { type: string, format: uuid }
+        yieldQty: { $ref: "#/components/schemas/Quantity" }
+        scrapQty: { $ref: "#/components/schemas/Quantity" }
+        reworkQty: { $ref: "#/components/schemas/Quantity" }
+        labourHours: { $ref: "#/components/schemas/Decimal" }
+        machineHours: { $ref: "#/components/schemas/Decimal" }
+        batchId: { type: string, format: uuid }
+        reversalOf: { type: string, format: uuid }
+        reversed: { type: boolean }
+        reasonCode: { type: string }
+        rowVersion: { type: integer, format: int64 }
+        consumptions:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              confirmationId: { type: string, format: uuid }
+              materialId: { type: string, format: uuid }
+              quantity: { $ref: "#/components/schemas/Quantity" }
+              uom: { type: string }
+
+    QualityParameter:
+      type: object
+      required: [code, name]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string, examples: ["POL"] }
+        name: { type: string, examples: ["Polarisation"] }
+        uom: { type: string }
+        testMethod: { type: string }
+        active: { type: boolean }
+        rowVersion: { type: integer, format: int64 }
+
+    QualitySpec:
+      type: object
+      required: [productId, parameterId, validFrom]
+      description: |
+        The limits for one parameter of one product. At least one limit must be
+        set: a specification with none cannot fail anything.
+      properties:
+        id: { type: string, format: uuid }
+        productId: { type: string, format: uuid }
+        parameterId: { type: string, format: uuid }
+        lowerLimit: { $ref: "#/components/schemas/Decimal" }
+        upperLimit: { $ref: "#/components/schemas/Decimal" }
+        warnLower: { $ref: "#/components/schemas/Decimal" }
+        warnUpper: { $ref: "#/components/schemas/Decimal" }
+        validFrom: { type: string, format: date }
+        validTo: { type: string, format: date }
+        rowVersion: { type: integer, format: int64 }
+
+    QualitySample:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        sampleNo: { type: string, examples: ["QS-F1-2026-00311"] }
+        productId: { type: string, format: uuid }
+        batchId: { type: string, format: uuid }
+        factoryId: { type: string, format: uuid }
+        businessDate: { type: string, format: date }
+        shiftId: { type: string, format: uuid }
+        takenAt: { type: string, format: date-time }
+        labUser: { type: string }
+        status: { type: string, enum: [OPEN, COMPLETE, CANCELLED] }
+        comment: { type: string }
+        rowVersion: { type: integer, format: int64 }
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              sampleId: { type: string, format: uuid }
+              parameterId: { type: string, format: uuid }
+              value: { $ref: "#/components/schemas/Decimal" }
+              uom: { type: string }
+              lowerLimit:
+                allOf: [{ $ref: "#/components/schemas/Decimal" }]
+                description: The limit the result was judged against, copied onto the record.
+              upperLimit: { $ref: "#/components/schemas/Decimal" }
+              status: { type: string, enum: [PASS, WARNING, FAIL] }
+              comment: { type: string }
+
+    QualityHold:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        warehouseId: { type: string, format: uuid }
+        productId: { type: string, format: uuid }
+        batchId: { type: string, format: uuid }
+        sampleId: { type: string, format: uuid }
+        quantity: { $ref: "#/components/schemas/Quantity" }
+        placedOn: { type: string, format: date }
+        releasedOn: { type: string, format: date, description: Absent while the hold is blocking stock. }
+        releasedBy: { type: string }
+        reason: { type: string }
+        rowVersion: { type: integer, format: int64 }
+
+    MaintenanceWindow:
+      type: object
+      required: [factoryId, startDate, endDate, description]
+      properties:
+        id: { type: string, format: uuid }
+        factoryId: { type: string, format: uuid }
+        lineId:
+          type: string
+          format: uuid
+          description: A line outage does not stop the mill and never removes a crushing day.
+        equipmentId: { type: string, format: uuid }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        description: { type: string }
+        status: { type: string, enum: [PLANNED, APPROVED, DONE, CANCELLED] }
+        approvedBy: { type: string }
+        rowVersion: { type: integer, format: int64 }
+
+    CostElement:
+      type: object
+      required: [code, name, category, driver]
+      description: One line of the cost structure, against the driver it scales with.
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string, examples: ["FUEL"] }
+        name: { type: string, examples: ["Boiler fuel"] }
+        category:
+          type: string
+          enum: [CANE, LABOUR, ENERGY, CHEMICALS, PACKAGING, MAINTENANCE, OVERHEAD]
+        driver:
+          type: string
+          enum: [CANE_TON, SUGAR_TON, RUN_HOUR, CALENDAR_DAY, FIXED_SEASON]
+          description: |
+            What the cost scales with. A fixed seasonal cost has a driver
+            quantity of one, so the same rate x quantity arithmetic covers it.
+        variable:
+          type: boolean
+          description: |
+            Whether the site treats it as variable. Deliberately not derived
+            from the driver: a shift crew paid per run hour may still be a fixed
+            cost to a site with a salaried crew, and the contribution analysis
+            follows the site's view.
+        note: { type: string }
+        active: { type: boolean }
+        rowVersion: { type: integer, format: int64 }
+
+    CostRate:
+      type: object
+      required: [elementId, factoryId, rateType, rate, currency, validFrom]
+      properties:
+        id: { type: string, format: uuid }
+        elementId: { type: string, format: uuid }
+        factoryId: { type: string, format: uuid }
+        seasonId: { type: string, format: uuid }
+        rateType:
+          type: string
+          enum: [STANDARD, ACTUAL]
+          description: |
+            STANDARD is what was budgeted and is held still so a variance means
+            something. ACTUAL is what was really paid, entered as invoices
+            arrive; an element with no actual rate is charged at standard and
+            its rate variance stays zero until somebody knows better.
+        rate:
+          allOf: [{ $ref: "#/components/schemas/Decimal" }]
+          description: Money per unit of the element's driver, scale 6.
+        currency: { type: string, minLength: 3, maxLength: 3, examples: ["USD"] }
+        validFrom: { type: string, format: date }
+        validTo: { type: string, format: date }
+        note: { type: string }
+        rowVersion: { type: integer, format: int64 }
+
+    ExchangeRate:
+      type: object
+      required: [fromCurrency, toCurrency, rate, validFrom]
+      properties:
+        id: { type: string, format: uuid }
+        fromCurrency: { type: string, minLength: 3, maxLength: 3 }
+        toCurrency: { type: string, minLength: 3, maxLength: 3 }
+        rate: { $ref: "#/components/schemas/Decimal" }
+        validFrom: { type: string, format: date }
+        rowVersion: { type: integer, format: int64 }
+
+    CostLine:
+      type: object
+      description: One element's contribution to a run.
+      properties:
+        elementId: { type: string, format: uuid }
+        elementCode: { type: string }
+        elementName: { type: string }
+        category: { type: string }
+        driver: { type: string }
+        driverUnit: { type: string, examples: ["t", "h", "d", "season"] }
+        variable: { type: boolean }
+        standardRate: { $ref: "#/components/schemas/Decimal" }
+        actualRate: { $ref: "#/components/schemas/Decimal" }
+        plannedQty: { $ref: "#/components/schemas/Quantity" }
+        actualQty: { $ref: "#/components/schemas/Quantity" }
+        plannedCost: { $ref: "#/components/schemas/Money" }
+        actualCost: { $ref: "#/components/schemas/Money" }
+        rateVariance:
+          allOf: [{ $ref: "#/components/schemas/Money" }]
+          description: |
+            (actual rate - standard rate) x actual quantity. Positive is
+            unfavourable. This is the half a controller checks against an
+            invoice, so it is the half that is rounded exactly.
+        usageVariance:
+          allOf: [{ $ref: "#/components/schemas/Money" }]
+          description: |
+            The remainder of the total variance, which is the usage half valued
+            at the standard rate. It absorbs the rounding so that the two halves
+            always reconstruct the total.
+        totalVariance: { $ref: "#/components/schemas/Money" }
+        missing:
+          type: array
+          description: What the run could not find, so a zero line is not mistaken for a free one.
+          items: { type: string }
+
+    CostTotals:
+      type: object
+      properties:
+        plannedCost: { $ref: "#/components/schemas/Money" }
+        actualCost: { $ref: "#/components/schemas/Money" }
+        rateVariance: { $ref: "#/components/schemas/Money" }
+        usageVariance: { $ref: "#/components/schemas/Money" }
+        totalVariance: { $ref: "#/components/schemas/Money" }
+        variancePct: { $ref: "#/components/schemas/Decimal" }
+        plannedSugarTons: { $ref: "#/components/schemas/Quantity" }
+        actualSugarTons: { $ref: "#/components/schemas/Quantity" }
+        plannedUnitCost: { $ref: "#/components/schemas/Money" }
+        actualUnitCost: { $ref: "#/components/schemas/Money" }
+        unitCostVariance: { $ref: "#/components/schemas/Money" }
+        fixedCost: { $ref: "#/components/schemas/Money" }
+        variableCost: { $ref: "#/components/schemas/Money" }
+
+    CostRun:
+      type: object
+      description: A saved costing, reproducible after the rates have moved on.
+      properties:
+        id: { type: string, format: uuid }
+        seasonId: { type: string, format: uuid }
+        versionId: { type: string, format: uuid }
+        factoryId: { type: string, format: uuid }
+        code: { type: string }
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        currency: { type: string }
+        totals: { $ref: "#/components/schemas/CostTotals" }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/CostLine" }
+        note: { type: string }
+        rowVersion: { type: integer, format: int64 }
+
+    ResultsOutcome:
+      type: object
+      description: What recording a laboratory sheet did.
+      properties:
+        sample: { $ref: "#/components/schemas/QualitySample" }
+        verdict: { type: string, enum: [PASS, WARNING, FAIL] }
+        hold: { $ref: "#/components/schemas/QualityHold" }
+        unspecified:
+          type: array
+          description: Parameter codes with no specification in force.
+          items: { type: string }
+
+    SavedView:
+      type: object
+      description: >
+        A named set of filters, sorts and column choices for one screen. Variant
+        management, saved views and personalization are the same thing stored.
+      properties:
+        id: { type: string, format: uuid }
+        owner:
+          type: string
+          description: >
+            The username from the token. There is no user table here; identity
+            lives in the identity provider, and a view belongs to whoever made
+            it.
+        page:
+          type: string
+          description: The route name of the screen this view applies to.
+        name: { type: string, maxLength: 60 }
+        factoryId: { type: string, format: uuid }
+        shared:
+          type: boolean
+          description: >
+            Published to everyone at the same factory. Only the owner may change
+            or delete it: a variant anybody can edit is a variant nobody can
+            rely on.
+        isDefault:
+          type: boolean
+          description: Applied when the screen opens. At most one per person per page.
+        payload:
+          type: object
+          additionalProperties: true
+          description: >
+            What the screen sent. The server stores it and does not interpret
+            it; the screen is the only thing that can. At most 16 KiB.
+        createdAt: { type: string, format: date-time }
+        createdBy: { type: string }
+        updatedAt: { type: string, format: date-time }
+        updatedBy: { type: string }
+        rowVersion: { type: integer, format: int64 }
+
+    SaveViewRequest:
+      type: object
+      required: [page, name, payload]
+      properties:
+        page:
+          type: string
+          enum: [board, downtime, orders, quality, stock, shipments, warehouse,
+                 materials, audit, interfaces, import, reports]
+        name: { type: string, maxLength: 60 }
+        shared:
+          type: boolean
+          default: false
+          description: >
+            Requires an account scoped to exactly one factory, since that is the
+            factory the view is published to.
+        isDefault: { type: boolean, default: false }
+        payload:
+          type: object
+          additionalProperties: true
+
+    Notification:
+      type: object
+      description: An alert that has been raised for a role at a factory.
+      properties:
+        id: { type: string, format: uuid }
+        recipient:
+          type: string
+          description: A role code, not a person.
+        factoryId: { type: string, format: uuid }
+        severity: { type: string, enum: [INFO, SUCCESS, WARNING, ERROR] }
+        code: { type: string }
+        title: { type: string }
+        detail: { type: string }
+        entity: { type: string }
+        entityId: { type: string }
+        readAt:
+          type: string
+          format: date-time
+          description: Absent while it is still waiting.
+        createdAt: { type: string, format: date-time }
+
+    ImportKind:
+      type: string
+      description: What a file is a file of. Each maps onto a service that already exists.
+      enum: [DAILY_CANE, DAILY_PRODUCTION, DAILY_SHIPMENT, DAILY_STORAGE]
+
+    ImportField:
+      type: object
+      description: One field a kind of file may carry.
+      properties:
+        name: { type: string }
+        type: { type: string, enum: [DATE, DECIMAL, TEXT, CODE] }
+        label: { type: string }
+        required: { type: boolean }
+        entity:
+          type: string
+          description: What a CODE field is resolved against.
+        note: { type: string }
+
+    ImportMapping:
+      type: object
+      description: |
+        The controlled template: which column holds which field, and how the
+        dates and numbers in the file are written.
+      required: [code, kind, columns]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        kind: { $ref: "#/components/schemas/ImportKind" }
+        columns:
+          type: array
+          items:
+            type: object
+            required: [field]
+            properties:
+              field: { type: string }
+              header:
+                type: string
+                description: |
+                  The column heading to look for, matched case-insensitively and
+                  ignoring surrounding space.
+              column:
+                type: integer
+                description: A zero-based position, for a sheet with no headings.
+              default:
+                type: string
+                description: |
+                  Fills a cell the file leaves blank. Applied before validation,
+                  so a required field with a default is satisfied.
+        headerRow:
+          type: integer
+          description: The one-based row the headings are on. Zero means none.
+        firstDataRow:
+          type: integer
+          description: The one-based row the data starts on. Zero means the row after the headings.
+        sheet:
+          type: string
+          description: |
+            The worksheet the data is on, by its tab name. Empty takes the first
+            tab, which is what a file exported for the purpose has and is not
+            what a real workbook is: a mill's own plan opens on a summary tab and
+            keeps the daily figures on the second.
+          examples: ["RW'2627(2.3mt)Rev1(re)"]
+        delimiter:
+          type: string
+          description: The CSV separator, one character. Empty means comma.
+        dateFormat:
+          type: string
+          description: |
+            Written as an example of 2 January 2006 - `02/01/2006`, `2006-01-02`.
+            Empty accepts the ISO form and the two common written ones.
+          examples: ["02/01/2006"]
+        decimalComma:
+          type: boolean
+          description: |
+            The file writes 1.234,56 rather than 1,234.56. Getting this wrong
+            turns a thousand tons into one, so it is a setting rather than a
+            guess made per cell.
+        note: { type: string }
+        active: { type: boolean }
+        rowVersion: { type: integer, format: int64 }
+
+    ImportJob:
+      type: object
+      description: |
+        One upload: what was read, what was wrong with it, and whether anybody
+        has committed it.
+      properties:
+        id: { type: string, format: uuid }
+        kind: { $ref: "#/components/schemas/ImportKind" }
+        mappingId: { type: string, format: uuid }
+        versionId: { type: string, format: uuid }
+        factoryId: { type: string, format: uuid }
+        fileName: { type: string }
+        status: { type: string, enum: [PENDING, VALIDATED, COMMITTED, FAILED, CANCELLED] }
+        totalRows: { type: integer }
+        validRows: { type: integer }
+        errorRows: { type: integer }
+        errors:
+          type: array
+          description: Problems that belong to the file rather than to a row.
+          items: { $ref: "#/components/schemas/FieldError" }
+        note:
+          type: string
+          description: The series the file was staged as.
+        committedAt: { type: string, format: date-time }
+        committedBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        createdBy: { type: string }
+
+    ImportRow:
+      type: object
+      description: One row of a file after it has been read through the mapping.
+      properties:
+        rowNo:
+          type: integer
+          description: |
+            The one-based line in the file, so an error names what somebody sees
+            in Excel rather than an offset into an array.
+        values:
+          type: object
+          additionalProperties: { type: string }
+          description: |
+            The mapped fields. Dates are normalised to ISO and numbers to a plain
+            decimal; a resolved code appears alongside as `<field>Id`.
+        errors:
+          type: array
+          items: { $ref: "#/components/schemas/FieldError" }
+        duplicate:
+          type: boolean
+          description: This row's key repeats a row earlier in the same file.
+        replaces:
+          type: boolean
+          description: |
+            The key already exists in the plan, so committing overwrites rather
+            than adds. Not an error - re-importing a corrected sheet is the
+            normal case - but worth seeing before the button is pressed.
+
+    ImportPreview:
+      type: object
+      properties:
+        job: { $ref: "#/components/schemas/ImportJob" }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/ImportRow" }
+        unmapped:
+          type: array
+          description: Columns of the file the mapping ignores.
+          items: { type: string }
+        missing:
+          type: array
+          description: Mapped headings the file does not have.
+          items: { type: string }
+
+    ImportCommitResult:
+      type: object
+      properties:
+        job: { $ref: "#/components/schemas/ImportJob" }
+        written: { type: integer }
+        skipped: { type: integer }
+        replaced:
+          type: integer
+          description: Rows that overwrote an existing row rather than adding one.
+
+    Topic:
+      type: string
+      description: |
+        The event topics this system publishes. Consumers subscribe by topic, so
+        the names are part of the contract.
+      enum:
+        - plan.released
+        - production.confirmed
+        - stock.posted
+        - stock.reversed
+        - quality.failed
+        - quality.released
+        - shipment.dispatched
+        - cost.run.completed
+
+    OutboxEvent:
+      type: object
+      description: |
+        One message waiting to be published, or one that has been. The retry
+        backoff doubles from a second to a ceiling of an hour; after 25 attempts
+        an event stops being retried and waits for a person, keeping its last
+        error.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: What a consumer deduplicates on.
+        topic: { $ref: "#/components/schemas/Topic" }
+        payload:
+          type: string
+          description: The event body, already JSON.
+        createdAt: { type: string, format: date-time }
+        publishedAt:
+          type: string
+          format: date-time
+          description: Absent while the event is still waiting.
+        attempts: { type: integer }
+        lastError:
+          type: string
+          description: What the far end said the last time delivery failed.
+        correlationId: { type: string }
+
+    DispatchResult:
+      type: object
+      description: What one pass of the dispatcher did.
+      properties:
+        considered: { type: integer }
+        published: { type: integer }
+        failed: { type: integer }
+        exhausted:
+          type: integer
+          description: |
+            Events that reached the retry ceiling on this pass and now need a
+            person. This is the figure worth alerting on.
+        errors:
+          type: array
+          description: Up to ten failures, quoting what the far end said.
+          items: { type: string }
+
+    Batch:
+      type: object
+      description: |
+        A lot of finished product, created by the production that made it.
+      properties:
+        id: { type: string, format: uuid }
+        code:
+          type: string
+          description: The code written on the pallet card. Unique across the system.
+        productId: { type: string, format: uuid }
+        factoryId: { type: string, format: uuid }
+        producedOn: { type: string, format: date }
+        quantity: { $ref: "#/components/schemas/Quantity" }
+        status: { type: string, enum: [OPEN, RELEASED, BLOCKED, CONSUMED] }
+        rowVersion: { type: integer, format: int64 }
+
+    PackagingBOMLine:
+      type: object
+      description: One component consumed per package of a packaging type.
+      required: [packagingId, materialId, qtyPerPackage]
+      properties:
+        id: { type: string, format: uuid }
+        packagingId: { type: string, format: uuid }
+        materialId: { type: string, format: uuid }
+        qtyPerPackage:
+          allOf: [{ $ref: "#/components/schemas/Decimal" }]
+          description: |
+            In the material's own unit, at scale 6. A thread consumption of
+            0.0035 spools per bag is a real figure, not a rounding error.
+        active: { type: boolean }
+        rowVersion: { type: integer, format: int64 }
+
+    Certificate:
+      type: object
+      description: The certificate of analysis for a completed sample.
+      properties:
+        sample: { $ref: "#/components/schemas/QualitySample" }
+        productCode: { type: string }
+        productName: { type: string }
+        factoryName: { type: string }
+        companyName: { type: string }
+        verdict: { type: string, enum: [PASS, WARNING, FAIL] }
+        issuedAt:
+          type: string
+          format: date-time
+          description: When the certificate was issued, not when the sample was taken.
+        issuedBy: { type: string }
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              parameterCode: { type: string }
+              parameterName: { type: string }
+              testMethod: { type: string }
+              value: { $ref: "#/components/schemas/Decimal" }
+              uom: { type: string }
+              lowerLimit: { $ref: "#/components/schemas/Decimal" }
+              upperLimit: { $ref: "#/components/schemas/Decimal" }
+              status: { type: string, enum: [PASS, WARNING, FAIL] }
+
+    JobRun:
+      type: object
+      description: What one scheduled job last did.
+      properties:
+        name: { type: string }
+        owner:
+          type: string
+          description: The instance that last held the lease.
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: string, format: date-time }
+        status: { type: string, enum: ["", RUNNING, OK, FAILED] }
+        detail:
+          type: string
+          description: What the run did, or what went wrong.
+        runs: { type: integer, format: int64 }
+        failures: { type: integer, format: int64 }
+
+    WeighbridgeTicket:
+      type: object
+      description: One cane delivery weighed at the gate.
+      required: [ticketNo, factoryId, businessDate, grossKg, tareKg]
+      properties:
+        ticketNo: { type: string }
+        factoryId: { type: string, format: uuid }
+        businessDate: { type: string, format: date }
+        weighedAt: { type: string, format: date-time }
+        vehicleNo: { type: string }
+        growerCode: { type: string }
+        fieldCode: { type: string }
+        grossKg: { $ref: "#/components/schemas/Decimal" }
+        tareKg: { $ref: "#/components/schemas/Decimal" }
+        rejectedKg:
+          allOf: [{ $ref: "#/components/schemas/Decimal" }]
+          description: Cane refused at the gate - burnt, stale or foreign matter.
+        reasonCode:
+          type: string
+          description: Required when anything was rejected; it is what the grower is shown.
+
+    WeighbridgeResult:
+      type: object
+      properties:
+        accepted: { type: integer }
+        rejected: { type: integer }
+        issues:
+          type: array
+          items: { $ref: "#/components/schemas/RowIssue" }
+        days:
+          type: array
+          description: The actual cane rows that were written, one per factory and day.
+          items: { $ref: "#/components/schemas/WeighbridgeDay" }
+
+    WeighbridgeDay:
+      type: object
+      properties:
+        factoryId: { type: string, format: uuid }
+        businessDate: { type: string, format: date }
+        versionId:
+          type: string
+          format: uuid
+          description: The actuals container of the season covering that date.
+        tickets: { type: integer }
+        caneDelivered: { $ref: "#/components/schemas/Quantity" }
+        caneAccepted: { $ref: "#/components/schemas/Quantity" }
+        caneRejected: { $ref: "#/components/schemas/Quantity" }
+
+    LabResultMessage:
+      type: object
+      description: A sheet of readings from the laboratory system.
+      required: [sampleNo, readings]
+      properties:
+        sampleNo:
+          type: string
+          description: The number printed on the bottle, not a uuid.
+        factoryId:
+          type: string
+          format: uuid
+          description: Needed only when the same number exists at more than one factory.
+        businessDate: { type: string, format: date }
+        instrument: { type: string }
+        measuredAt: { type: string, format: date-time }
+        readings:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [parameterCode, value]
+            properties:
+              parameterCode: { type: string }
+              value: { $ref: "#/components/schemas/Decimal" }
+              uom: { type: string }
+        complete:
+          type: boolean
+          description: Closes the sample and produces a verdict.
+
+    CostDrivers:
+      type: object
+      description: The measured volumes a run multiplied its rates by.
+      properties:
+        caneTons: { $ref: "#/components/schemas/Quantity" }
+        sugarTons: { $ref: "#/components/schemas/Quantity" }
+        runHours: { $ref: "#/components/schemas/Decimal" }
+        calendarDays: { $ref: "#/components/schemas/Decimal" }
+
+    CostRunResult:
+      type: object
+      properties:
+        run: { $ref: "#/components/schemas/CostRun" }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/CostLine" }
+        totals: { $ref: "#/components/schemas/CostTotals" }
+        plannedDrivers: { $ref: "#/components/schemas/CostDrivers" }
+        actualDrivers: { $ref: "#/components/schemas/CostDrivers" }
+        warnings:
+          type: array
+          items: { $ref: "#/components/schemas/Alert" }
+        currency: { type: string }
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        saved: { type: boolean }
+
+    Money:
+      type: string
+      description: An exact money amount at the ledger scale of two places, carried as a string.
+      pattern: '^-?[0-9]+(\.[0-9]{1,2})?$'
+      examples: ["51750000.00"]
+
+    ReportTable:
+      type: object
+      properties:
+        code: { type: string }
+        title: { type: string }
+        metadata:
+          type: array
+          description: Company, factory, season, version, filters, generated at and by.
+          items: { type: string }
+        columns:
+          type: array
+          items:
+            type: object
+            properties:
+              header: { type: string }
+              align: { type: string, enum: [left, right, centre] }
+              numeric: { type: boolean }
+        rows:
+          type: array
+          items: { type: array, items: { type: string } }
+        totals: { type: array, items: { type: string } }
+        notes: { type: array, items: { type: string } }

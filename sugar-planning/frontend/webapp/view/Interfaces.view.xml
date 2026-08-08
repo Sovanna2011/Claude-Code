@@ -1,0 +1,100 @@
+<mvc:View controllerName="sugarplan.controller.Interfaces" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" xmlns:core="sap.ui.core">
+	<Page id="interfacesPage" title="{i18n>interfacesTitle}" showNavButton="true" navButtonPress=".onNavBack">
+		<content>
+			<VBox class="sapUiSmallMargin">
+				<MessageStrip class="sapUiSmallMarginBottom" type="Warning" showIcon="true"
+					visible="{= !${view>/canRead} }" text="{i18n>interfacesForbidden}"/>
+
+				<!-- The stuck count is the one that needs a person; it is given
+				     its own tile rather than being a row in a table nobody
+				     scrolls to the bottom of. -->
+				<HBox visible="{view>/canRead}" class="sapUiSmallMarginBottom" wrap="Wrap">
+					<GenericTile class="sugarTile sapUiTinyMarginEnd" header="{i18n>eventsWaiting}"
+						subheader="{i18n>eventsWaitingSub}" press=".onRefresh">
+						<TileContent>
+							<NumericContent value="{view>/waiting}"
+								valueColor="{= ${view>/waiting} > 0 ? 'Critical' : 'Good' }"
+								icon="sap-icon://outbox"/>
+						</TileContent>
+					</GenericTile>
+					<GenericTile class="sugarTile sapUiTinyMarginEnd" header="{i18n>eventsStuck}"
+						subheader="{i18n>eventsStuckSub}" press=".onRefresh">
+						<TileContent>
+							<NumericContent value="{view>/stuck}"
+								valueColor="{= ${view>/stuck} > 0 ? 'Error' : 'Good' }"
+								icon="sap-icon://alert"/>
+						</TileContent>
+					</GenericTile>
+					<GenericTile class="sugarTile" header="{i18n>eventsPublished}"
+						subheader="{i18n>eventsPublishedSub}" press=".onRefresh">
+						<TileContent>
+							<NumericContent value="{view>/published}" valueColor="Good"
+								icon="sap-icon://accept"/>
+						</TileContent>
+					</GenericTile>
+				</HBox>
+
+				<Toolbar visible="{view>/canRead}" class="sapUiSmallMarginBottom">
+					<Label text="{i18n>topic}"/>
+					<Select selectedKey="{view>/topic}" change=".onFilterChange" width="16rem">
+						<core:Item key="" text="{i18n>allTopics}"/>
+						<core:Item key="plan.released" text="Plan released"/>
+						<core:Item key="production.confirmed" text="Production confirmed"/>
+						<core:Item key="stock.posted" text="Stock posted"/>
+						<core:Item key="stock.reversed" text="Stock reversed"/>
+						<core:Item key="shipment.dispatched" text="Shipment dispatched"/>
+						<core:Item key="quality.failed" text="Quality failed"/>
+						<core:Item key="quality.released" text="Quality released"/>
+						<core:Item key="cost.run.completed" text="Cost run completed"/>
+					</Select>
+					<Label text="{i18n>show}"/>
+					<Select selectedKey="{view>/scope}" change=".onFilterChange" width="12rem">
+						<core:Item key="unpublished" text="{i18n>scopeWaiting}"/>
+						<core:Item key="exhausted" text="{i18n>scopeStuck}"/>
+						<core:Item key="all" text="{i18n>scopeAll}"/>
+					</Select>
+					<ToolbarSpacer/>
+					<Button text="{i18n>dispatchNow}" type="Emphasized" press=".onDispatch"
+						icon="sap-icon://synchronize"/>
+					<Button text="{i18n>refresh}" press=".onRefresh" icon="sap-icon://refresh"/>
+				</Toolbar>
+
+				<MessageStrip visible="{= ${view>/canRead} &amp;&amp; ${view>/stuck} > 0 }"
+					class="sapUiSmallMarginBottom" type="Error" showIcon="true"
+					text="{i18n>eventsStuckExplain}"/>
+
+				<Table items="{path: 'view>/events', templateShareable: false}" mode="None"
+					visible="{view>/canRead}" sticky="ColumnHeaders" growing="true" growingThreshold="50"
+					class="sugarTable">
+					<columns>
+						<Column width="13rem"><Text text="{i18n>when}"/></Column>
+						<Column><Text text="{i18n>topic}"/></Column>
+						<Column><Text text="{i18n>status}"/></Column>
+						<Column hAlign="End" width="7rem"><Text text="{i18n>attempts}"/></Column>
+						<Column minScreenWidth="Desktop" demandPopin="true"><Text text="{i18n>lastError}"/></Column>
+						<Column width="8rem"><Text text=""/></Column>
+					</columns>
+					<items>
+						<ColumnListItem>
+							<cells>
+								<Text text="{path: 'view>createdAt', formatter: '.formatter.dateTime'}"/>
+								<Text text="{view>topic}"/>
+								<ObjectStatus
+									text="{path: 'view>', formatter: '.formatter.eventStatus'}"
+									state="{path: 'view>', formatter: '.formatter.eventState'}"/>
+								<Text text="{view>attempts}"/>
+								<Text text="{view>lastError}" maxLines="2"/>
+								<Button text="{i18n>retry}" press=".onRetry"
+									visible="{= !${view>publishedAt} }"/>
+							</cells>
+						</ColumnListItem>
+					</items>
+					<noData>
+						<IllustratedMessage illustrationType="sapIllus-NoEntries" title="{i18n>noEvents}"
+							description="{i18n>noEventsSub}"/>
+					</noData>
+				</Table>
+			</VBox>
+		</content>
+	</Page>
+</mvc:View>

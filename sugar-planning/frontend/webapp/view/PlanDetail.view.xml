@@ -1,0 +1,175 @@
+<mvc:View
+	controllerName="sugarplan.controller.PlanDetail"
+	xmlns="sap.m"
+	xmlns:mvc="sap.ui.core.mvc"
+	xmlns:f="sap.f"
+	xmlns:l="sap.ui.layout"
+	xmlns:form="sap.ui.layout.form">
+
+	<!-- An object page for one planning version. -->
+	<Page id="planDetailPage" title="{view>/version/code}" showNavButton="true" navButtonPress=".onNavBack">
+		<headerContent>
+			<ObjectStatus text="{path: 'view>/version/status', formatter: '.formatter.statusText'}"
+				state="{path: 'view>/version/status', formatter: '.formatter.statusState'}" inverted="true"/>
+			<Button text="{i18n>openBoard}" icon="sap-icon://grid" press=".onOpenBoard"/>
+			<Button text="{i18n>generatePlan}" icon="sap-icon://synchronize" type="Emphasized"
+				press=".onGenerate" enabled="{view>/editable}"/>
+		</headerContent>
+
+		<content>
+			<VBox class="sapUiSmallMargin">
+
+				<!-- Workflow actions, offered only when the caller could complete them. -->
+				<Toolbar class="sapUiSmallMarginBottom">
+					<Title text="{i18n>workflow}" level="H3"/>
+					<ToolbarSpacer/>
+					<HBox items="{path: 'view>/allowedActions', templateShareable: false}">
+						<Button text="{path: 'view>', formatter: '.formatter.actionText'}"
+							press=".onAction" class="sapUiTinyMarginEnd"/>
+					</HBox>
+					<Text text="{i18n>noActionsAvailable}"
+						visible="{= !${view>/allowedActions} || ${view>/allowedActions}.length === 0 }"/>
+				</Toolbar>
+
+				<MessageStrip class="sapUiSmallMarginBottom" showIcon="true"
+					visible="{= !${view>/editable} }"
+					type="Information"
+					text="{i18n>versionLocked}"/>
+
+				<!-- The generator's findings: capacity breaches and supply gaps. -->
+				<List items="{path: 'view>/warnings', templateShareable: false}"
+					visible="{= ${view>/warnings}.length > 0 }"
+					class="sapUiSmallMarginBottom" backgroundDesign="Transparent">
+					<headerToolbar>
+						<Toolbar><Title text="{i18n>planWarnings}" level="H3"/></Toolbar>
+					</headerToolbar>
+					<StandardListItem title="{view>title}" description="{view>detail}"
+						icon="{path: 'view>severity', formatter: '.formatter.severityIcon'}"
+						infoState="{path: 'view>severity', formatter: '.formatter.severityState'}"
+						info="{path: 'view>date', formatter: '.formatter.date'}"/>
+				</List>
+
+				<l:Grid defaultSpan="XL6 L6 M12 S12">
+
+					<!-- Header attributes. -->
+					<Panel headerText="{i18n>versionDetails}" expandable="true" expanded="true">
+						<form:SimpleForm layout="ResponsiveGridLayout" editable="false"
+							labelSpanXL="4" labelSpanL="4" labelSpanM="4" columnsXL="1" columnsL="1">
+							<Label text="{i18n>version}"/>
+							<Text text="{view>/version/code}"/>
+							<Label text="{i18n>description}"/>
+							<Text text="{view>/version/description}"/>
+							<Label text="{i18n>planType}"/>
+							<Text text="{path: 'view>/version/planType', formatter: '.formatter.statusText'}"/>
+							<Label text="{i18n>owner}"/>
+							<Text text="{view>/version/owner}"/>
+							<Label text="{i18n>approvedBy}"/>
+							<Text text="{view>/version/approvedBy}"/>
+							<Label text="{i18n>approvedAt}"/>
+							<Text text="{path: 'view>/version/approvedAt', formatter: '.formatter.dateTime'}"/>
+							<Label text="{i18n>lockedThrough}"/>
+							<Text text="{path: 'view>/version/lockedThrough', formatter: '.formatter.date'}"/>
+							<Label text="{i18n>lastComment}"/>
+							<Text text="{view>/version/comment}"/>
+						</form:SimpleForm>
+					</Panel>
+
+					<!-- Assumptions: the levers that drive every calculation. -->
+					<Panel headerText="{i18n>assumptions}" expandable="true" expanded="true">
+						<Table items="{path: 'view>/assumptions', templateShareable: false}"
+							mode="None" class="sugarTable" sticky="ColumnHeaders">
+							<columns>
+								<Column><Text text="{i18n>assumption}"/></Column>
+								<Column hAlign="End" width="9rem"><Text text="{i18n>value}"/></Column>
+								<Column width="6rem"><Text text="{i18n>unit}"/></Column>
+							</columns>
+							<items>
+								<ColumnListItem>
+									<cells>
+										<ObjectIdentifier title="{view>description}" text="{view>code}"/>
+										<Input value="{view>value}" type="Number" textAlign="End"
+											editable="{view>/editable}" change=".onAssumptionChange"
+											class="sugarNumberInput"/>
+										<Text text="{view>uom}"/>
+									</cells>
+								</ColumnListItem>
+							</items>
+						</Table>
+						<MessageStrip class="sapUiSmallMargin" type="Information" showIcon="true"
+							text="{i18n>assumptionsHint}"/>
+					</Panel>
+				</l:Grid>
+
+				<!-- Product mix. -->
+				<Panel class="sapUiSmallMarginTop" expandable="true" expanded="true">
+					<headerToolbar>
+						<OverflowToolbar>
+							<Title text="{i18n>productMixPlan}" level="H3"/>
+							<ToolbarSpacer/>
+							<Button text="{i18n>mixAdd}" icon="sap-icon://add" type="Transparent"
+								press=".onAddMix" enabled="{view>/editable}"/>
+						</OverflowToolbar>
+					</headerToolbar>
+					<Table items="{path: 'view>/productMix', templateShareable: false}" mode="None" class="sugarTable">
+						<columns>
+							<Column><Text text="{i18n>product}"/></Column>
+							<Column><Text text="{i18n>packaging}"/></Column>
+							<Column><Text text="{i18n>warehouse}"/></Column>
+							<Column hAlign="End"><Text text="{i18n>seasonTons}"/></Column>
+							<Column hAlign="End"><Text text="{i18n>dailyRate}"/></Column>
+							<Column hAlign="End"><Text text="{i18n>colAction}"/></Column>
+						</columns>
+						<items>
+							<ColumnListItem>
+								<cells>
+									<Text text="{view>productName}"/>
+									<Text text="{view>packagingName}"/>
+									<Text text="{view>warehouseName}"/>
+									<ObjectNumber number="{path: 'view>seasonTons', formatter: '.formatter.tons0'}" unit="t"/>
+									<Text text="{= ${view>dailyRateTons} > 0 ? ${view>dailyRateTons} + ' t/day' : '—' }"/>
+									<HBox>
+										<Button icon="sap-icon://edit" type="Transparent" tooltip="{i18n>mixEdit}"
+											press=".onEditMix" enabled="{view>/editable}"/>
+										<Button icon="sap-icon://delete" type="Transparent" tooltip="{i18n>mixDelete}"
+											press=".onDeleteMix" enabled="{view>/editable}"/>
+									</HBox>
+								</cells>
+							</ColumnListItem>
+						</items>
+						<noData>
+							<IllustratedMessage illustrationType="sapIllus-NoEntries"
+								title="{i18n>noMix}" description="{i18n>noMixHint}"/>
+						</noData>
+					</Table>
+				</Panel>
+
+				<!-- What the generator produced. -->
+				<Panel headerText="{i18n>planSummary}" class="sapUiSmallMarginTop"
+					visible="{= !!${view>/summary} }" expandable="true" expanded="true">
+					<l:Grid defaultSpan="XL3 L3 M6 S12" class="sapUiSmallMargin">
+						<VBox class="sugarKpiBox">
+							<Text text="{i18n>summaryCane}" class="sugarKpiLabel"/>
+							<ObjectNumber number="{path: 'view>/summary/caneAllocatedTons', formatter: '.formatter.tons0'}"
+								unit="t" emphasized="true"/>
+						</VBox>
+						<VBox class="sugarKpiBox">
+							<Text text="{i18n>summaryRawSugar}" class="sugarKpiLabel"/>
+							<ObjectNumber number="{path: 'view>/summary/rawSugarExpectedTons', formatter: '.formatter.tons0'}"
+								unit="t" emphasized="true"/>
+						</VBox>
+						<VBox class="sugarKpiBox">
+							<Text text="{i18n>summaryFinished}" class="sugarKpiLabel"/>
+							<ObjectNumber number="{path: 'view>/summary/finishedGoodsTons', formatter: '.formatter.tons0'}"
+								unit="t" emphasized="true"/>
+						</VBox>
+						<VBox class="sugarKpiBox">
+							<Text text="{i18n>summaryRemelt}" class="sugarKpiLabel"/>
+							<ObjectNumber number="{path: 'view>/summary/remeltInputTons', formatter: '.formatter.tons0'}"
+								unit="t" emphasized="true"/>
+						</VBox>
+					</l:Grid>
+				</Panel>
+			</VBox>
+		</content>
+	</Page>
+</mvc:View>

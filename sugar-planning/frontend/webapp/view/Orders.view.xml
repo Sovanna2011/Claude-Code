@@ -1,0 +1,61 @@
+<mvc:View
+	controllerName="sugarplan.controller.Orders"
+	xmlns="sap.m"
+	xmlns:mvc="sap.ui.core.mvc">
+
+	<Page id="ordersPage" title="{i18n>ordersTitle}" showNavButton="true" navButtonPress=".onNavBack">
+		<headerContent>
+			<Button icon="sap-icon://create" text="{i18n>ordersFromPlan}" type="Emphasized"
+				enabled="{= ${view>/canProduce} &amp;&amp; !!${view>/releasedVersionId} }"
+				press=".onOpenFromPlan"/>
+			<Button icon="sap-icon://refresh" press=".onRefresh" tooltip="{i18n>refresh}"/>
+		</headerContent>
+
+		<content>
+			<MessageStrip class="sapUiSmallMargin" type="Information" showIcon="true"
+				visible="{= !${view>/releasedVersionId} }"
+				text="{i18n>ordersNoReleased}"/>
+
+			<Table id="orderTable" items="{view>/orders}" mode="SingleSelectMaster"
+				itemPress=".onOpenOrder" class="sapUiResponsiveMargin" width="auto"
+				noDataText="{i18n>ordersEmpty}">
+				<headerToolbar>
+					<Toolbar>
+						<Title text="{i18n>ordersHeading}" level="H3"/>
+						<ToolbarSpacer/>
+						<Button icon="sap-icon://sort" type="Transparent" press=".onOpenTableSettings"
+							tooltip="{i18n>tableSettingsTitle}"/>
+						<CheckBox text="{i18n>ordersOpenOnly}" selected="{view>/openOnly}"
+							select=".onToggleOpenOnly"/>
+					</Toolbar>
+				</headerToolbar>
+				<columns>
+					<Column><Text text="{i18n>colOrder}"/></Column>
+					<Column><Text text="{i18n>colDate}"/></Column>
+					<Column minScreenWidth="Tablet" demandPopin="true">
+						<Text text="{i18n>colProduct}"/>
+					</Column>
+					<Column hAlign="End"><Text text="{i18n>colPlanned}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>colConfirmed}"/></Column>
+					<Column><Text text="{i18n>colStatus}"/></Column>
+				</columns>
+				<items>
+					<ColumnListItem type="Navigation" press=".onOpenOrder">
+						<cells>
+							<ObjectIdentifier title="{view>orderNo}" text="{view>team}"/>
+							<Text text="{path: 'view>businessDate', formatter: '.formatter.date'}"/>
+							<ObjectIdentifier title="{view>productCode}" text="{view>productName}"/>
+							<ObjectNumber number="{path: 'view>plannedQty', formatter: '.formatter.tons'}"
+								unit="t"/>
+							<ObjectNumber number="{path: 'view>confirmedQty', formatter: '.formatter.tons'}"
+								unit="t" emphasized="true"/>
+							<ObjectStatus
+								text="{path: 'view>status', formatter: '.formatter.orderStatusLabel'}"
+								state="{path: 'view>status', formatter: '.formatter.orderState'}"/>
+						</cells>
+					</ColumnListItem>
+				</items>
+			</Table>
+		</content>
+	</Page>
+</mvc:View>

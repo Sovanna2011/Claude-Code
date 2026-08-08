@@ -1,0 +1,78 @@
+<core:FragmentDefinition
+	xmlns="sap.m"
+	xmlns:core="sap.ui.core"
+	xmlns:f="sap.ui.layout.form">
+
+	<!--
+	  The buttons follow allowedActions, which the API computes from the order's
+	  status. A button that would be refused is disabled rather than offered and
+	  then rejected.
+	-->
+	<Dialog id="orderDetailDialog" title="{view>/detail/order/orderNo}" contentWidth="46rem">
+		<content>
+			<f:SimpleForm editable="false" layout="ResponsiveGridLayout"
+				labelSpanM="4" columnsM="2" class="sapUiNoMarginTop">
+				<f:content>
+					<Label text="{i18n>colStatus}"/>
+					<ObjectStatus
+						text="{path: 'view>/detail/order/status', formatter: '.formatter.orderStatusLabel'}"
+						state="{path: 'view>/detail/order/status', formatter: '.formatter.orderState'}"/>
+
+					<Label text="{i18n>colDate}"/>
+					<Text text="{path: 'view>/detail/order/businessDate', formatter: '.formatter.date'}"/>
+
+					<Label text="{i18n>colPlanned}"/>
+					<Text text="{path: 'view>/detail/order/plannedQty', formatter: '.formatter.tons'} t"/>
+
+					<Label text="{i18n>colConfirmed}"/>
+					<Text text="{path: 'view>/detail/order/confirmedQty', formatter: '.formatter.tons'} t"/>
+
+					<Label text="{i18n>colOpen}"/>
+					<Text text="{path: 'view>/detail/openQty', formatter: '.formatter.tons'} t"/>
+
+					<Label text="{i18n>colVariance}"/>
+					<Text text="{path: 'view>/detail/variancePct', formatter: '.formatter.percent'}"/>
+				</f:content>
+			</f:SimpleForm>
+
+			<Table items="{view>/detail/confirmations}" class="sapUiSmallMarginTop"
+				noDataText="{i18n>ordersNoConfirmations}">
+				<headerToolbar>
+					<Toolbar><Title text="{i18n>ordersConfirmations}" level="H4"/></Toolbar>
+				</headerToolbar>
+				<columns>
+					<Column><Text text="{i18n>colConfirmation}"/></Column>
+					<Column><Text text="{i18n>colDate}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>colYield}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>colScrap}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>colAction}"/></Column>
+				</columns>
+				<items>
+					<ColumnListItem>
+						<cells>
+							<ObjectIdentifier title="{view>confirmationNo}"/>
+							<Text text="{path: 'view>businessDate', formatter: '.formatter.date'}"/>
+							<ObjectNumber number="{path: 'view>yieldQty', formatter: '.formatter.tons'}"
+								state="{= ${view>reversed} ? 'Error' : 'None' }"/>
+							<ObjectNumber number="{path: 'view>scrapQty', formatter: '.formatter.tons'}"/>
+							<Button icon="sap-icon://undo" type="Transparent" text="{i18n>reverse}"
+								enabled="{= ${view>/canProduce} &amp;&amp; !${view>reversed} }"
+								press=".onReverseConfirmation"/>
+						</cells>
+					</ColumnListItem>
+				</items>
+			</Table>
+		</content>
+		<buttons>
+			<Button text="{i18n>release}" type="Emphasized" press=".onRelease"
+				enabled="{= ${view>/canProduce} &amp;&amp; ${view>/detail/order/status} === 'PLANNED' }"/>
+			<Button text="{i18n>confirm}" type="Emphasized" press=".onOpenConfirm"
+				enabled="{= ${view>/canProduce} &amp;&amp; (${view>/detail/order/status} === 'RELEASED' || ${view>/detail/order/status} === 'PARTIALLY_CONFIRMED' || ${view>/detail/order/status} === 'IN_PROCESS') }"/>
+			<Button text="{i18n>ordersClose}" press=".onTechnicallyClose"
+				enabled="{= ${view>/canProduce} &amp;&amp; (${view>/detail/order/status} === 'COMPLETED' || ${view>/detail/order/status} === 'PARTIALLY_CONFIRMED') }"/>
+			<Button text="{i18n>ordersCancel}" type="Reject" press=".onCancelOrder"
+				enabled="{= ${view>/canProduce} &amp;&amp; (${view>/detail/order/status} === 'PLANNED' || ${view>/detail/order/status} === 'RELEASED') }"/>
+			<Button text="{i18n>close}" press=".onCloseDetail"/>
+		</buttons>
+	</Dialog>
+</core:FragmentDefinition>

@@ -1,0 +1,41 @@
+<core:FragmentDefinition
+	xmlns="sap.m"
+	xmlns:core="sap.ui.core"
+	xmlns:f="sap.ui.layout.form">
+
+	<!--
+	  Saving over one of your own names replaces it, which is what "save" on a
+	  variant means. The hint says so rather than the dialog asking twice.
+	-->
+	<Dialog id="variantDialog" title="{i18n>variantSaveTitle}" contentWidth="26rem">
+		<content>
+			<f:SimpleForm editable="true" layout="ResponsiveGridLayout"
+				labelSpanM="4" columnsM="1" class="sapUiNoMarginTop">
+				<f:content>
+					<Label text="{i18n>variantName}" required="true"/>
+					<Input value="{variants>/name}" width="100%" maxLength="60"
+						placeholder="{i18n>variantNamePlaceholder}"/>
+
+					<Label text=""/>
+					<Text text="{i18n>variantSaveHint}"/>
+
+					<Label text="{i18n>variantDefaultLabel}"/>
+					<CheckBox selected="{variants>/isDefault}" text="{i18n>variantDefaultHint}"/>
+
+					<Label text="{i18n>variantSharedLabel}"/>
+					<CheckBox selected="{variants>/shared}" text="{i18n>variantSharedHint}"
+						enabled="{variants>/canShare}"/>
+
+					<Label text=""/>
+					<Text text="{i18n>variantSharedNote}" visible="{= !${variants>/canShare} }"/>
+				</f:content>
+			</f:SimpleForm>
+		</content>
+		<beginButton>
+			<Button text="{i18n>save}" type="Emphasized" press=".onVariantSave"/>
+		</beginButton>
+		<endButton>
+			<Button text="{i18n>cancel}" press=".onVariantCancel"/>
+		</endButton>
+	</Dialog>
+</core:FragmentDefinition>

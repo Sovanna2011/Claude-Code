@@ -1,0 +1,113 @@
+<mvc:View
+	controllerName="sugarplan.controller.App"
+	xmlns="sap.m"
+	xmlns:mvc="sap.ui.core.mvc"
+	xmlns:f="sap.f"
+	xmlns:tnt="sap.tnt"
+	displayBlock="true"
+	height="100%">
+
+	<!--
+	  The shell is an original Fiori-style layout: a tool header carrying the
+	  company and the season context, a side navigation for the application
+	  areas, and a page container. It is not a copy of any SAP screen.
+	-->
+	<App id="rootApp" busy="{app>/busy}" busyIndicatorDelay="200">
+		<pages>
+
+			<!--
+			  Sign-in page. sap.m.App is a NavContainer: which page is on screen
+			  is decided by navigating, not by a visible binding, so the shell
+			  controller calls to() when the session starts and ends.
+			-->
+			<Page id="loginPage" showHeader="false" class="sugarLoginPage">
+				<VBox alignItems="Center" justifyContent="Center" height="100%" class="sapUiLargeMargin">
+					<Panel class="sugarLoginPanel" width="26rem">
+						<VBox class="sapUiMediumMargin">
+							<Title text="{i18n>appTitle}" level="H1" class="sapUiTinyMarginBottom"/>
+							<Text text="{i18n>loginIntro}" class="sapUiSmallMarginBottom"/>
+
+							<Label text="{i18n>loginUser}" labelFor="userSelect"/>
+							<Select id="userSelect" width="100%" class="sapUiSmallMarginBottom"
+								items="{path: 'login>/users', templateShareable: false}">
+								<core:Item xmlns:core="sap.ui.core"
+									key="{login>username}"
+									text="{login>displayName} — {login>role}"/>
+							</Select>
+
+							<Button id="signInButton" text="{i18n>loginAction}" type="Emphasized"
+								width="100%" press=".onSignIn"/>
+							<MessageStrip class="sapUiSmallMarginTop" type="Information"
+								text="{i18n>loginDevNote}" showIcon="true"/>
+						</VBox>
+					</Panel>
+				</VBox>
+			</Page>
+
+			<!-- The application proper. -->
+			<Page id="shellPage" showHeader="false">
+				<tnt:ToolPage id="toolPage" sideExpanded="{= !${device>/isPhone} }">
+					<tnt:header>
+						<tnt:ToolHeader>
+							<Button icon="sap-icon://menu2" type="Transparent" press=".onToggleNav"
+								tooltip="{i18n>navToggle}"/>
+							<ToolbarSpacer width="0.5rem"/>
+							<Title text="{i18n>appTitle}" level="H2" class="sugarBrand"/>
+							<ToolbarSpacer/>
+
+							<!-- Season context: every page reads from this selection. -->
+							<Label text="{i18n>season}" class="sapUiTinyMarginEnd sugarHeaderLabel"/>
+							<Select id="seasonSelect"
+								selectedKey="{app>/selectedSeasonId}"
+								change=".onSeasonChange"
+								items="{path: 'app>/seasons', templateShareable: false}"
+								tooltip="{i18n>seasonTooltip}">
+								<core:Item xmlns:core="sap.ui.core" key="{app>id}" text="{app>name}"/>
+							</Select>
+
+							<ToolbarSpacer width="1rem"/>
+							<!-- The inbox: alerts that were raised for the roles
+							     this person holds. The count is what makes it
+							     worth looking at. -->
+							<Button icon="sap-icon://bell" type="Transparent"
+								text="{= ${app>/unread} > 0 ? String(${app>/unread}) : '' }"
+								tooltip="{i18n>inboxTooltip}" press=".onOpenInbox"/>
+							<Button icon="sap-icon://account" type="Transparent"
+								text="{app>/profile/displayName}" press=".onOpenProfile"/>
+						</tnt:ToolHeader>
+					</tnt:header>
+
+					<tnt:sideContent>
+						<tnt:SideNavigation id="sideNav" expanded="true" itemSelect=".onNavItemSelect"
+							selectedKey="{app>/selectedNav}">
+							<tnt:NavigationList>
+								<tnt:NavigationListItem text="{i18n>navHome}" icon="sap-icon://home" key="launchpad"/>
+								<tnt:NavigationListItem text="{i18n>navOverview}" icon="sap-icon://business-objects-experience" key="overview"/>
+								<tnt:NavigationListItem text="{i18n>navPlans}" icon="sap-icon://document-text" key="plans"/>
+								<tnt:NavigationListItem text="{i18n>navCaneSupply}" icon="sap-icon://tree" key="canesupply"/>
+								<tnt:NavigationListItem text="{i18n>navWarehouse}" icon="sap-icon://warehouse" key="warehouse"/>
+								<tnt:NavigationListItem text="{i18n>navStock}" icon="sap-icon://inventory" key="stock"/>
+								<tnt:NavigationListItem text="{i18n>navOrders}" icon="sap-icon://factory" key="orders"/>
+								<tnt:NavigationListItem text="{i18n>navQuality}" icon="sap-icon://lab" key="quality"/>
+								<tnt:NavigationListItem text="{i18n>navMaintenance}" icon="sap-icon://wrench" key="maintenance"/>
+								<tnt:NavigationListItem text="{i18n>navShipments}" icon="sap-icon://shipping-status" key="shipments"/>
+								<tnt:NavigationListItem text="{i18n>navMaterials}" icon="sap-icon://sales-order-item" key="materials"/>
+								<tnt:NavigationListItem text="{i18n>navCosting}" icon="sap-icon://money-bills" key="costing"/>
+								<tnt:NavigationListItem text="{i18n>navReports}" icon="sap-icon://list" key="reports"/>
+								<tnt:NavigationListItem text="{i18n>navMasterData}" icon="sap-icon://database" key="masterdata"/>
+								<tnt:NavigationListItem text="{i18n>navImport}" icon="sap-icon://upload-to-cloud" key="import"/>
+							<tnt:NavigationListItem text="{i18n>navInterfaces}" icon="sap-icon://connected" key="interfaces"/>
+								<tnt:NavigationListItem text="{i18n>navAudit}" icon="sap-icon://history" key="audit"/>
+							</tnt:NavigationList>
+						</tnt:SideNavigation>
+					</tnt:sideContent>
+
+					<tnt:mainContents>
+						<NavContainer id="appContainer" autoFocus="false"/>
+					</tnt:mainContents>
+				</tnt:ToolPage>
+			</Page>
+
+		</pages>
+	</App>
+</mvc:View>

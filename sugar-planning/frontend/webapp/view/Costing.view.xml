@@ -1,0 +1,176 @@
+<mvc:View
+	controllerName="sugarplan.controller.Costing"
+	xmlns="sap.m"
+	xmlns:mvc="sap.ui.core.mvc"
+	xmlns:f="sap.ui.layout.form">
+
+	<!--
+	  The variance is shown split into the part caused by paying a different
+	  price and the part caused by using a different quantity, because those are
+	  two different conversations with two different people.
+	-->
+	<Page id="costingPage" title="{i18n>costingTitle}" showNavButton="true" navButtonPress=".onNavBack">
+		<headerContent>
+			<Button icon="sap-icon://money-bills" text="{i18n>costingRates}"
+				enabled="{view>/canWrite}" press=".onOpenRates"/>
+			<Button icon="sap-icon://save" text="{i18n>costingSave}"
+				enabled="{view>/canWrite}" press=".onSaveRun"/>
+			<Button icon="sap-icon://refresh" press=".onRefresh" tooltip="{i18n>refresh}"/>
+		</headerContent>
+
+		<content>
+			<VBox class="sapUiSmallMargin">
+				<MessageStrip class="sapUiSmallMarginBottom" type="Warning" showIcon="true"
+					visible="{= ${view>/warnings}.length > 0 }"
+					text="{i18n>costingWarnings}"/>
+
+				<!-- The headline figures. -->
+				<HBox wrap="Wrap" class="sapUiSmallMarginBottom" visible="{= !!${view>/totals} }">
+					<GenericTile class="sugarTile" header="{i18n>costingUnitCost}"
+						subheader="{view>/currency} / t" frameType="TwoByOne">
+						<TileContent>
+							<NumericContent
+								value="{path: 'view>/totals/actualUnitCost', formatter: '.formatter.tons'}"
+								valueColor="{path: 'view>/totals/unitCostVariance', formatter: '.formatter.varianceColor'}"
+								indicator="{= parseFloat(${view>/totals/unitCostVariance}) > 0 ? 'Up' : 'Down' }"
+								withMargin="false"/>
+						</TileContent>
+					</GenericTile>
+					<GenericTile class="sugarTile" header="{i18n>costingPlanned}"
+						subheader="{view>/currency}" frameType="OneByOne">
+						<TileContent>
+							<NumericContent
+								value="{path: 'view>/totals/plannedCost', formatter: '.formatter.money'}"
+								withMargin="false"/>
+						</TileContent>
+					</GenericTile>
+					<GenericTile class="sugarTile" header="{i18n>costingActual}"
+						subheader="{view>/currency}" frameType="OneByOne">
+						<TileContent>
+							<NumericContent
+								value="{path: 'view>/totals/actualCost', formatter: '.formatter.money'}"
+								withMargin="false"/>
+						</TileContent>
+					</GenericTile>
+					<GenericTile class="sugarTile" header="{i18n>costingVariance}"
+						subheader="{i18n>costingVarianceSub}" frameType="OneByOne">
+						<TileContent unit="%">
+							<NumericContent
+								value="{path: 'view>/totals/variancePct', formatter: '.formatter.percent'}"
+								valueColor="{path: 'view>/totals/totalVariance', formatter: '.formatter.varianceColor'}"
+								withMargin="false"/>
+						</TileContent>
+					</GenericTile>
+					<GenericTile class="sugarTile" header="{i18n>costingFixed}"
+						subheader="{i18n>costingFixedSub}" frameType="OneByOne">
+						<TileContent>
+							<NumericContent
+								value="{path: 'view>/totals/fixedCost', formatter: '.formatter.money'}"
+								withMargin="false"/>
+						</TileContent>
+					</GenericTile>
+				</HBox>
+
+				<!-- The range and the drivers behind the figures. -->
+				<Panel headerText="{i18n>costingPeriod}" class="sapUiSmallMarginBottom">
+					<f:SimpleForm editable="true" layout="ResponsiveGridLayout"
+						labelSpanM="4" columnsM="2">
+						<f:content>
+							<Label text="{i18n>fieldFrom}"/>
+							<DatePicker value="{view>/from}" valueFormat="yyyy-MM-dd"
+								displayFormat="yyyy-MM-dd" change=".onRerun"/>
+							<Label text="{i18n>fieldTo}"/>
+							<DatePicker value="{view>/to}" valueFormat="yyyy-MM-dd"
+								displayFormat="yyyy-MM-dd" change=".onRerun"/>
+
+							<Label text="{i18n>costingDriversPlanned}"/>
+							<Text text="{path: 'view>/plannedDrivers/caneTons', formatter: '.formatter.tons0'} t {i18n>costingCane}, {path: 'view>/plannedDrivers/runHours', formatter: '.formatter.tons0'} h, {path: 'view>/plannedDrivers/calendarDays', formatter: '.formatter.units'} d"/>
+							<Label text="{i18n>costingDriversActual}"/>
+							<Text text="{path: 'view>/actualDrivers/caneTons', formatter: '.formatter.tons0'} t {i18n>costingCane}, {path: 'view>/actualDrivers/runHours', formatter: '.formatter.tons0'} h, {path: 'view>/actualDrivers/calendarDays', formatter: '.formatter.units'} d"/>
+						</f:content>
+					</f:SimpleForm>
+				</Panel>
+
+				<core:HTML xmlns:core="sap.ui.core" content="{view>/chartHtml}"
+					sanitizeContent="false"/>
+			</VBox>
+
+			<Table id="costTable" items="{view>/lines}" class="sapUiResponsiveMargin"
+				width="auto" noDataText="{i18n>costingEmpty}">
+				<headerToolbar>
+					<Toolbar>
+						<Title text="{i18n>costingByElement}" level="H3"/>
+						<ToolbarSpacer/>
+						<Text text="{i18n>costingSplitNote}"/>
+					</Toolbar>
+				</headerToolbar>
+				<columns>
+					<Column><Text text="{i18n>colElement}"/></Column>
+					<Column minScreenWidth="Tablet" demandPopin="true">
+						<Text text="{i18n>colDriver}"/>
+					</Column>
+					<Column hAlign="End" minScreenWidth="Tablet" demandPopin="true">
+						<Text text="{i18n>colStandardRate}"/>
+					</Column>
+					<Column hAlign="End"><Text text="{i18n>colPlannedCost}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>colActualCost}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>colRateVariance}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>colUsageVariance}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>colTotalVariance}"/></Column>
+				</columns>
+				<items>
+					<ColumnListItem>
+						<cells>
+							<ObjectIdentifier title="{view>elementCode}" text="{view>elementName}"/>
+							<ObjectStatus text="{view>category}"
+								state="{= ${view>variable} ? 'Information' : 'None' }"/>
+							<ObjectNumber number="{path: 'view>standardRate', formatter: '.formatter.tons'}"
+								unit="/{view>driverUnit}"/>
+							<ObjectNumber number="{path: 'view>plannedCost', formatter: '.formatter.tons0'}"/>
+							<ObjectNumber number="{path: 'view>actualCost', formatter: '.formatter.tons0'}"
+								emphasized="true"/>
+							<ObjectNumber number="{path: 'view>rateVariance', formatter: '.formatter.tons0'}"
+								state="{path: 'view>rateVariance', formatter: '.costVarianceState'}"/>
+							<ObjectNumber number="{path: 'view>usageVariance', formatter: '.formatter.tons0'}"
+								state="{path: 'view>usageVariance', formatter: '.costVarianceState'}"/>
+							<ObjectNumber number="{path: 'view>totalVariance', formatter: '.formatter.tons0'}"
+								state="{path: 'view>totalVariance', formatter: '.costVarianceState'}"/>
+						</cells>
+					</ColumnListItem>
+				</items>
+			</Table>
+
+			<Table id="runTable" items="{view>/runs}" mode="SingleSelectMaster"
+				itemPress=".onOpenRun" class="sapUiResponsiveMargin" width="auto"
+				noDataText="{i18n>costingNoRuns}">
+				<headerToolbar>
+					<Toolbar>
+						<Title text="{i18n>costingSavedRuns}" level="H3"/>
+						<ToolbarSpacer/>
+						<Text text="{i18n>costingSavedNote}"/>
+					</Toolbar>
+				</headerToolbar>
+				<columns>
+					<Column><Text text="{i18n>colRun}"/></Column>
+					<Column><Text text="{i18n>colFrom}"/></Column>
+					<Column><Text text="{i18n>colTo}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>colActualCost}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>colUnitCost}"/></Column>
+				</columns>
+				<items>
+					<ColumnListItem type="Navigation" press=".onOpenRun">
+						<cells>
+							<ObjectIdentifier title="{view>code}" text="{view>note}"/>
+							<Text text="{path: 'view>from', formatter: '.formatter.date'}"/>
+							<Text text="{path: 'view>to', formatter: '.formatter.date'}"/>
+							<ObjectNumber number="{path: 'view>totals/actualCost', formatter: '.formatter.money'}"
+								unit="{view>currency}"/>
+							<ObjectNumber number="{path: 'view>totals/actualUnitCost', formatter: '.formatter.tons'}"
+								unit="{view>currency}/t"/>
+						</cells>
+					</ColumnListItem>
+				</items>
+			</Table>
+		</content>
+	</Page>
+</mvc:View>

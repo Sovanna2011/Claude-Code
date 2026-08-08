@@ -1,0 +1,53 @@
+<core:FragmentDefinition
+	xmlns="sap.m"
+	xmlns:core="sap.ui.core"
+	xmlns:f="sap.ui.layout.form">
+
+	<!--
+	  Only the yield goes into stock. Scrap has left the process and rework has
+	  not finished it, so neither is receipted; both are still recorded, because
+	  they are what the shift actually produced.
+	-->
+	<Dialog id="confirmDialog" title="{i18n>ordersConfirmTitle}" contentWidth="30rem">
+		<content>
+			<f:SimpleForm editable="true" layout="ResponsiveGridLayout"
+				labelSpanM="5" columnsM="1" class="sapUiNoMarginTop">
+				<f:content>
+					<Label text="{i18n>fieldOrder}"/>
+					<Text text="{view>/detail/order/orderNo}"/>
+
+					<Label text="{i18n>fieldOpenQty}"/>
+					<Text text="{path: 'view>/detail/openQty', formatter: '.formatter.tons'} t"/>
+
+					<Label text="{i18n>fieldBusinessDate}" required="true"/>
+					<DatePicker value="{view>/confirm/businessDate}" valueFormat="yyyy-MM-dd"
+						displayFormat="yyyy-MM-dd" width="100%"/>
+
+					<Label text="{i18n>fieldYield}" required="true"/>
+					<Input value="{view>/confirm/yieldQty}" description="{i18n>unitTons}" width="100%"/>
+
+					<Label text="{i18n>fieldScrap}"/>
+					<Input value="{view>/confirm/scrapQty}" description="{i18n>unitTons}" width="100%"/>
+
+					<Label text="{i18n>fieldRework}"/>
+					<Input value="{view>/confirm/reworkQty}" description="{i18n>unitTons}" width="100%"/>
+
+					<Label text="{i18n>fieldReceiveInto}"/>
+					<Select forceSelection="false" selectedKey="{view>/confirm/warehouseId}" width="100%"
+						items="{path: 'view>/warehouses', sorter: {path: 'code'}}">
+						<core:Item key="{view>id}" text="{view>code} — {view>name}"/>
+					</Select>
+
+					<Label text=""/>
+					<Text text="{i18n>ordersReceiveHint}" class="sapUiTinyMarginBottom"/>
+				</f:content>
+			</f:SimpleForm>
+		</content>
+		<beginButton>
+			<Button text="{i18n>confirm}" type="Emphasized" press=".onSubmitConfirm"/>
+		</beginButton>
+		<endButton>
+			<Button text="{i18n>cancel}" press=".onCancelConfirm"/>
+		</endButton>
+	</Dialog>
+</core:FragmentDefinition>

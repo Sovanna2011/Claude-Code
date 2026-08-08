@@ -1,0 +1,70 @@
+<mvc:View controllerName="sugarplan.controller.Shipments" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc">
+	<Page id="shipmentsPage" title="{i18n>shipmentsTitle}" showNavButton="true" navButtonPress=".onNavBack">
+		<content>
+			<VBox class="sapUiSmallMargin">
+				<Text text="{i18n>shipmentsIntro}" class="sapUiSmallMarginBottom"/>
+
+				<Table items="{path: 'view>/channels', templateShareable: false}" mode="None"
+					sticky="ColumnHeaders" class="sugarTable sapUiSmallMarginBottom">
+					<headerToolbar>
+						<OverflowToolbar>
+							<Title text="{i18n>shipmentByChannel}" level="H3"/>
+							<ToolbarSpacer/>
+							<ObjectNumber number="{path: 'view>/totalPlanned', formatter: '.formatter.tons0'}"
+								unit="t planned" class="sapUiSmallMarginEnd"/>
+							<ObjectNumber number="{path: 'view>/totalActual', formatter: '.formatter.tons0'}"
+								unit="t actual" emphasized="true"/>
+						</OverflowToolbar>
+					</headerToolbar>
+					<columns>
+						<Column><Text text="{i18n>channel}"/></Column>
+						<Column hAlign="End"><Text text="{i18n>planned}"/></Column>
+						<Column hAlign="End"><Text text="{i18n>actual}"/></Column>
+						<Column hAlign="End"><Text text="{i18n>variance}"/></Column>
+					</columns>
+					<items>
+						<ColumnListItem>
+							<cells>
+								<ObjectIdentifier title="{view>channelName}" text="{view>channelCode}"/>
+								<Text text="{path: 'view>plannedTons', formatter: '.formatter.tons0'}"/>
+								<Text text="{path: 'view>actualTons', formatter: '.formatter.tons0'}"/>
+								<ObjectNumber number="{path: 'view>varianceTons', formatter: '.formatter.tons0'}"
+									state="{path: 'view>varianceTons', formatter: '.formatter.varianceState'}"/>
+							</cells>
+						</ColumnListItem>
+					</items>
+					<noData>
+						<IllustratedMessage illustrationType="sapIllus-NoEntries" title="{i18n>noShipments}"/>
+					</noData>
+				</Table>
+
+				<!-- What the finished goods stores need shipped to stay inside capacity. -->
+				<Panel headerText="{i18n>shipmentRequirement}" expandable="true" expanded="true">
+					<MessageStrip class="sapUiSmallMargin" type="Information" showIcon="true"
+						text="{i18n>shipmentRequirementHint}"/>
+					<Table items="{path: 'view>/storage', templateShareable: false}" mode="None" class="sugarTable">
+						<columns>
+							<Column><Text text="{i18n>warehouse}"/></Column>
+							<Column hAlign="End"><Text text="{i18n>capacityUse}"/></Column>
+							<Column><Text text="{i18n>firstFull}"/></Column>
+							<Column hAlign="End"><Text text="{i18n>shipmentNeeded}"/></Column>
+						</columns>
+						<items>
+							<ColumnListItem>
+								<cells>
+									<ObjectIdentifier title="{view>warehouseName}" text="{view>warehouseCode}"/>
+									<ObjectNumber number="{path: 'view>capacityUsePct', formatter: '.formatter.percent'}"
+										state="{path: 'view>capacityUsePct', formatter: '.formatter.capacityState'}"/>
+									<ObjectStatus text="{path: 'view>firstFullDate', formatter: '.formatter.date'}"
+										state="{= ${view>firstFullDate} ? 'Error' : 'Success' }"/>
+									<ObjectNumber number="{path: 'view>requiredShipmentTonsPerDay', formatter: '.formatter.tons'}"
+										unit="t/day" emphasized="true"/>
+								</cells>
+							</ColumnListItem>
+						</items>
+					</Table>
+				</Panel>
+			</VBox>
+		</content>
+	</Page>
+</mvc:View>

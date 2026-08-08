@@ -1,0 +1,76 @@
+<core:FragmentDefinition
+	xmlns="sap.m"
+	xmlns:core="sap.ui.core"
+	xmlns:f="sap.ui.layout.form">
+
+	<!--
+	  The element, the type and the start date are the business key: entering a
+	  rate for a date that already has one corrects it. A price change is the
+	  same element with a later start date.
+	-->
+	<Dialog id="costRatesDialog" title="{i18n>costingRatesTitle}" contentWidth="46rem">
+		<content>
+			<Table items="{view>/rates}" noDataText="{i18n>costingNoRates}"
+				class="sapUiSmallMarginBottom">
+				<columns>
+					<Column><Text text="{i18n>colElement}"/></Column>
+					<Column><Text text="{i18n>colRateType}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>colRate}"/></Column>
+					<Column><Text text="{i18n>colFrom}"/></Column>
+				</columns>
+				<items>
+					<ColumnListItem>
+						<cells>
+							<ObjectIdentifier title="{view>elementCode}" text="{view>elementName}"/>
+							<ObjectStatus text="{view>rateType}"
+								state="{= ${view>rateType} === 'ACTUAL' ? 'Success' : 'Information' }"/>
+							<ObjectNumber number="{path: 'view>rate', formatter: '.formatter.tons'}"
+								unit="{view>currency}"/>
+							<Text text="{path: 'view>validFrom', formatter: '.formatter.date'}"/>
+						</cells>
+					</ColumnListItem>
+				</items>
+			</Table>
+
+			<f:SimpleForm editable="true" layout="ResponsiveGridLayout"
+				labelSpanM="4" columnsM="1" title="{i18n>costingNewRate}">
+				<f:content>
+					<Label text="{i18n>colElement}" required="true"/>
+					<Select forceSelection="false" selectedKey="{view>/rate/elementId}" width="100%"
+						items="{path: 'view>/elements', sorter: {path: 'code'}}">
+						<core:Item key="{view>id}" text="{view>code} — {view>name}"/>
+					</Select>
+
+					<Label text="{i18n>colRateType}" required="true"/>
+					<Select selectedKey="{view>/rate/rateType}" width="100%">
+						<core:Item key="STANDARD" text="{i18n>costingStandard}"/>
+						<core:Item key="ACTUAL" text="{i18n>costingActualRate}"/>
+					</Select>
+
+					<Label text="{i18n>colRate}" required="true"/>
+					<Input value="{view>/rate/rate}" width="100%"
+						placeholder="{i18n>costingRatePlaceholder}"/>
+
+					<Label text="{i18n>fieldCurrency}" required="true"/>
+					<Input value="{view>/rate/currency}" maxLength="3" width="100%"/>
+
+					<Label text="{i18n>fieldFrom}" required="true"/>
+					<DatePicker value="{view>/rate/validFrom}" valueFormat="yyyy-MM-dd"
+						displayFormat="yyyy-MM-dd" width="100%"/>
+
+					<Label text="{i18n>fieldNote}"/>
+					<Input value="{view>/rate/note}" width="100%"/>
+
+					<Label text=""/>
+					<Text text="{i18n>costingRateHint}"/>
+				</f:content>
+			</f:SimpleForm>
+		</content>
+		<beginButton>
+			<Button text="{i18n>save}" type="Emphasized" press=".onSaveRate"/>
+		</beginButton>
+		<endButton>
+			<Button text="{i18n>close}" press=".onCloseRates"/>
+		</endButton>
+	</Dialog>
+</core:FragmentDefinition>

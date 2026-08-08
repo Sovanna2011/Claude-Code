@@ -1,0 +1,47 @@
+<core:FragmentDefinition
+	xmlns="sap.m"
+	xmlns:core="sap.ui.core"
+	xmlns:f="sap.ui.layout.form">
+
+	<!--
+	  A commitment is a source, a window and a tonnage. The three together are
+	  what the required daily rate is worked out from, which is why the window
+	  is two dates rather than a duration: a grower knows when their block is
+	  ready, not how many days of cutting that is.
+	-->
+	<Dialog id="supplyEntryDialog" title="{i18n>supplyEntryTitle}" contentWidth="32rem">
+		<content>
+			<f:SimpleForm editable="true" layout="ResponsiveGridLayout"
+				labelSpanM="5" columnsM="1" class="sapUiNoMarginTop">
+				<f:content>
+					<Label text="{i18n>supplySource}" required="true"/>
+					<Select forceSelection="false" selectedKey="{view>/entry/sourceId}" width="100%"
+						items="{path: 'view>/sources', sorter: {path: 'code'}}">
+						<core:Item key="{view>id}" text="{view>code} — {view>name}"/>
+					</Select>
+
+					<Label text="{i18n>supplyHarvestFrom}" required="true"/>
+					<DatePicker value="{view>/entry/harvestFrom}" valueFormat="yyyy-MM-dd"
+						displayFormat="yyyy-MM-dd" width="100%"/>
+
+					<Label text="{i18n>supplyHarvestTo}" required="true"/>
+					<DatePicker value="{view>/entry/harvestTo}" valueFormat="yyyy-MM-dd"
+						displayFormat="yyyy-MM-dd" width="100%"/>
+
+					<Label text="{i18n>supplyCommittedTons}" required="true"/>
+					<Input value="{view>/entry/committedTons}" description="{i18n>unitTons}" width="100%"/>
+
+					<Label text="{i18n>supplyNote}"/>
+					<Input value="{view>/entry/note}" width="100%"/>
+
+					<Label text=""/>
+					<Text text="{i18n>supplyEntryHint}"/>
+				</f:content>
+			</f:SimpleForm>
+		</content>
+		<buttons>
+			<Button text="{i18n>save}" type="Emphasized" press=".onSaveEntry"/>
+			<Button text="{i18n>cancel}" press=".onCancelEntry"/>
+		</buttons>
+	</Dialog>
+</core:FragmentDefinition>

@@ -1,0 +1,24 @@
+specVersion: "3.0"
+metadata:
+  name: sugarplan
+type: application
+framework:
+  name: OpenUI5
+  version: "1.120.0"
+  libraries:
+    - name: sap.ui.core
+    - name: sap.m
+    - name: sap.f
+    - name: sap.ui.layout
+    - name: sap.tnt
+    - name: themelib_sap_horizon
+server:
+  customMiddleware:
+    # During development the UI5 tooling serves the application and proxies the
+    # API to the Go server, so the browser sees one origin and no CORS is needed.
+    - name: fiori-tools-proxy
+      afterMiddleware: compression
+      configuration:
+        backend:
+          - path: /api
+            url: http://localhost:8080

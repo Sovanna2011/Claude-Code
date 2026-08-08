@@ -1,0 +1,345 @@
+name: Sugar Planning CI
+
+on:
+  push:
+    paths:
+      - 'sugar-planning/**'
+      - '.github/workflows/sugar-planning.yml'
+  pull_request:
+    paths:
+      - 'sugar-planning/**'
+      - '.github/workflows/sugar-planning.yml'
+
+defaults:
+  run:
+    working-directory: sugar-planning
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+
+    # The store conformance suite runs against a real PostgreSQL, not a mock,
+    # because that is the only way to know the SQL implementation matches the
+    # in-memory one.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: sugarplan_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: sugar-planning/backend/go.sum
+
+      - name: Formatting
+        working-directory: sugar-planning/backend
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "These files are not gofmt-clean:"; echo "$unformatted"; exit 1
+          fi
+
+      - name: Vet
+        working-directory: sugar-planning/backend
+        run: go vet ./...
+
+      - name: Static analysis
+        working-directory: sugar-planning/backend
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          staticcheck ./...
+
+      - name: Security check
+        working-directory: sugar-planning/backend
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      - name: Migration verification
+        working-directory: sugar-planning/backend
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/sugarplan_test?sslmode=disable
+          STORE: postgres
+          APP_ENV: test
+          AUTH_MODE: dev
+          AUTH_DEV_SECRET: ci-development-secret
+        # Up, then all the way down, then up again: this catches a down script
+        # that does not actually reverse its up script.
+        run: |
+          go run ./cmd/migrate up
+          go run ./cmd/migrate status
+          go run ./cmd/migrate down -steps 5
+          go run ./cmd/migrate up
+
+      - name: Tests with coverage
+        working-directory: sugar-planning/backend
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/sugarplan_test?sslmode=disable
+        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Coverage summary
+        working-directory: sugar-planning/backend
+        run: go tool cover -func=coverage.out | tail -20
+
+      - name: Build
+        working-directory: sugar-planning/backend
+        run: |
+          go build ./...
+          CGO_ENABLED=0 go build -o /tmp/server ./cmd/server
+          CGO_ENABLED=0 go build -o /tmp/migrate ./cmd/migrate
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: sugar-planning/backend/coverage.out
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: XML views are well formed
+        # A malformed view fails at runtime in the browser rather than at build
+        # time, so it is checked here.
+        run: |
+          python3 - <<'PY'
+          import glob, sys, xml.etree.ElementTree as ET
+          bad = []
+          for f in glob.glob('frontend/webapp/**/*.view.xml', recursive=True) + \
+                   glob.glob('frontend/webapp/**/*.fragment.xml', recursive=True):
+              try:
+                  ET.parse(f)
+              except ET.ParseError as e:
+                  bad.append(f'{f}: {e}')
+          files = glob.glob('frontend/webapp/**/*.view.xml', recursive=True) + \
+                  glob.glob('frontend/webapp/**/*.fragment.xml', recursive=True)
+          if not files:
+              print('no views found - the path is wrong, not the repository empty')
+              sys.exit(1)
+          if bad:
+              print('\n'.join(bad)); sys.exit(1)
+          print(f'{len(files)} XML views parse')
+          PY
+
+      - name: manifest.json is valid
+        run: python3 -c "import json;json.load(open('frontend/webapp/manifest.json'));print('manifest ok')"
+
+      - name: Every i18n key a view or controller asks for exists
+        # A missing key renders as the key itself, which reaches a user as
+        # "downtimeRootCause" in the middle of a table.
+        run: |
+          python3 - <<'PY'
+          import re, glob, sys
+          root = 'frontend/webapp/'
+          keys = set()
+          for line in open(root + 'i18n/i18n.properties', encoding='utf-8'):
+              line = line.strip()
+              if line and not line.startswith('#') and '=' in line:
+                  keys.add(line.split('=', 1)[0].strip())
+          views = glob.glob(root + 'view/**/*.xml', recursive=True)
+          controllers = glob.glob(root + 'controller/*.js')
+          if not views or not controllers:
+              print('no views or controllers found - the path is wrong')
+              sys.exit(1)
+          missing = set()
+          for f in views:
+              for m in re.findall(r'i18n>([A-Za-z0-9_]+)', open(f, encoding='utf-8').read()):
+                  if m not in keys:
+                      missing.add((f, m))
+          for f in controllers:
+              for m in re.findall(r'getText\("([A-Za-z0-9_]+)"', open(f, encoding='utf-8').read()):
+                  if m not in keys:
+                      missing.add((f, m))
+          for f, k in sorted(missing):
+              print(f'{f}: no i18n key {k}')
+          sys.exit(1 if missing else 0)
+          PY
+
+      - name: Every table nominated for sort and group exists
+        # initTableSettings names a table by id; a typo would leave the sort
+        # dialog silently doing nothing.
+        run: |
+          python3 - <<'PY'
+          import glob, os, re, sys
+          app = 'frontend/webapp/'
+          bad = []
+          for f in glob.glob(app + 'controller/*.js'):
+              src = open(f, encoding='utf-8').read()
+              view = app + 'view/' + os.path.basename(f).replace('.controller.js', '.view.xml')
+              for m in re.findall(r'initTableSettings\("([A-Za-z0-9_]+)"', src):
+                  if not os.path.exists(view):
+                      bad.append(f'{os.path.basename(f)}: no view')
+                  elif f'id="{m}"' not in open(view, encoding='utf-8').read():
+                      bad.append(f'{os.path.basename(f)}: no table with id {m}')
+          controllers = glob.glob(app + 'controller/*.js')
+          if not controllers:
+              print('no controllers found - the path is wrong, and a check that '
+                    'reads nothing must not report a pass')
+              sys.exit(1)
+          for line in bad:
+              print(line)
+          sys.exit(1 if bad else 0)
+          PY
+
+      - name: Routes, targets, views and controllers agree
+        # A navTo to a route that does not exist fails silently at runtime.
+        run: |
+          python3 - <<'PY'
+          import json, os, re, glob, sys
+          app = 'frontend/webapp/'
+          manifest = json.load(open(app + 'manifest.json', encoding='utf-8'))
+          routing = manifest['sap.ui5']['routing']
+          routes = {r['name']: r for r in routing['routes']}
+          targets = routing['targets']
+          bad = []
+          for name, r in routes.items():
+              if r['target'] not in targets:
+                  bad.append(f'route {name}: no target {r["target"]}')
+          for name, t in targets.items():
+              for suffix, kind in (('.view.xml', 'view'), ('.controller.js', 'controller')):
+                  folder = 'view/' if kind == 'view' else 'controller/'
+                  if not os.path.exists(app + folder + t['viewName'] + suffix):
+                      bad.append(f'target {name}: no {kind} for {t["viewName"]}')
+          for f in glob.glob(app + 'controller/*.js'):
+              src = open(f, encoding='utf-8').read()
+              for m in re.finditer(r'navTo\(\s*"([^"]+)"', src):
+                  if m.group(1) not in routes:
+                      bad.append(f'{os.path.basename(f)}: navTo("{m.group(1)}") has no route')
+              for m in re.finditer(r'navTo\(\s*"([^"]+)"[^;]*?query:', src, re.S):
+                  pattern = routes.get(m.group(1), {}).get('pattern', '')
+                  if ':?query:' not in pattern:
+                      bad.append(f'{os.path.basename(f)}: navTo("{m.group(1)}", {{query}}) '
+                                 'but its pattern takes no query')
+          for line in bad:
+              print(line)
+          sys.exit(1 if bad else 0)
+          PY
+
+      - name: Install and lint
+        working-directory: sugar-planning/frontend
+        # npm ci, not npm install: it installs exactly the tree in
+        # package-lock.json and fails if the lock and the manifest disagree, so
+        # a transitive dependency cannot change under the project between runs.
+        # The lint step used to end in `|| true` while no ruleset existed, which
+        # made it a step that could not fail: eslint found no configuration,
+        # exited non-zero, and the `|| true` turned that into a green tick. A
+        # check that cannot run is worse than no check, because the tick is
+        # read as evidence. There is a ruleset now and the webapp passes it, so
+        # the step is allowed to fail.
+        run: |
+          npm ci --no-audit --no-fund
+          npx eslint webapp --ext .js
+
+      # The chart renderers and the formatters are pure functions with no UI5
+      # dependencies, so they run under plain Node without a browser or a CDN.
+      # They also hold the Khmer and Thai bundles to the English source in both
+      # directions - the missing direction is the one that went unchecked while
+      # both sat at 95 of 580 keys.
+      - name: Unit tests
+        working-directory: sugar-planning/frontend
+        run: npm test
+
+      - name: Build
+        working-directory: sugar-planning/frontend
+        run: npx ui5 build --clean-dest --all
+
+  acceptance:
+    name: Acceptance criteria
+    runs-on: ubuntu-latest
+    needs: [backend]
+
+    # Against a real database, because two of the things this stage exists to
+    # find only happen there: a query that works on the in-memory store and
+    # fails on PostgreSQL, and a backup that restores empty.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: sugarplan_acceptance
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: sugar-planning/backend/go.sum
+
+      # Section 27, checked against a running instance rather than asserted in
+      # a document: the test profile seeds a second company and factory and
+      # narrows every account to one of them, so data scope is a claim two real
+      # tenants are held to. --acceptance-only skips the suites the backend job
+      # has already run; the backup and restore drill still runs here.
+      - name: Section 27 against a running instance
+        env:
+          PGPASSWORD: postgres
+        run: |
+          ./test-system.sh --acceptance-only --port 8080 \
+            --postgres "postgres://postgres:postgres@localhost:5432/sugarplan_acceptance?sslmode=disable"
+
+  container:
+    name: Container image
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the image
+        run: docker build -f deploy/Dockerfile -t sugarplan:${{ github.sha }} .
+
+      - name: The image must not run as root
+        run: |
+          user=$(docker inspect --format '{{.Config.User}}' sugarplan:${{ github.sha }})
+          echo "image user: $user"
+          if [ "$user" = "root" ] || [ "$user" = "0" ] || [ -z "$user" ]; then
+            echo "the image must run as a non-root user"; exit 1
+          fi
+
+      - name: Smoke test the image
+        # The demo profile needs no database, so the image can be proved to
+        # start, seed and serve before it is published.
+        run: |
+          docker run -d --name smoke -p 18080:8080 \
+            -e STORE=memory -e AUTH_MODE=dev \
+            -e AUTH_DEV_SECRET=ci-smoke-test-secret-value \
+            -e SEED_DEMO=true \
+            sugarplan:${{ github.sha }}
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:18080/healthz >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          curl -fsS http://localhost:18080/healthz
+          curl -fsS http://localhost:18080/readyz
+          curl -fsS -o /dev/null -w '%{http_code}\n' http://localhost:18080/ | grep -q 200
+          # The API must still refuse an unauthenticated request.
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:18080/api/v1/seasons)" = "401"
+          docker logs smoke
+          docker rm -f smoke

@@ -1,0 +1,36 @@
+<core:FragmentDefinition
+	xmlns="sap.m"
+	xmlns:core="sap.ui.core"
+	xmlns:f="sap.ui.layout.form">
+
+	<!--
+	  Orders come from the released plan for a range of days. A day and product
+	  already covered is skipped rather than duplicated, so this can be run
+	  every week as the season advances.
+	-->
+	<Dialog id="fromPlanDialog" title="{i18n>ordersFromPlanTitle}" contentWidth="28rem">
+		<content>
+			<f:SimpleForm editable="true" layout="ResponsiveGridLayout"
+				labelSpanM="4" columnsM="1" class="sapUiNoMarginTop">
+				<f:content>
+					<Label text="{i18n>fieldPlan}"/>
+					<Text text="{view>/releasedVersionCode}"/>
+
+					<Label text="{i18n>fieldFrom}" required="true"/>
+					<DatePicker value="{view>/fromPlan/from}" valueFormat="yyyy-MM-dd"
+						displayFormat="yyyy-MM-dd" width="100%"/>
+
+					<Label text="{i18n>fieldTo}" required="true"/>
+					<DatePicker value="{view>/fromPlan/to}" valueFormat="yyyy-MM-dd"
+						displayFormat="yyyy-MM-dd" width="100%"/>
+				</f:content>
+			</f:SimpleForm>
+		</content>
+		<beginButton>
+			<Button text="{i18n>create}" type="Emphasized" press=".onSubmitFromPlan"/>
+		</beginButton>
+		<endButton>
+			<Button text="{i18n>cancel}" press=".onCancelFromPlan"/>
+		</endButton>
+	</Dialog>
+</core:FragmentDefinition>

@@ -1,0 +1,147 @@
+<mvc:View controllerName="sugarplan.controller.Import" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc"
+	xmlns:core="sap.ui.core" xmlns:u="sap.ui.unified">
+	<Page id="importPage" title="{i18n>importTitle}" showNavButton="true" navButtonPress=".onNavBack">
+		<content>
+			<VBox class="sapUiSmallMargin">
+				<MessageStrip class="sapUiSmallMarginBottom" type="Warning" showIcon="true"
+					visible="{= !${view>/canWrite} }" text="{i18n>importForbidden}"/>
+
+				<!-- Staging is the point of the screen, so it says so before
+				     anybody uploads anything. -->
+				<MessageStrip class="sapUiSmallMarginBottom" type="Information" showIcon="true"
+					visible="{view>/canWrite}" text="{i18n>importIntro}"/>
+
+				<Panel headerText="{i18n>importChooseFile}" visible="{view>/canWrite}"
+					class="sapUiSmallMarginBottom">
+					<Toolbar>
+						<Label text="{i18n>importMapping}"/>
+						<Select selectedKey="{view>/mapping}" width="18rem"
+							items="{path: 'view>/mappings', templateShareable: false}">
+							<core:Item key="{view>code}" text="{view>name} ({view>code})"/>
+						</Select>
+						<Label text="{i18n>planVersion}"/>
+						<Select selectedKey="{view>/versionId}" width="18rem"
+							items="{path: 'view>/versions', templateShareable: false}">
+							<core:Item key="{view>id}" text="{view>code} - {view>description}"/>
+						</Select>
+						<Label text="{i18n>series}"/>
+						<Select selectedKey="{view>/series}" width="9rem" change=".onSeriesChange">
+							<core:Item key="PLAN" text="{i18n>seriesPlan}"/>
+							<core:Item key="ACTUAL" text="{i18n>seriesActual}"/>
+						</Select>
+						<ToolbarSpacer/>
+						<u:FileUploader id="importUploader" buttonOnly="true"
+							buttonText="{i18n>importUpload}" icon="sap-icon://upload"
+							fileType="csv,tsv,xlsx" change=".onFileChange" style="Emphasized"/>
+					</Toolbar>
+				</Panel>
+
+				<!-- The staged job -->
+				<Panel visible="{= !!${view>/job} }" class="sapUiSmallMarginBottom"
+					headerText="{view>/job/fileName}">
+					<HBox wrap="Wrap" class="sapUiSmallMarginBottom">
+						<ObjectStatus class="sapUiMediumMarginEnd" title="{i18n>importStatus}"
+							text="{view>/job/status}"
+							state="{path: 'view>/job/status', formatter: '.formatter.importState'}"/>
+						<ObjectStatus class="sapUiMediumMarginEnd" title="{i18n>importRows}"
+							text="{view>/job/totalRows}"/>
+						<ObjectStatus class="sapUiMediumMarginEnd" title="{i18n>importValid}"
+							text="{view>/job/validRows}" state="Success"/>
+						<ObjectStatus class="sapUiMediumMarginEnd" title="{i18n>importErrors}"
+							text="{view>/job/errorRows}"
+							state="{= ${view>/job/errorRows} > 0 ? 'Error' : 'None' }"/>
+					</HBox>
+
+					<!-- A mapped column the file lacks and a column nobody mapped
+					     are the two things to check when an import produced
+					     nothing, so they are shown rather than buried. -->
+					<MessageStrip class="sapUiTinyMarginBottom" type="Warning" showIcon="true"
+						visible="{= ${view>/missing}.length > 0 }"
+						text="{i18n>importMissingColumns} {= ${view>/missing}.join(', ') }"/>
+					<MessageStrip class="sapUiSmallMarginBottom" type="Information" showIcon="true"
+						visible="{= ${view>/unmapped}.length > 0 }"
+						text="{i18n>importUnmappedColumns} {= ${view>/unmapped}.join(', ') }"/>
+
+					<Toolbar>
+						<CheckBox selected="{view>/errorsOnly}" text="{i18n>importErrorsOnly}"
+							select=".onErrorsOnlyChange"/>
+						<ToolbarSpacer/>
+						<Button text="{i18n>importDownloadErrors}" icon="sap-icon://download"
+							press=".onDownloadErrors"
+							visible="{= ${view>/job/errorRows} > 0 }"/>
+						<Button text="{i18n>importCancel}" press=".onCancelImport"
+							visible="{= ${view>/job/status} === 'VALIDATED' }"/>
+						<Button text="{i18n>importCommit}" type="Emphasized" icon="sap-icon://accept"
+							press=".onCommit"
+							visible="{= ${view>/job/status} === 'VALIDATED' &amp;&amp; ${view>/job/validRows} > 0 }"/>
+					</Toolbar>
+
+					<Table items="{path: 'view>/rows', templateShareable: false}" mode="None"
+						sticky="ColumnHeaders" growing="true" growingThreshold="100" class="sugarTable">
+						<columns>
+							<Column width="6rem" hAlign="End"><Text text="{i18n>importLine}"/></Column>
+							<Column width="8rem"><Text text="{i18n>importOutcome}"/></Column>
+							<Column><Text text="{i18n>importValues}"/></Column>
+							<Column minScreenWidth="Tablet" demandPopin="true">
+								<Text text="{i18n>importProblem}"/>
+							</Column>
+						</columns>
+						<items>
+							<ColumnListItem>
+								<cells>
+									<Text text="{view>rowNo}"/>
+									<ObjectStatus
+										text="{path: 'view>', formatter: '.formatter.rowOutcome'}"
+										state="{path: 'view>', formatter: '.formatter.rowOutcomeState'}"/>
+									<Text text="{path: 'view>values', formatter: '.formatter.importValues'}"/>
+									<Text text="{path: 'view>errors', formatter: '.formatter.importProblems'}"/>
+								</cells>
+							</ColumnListItem>
+						</items>
+						<noData>
+							<IllustratedMessage illustrationType="sapIllus-NoEntries"
+								title="{i18n>importNoRows}"/>
+						</noData>
+					</Table>
+				</Panel>
+
+				<!-- Every upload is kept, including the refused ones. -->
+				<Panel headerText="{i18n>importHistory}" expandable="true"
+					expanded="{= !${view>/job} }">
+					<Table items="{path: 'view>/history', templateShareable: false}" mode="SingleSelectMaster"
+						selectionChange=".onOpenJob" class="sugarTable">
+						<columns>
+							<Column width="13rem"><Text text="{i18n>when}"/></Column>
+							<Column><Text text="{i18n>importFile}"/></Column>
+							<Column><Text text="{i18n>importKind}"/></Column>
+							<Column width="9rem"><Text text="{i18n>colStatus}"/></Column>
+							<Column hAlign="End" width="7rem"><Text text="{i18n>importValid}"/></Column>
+							<Column hAlign="End" width="7rem"><Text text="{i18n>importErrors}"/></Column>
+							<Column minScreenWidth="Desktop" demandPopin="true">
+								<Text text="{i18n>actor}"/>
+							</Column>
+						</columns>
+						<items>
+							<ColumnListItem type="Active">
+								<cells>
+									<Text text="{path: 'view>createdAt', formatter: '.formatter.dateTime'}"/>
+									<Text text="{view>fileName}"/>
+									<Text text="{path: 'view>kind', formatter: '.formatter.statusText'}"/>
+									<ObjectStatus text="{view>status}"
+										state="{path: 'view>status', formatter: '.formatter.importState'}"/>
+									<Text text="{view>validRows}"/>
+									<Text text="{view>errorRows}"/>
+									<Text text="{view>createdBy}"/>
+								</cells>
+							</ColumnListItem>
+						</items>
+						<noData>
+							<IllustratedMessage illustrationType="sapIllus-NoEntries"
+								title="{i18n>importNoHistory}"/>
+						</noData>
+					</Table>
+				</Panel>
+			</VBox>
+		</content>
+	</Page>
+</mvc:View>

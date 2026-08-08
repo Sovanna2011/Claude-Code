@@ -1,0 +1,68 @@
+<core:FragmentDefinition
+	xmlns="sap.m"
+	xmlns:core="sap.ui.core"
+	xmlns:f="sap.ui.layout.form">
+
+	<!--
+	  A stoppage is recorded after the fact, by the shift that lived through it,
+	  so the fields are the ones a supervisor can answer from the log book: when
+	  it stopped, when it restarted, why, and what was done about it.
+
+	  The duration is not asked for. It is derived on the server from the two
+	  times, because a duration typed in beside two times is a third figure that
+	  can disagree with them.
+	-->
+	<Dialog id="downtimeDialog" title="{i18n>downtimeDialogTitle}" contentWidth="34rem">
+		<content>
+			<f:SimpleForm editable="true" layout="ResponsiveGridLayout"
+				labelSpanM="4" columnsM="1" class="sapUiNoMarginTop">
+				<f:content>
+					<Label text="{i18n>fieldBusinessDate}" required="true"/>
+					<DatePicker value="{view>/event/businessDate}" valueFormat="yyyy-MM-dd"
+						displayFormat="yyyy-MM-dd" width="100%"/>
+
+					<Label text="{i18n>fieldStartTime}" required="true"/>
+					<TimePicker value="{view>/event/startTime}" valueFormat="HH:mm"
+						displayFormat="HH:mm" width="100%"/>
+
+					<Label text="{i18n>fieldEndTime}" required="true"/>
+					<TimePicker value="{view>/event/endTime}" valueFormat="HH:mm"
+						displayFormat="HH:mm" width="100%"/>
+
+					<Label text=""/>
+					<Text text="{i18n>downtimeOvernightHint}"/>
+
+					<Label text="{i18n>fieldLine}"/>
+					<Select forceSelection="false" selectedKey="{view>/event/lineId}" width="100%"
+						items="{path: 'view>/lines', sorter: {path: 'code'}}">
+						<core:Item key="{view>id}" text="{view>code} — {view>name}"/>
+					</Select>
+
+					<Label text="{i18n>downtimeReason}" required="true"/>
+					<Select forceSelection="false" selectedKey="{view>/event/reasonCode}" width="100%"
+						items="{path: 'view>/reasons', sorter: {path: 'code'}}">
+						<core:Item key="{view>code}" text="{view>code} — {view>name}"/>
+					</Select>
+
+					<Label text="{i18n>downtimeKind}"/>
+					<CheckBox selected="{view>/event/planned}" text="{i18n>downtimePlannedHint}"/>
+
+					<Label text="{i18n>downtimeRootCause}"/>
+					<Input value="{view>/event/rootCause}" width="100%"/>
+
+					<Label text="{i18n>downtimeAction}"/>
+					<Input value="{view>/event/correctiveAction}" width="100%"/>
+
+					<Label text="{i18n>downtimeTeam}"/>
+					<Input value="{view>/event/team}" width="100%"/>
+				</f:content>
+			</f:SimpleForm>
+		</content>
+		<beginButton>
+			<Button text="{i18n>save}" type="Emphasized" press=".onSaveEvent"/>
+		</beginButton>
+		<endButton>
+			<Button text="{i18n>cancel}" press=".onCancelEvent"/>
+		</endButton>
+	</Dialog>
+</core:FragmentDefinition>

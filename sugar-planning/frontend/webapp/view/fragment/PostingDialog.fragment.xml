@@ -1,0 +1,70 @@
+<core:FragmentDefinition
+	xmlns="sap.m"
+	xmlns:core="sap.ui.core"
+	xmlns:f="sap.ui.layout.form">
+
+	<!--
+	  Quantities are entered unsigned. The movement type decides the sign, which
+	  is how a keeper thinks about it: an issue of 120 t is "issue 120", not
+	  "add minus 120".
+	-->
+	<Dialog id="postingDialog" title="{i18n>stockPostTitle}" contentWidth="34rem">
+		<content>
+			<f:SimpleForm editable="true" layout="ResponsiveGridLayout"
+				labelSpanM="4" columnsM="1" class="sapUiNoMarginTop">
+				<f:content>
+					<Label text="{i18n>fieldMovement}" required="true"/>
+					<Select selectedKey="{view>/posting/docType}" change=".onPostingTypeChange" width="100%">
+						<core:Item key="RECEIPT" text="{i18n>docReceipt}"/>
+						<core:Item key="ISSUE" text="{i18n>docIssue}"/>
+						<core:Item key="TRANSFER" text="{i18n>docTransfer}"/>
+						<core:Item key="ADJUSTMENT" text="{i18n>docAdjustment}"/>
+						<core:Item key="SHIPMENT" text="{i18n>docShipment}"/>
+					</Select>
+
+					<Label text="{i18n>fieldBusinessDate}" required="true"/>
+					<DatePicker value="{view>/posting/businessDate}" valueFormat="yyyy-MM-dd"
+						displayFormat="yyyy-MM-dd" width="100%"/>
+
+					<Label text="{i18n>fieldWarehouse}" required="true"/>
+					<Select forceSelection="false" selectedKey="{view>/posting/warehouseId}" width="100%"
+						items="{path: 'view>/warehouses', sorter: {path: 'code'}}">
+						<core:Item key="{view>id}" text="{view>code} — {view>name}"/>
+					</Select>
+
+					<Label text="{i18n>fieldToWarehouse}"
+						visible="{= ${view>/posting/docType} === 'TRANSFER' }"/>
+					<Select forceSelection="false" selectedKey="{view>/posting/toWarehouse}" width="100%"
+						visible="{= ${view>/posting/docType} === 'TRANSFER' }"
+						items="{path: 'view>/warehouses', sorter: {path: 'code'}}">
+						<core:Item key="{view>id}" text="{view>code} — {view>name}"/>
+					</Select>
+
+					<Label text="{i18n>fieldProduct}" required="true"/>
+					<Select forceSelection="false" selectedKey="{view>/posting/productId}" width="100%"
+						items="{path: 'view>/products', sorter: {path: 'code'}}">
+						<core:Item key="{view>id}" text="{view>code} — {view>name}"/>
+					</Select>
+
+					<Label text="{i18n>fieldQuantity}" required="true"/>
+					<Input value="{view>/posting/quantity}" type="Text"
+						description="{i18n>unitTons}" width="100%"
+						placeholder="{i18n>stockQuantityPlaceholder}"/>
+
+					<Label text="{i18n>fieldNote}"/>
+					<TextArea value="{view>/posting/note}" rows="2" width="100%"/>
+
+					<Label text="{i18n>fieldCapacityOverride}"/>
+					<CheckBox selected="{view>/posting/capacityOverride}"
+						text="{i18n>stockCapacityOverrideHint}"/>
+				</f:content>
+			</f:SimpleForm>
+		</content>
+		<beginButton>
+			<Button text="{i18n>post}" type="Emphasized" press=".onSubmitPosting"/>
+		</beginButton>
+		<endButton>
+			<Button text="{i18n>cancel}" press=".onCancelPosting"/>
+		</endButton>
+	</Dialog>
+</core:FragmentDefinition>
