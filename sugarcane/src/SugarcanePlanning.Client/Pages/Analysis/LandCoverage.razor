@@ -1,0 +1,221 @@
+@*
+    The land-coverage tree: farm → zone → block, with the areas management asks for at every
+    level. Farm and zone figures are summed from the blocks beneath them by the API, so a row can
+    be read on its own without expanding it.
+*@
+@page "/land-coverage"
+@attribute [Authorize]
+@inject PlanningApi Api
+
+<PageTitle>Land coverage by farm, zone and block</PageTitle>
+
+<h1 class="h4 mb-1">Land coverage — farm → zone → block</h1>
+<p class="text-secondary small">
+    <strong>Total</strong> is everything inside the boundary.
+    <strong>Plantable</strong> is the part that can carry cane and caps every projection line;
+    <strong>not plantable</strong> is the rest — roads, drains, headlands, waterways.
+    <strong>New planting</strong> and <strong>ratoon</strong> come from <em>approved</em> projection
+    lines only, so drafts and superseded versions cannot inflate them.
+    <strong>Have cane</strong> is the plantable area of blocks already carrying a standing crop
+    (planted, growing or ready for harvest).
+</p>
+
+<ErrorAlert Message="@error" Code="@errorCode" OnDismiss="() => error = null" />
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">Season</label>
+                <select class="form-select form-select-sm" @onchange="OnSeasonChanged">
+                    <option value="">All seasons</option>
+                    @foreach (var season in seasons)
+                    {
+                        <option value="@season.Id" selected="@(season.Id == seasonId)">@season.Display</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Farm</label>
+                <select class="form-select form-select-sm" @onchange="OnFarmChanged">
+                    <option value="">All farms</option>
+                    @foreach (var farm in farms)
+                    {
+                        <option value="@farm.Id" selected="@(farm.Id == farmId)">@farm.Display</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-4 text-end">
+                <button class="btn btn-sm btn-outline-secondary me-1" @onclick="ExpandAll">Expand all</button>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="CollapseAll">Collapse all</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (loading)
+{
+    <LoadingPanel Message="Loading land coverage…" />
+}
+else if (tree.Count == 0)
+{
+    <div class="alert alert-secondary">No farm matches the filter.</div>
+}
+else
+{
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="min-width:18rem">Farm / zone / block</th>
+                        <th class="text-end">Total (ha)</th>
+                        <th class="text-end">Plantable (ha)</th>
+                        <th class="text-end">New planting (ha)</th>
+                        <th class="text-end">Ratoon (ha)</th>
+                        <th class="text-end">Have cane (ha)</th>
+                        <th class="text-end">Not plantable (ha)</th>
+                        <th>Crop status</th>
+                        <th class="text-end" style="white-space:nowrap">Map</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var farm in tree)
+                    {
+                        @RenderNode(farm, 0)
+                    }
+                </tbody>
+                <tfoot class="table-light fw-semibold">
+                    <tr>
+                        <td>Estate total — @tree.Count farm(s)</td>
+                        <td class="text-end">@Ha(tree.Sum(f => f.TotalAreaHa))</td>
+                        <td class="text-end">@Ha(tree.Sum(f => f.PlantableAreaHa))</td>
+                        <td class="text-end">@Ha(tree.Sum(f => f.NewPlantingAreaHa))</td>
+                        <td class="text-end">@Ha(tree.Sum(f => f.RatoonAreaHa))</td>
+                        <td class="text-end">@Ha(tree.Sum(f => f.AreaUnderCaneHa))</td>
+                        <td class="text-end">@Ha(tree.Sum(f => f.NotPlantableAreaHa))</td>
+                        <td colspan="2"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    private bool loading = true;
+    private string? error;
+    private string? errorCode;
+
+    private IReadOnlyList<LandCoverageNodeDto> tree = Array.Empty<LandCoverageNodeDto>();
+    private IReadOnlyList<LookupDto> seasons = Array.Empty<LookupDto>();
+    private IReadOnlyList<LookupDto> farms = Array.Empty<LookupDto>();
+    private int? seasonId;
+    private int? farmId;
+
+    /// <summary>Node keys that are expanded. Farms open by default; zones start closed.</summary>
+    private readonly HashSet<string> expanded = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        seasons = await Api.LookupAsync("seasons");
+        farms = await Api.LookupAsync("farms");
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        try
+        {
+            tree = await Api.GetLandCoverageAsync(seasonId, farmId);
+            foreach (var farm in tree) { expanded.Add(Key(farm)); }
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            errorCode = ex.Error.Code;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task OnSeasonChanged(ChangeEventArgs e)
+    {
+        seasonId = int.TryParse(e.Value?.ToString(), out var id) ? id : null;
+        await LoadAsync();
+    }
+
+    private async Task OnFarmChanged(ChangeEventArgs e)
+    {
+        farmId = int.TryParse(e.Value?.ToString(), out var id) ? id : null;
+        await LoadAsync();
+    }
+
+    private static string Key(LandCoverageNodeDto node) => $"{node.NodeType}:{node.Id}";
+
+    private void Toggle(LandCoverageNodeDto node)
+    {
+        var key = Key(node);
+        if (!expanded.Remove(key)) { expanded.Add(key); }
+    }
+
+    private void ExpandAll()
+    {
+        foreach (var farm in tree)
+        {
+            expanded.Add(Key(farm));
+            foreach (var zone in farm.Children) { expanded.Add(Key(zone)); }
+        }
+    }
+
+    private void CollapseAll() => expanded.Clear();
+
+    private static string Ha(decimal value) => value.ToString("N2");
+
+    private RenderFragment RenderNode(LandCoverageNodeDto node, int depth) =>
+    @<text>
+        <tr class="@(depth == 0 ? "table-light fw-semibold" : null)">
+            <td style="padding-left:@(0.5 + depth * 1.5)rem">
+                @if (node.Children.Count > 0)
+                {
+                    <button class="btn btn-sm btn-link p-0 me-1 text-decoration-none"
+                            @onclick="() => Toggle(node)"
+                            aria-expanded="@expanded.Contains(Key(node))"
+                            aria-label="@(expanded.Contains(Key(node)) ? "Collapse" : "Expand") @node.Code">
+                        @(expanded.Contains(Key(node)) ? "▾" : "▸")
+                    </button>
+                }
+                else
+                {
+                    <span class="me-1 ps-3"></span>
+                }
+                <span class="text-secondary small me-1">@node.NodeType</span>
+                <span class="fw-semibold">@node.Code</span> — @node.Name
+            </td>
+            <td class="text-end">@Ha(node.TotalAreaHa)</td>
+            <td class="text-end">@Ha(node.PlantableAreaHa)</td>
+            <td class="text-end">@Ha(node.NewPlantingAreaHa)</td>
+            <td class="text-end">@Ha(node.RatoonAreaHa)</td>
+            <td class="text-end">@Ha(node.AreaUnderCaneHa)</td>
+            <td class="text-end">@Ha(node.NotPlantableAreaHa)</td>
+            <td>@(node.CurrentCropStatus?.ToString() ?? "")</td>
+            <td class="text-end" style="white-space:nowrap">
+                @if (node.MapUrl is not null)
+                {
+                    <a class="btn btn-sm btn-link py-0" target="_blank" rel="noopener"
+                       href="@node.MapUrl" title="@node.Latitude, @node.Longitude">Map ↗</a>
+                }
+            </td>
+        </tr>
+        @if (expanded.Contains(Key(node)))
+        {
+            foreach (var child in node.Children)
+            {
+                @RenderNode(child, depth + 1)
+            }
+        }
+    </text>;
+}

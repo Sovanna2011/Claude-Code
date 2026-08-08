@@ -94,11 +94,11 @@ the header and every exported report is saved as `report.pdf` rather than its re
 ```bash
 dotnet restore
 dotnet build -c Release
-dotnet test  -c Release                      # 189 tests
+dotnet test  -c Release                      # 203 tests
 
 # Optional: also run the 20 tests that need a real SQL Server.
 export SUGARCANE_TEST_SQLSERVER="Server=127.0.0.1,1433;User Id=sa;Password=…;TrustServerCertificate=True"
-dotnet test  -c Release                      # 209 tests
+dotnet test  -c Release                      # 223 tests
 
 dotnet publish src/SugarcanePlanning.Api    -c Release -o ./publish/api
 dotnet publish src/SugarcanePlanning.Client -c Release -o ./publish/client

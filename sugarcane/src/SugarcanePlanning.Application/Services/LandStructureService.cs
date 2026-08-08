@@ -7,6 +7,7 @@ using SugarcanePlanning.Contracts.Common;
 using SugarcanePlanning.Contracts.Organization;
 using SugarcanePlanning.Domain.Common;
 using SugarcanePlanning.Domain.Entities;
+using SugarcanePlanning.Domain.Enums;
 
 namespace SugarcanePlanning.Application.Services;
 
@@ -386,5 +387,114 @@ public class LandStructureService : ServiceBase, ILandStructureService
                 }).ToList()
             }).ToList()
         }).ToList();
+    }
+
+    // ---------------------------------------------------------------- land coverage
+
+    /// <summary>A block with a standing crop cannot take a new one this season.</summary>
+    private static readonly CropStatus[] StandingCrop =
+        { CropStatus.Planted, CropStatus.Growing, CropStatus.ReadyForHarvest };
+
+    public async Task<IReadOnlyList<LandCoverageNodeDto>> GetLandCoverageAsync(
+        int? seasonId, int? farmId, CancellationToken ct = default)
+    {
+        var farms = await Db.Farms.AsNoTracking()
+            .Where(f => farmId == null || f.Id == farmId)
+            .OrderBy(f => f.Code).ToListAsync(ct);
+        var zones = await Db.Zones.AsNoTracking().OrderBy(z => z.Code).ToListAsync(ct);
+        var blocks = await Db.Blocks.AsNoTracking().OrderBy(b => b.Code).ToListAsync(ct);
+
+        // Only approved projections count. Drafts and revisions of the same block would otherwise
+        // be added together and report more planted area than the estate physically has.
+        var lines = await Db.ProjectionLines.AsNoTracking()
+            .Where(l => l.Projection!.Status == ProjectionStatus.Approved
+                        && (seasonId == null || l.Projection.GrowingSeasonId == seasonId))
+            .Select(l => new { l.BlockId, l.CropType, l.ProjectedPlantingAreaHa })
+            .ToListAsync(ct);
+
+        var newPlanting = lines.Where(l => l.CropType != CropType.Ratoon)
+            .GroupBy(l => l.BlockId)
+            .ToDictionary(g => g.Key, g => g.Sum(l => l.ProjectedPlantingAreaHa));
+        var ratoon = lines.Where(l => l.CropType == CropType.Ratoon)
+            .GroupBy(l => l.BlockId)
+            .ToDictionary(g => g.Key, g => g.Sum(l => l.ProjectedPlantingAreaHa));
+
+        var tree = new List<LandCoverageNodeDto>();
+        foreach (var farm in farms)
+        {
+            var farmNode = new LandCoverageNodeDto
+            {
+                NodeType = "Farm",
+                Id = farm.Id,
+                Code = farm.Code,
+                Name = farm.Name
+            };
+
+            foreach (var zone in zones.Where(z => z.FarmId == farm.Id))
+            {
+                var zoneNode = new LandCoverageNodeDto
+                {
+                    NodeType = "Zone",
+                    Id = zone.Id,
+                    Code = zone.Code,
+                    Name = zone.Name
+                };
+
+                foreach (var block in blocks.Where(b => b.ZoneId == zone.Id))
+                {
+                    var node = new LandCoverageNodeDto
+                    {
+                        NodeType = "Block",
+                        Id = block.Id,
+                        Code = block.Code,
+                        Name = block.Name,
+                        TotalAreaHa = block.TotalAreaHa,
+                        PlantableAreaHa = block.PlantableAreaHa,
+                        NotPlantableAreaHa = Math.Max(0m, block.TotalAreaHa - block.PlantableAreaHa),
+                        NewPlantingAreaHa = newPlanting.GetValueOrDefault(block.Id),
+                        RatoonAreaHa = ratoon.GetValueOrDefault(block.Id),
+                        AreaUnderCaneHa = StandingCrop.Contains(block.CurrentCropStatus) ? block.PlantableAreaHa : 0m,
+                        CurrentCropStatus = block.CurrentCropStatus,
+                        Latitude = block.Latitude,
+                        Longitude = block.Longitude,
+                        MapUrl = block.Latitude is { } lat && block.Longitude is { } lng
+                            ? BlockMapProjection.GoogleMapsLink(lat, lng)
+                            : null
+                    };
+                    zoneNode.Children.Add(node);
+                }
+
+                Roll(zoneNode);
+                farmNode.Children.Add(zoneNode);
+            }
+
+            Roll(farmNode);
+            tree.Add(farmNode);
+        }
+
+        return tree;
+    }
+
+    /// <summary>
+    /// Sums a node's figures from its children and gives it the centre of their coordinates, so a
+    /// farm or zone row carries a map link of its own. Totals are never entered at these levels —
+    /// the same rule the projection header follows.
+    /// </summary>
+    private static void Roll(LandCoverageNodeDto node)
+    {
+        var children = node.Children;
+        node.TotalAreaHa = children.Sum(c => c.TotalAreaHa);
+        node.PlantableAreaHa = children.Sum(c => c.PlantableAreaHa);
+        node.NotPlantableAreaHa = children.Sum(c => c.NotPlantableAreaHa);
+        node.NewPlantingAreaHa = children.Sum(c => c.NewPlantingAreaHa);
+        node.RatoonAreaHa = children.Sum(c => c.RatoonAreaHa);
+        node.AreaUnderCaneHa = children.Sum(c => c.AreaUnderCaneHa);
+
+        var located = children.Where(c => c.Latitude is not null && c.Longitude is not null).ToList();
+        if (located.Count == 0) return;
+
+        node.Latitude = Math.Round(located.Average(c => c.Latitude!.Value), 6);
+        node.Longitude = Math.Round(located.Average(c => c.Longitude!.Value), 6);
+        node.MapUrl = BlockMapProjection.GoogleMapsLink(node.Latitude.Value, node.Longitude.Value);
     }
 }

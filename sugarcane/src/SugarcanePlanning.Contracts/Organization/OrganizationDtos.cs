@@ -165,3 +165,43 @@ public class LandStructureNodeDto
     public bool IsActive { get; set; }
     public List<LandStructureNodeDto> Children { get; set; } = new();
 }
+
+/// <summary>
+/// One row of the land-coverage tree — farm, zone or block — with the areas the dashboard
+/// reports against. Every figure on a farm or zone row is the sum of its children, so the tree
+/// can be totalled at any level without a second call.
+/// </summary>
+public class LandCoverageNodeDto
+{
+    public string NodeType { get; set; } = string.Empty;   // Farm | Zone | Block
+    public int Id { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Everything inside the boundary, plantable or not.</summary>
+    public decimal TotalAreaHa { get; set; }
+
+    /// <summary>The part that can carry cane; the cap on every projection line.</summary>
+    public decimal PlantableAreaHa { get; set; }
+
+    /// <summary>Total minus plantable — roads, drains, headlands, buildings, waterways.</summary>
+    public decimal NotPlantableAreaHa { get; set; }
+
+    /// <summary>Approved projection area for a fresh crop.</summary>
+    public decimal NewPlantingAreaHa { get; set; }
+
+    /// <summary>Approved projection area for a ratoon crop.</summary>
+    public decimal RatoonAreaHa { get; set; }
+
+    /// <summary>Plantable area of blocks that already carry a standing crop.</summary>
+    public decimal AreaUnderCaneHa { get; set; }
+
+    public CropStatus? CurrentCropStatus { get; set; }     // blocks only
+    public decimal? Latitude { get; set; }
+    public decimal? Longitude { get; set; }
+
+    /// <summary>Google Maps link for the row; on a farm or zone it points at the centre of its blocks.</summary>
+    public string? MapUrl { get; set; }
+
+    public List<LandCoverageNodeDto> Children { get; set; } = new();
+}

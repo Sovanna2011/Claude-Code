@@ -70,6 +70,17 @@ public class PlanningApi
     public Task<PlantationBlockDto?> UpdateBlockAsync(int id, PlantationBlockUpsertDto dto) => _api.PutAsync<PlantationBlockDto>($"api/blocks/{id}", dto);
     public Task DeleteBlockAsync(int id) => _api.DeleteAsync($"api/blocks/{id}");
 
+    public async Task<IReadOnlyList<LandCoverageNodeDto>> GetLandCoverageAsync(int? seasonId = null, int? farmId = null)
+    {
+        // Only the filters that are set are sent: an empty "seasonId=" binds as a validation
+        // error on some hosts rather than as "no filter".
+        var query = new List<string>();
+        if (seasonId is not null) query.Add($"seasonId={seasonId}");
+        if (farmId is not null) query.Add($"farmId={farmId}");
+        var url = "api/land-coverage" + (query.Count > 0 ? "?" + string.Join("&", query) : "");
+        return await _api.GetAsync<List<LandCoverageNodeDto>>(url) ?? new List<LandCoverageNodeDto>();
+    }
+
     public async Task<IReadOnlyList<LandStructureNodeDto>> GetLandStructureAsync(int? companyId = null)
         => await _api.GetAsync<List<LandStructureNodeDto>>("api/land-structure" + (companyId is null ? "" : $"?companyId={companyId}"))
            ?? new List<LandStructureNodeDto>();

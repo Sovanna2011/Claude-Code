@@ -1,6 +1,6 @@
 # User guide
 
-The 21 screens of the application, in the order a planning season actually runs.
+The 22 screens of the application, in the order a planning season actually runs.
 
 ## Signing in
 
@@ -181,7 +181,26 @@ The version chain of a projection, the approval history of the selected version 
 field-by-field comparison of any two versions, marking each difference Added, Removed or
 Changed.
 
-### 19. Projection versus actual — `/projection-vs-actual`
+### 19. Land coverage tree — `/land-coverage`
+
+Farm → zone → block in one expandable table, answering "what land do we have, and what is on it".
+
+| Column | Meaning |
+|--------|---------|
+| Total | Everything inside the boundary. |
+| Plantable | The part that can carry cane; the cap on every projection line. |
+| New planting | Approved projection area for a fresh crop. |
+| Ratoon | Approved projection area for a ratoon crop. |
+| Have cane | Plantable area of blocks already carrying a standing crop — planted, growing or ready for harvest. |
+| Not plantable | Total less plantable: roads, drains, headlands, waterways. |
+| Map | Opens the row's location in Google Maps — the block's own coordinates, or the centre of a farm's or zone's blocks. |
+
+Only **approved** projections are counted, so drafts and superseded versions cannot inflate the
+planted figures. Farm and zone rows are summed from the blocks beneath them, never entered, so a
+collapsed row can be read on its own; the footer totals the farms. Filter by season or by farm,
+and expand or collapse the whole tree from the toolbar.
+
+### 20. Projection versus actual — `/projection-vs-actual`
 
 **Record actual progress** captures actual dates, completed area, machine and operator used,
 hours, fuel, labor-days, material consumption and a delay reason. Variances and the completion
@@ -189,7 +208,7 @@ percentage are derived, and the activity status becomes Completed, In Progress o
 
 The comparison groups by block, farm, activity or month.
 
-### 20. Reports and audit log — `/reports`, `/audit`
+### 21. Reports and audit log — `/reports`, `/audit`
 
 All 22 reports share one surface: pick the report and the filters, sort by clicking any
 column, then **Print preview**, **Export PDF** or **Export Excel**.
@@ -208,7 +227,7 @@ column, then **Print preview**, **Export PDF** or **Export Excel**.
 The **audit log** (System Administrator) filters by user, table, record, action and date, and
 expands to the full old/new value JSON with the IP address and device.
 
-### 21. Users and roles — `/users`
+### 22. Users and roles — `/users`
 
 A System Administrator creates users, assigns any of the ten roles and sets the company that
 scopes everything they can reach. Every signed-in user can change their own password here and

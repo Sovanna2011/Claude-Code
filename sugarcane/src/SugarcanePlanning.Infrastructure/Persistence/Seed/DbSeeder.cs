@@ -544,6 +544,16 @@ public static class DbSeeder
             actuals++;
         }
 
+        // A block whose planting has been recorded is carrying a crop, and the block master has
+        // to say so: the land-coverage tree reads CurrentCropStatus for its "area under cane"
+        // figure, and leaving every block Fallow made a planted estate report none.
+        var plantedBlockIds = planting.Select(p => p.BlockId).Distinct().ToHashSet();
+
+        foreach (var block in await db.Blocks.Where(b => plantedBlockIds.Contains(b.Id)).ToListAsync(ct))
+            block.CurrentCropStatus = CropStatus.Growing;
+
+        await db.SaveChangesAsync(ct);
+
         return (generated.PlansCreated, bookings, actuals);
     }
 

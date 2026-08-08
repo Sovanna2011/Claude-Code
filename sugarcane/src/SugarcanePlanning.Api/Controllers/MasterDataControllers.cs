@@ -196,6 +196,12 @@ public class BlocksController : ApiControllerBase
     [HttpGet("/api/land-structure"), Authorize(Policy = Policies.View)]
     public async Task<ActionResult<IReadOnlyList<LandStructureNodeDto>>> Structure([FromQuery] int? companyId, CancellationToken ct)
         => Ok(await _service.GetStructureAsync(companyId, ct));
+
+    /// <summary>Farm → zone → block with total, planted, ratoon and unplantable area, for the dashboard tree.</summary>
+    [HttpGet("/api/land-coverage"), Authorize(Policy = Policies.View)]
+    public async Task<ActionResult<IReadOnlyList<LandCoverageNodeDto>>> Coverage(
+        [FromQuery] int? seasonId, [FromQuery] int? farmId, CancellationToken ct)
+        => Ok(await _service.GetLandCoverageAsync(seasonId, farmId, ct));
 }
 
 /// <summary>Growing seasons (section 4).</summary>

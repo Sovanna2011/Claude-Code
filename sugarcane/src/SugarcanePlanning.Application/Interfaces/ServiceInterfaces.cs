@@ -49,6 +49,9 @@ public interface ILandStructureService
     Task DeleteBlockAsync(int id, CancellationToken ct = default);
 
     Task<IReadOnlyList<LandStructureNodeDto>> GetStructureAsync(int? companyId, CancellationToken ct = default);
+
+    /// <summary>Farm → zone → block with the areas the dashboard tree reports, rolled up at every level.</summary>
+    Task<IReadOnlyList<LandCoverageNodeDto>> GetLandCoverageAsync(int? seasonId, int? farmId, CancellationToken ct = default);
 }
 
 /// <summary>Growing seasons and cane varieties (section 4).</summary>

@@ -11,7 +11,7 @@ plantation activity, tractor, equipment, material, workforce, location and sched
 | Persistence | **EF Core 10** → **Microsoft SQL Server** (migrations, row-version concurrency, soft delete) |
 | Identity | **ASP.NET Core Identity** with ten roles and seventeen permission policies |
 | Reporting | 22 reports with print preview, **PDF** (QuestPDF) and **Excel** (ClosedXML) export |
-| Tests | 209 automated tests (xUnit) — 82 unit, 107 integration, 20 against a real SQL Server |
+| Tests | 223 automated tests (xUnit) — 82 unit, 121 integration, 20 against a real SQL Server |
 
 The solution follows **Clean Architecture**: `Domain` has no dependencies, `Application`
 depends only on `Domain` + `Contracts`, `Infrastructure` implements the persistence
@@ -26,7 +26,7 @@ sugarcane/
 │   ├── SugarcanePlanning.Application/     services, engines, mapping, abstractions
 │   ├── SugarcanePlanning.Infrastructure/  EF Core, Identity, audit interceptor, exporters
 │   ├── SugarcanePlanning.Api/             controllers, JWT, global error handling
-│   └── SugarcanePlanning.Client/          Blazor WebAssembly UI (21 screens)
+│   └── SugarcanePlanning.Client/          Blazor WebAssembly UI (22 screens)
 ├── tests/
 │   ├── SugarcanePlanning.UnitTests/       formulas and engine logic
 │   └── SugarcanePlanning.IntegrationTests/full process over a real service graph
@@ -132,18 +132,18 @@ Configure master data
 | [docs/architecture.md](docs/architecture.md) | layers, dependency rules, engines, request flow |
 | [docs/data-model.md](docs/data-model.md) | entity-relationship model and every table |
 | [docs/deployment.md](docs/deployment.md) | build, configure, deploy to IIS / Linux / Docker / Azure |
-| [docs/user-guide.md](docs/user-guide.md) | the 21 screens, step by step |
+| [docs/user-guide.md](docs/user-guide.md) | the 22 screens, step by step |
 | [docs/formulas.md](docs/formulas.md) | every calculation with a worked example |
 | [docs/demo-script.md](docs/demo-script.md) | a twenty-minute walkthrough of the seeded demo estate |
 
 ## Running the tests
 
 ```bash
-dotnet test                      # 189 tests, no database required
+dotnet test                      # 203 tests, no database required
 
 # The 20 SQL Server tests skip unless a server is configured. To run them:
 export SUGARCANE_TEST_SQLSERVER="Server=127.0.0.1,1433;User Id=sa;Password=…;TrustServerCertificate=True"
-dotnet test                      # 209 tests
+dotnet test                      # 223 tests
 ```
 
 Integration tests run the real service graph (projection → activity plan → MRP → scheduling →
