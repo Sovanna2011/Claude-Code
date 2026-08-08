@@ -36,9 +36,10 @@ in the tester's own browser and goes nowhere else, which the page says on it.
 
 | # | Signed in as | Case | Expected |
 | --- | --- | --- | --- |
-| C1 | Sokha Planner | Create a scenario from the released plan with recovery at 9.5 %. | A new version is created and opens. It has no daily rows until it is generated. |
+| C1 | Sokha Planner | Create a scenario from the budget with recovery at 9.5 %. | A new version is created and opens. It has no daily rows until it is generated. |
 | C2 | Sokha Planner | Generate the scenario, then compare it with the baseline and the actuals. | Three columns: V1, UAT-V2, ACTUAL (actual). Only the assumption that was changed is listed: RAW_RECOVERY_PCT. |
 | C3 | Sokha Planner | Change which column the differences are measured from. | The chosen column's own differences become zero and every other column is measured from it. |
+| C4 | Bopha Executive | After the planner has created the scenario, reopen the overview. | Still the budget: cane target 2,300,000 t, unchanged by anything the planner is trying out. A scenario is never what the board reads. |
 ### Cane supply
 
 | # | Signed in as | Case | Expected |

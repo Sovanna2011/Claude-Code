@@ -261,7 +261,14 @@ func (a *Analytics) Dashboard(ctx context.Context, req DashboardRequest) (Dashbo
 	// keeps shipping - so comparing a crushing forecast against season.EndDate
 	// says the mill is five months ahead of schedule and silences the alert
 	// that says it is behind.
-	dash.Cane.PlannedEndDate = ordered[len(ordered)-1]
+	//
+	// A version that has been released but never generated has no rows at all,
+	// and this indexed straight into the empty slice: the executive dashboard
+	// answered a perfectly ordinary request with a panic. An empty plan is an
+	// empty dashboard, not a crash.
+	if len(ordered) > 0 {
+		dash.Cane.PlannedEndDate = ordered[len(ordered)-1]
+	}
 	if idx >= 0 {
 		point := series[idx]
 		dash.Cane.CumulativeTarget = point.CumTarget
@@ -379,11 +386,29 @@ func (a *Analytics) resolveVersions(ctx context.Context, seasonID, requested str
 		}
 	}
 	if plan.ID == "" && requested == "" {
-		// No released baseline yet: fall back to the most recent plan version so
-		// the dashboard is useful during preparation.
+		// No released baseline yet: fall back to a plan version so the dashboard
+		// is useful during preparation - but not to any of them.
+		//
+		// This used to take the highest version number, which is whatever was
+		// created last. Copy a released budget into a what-if to try a lower
+		// recovery, and the executive dashboard silently began reporting the
+		// what-if as the season: the board would have been reading a scenario
+		// somebody was playing with. A simulation is never the answer to "how is
+		// the season going", so the budget outranks the revision, the revision
+		// outranks the forecast, and a what-if is taken only if it is the sole
+		// thing there.
+		rank := map[domain.PlanType]int{
+			domain.PlanTypeBudget: 4, domain.PlanTypeRevised: 3,
+			domain.PlanTypeForecast: 2, domain.PlanTypeWhatIf: 1,
+		}
+		best := 0
 		for _, v := range page.Items {
-			if v.PlanType != domain.PlanTypeActual && v.VersionNo >= plan.VersionNo {
-				plan = v
+			if v.PlanType == domain.PlanTypeActual {
+				continue
+			}
+			r := rank[v.PlanType]
+			if r > best || (r == best && v.VersionNo >= plan.VersionNo) {
+				best, plan = r, v
 			}
 		}
 	}

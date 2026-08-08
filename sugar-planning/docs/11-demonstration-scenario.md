@@ -41,7 +41,7 @@ Three consequences you can check:
 | Screen | What the scenario put there |
 | --- | --- |
 | **Executive overview** | 137 days of plan, 14 of actuals, eight charts, and two real capacity alerts |
-| **Season plans** | The released budget V1 and the actuals container |
+| **Season plans** | The budget V1, still a draft awaiting submission, and the actuals container |
 | **Daily planning board** | Cane on 137 days, production and shipment across all 276 days of the campaign |
 | **Cane supply** | 8 sources across 6 zones committing 2,320,000 t, a 492-row delivery schedule and 14 days of arrivals at the gate |
 | **Downtime** | 7 stoppages across 4 reasons — the Pareto is 62 % boiler |
