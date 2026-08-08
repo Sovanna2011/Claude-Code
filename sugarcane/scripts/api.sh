@@ -34,11 +34,14 @@ start() {
     stop
     cd "$root/backend"
     go build -o /tmp/farm-area-api ./cmd/api
-    setsid /tmp/farm-area-api >"$logfile" 2>&1 < /dev/null &
-    echo $! > "$pidfile"
+    # --fork, so the server is reparented to init rather than staying a child of this script.
+    # Without it a caller that pipes this script's output waits on the server for ever.
+    setsid --fork /tmp/farm-area-api >"$logfile" 2>&1 < /dev/null &
 
     for _ in $(seq 1 40); do
         if curl -fsS -m 2 "http://127.0.0.1${FARMAREA_ADDR}/health" >/dev/null 2>&1; then
+            # The pid holding the port — setsid's own has already exited.
+            pgrep -x -n farm-area-api > "$pidfile" 2>/dev/null || true
             echo "api listening on ${FARMAREA_ADDR}"
             return 0
         fi

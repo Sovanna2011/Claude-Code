@@ -45,22 +45,33 @@ sugarcane/
 │       ├── database/       pool, migrations, transaction helper
 │       └── config/         environment
 ├── frontend/webapp/        the SAPUI5 application
-└── scripts/api.sh          start · stop · restart the API locally
+└── scripts/
+    ├── system.sh           start · stop · restart · status for the whole stack
+    └── api.sh              the API alone
 ```
 
 ## Quick start
 
 ```bash
-# 1. Database
-createdb farmarea
-psql -d farmarea -c 'CREATE EXTENSION postgis'
-
-# 2. API — applies the migrations and seeds the sample plantation on first run
-cd sugarcane && ./scripts/api.sh start          # http://localhost:8080
-
-# 3. Dashboard
-cd frontend && npm install && npx ui5 serve --port 8081   # http://localhost:8081
+cd sugarcane && ./scripts/system.sh start
 ```
+
+That is the whole thing. It starts PostgreSQL, creates the role, the two databases and the PostGIS
+extension if they are not already there, brings up the API — which applies any pending migrations
+and seeds the sample plantation on first run — and serves the dashboard on
+**http://localhost:8081**.
+
+| Command | Does |
+|---------|------|
+| `./scripts/system.sh start` | bring everything up |
+| `./scripts/system.sh restart` | stop and start again, after a code change |
+| `./scripts/system.sh status` | what is up, on which port, and how many blocks the database holds |
+| `./scripts/system.sh stop` | stop the API and the web server; PostgreSQL is left running |
+| `./scripts/system.sh log` | follow the API log |
+
+Each service is waited for until it actually answers rather than assumed up after a sleep, and
+every process is tracked by the pid that holds its port — so `stop` cannot report success while a
+server started by hand in another shell keeps answering.
 
 Sign in with **admin / Farm#2026**. The other accounts — `manager`, `planner`, `viewer` — share
 the password and differ in what they may change.
