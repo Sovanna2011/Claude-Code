@@ -151,6 +151,36 @@ func TestASourceOverItsLandOrItsTrucksIsFlagged(t *testing.T) {
 	}
 }
 
+func TestADeliveryCannotBeMorePureThanItIs(t *testing.T) {
+	// Polarisation is a percentage of the cane's mass. 140 % is not a reading
+	// anybody could take, and it was accepted - while the same field on the
+	// source the cane came from had been bounded in the database from the
+	// start. The two disagreed, and the looser one held the real measurements.
+	sound := domain.DailyCaneSupply{
+		VersionID: "v", SourceID: "s", BusinessDate: "2026-12-05",
+		Series: domain.SeriesActual, Tons: domain.D("4800"), Trips: 267,
+		PolPct: domain.D("12.4"),
+	}
+	if err := sound.Validate(); err != nil {
+		t.Fatalf("a 12.4 %% reading is ordinary: %v", err)
+	}
+	for _, pol := range []string{"140", "100.001", "-1"} {
+		bad := sound
+		bad.PolPct = domain.D(pol)
+		if err := bad.Validate(); err == nil {
+			t.Errorf("a polarisation of %s %% must be refused", pol)
+		}
+	}
+	// The ends of the range are readings, not errors.
+	for _, pol := range []string{"0", "100"} {
+		edge := sound
+		edge.PolPct = domain.D(pol)
+		if err := edge.Validate(); err != nil {
+			t.Errorf("a polarisation of %s %% must be accepted: %v", pol, err)
+		}
+	}
+}
+
 func TestValidationRefusesAWindowThatEndsBeforeItStarts(t *testing.T) {
 	e := domain.CaneSupplyEntry{VersionID: "v", SourceID: "s",
 		HarvestFrom: "2027-01-15", HarvestTo: "2026-12-01"}

@@ -246,6 +246,14 @@ func (d DailyCaneSupply) Validate() error {
 	if d.Trips < 0 {
 		v.Add("trips", "NEGATIVE", "the trip count cannot be negative")
 	}
+	// Polarisation is a percentage of the cane's mass, so it cannot exceed 100.
+	// This was missing: a delivery at 140 % pol was accepted, which is not a
+	// laboratory reading anybody could take. The same field on the source it
+	// came from has been bounded in the database since the table was created,
+	// so the two disagreed about what a valid reading is.
+	if d.PolPct.IsNegative() || d.PolPct.GreaterThan(DI(100)) {
+		v.Add("polPct", "OUT_OF_RANGE", "polarisation is a percentage, between 0 and 100")
+	}
 	return v.OrNil()
 }
 

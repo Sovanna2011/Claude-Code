@@ -514,6 +514,13 @@ Three warnings come out of it, and the first is deliberately asymmetric:
 | `SUPPLY_OVER_YIELD` | a source is committed to more than its land grows (C44) | warning |
 | `SUPPLY_OVER_HAULAGE` | a source's required rate (C46) exceeds its capacity (C45) | warning |
 
+A delivery's polarisation is bounded 0–100 like any other percentage. That was
+missing until a demonstration form was pointed at the live API and a reading of
+140 % came back accepted — while the same field on the *source* the cane came
+from had been bounded in the database since the table was created. The two
+disagreed about what a valid laboratory reading is, and the looser of the two
+was the one holding the real measurements.
+
 Short and over are not the same thing. A mill short of cane stops; a mill with
 too much leaves cane standing, which costs money and stops nothing. The
 tolerance is the `SUPPLY_TOLERANCE_PCT` assumption, 2 % by default: a season is
