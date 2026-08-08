@@ -50,7 +50,8 @@ the caller holds the permission the backend will check.
 | `masterdata:read` | Read any master data, and the value helps that use it |
 | `masterdata:write` | Create, change and deactivate master data |
 | `plan:read` | Read seasons, versions, daily rows, dashboards |
-| `plan:write` | Create and edit versions, assumptions, mix and planned daily rows; generate; copy |
+| `plan:write` | Create and edit versions, assumptions, mix and planned daily rows; copy |
+| `plan:generate` | Rebuild a whole version from its assumptions, replacing every daily row |
 | `plan:submit` | Submit a plan for review, and recall it |
 | `plan:approve` | Approve or reject a plan in review |
 | `plan:release` | Release, supersede and close a plan |
@@ -82,7 +83,7 @@ the caller holds the permission the backend will check.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | System Administrator | W | R | – | – | – | – | – | – | – | – | – | R | R | A |
 | Master Data Administrator | W | R | – | – | – | – | – | – | – | – | – | R | – | – |
-| Production Planner | R | W | ✔ | – | – | – | – | – | – | – | R | R | – | – |
+| Production Planner | R | W + gen | ✔ | – | – | – | – | – | – | – | R | R | – | – |
 | Cane / Weighbridge Operator | R | R | – | – | W | – | – | – | – | – | – | R | – | – |
 | Shift Supervisor | R | R | – | – | W | W | – | – | – | W | – | R | – | – |
 | Production Operator | R | R | – | – | – | W | – | – | – | – | – | R | – | – |
@@ -105,6 +106,15 @@ weighbridge. That is the same split as everywhere else, and it means a planner
 cannot record what came through the gate and a weighbridge clerk cannot rewrite
 the season's contracts.
 
+**Editing a row is not rebuilding a season.** `plan:write` covers versions,
+assumptions, mix and planned daily rows. Regenerating a version from its
+assumptions is `plan:generate`, and only the Production Planner holds it. The
+two were one permission until a permission sweep showed what that meant: the
+Shipment Planner needs `plan:write` for planned shipment rows, and the same
+right let that account replace every cane, production, storage and shipment row
+in the season with one request - the planner's whole plan, silently. Writing a
+row you own and rebuilding everybody's plan are different acts.
+
 **Least privilege.** A weighbridge operator can post cane weights and read the
 plan they are working to. They cannot post production, touch stock, or edit a
 plan. Each operator role holds exactly the actual-posting permission for its own
@@ -116,11 +126,20 @@ service refuses an approval by the plan's own submitter even if somebody is
 granted both roles.
 
 **An interface is an account, not an exception.** The weighbridge terminal and
-the laboratory system sign in as the `INTEGRATION` machine account, which holds
-`integration:write` and the two posting permissions its readings need - and
-nothing else. It cannot move stock, release a hold or touch a plan. An interface
+the laboratory system sign in as the `INTEGRATION` machine account. It can write
+only what its readings are: cane against the actuals and laboratory results. It
+cannot move stock, release a hold, or write or generate a plan. An interface
 running as an administrator is an interface nobody can safely change, and a
 credential on a terminal in a yard is the one most likely to be copied.
+
+Its *read* surface is wider than that write list suggests, and this is worth
+stating plainly rather than leaving to be discovered. It holds `plan:read` so it
+can resolve the season and version a ticket belongs to, and `plan:read` is the
+permission that gates stock, downtime, quality samples and production orders as
+well. Signed in as the machine account you can therefore read those screens. It
+is a coarse read gate rather than an escalation - nothing becomes writable - but
+a terminal in a yard can see more of the season than it needs to, and a narrower
+read permission for interfaces is recorded as an open question (Q17).
 
 **The administrator is not a superuser.** System Administrator holds `admin` and
 master data, but *not* `plan:write`, `plan:approve` or any actual-posting

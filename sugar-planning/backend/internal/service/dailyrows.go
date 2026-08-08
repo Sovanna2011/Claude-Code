@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/kss/sugarplan/internal/auth"
 	"github.com/kss/sugarplan/internal/domain"
@@ -383,6 +384,16 @@ func commitRowsGeneric[T any](p *Planning, ctx context.Context, versionID, entit
 	if len(issues) > 0 && !opts.Partial {
 		result.Accepted = 0
 		result.Rejected = total
+		// A batch refused entirely on permission is a refusal, not a badly
+		// filled-in form. Per-row issues are right when a batch mixes planned
+		// and actual rows - one caller may write the first and not the second -
+		// but when nothing survived and every issue was FORBIDDEN, answering
+		// 400 tells a client its payload was wrong. It was not: the caller was.
+		// A screen that hides its save button on 403 never hid it, and the user
+		// was left correcting fields that were already correct.
+		if allForbidden(issues) {
+			return result, forbiddenFrom(issues)
+		}
 		return result, &domain.ValidationError{Errors: toFieldErrors(issues)}
 	}
 	if len(valid) == 0 {
@@ -402,6 +413,28 @@ func commitRowsGeneric[T any](p *Planning, ctx context.Context, versionID, entit
 		return UpsertResult{}, err
 	}
 	return result, nil
+}
+
+// allForbidden reports whether every issue is a permission refusal. One data
+// problem among them means the caller has something to correct, and the
+// validation answer is the useful one.
+func allForbidden(issues []RowIssue) bool {
+	for _, i := range issues {
+		if i.Code != "FORBIDDEN" {
+			return false
+		}
+	}
+	return len(issues) > 0
+}
+
+// forbiddenFrom rebuilds the permission error, keeping the message the
+// permission check already wrote: it names the user and the permission needed.
+func forbiddenFrom(issues []RowIssue) error {
+	msg := issues[0].Message
+	if after, ok := strings.CutPrefix(msg, domain.ErrForbidden.Error()+": "); ok {
+		msg = after
+	}
+	return fmt.Errorf("%w: %s", domain.ErrForbidden, msg)
 }
 
 func toFieldErrors(issues []RowIssue) []domain.FieldError {

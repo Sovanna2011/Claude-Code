@@ -162,7 +162,15 @@ const (
 	PermMasterDataWrite = "masterdata:write"
 	PermPlanRead        = "plan:read"
 	PermPlanWrite       = "plan:write"
-	PermPlanSubmit      = "plan:submit"
+	// PermPlanGenerate guards rebuilding a whole version from its assumptions.
+	// It is separate from PermPlanWrite because the two are not the same act. A
+	// shipment planner needs plan:write to enter planned shipment rows, and that
+	// alone used to let them replace every cane, production, storage and
+	// shipment row in the season - the planner's work included - with one
+	// request. Editing a row you own and regenerating everybody's plan are
+	// different rights, so they are different permissions.
+	PermPlanGenerate = "plan:generate"
+	PermPlanSubmit   = "plan:submit"
 	PermPlanApprove     = "plan:approve"
 	PermPlanRelease     = "plan:release"
 	PermPlanReopen      = "plan:reopen"

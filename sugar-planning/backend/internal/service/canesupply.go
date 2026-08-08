@@ -168,7 +168,10 @@ func (p *Planning) DeleteSupplyEntry(ctx context.Context, versionID, id string) 
 // follows, and it is what lets the two be compared at all.
 func (p *Planning) GenerateSupplySchedule(ctx context.Context, versionID string) (SupplyScheduleResult, error) {
 	caller := auth.FromContext(ctx)
-	if err := caller.Require(domain.PermPlanWrite); err != nil {
+	// Rebuilding the delivery schedule replaces every row of it, so it is the
+	// generating right rather than the row-editing one, for the same reason
+	// Generate is.
+	if err := caller.Require(domain.PermPlanGenerate); err != nil {
 		return SupplyScheduleResult{}, err
 	}
 	version, err := p.versionInScope(ctx, versionID)

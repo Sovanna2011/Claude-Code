@@ -45,7 +45,7 @@ type GenerateResult struct {
 // complete, consistent plan, or it is left exactly as it was.
 func (p *Planning) Generate(ctx context.Context, versionID string, req GenerateRequest) (GenerateResult, error) {
 	caller := auth.FromContext(ctx)
-	if err := caller.Require(domain.PermPlanWrite); err != nil {
+	if err := caller.Require(domain.PermPlanGenerate); err != nil {
 		return GenerateResult{}, err
 	}
 	version, err := p.versionInScope(ctx, versionID)

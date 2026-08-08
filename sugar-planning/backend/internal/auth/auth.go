@@ -55,7 +55,8 @@ var DefaultRoles = map[string][]string{
 	},
 	RoleProductionPlanner: {
 		domain.PermMasterDataRead, domain.PermPlanRead, domain.PermPlanWrite,
-		domain.PermPlanSubmit, domain.PermMaterialsRead, domain.PermReportRead,
+		domain.PermPlanGenerate, domain.PermPlanSubmit, domain.PermMaterialsRead,
+		domain.PermReportRead,
 	},
 	RoleCaneOperator: {
 		domain.PermMasterDataRead, domain.PermPlanRead, domain.PermActualCane, domain.PermReportRead,
