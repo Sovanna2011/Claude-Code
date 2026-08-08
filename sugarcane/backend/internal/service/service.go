@@ -18,23 +18,33 @@ import (
 // start-up and handed to the router. Constructor injection keeps the dependencies explicit and
 // makes each service testable with a different repository.
 type Container struct {
-	Master    *MasterService
-	Activity  *ActivityService
-	Dashboard *DashboardService
-	Report    *ReportService
-	Support   *SupportService
+	Master     *MasterService
+	Activity   *ActivityService
+	Projection *ProjectionService
+	Dashboard  *DashboardService
+	Report     *ReportService
+	Support    *SupportService
 }
 
-func New(db *database.DB, master *repository.MasterRepository, dash *repository.DashboardRepository,
-	support *repository.SupportRepository, activities *repository.ActivityRepository) *Container {
-	m := &MasterService{db: db, repo: master, audit: support}
-	d := &DashboardService{repo: dash}
+// Repositories is what the composition root assembles and hands over. A struct rather than a
+// parameter list, so adding the next module's repository does not edit every call site.
+type Repositories struct {
+	Master      *repository.MasterRepository
+	Dashboard   *repository.DashboardRepository
+	Support     *repository.SupportRepository
+	Activities  *repository.ActivityRepository
+	Projections *repository.ProjectionRepository
+}
+
+func New(db *database.DB, r Repositories) *Container {
+	d := &DashboardService{repo: r.Dashboard}
 	return &Container{
-		Master:    m,
-		Activity:  &ActivityService{db: db, repo: activities, audit: support},
-		Dashboard: d,
-		Report:    &ReportService{dashboard: d},
-		Support:   &SupportService{repo: support},
+		Master:     &MasterService{db: db, repo: r.Master, audit: r.Support},
+		Activity:   &ActivityService{db: db, repo: r.Activities, audit: r.Support},
+		Projection: &ProjectionService{db: db, repo: r.Projections, audit: r.Support},
+		Dashboard:  d,
+		Report:     &ReportService{dashboard: d},
+		Support:    &SupportService{repo: r.Support},
 	}
 }
 

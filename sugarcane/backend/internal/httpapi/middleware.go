@@ -236,6 +236,10 @@ func filterFrom(r *http.Request) (domain.Filter, error) {
 	if f.ActivityCategory, err = optionalEnum(r, "activityCategory", domain.ValidActivityCategories); err != nil {
 		return f, err
 	}
+	if f.ProjectionStatus, err = optionalEnum(r, "projectionStatus", domain.ValidProjectionStatuses); err != nil {
+		return f, err
+	}
+	f.CurrentOnly, _ = strconv.ParseBool(r.URL.Query().Get("currentOnly"))
 	return f, nil
 }
 

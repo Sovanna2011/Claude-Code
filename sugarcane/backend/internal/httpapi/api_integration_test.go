@@ -65,13 +65,25 @@ func newHarness(t *testing.T) *harness {
 			t.Fatalf("migrate test database: %v", err)
 		}
 
-		master := repository.NewMasterRepository(db)
-		dash := repository.NewDashboardRepository(db)
 		support := repository.NewSupportRepository(db)
-		activities := repository.NewActivityRepository(db)
-		svc := service.New(db, master, dash, support, activities)
+		svc := service.New(db, service.Repositories{
+			Master:      repository.NewMasterRepository(db),
+			Dashboard:   repository.NewDashboardRepository(db),
+			Support:     support,
+			Activities:  repository.NewActivityRepository(db),
+			Projections: repository.NewProjectionRepository(db),
+		})
 		tokens := auth.NewTokens("a-test-signing-key-that-is-long-enough", time.Hour)
 		api := httpapi.New(svc, tokens, support, db, log)
+
+		// An approved projection takes its blocks for its planting window, and the test database
+		// is not dropped between runs — so last run's approvals would refuse this run's. The
+		// projections these tests create are all numbered PRJ-…; clearing them leaves the seeded
+		// plantation, which every other test reads, exactly as it was.
+		if _, err := db.Pool().Exec(ctx,
+			`DELETE FROM planting_projection WHERE projection_no LIKE 'PRJ-%'`); err != nil {
+			panic("clear test projections: " + err.Error())
+		}
 
 		shared = &harness{
 			server: httptest.NewServer(api.Routes([]string{"http://localhost:8081"})),

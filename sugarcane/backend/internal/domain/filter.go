@@ -28,6 +28,11 @@ type Filter struct {
 	ActivityID       *int
 	ActivityCategory *string
 
+	// Projections. CurrentOnly hides the superseded versions of a revised plan, which is what a
+	// list screen wants by default — the history is reachable from the plan itself.
+	ProjectionStatus *string
+	CurrentOnly      bool
+
 	// Free text across farm, zone and block code and name.
 	Search string
 

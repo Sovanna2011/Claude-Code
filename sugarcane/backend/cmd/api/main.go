@@ -52,11 +52,14 @@ func run(log *slog.Logger) error {
 
 	// The composition root: everything is constructed once, here, and injected downwards. No
 	// package reaches for a global.
-	master := repository.NewMasterRepository(db)
-	dashboard := repository.NewDashboardRepository(db)
 	support := repository.NewSupportRepository(db)
-	activities := repository.NewActivityRepository(db)
-	services := service.New(db, master, dashboard, support, activities)
+	services := service.New(db, service.Repositories{
+		Master:      repository.NewMasterRepository(db),
+		Dashboard:   repository.NewDashboardRepository(db),
+		Support:     support,
+		Activities:  repository.NewActivityRepository(db),
+		Projections: repository.NewProjectionRepository(db),
+	})
 	tokens := auth.NewTokens(cfg.JWTSecret, cfg.TokenTTL)
 	api := httpapi.New(services, tokens, support, db, log)
 

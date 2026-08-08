@@ -79,6 +79,19 @@ func (a *API) Routes(allowedOrigins []string) http.Handler {
 	protected.HandleFunc("POST /api/activities/dependencies", a.addDependency)
 	protected.HandleFunc("DELETE /api/activities/dependencies/{id}", a.deleteDependency)
 
+	// Planting projections and their approval workflow
+	protected.HandleFunc("GET /api/projections", a.listProjections)
+	protected.HandleFunc("POST /api/projections", a.createProjection)
+	protected.HandleFunc("GET /api/projections/workflow", a.projectionWorkflow)
+	protected.HandleFunc("GET /api/projections/{id}", a.getProjection)
+	protected.HandleFunc("PUT /api/projections/{id}", a.updateProjection)
+	protected.HandleFunc("POST /api/projections/{id}/lines", a.createProjectionLine)
+	protected.HandleFunc("PUT /api/projections/{id}/lines/{lineId}", a.updateProjectionLine)
+	protected.HandleFunc("DELETE /api/projections/{id}/lines/{lineId}", a.deleteProjectionLine)
+	for _, t := range domain.ProjectionWorkflow {
+		protected.HandleFunc("POST /api/projections/{id}/"+strings.ToLower(t.Action), a.workflowHandler(t.Action))
+	}
+
 	// Planting information
 	protected.HandleFunc("GET /api/planting", a.listPlanting)
 	protected.HandleFunc("POST /api/planting", a.savePlanting)
