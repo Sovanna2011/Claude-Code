@@ -241,6 +241,19 @@ data = {
     # because that is the one breakdown the board shows in place.
     "daily": daily_board(v1, actual_id_for_daily, P),
 
+    # Every version's own assumptions and mix, not just the budget's. The plan
+    # detail screen opens whichever version was clicked, and showing V1's
+    # settings under V2's heading would be the worst kind of wrong: plausible.
+    "versionDetail": {
+        v["code"]: {
+            # The actuals container carries neither by design - it records what
+            # happened rather than what was assumed - and returns null for both.
+            "assumptions": get(f"/versions/{v['id']}", P).get("assumptions") or [],
+            "productMix": get(f"/versions/{v['id']}", P).get("productMix") or [],
+        }
+        for v in versions
+    },
+
     # Lookups, so a screen can show "Refined sugar" where a row carries an id.
     # Without these the tables read as columns of UUIDs.
     "master": {
