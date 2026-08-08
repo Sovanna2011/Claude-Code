@@ -17,6 +17,8 @@ B = os.environ.get("API", "http://localhost:8080/api/v1")
 SEEDED_AS_OF = "2026-12-14"
 # The first day of the campaign.
 D_FIRST = "2026-12-01"
+# Deliberately stale, so a workflow probe never moves a real plan.
+STALE_ROW_VERSION = 999999
 OUT = os.environ.get("OUT", "system-data.json")
 
 # The accounts the service itself offers in development mode, taken from its own
@@ -288,6 +290,20 @@ PROBES = [
     # The row written back is the row already there, so the probe is a genuine
     # no-op whichever account passes the permission check.
     ("Change a planned day", "POST", f"/versions/{v1}/cane", {"rows": [planned_day]}),
+    # Creating a version. The code duplicates one that exists, so whoever passes
+    # the permission check is stopped by the conflict instead of leaving a new
+    # version behind - the probe measures the gate, not the feature.
+    ("Create a plan version", "POST", f"/seasons/{sid}/versions",
+     {"code": "V1", "description": "permission probe", "planType": "FORECAST"}),
+    # The workflow. A deliberately stale row version means nobody's plan
+    # actually moves; those who hold the permission are stopped by the
+    # concurrency check, and those who do not are refused before it.
+    ("Submit for approval", "POST", f"/versions/{v3}/transition",
+     {"action": "SUBMIT", "rowVersion": STALE_ROW_VERSION}),
+    ("Approve a plan", "POST", f"/versions/{v3}/transition",
+     {"action": "APPROVE", "rowVersion": STALE_ROW_VERSION}),
+    ("Release a plan", "POST", f"/versions/{v3}/transition",
+     {"action": "RELEASE", "rowVersion": STALE_ROW_VERSION}),
 ]
 
 matrix_rows = []
@@ -297,7 +313,10 @@ for label, method, path, body in PROBES:
         status, resp = raw(path, tokens[name], method, body)
         cells[name] = {
             "status": status,
-            "allowed": status < 400,
+            # The gate, not the outcome. A 409 or 412 means the caller was
+            # allowed through and something else stopped them, which is a
+            # different fact and is shown as its own status.
+            "allowed": status != 403,
             "detail": (resp.get("detail") or resp.get("title") or "")[:200]
             if isinstance(resp, dict) else "",
         }

@@ -47,6 +47,25 @@ var planTransitions = []Transition{
 	{ActionReopen, StatusClosed, StatusDraft, PermPlanReopen, true},
 }
 
+// PermissionForAction returns the permission an action needs, without reference
+// to the status the plan is in.
+//
+// Every action needs the same permission from whichever status it is taken -
+// submit and recall are both plan:submit, approve and reject are both
+// plan:approve - so the answer does not depend on the plan, and the service can
+// refuse a caller who holds nothing before it looks at anything else. That
+// matters: checking the row version first told an unauthorised caller that
+// their copy was stale and invited them to retry, which would never have
+// worked, and told them the plan's current row version while doing it.
+func PermissionForAction(action PlanAction) (string, error) {
+	for _, t := range planTransitions {
+		if t.Action == action {
+			return t.Permission, nil
+		}
+	}
+	return "", fmt.Errorf("%w: %q is not a known plan action", ErrValidation, action)
+}
+
 // LookupTransition finds the transition for an action in a status.
 func LookupTransition(from PlanStatus, action PlanAction) (Transition, error) {
 	for _, t := range planTransitions {

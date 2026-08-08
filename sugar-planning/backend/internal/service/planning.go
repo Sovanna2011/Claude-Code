@@ -568,22 +568,34 @@ func (p *Planning) Transition(ctx context.Context, versionID string, req Transit
 	if err != nil {
 		return domain.PlanVersion{}, err
 	}
-	if req.RowVersion != 0 && req.RowVersion != v.RowVersion {
-		return domain.PlanVersion{}, fmt.Errorf("%w: version %s is at row version %d",
-			domain.ErrConflict, v.Code, v.RowVersion)
+	// Permission first, then the state machine, then concurrency. The order is
+	// the point: this used to check the row version first, so a caller with no
+	// right to the plan at all was told "version V3 is at row version 1" and
+	// invited to retry with a fresh copy. Retrying would never have worked, and
+	// the refusal handed them the plan's current row version on the way past.
+	permission, err := domain.PermissionForAction(req.Action)
+	if err != nil {
+		return domain.PlanVersion{}, err
+	}
+	if err := caller.Require(permission); err != nil {
+		return domain.PlanVersion{}, err
 	}
 
 	transition, err := domain.ApplyTransition(v, req.Action, req.Reason)
 	if err != nil {
 		return domain.PlanVersion{}, err
 	}
-	if err := caller.Require(transition.Permission); err != nil {
-		return domain.PlanVersion{}, err
-	}
 	// Separation of duties: the owner of a plan cannot approve their own work.
 	if req.Action == domain.ActionApprove && v.Owner == caller.Username {
 		return domain.PlanVersion{}, fmt.Errorf(
 			"%w: %s submitted this plan and cannot also approve it", domain.ErrForbidden, caller.Username)
+	}
+
+	// Concurrency last: "somebody else changed this, take a fresh copy" is only
+	// useful advice to a caller who could otherwise have gone ahead.
+	if req.RowVersion != 0 && req.RowVersion != v.RowVersion {
+		return domain.PlanVersion{}, fmt.Errorf("%w: version %s is at row version %d",
+			domain.ErrConflict, v.Code, v.RowVersion)
 	}
 
 	before := v

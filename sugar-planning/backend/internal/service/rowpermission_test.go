@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/kss/sugarplan/internal/auth"
@@ -150,5 +151,38 @@ func TestOnlyThePlannerMayRegenerateTheSeason(t *testing.T) {
 	if _, err := h.planning.Generate(h.as(auth.RoleProductionPlanner), h.seeded.BudgetID,
 		service.GenerateRequest{Replace: true}); err != nil {
 		t.Errorf("the production planner can no longer generate: %v", err)
+	}
+}
+
+// A caller with no right to a plan is refused, not asked to refresh.
+//
+// Transition checked the row version before the permission, so an account that
+// could never perform the action was told "version V3 is at row version 1" and
+// invited to retry with a fresh copy. Retrying would never have worked, and the
+// refusal handed out the plan's current row version on the way past. Order the
+// checks the other way and both problems go.
+func TestAnUnauthorisedTransitionIsRefusedBeforeTheRowVersionIsConsidered(t *testing.T) {
+	h := newHarness(t, 0)
+
+	// A deliberately stale row version, so the concurrency check would fire if
+	// it were reached.
+	req := service.TransitionRequest{Action: domain.ActionSubmit, RowVersion: 999999}
+
+	_, err := h.planning.Transition(h.as(auth.RoleExecutiveViewer), h.seeded.BudgetID, req)
+	if !errors.Is(err, domain.ErrForbidden) {
+		t.Errorf("executive got %v, want a permission refusal", err)
+	}
+	if errors.Is(err, domain.ErrConflict) {
+		t.Errorf("an unauthorised caller was told the row version was stale: %v", err)
+	}
+	if err != nil && strings.Contains(err.Error(), "row version") {
+		t.Errorf("the refusal leaks the plan's row version: %v", err)
+	}
+
+	// The planner may submit, so for them the stale row version is the real
+	// answer and must still be reported.
+	_, err = h.planning.Transition(h.as(auth.RoleProductionPlanner), h.seeded.BudgetID, req)
+	if !errors.Is(err, domain.ErrConflict) {
+		t.Errorf("planner got %v, want the concurrency conflict", err)
 	}
 }
