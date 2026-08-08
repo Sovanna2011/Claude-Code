@@ -275,6 +275,16 @@
                                           visible="{= !!${tree>mapUrl} }" />
                                 </t:template>
                             </t:Column>
+                            <t:Column width="3.5rem" hAlign="Center" label="{i18n>edit}">
+                                <t:template>
+                                    <!-- Only a block has master data of its own; a farm or zone row
+                                         shows figures that are the sum of what is beneath it. -->
+                                    <Button icon="sap-icon://edit" type="Transparent"
+                                            tooltip="{i18n>editBlock}"
+                                            visible="{= ${tree>nodeType} === 'Block' }"
+                                            press=".onEditFromTree" />
+                                </t:template>
+                            </t:Column>
                         </t:columns>
                     </t:TreeTable>
 
@@ -303,8 +313,9 @@
                             <Toolbar>
                                 <Title text="{detail>/blockCode} — {detail>/blockName}" level="H3" />
                                 <ToolbarSpacer />
+                                <Button icon="sap-icon://edit" text="{i18n>edit}" press=".onEditFromMap" />
                                 <Link text="{i18n>openMap}" target="_blank" href="{detail>/mapUrl}"
-                                      visible="{= !!${detail>/mapUrl} }" />
+                                      visible="{= !!${detail>/mapUrl} }" class="sapUiTinyMarginBegin" />
                             </Toolbar>
                         </headerToolbar>
                         <l:Grid defaultSpan="XL4 L4 M6 S6" class="faDetailGrid">

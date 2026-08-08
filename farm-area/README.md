@@ -68,6 +68,13 @@ selecting a block row highlights it on the map.
 **Planning versus actual** — planned against actual by farm, zone or block, with variance and
 achievement, and a monthly breakdown beside it.
 
+**Block maintenance** — the pencil on a block row, or *Edit* on the map's detail panel, opens the
+block's master data: its fields, the breakdown of why part of it cannot be planted, and its
+planting records. The derived figures — the unplantable remainder, the area with cane, the area
+still available — move as you type and cannot be entered. A rejected save keeps the dialog open,
+puts the server's message on the field it is about, and says how much of the unplantable area the
+recorded reasons account for. A Report Viewer sees the dialog but no Save button.
+
 Changing any filter refreshes the cards, the charts, the tree, the map and the comparison in one
 pass, from one filter value — they cannot end up describing different land.
 

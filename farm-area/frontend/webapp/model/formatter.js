@@ -89,6 +89,54 @@ sap.ui.define([], function () {
 				return "Success";
 			}
 			return percent >= 80 ? "Warning" : "Error";
+		},
+
+		// The stored boundary and the registered area are two measurements of the same field. When
+		// they disagree by more than a rounding, the survey and the paperwork have drifted apart
+		// and someone should look.
+		boundaryText: function (areaHa) {
+			return typeof areaHa === "number"
+				? "Polygon stored · " + HA.format(areaHa) + " ha measured"
+				: "No boundary stored";
+		},
+
+		boundaryState: function (areaHa, totalHa) {
+			if (typeof areaHa !== "number") {
+				return "None";
+			}
+			if (typeof totalHa !== "number" || totalHa <= 0) {
+				return "Information";
+			}
+			return Math.abs(areaHa - totalHa) / totalHa <= 0.02 ? "Success" : "Warning";
+		},
+
+		remainderState: function (value) {
+			if (typeof value !== "number") {
+				return "None";
+			}
+			return value < 0 ? "Error" : "None";
+		},
+
+		reasonCoverage: function (recorded, capacity) {
+			var r = typeof recorded === "number" ? recorded : 0;
+			var c = typeof capacity === "number" ? capacity : 0;
+			return HA.format(r) + " of " + HA.format(c) + " ha accounted for";
+		},
+
+		reasonCoverageState: function (recorded, capacity) {
+			var r = typeof recorded === "number" ? recorded : 0;
+			var c = typeof capacity === "number" ? capacity : 0;
+			if (r > c + 0.0001) {
+				return "Error";
+			}
+			return Math.abs(r - c) < 0.0001 ? "Success" : "Warning";
+		},
+
+		withinPlantableState: function (withCane, plantable) {
+			if (typeof withCane !== "number" || typeof plantable !== "number") {
+				return "None";
+			}
+			return withCane > plantable + 0.0001 ? "Error" : "Success";
 		}
 	};
 });
