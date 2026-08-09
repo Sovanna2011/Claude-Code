@@ -92,6 +92,15 @@ func (a *API) Routes(allowedOrigins []string) http.Handler {
 		protected.HandleFunc("POST /api/projections/{id}/"+strings.ToLower(t.Action), a.workflowHandler(t.Action))
 	}
 
+	// Activity plans: an approved projection laid out over the calendar
+	protected.HandleFunc("GET /api/plans", a.listPlans)
+	protected.HandleFunc("POST /api/plans", a.generatePlan)
+	protected.HandleFunc("GET /api/plans/{id}", a.getPlan)
+	protected.HandleFunc("DELETE /api/plans/{id}", a.deletePlan)
+	for _, action := range []string{"Release", "Close", "Reopen"} {
+		protected.HandleFunc("POST /api/plans/{id}/"+strings.ToLower(action), a.planAction(action))
+	}
+
 	// Planting information
 	protected.HandleFunc("GET /api/planting", a.listPlanting)
 	protected.HandleFunc("POST /api/planting", a.savePlanting)

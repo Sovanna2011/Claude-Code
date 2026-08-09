@@ -33,6 +33,10 @@ type Filter struct {
 	ProjectionStatus *string
 	CurrentOnly      bool
 
+	// Activity plans.
+	ProjectionID *int
+	PlanStatus   *string
+
 	// Free text across farm, zone and block code and name.
 	Search string
 

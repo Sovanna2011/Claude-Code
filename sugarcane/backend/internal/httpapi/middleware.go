@@ -243,6 +243,10 @@ func filterFrom(r *http.Request) (domain.Filter, error) {
 	if f.ProjectionStatus, err = optionalEnum(r, "projectionStatus", domain.ValidProjectionStatuses); err != nil {
 		return f, err
 	}
+	if f.PlanStatus, err = optionalEnum(r, "planStatus", domain.ValidPlanStatuses); err != nil {
+		return f, err
+	}
+	f.ProjectionID = optionalInt(r, "projectionId")
 	f.CurrentOnly, _ = strconv.ParseBool(r.URL.Query().Get("currentOnly"))
 	return f, nil
 }

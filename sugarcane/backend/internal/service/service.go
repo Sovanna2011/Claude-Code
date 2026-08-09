@@ -21,6 +21,7 @@ type Container struct {
 	Master     *MasterService
 	Activity   *ActivityService
 	Projection *ProjectionService
+	Plan       *PlanService
 	Dashboard  *DashboardService
 	Report     *ReportService
 	Support    *SupportService
@@ -34,6 +35,7 @@ type Repositories struct {
 	Support     *repository.SupportRepository
 	Activities  *repository.ActivityRepository
 	Projections *repository.ProjectionRepository
+	Plans       *repository.PlanRepository
 }
 
 func New(db *database.DB, r Repositories) *Container {
@@ -42,6 +44,7 @@ func New(db *database.DB, r Repositories) *Container {
 		Master:     &MasterService{db: db, repo: r.Master, audit: r.Support},
 		Activity:   &ActivityService{db: db, repo: r.Activities, audit: r.Support},
 		Projection: &ProjectionService{db: db, repo: r.Projections, audit: r.Support},
+		Plan:       &PlanService{db: db, repo: r.Plans, projections: r.Projections, audit: r.Support},
 		Dashboard:  d,
 		Report:     &ReportService{dashboard: d},
 		Support:    &SupportService{repo: r.Support},

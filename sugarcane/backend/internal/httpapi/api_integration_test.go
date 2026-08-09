@@ -72,6 +72,7 @@ func newHarness(t *testing.T) *harness {
 			Support:     support,
 			Activities:  repository.NewActivityRepository(db),
 			Projections: repository.NewProjectionRepository(db),
+			Plans:       repository.NewPlanRepository(db),
 		})
 		tokens := auth.NewTokens("a-test-signing-key-that-is-long-enough", time.Hour)
 		api := httpapi.New(svc, tokens, support, db, log)

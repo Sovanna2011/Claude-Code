@@ -59,6 +59,7 @@ func run(log *slog.Logger) error {
 		Support:     support,
 		Activities:  repository.NewActivityRepository(db),
 		Projections: repository.NewProjectionRepository(db),
+		Plans:       repository.NewPlanRepository(db),
 	})
 	tokens := auth.NewTokens(cfg.JWTSecret, cfg.TokenTTL)
 	api := httpapi.New(services, tokens, support, db, log)

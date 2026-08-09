@@ -92,3 +92,11 @@ func AsError(err error) (*Error, bool) {
 	ok := errors.As(err, &target)
 	return target, ok
 }
+
+// IsNotFound reports whether an error is this package's 404. A caller that wants to create a thing
+// when it does not yet exist needs to tell "there is none" apart from "the query failed", and
+// comparing status codes at the call site would spread that knowledge around.
+func IsNotFound(err error) bool {
+	e, ok := AsError(err)
+	return ok && e.Status == 404
+}

@@ -13,7 +13,7 @@ The port is being done module by module, each complete and tested before the nex
 | Planning formulas — every calculation in the specification | **ported** |
 | Growing seasons, cane varieties, the 19 planting activities and their dependency chain | **ported** |
 | Planting projections, versioning and the approval workflow | **ported** |
-| Activity-plan generation over the calendar | to do |
+| Activity-plan generation over the calendar | **ported** |
 | Machinery, workforce and resource scheduling with its eight conflict checks | to do |
 | Material master, standards and requirement planning | to do |
 | Fuel and labour, capacity analysis, what-if scenarios | to do |
@@ -24,7 +24,7 @@ The port is being done module by module, each complete and tested before the nex
 | Database | **PostgreSQL 16 + PostGIS 3.4** — real `geography(MultiPolygon, 4326)` boundaries, areas measured with `ST_Area` |
 | Backend | **Go 1.24** REST API — repository pattern, service layer, constructor injection, transactions, global error handling, JWT role-based authorisation, optimistic concurrency, pagination and filtering, audit logging |
 | Frontend | **SAPUI5 (OpenUI5 1.151)** — Fiori Horizon, `sap.f.FlexibleColumnLayout`, `sap.f.DynamicPage`, `sap.uxap.ObjectPageLayout`, `sap.ui.table.TreeTable`, KPI tiles, analytical charts, filter bar, interactive map |
-| Tests | 138 Go tests — 76 unit, 62 integration against a real PostGIS database |
+| Tests | 157 Go tests — 87 unit, 70 integration against a real PostGIS database |
 
 ```
 sugarcane/
@@ -34,7 +34,8 @@ sugarcane/
 │   ├── 003_activities.sql  seasons, varieties, the activity master and its dependencies
 │   ├── 004_activity_seed.sql  the specification's nineteen sample activities
 │   ├── 005_projections.sql  planting projections, their lines and the approval trail
-│   └── 006_audit_columns.sql  who created and last changed every row, stamped by the database
+│   ├── 006_audit_columns.sql  who created and last changed every row, stamped by the database
+│   └── 007_activity_plans.sql  the activity plan and its dated tasks
 ├── backend/
 │   ├── cmd/api/            the composition root
 │   └── internal/
@@ -147,6 +148,34 @@ is taken only on approval, and a second plan overlapping an approved one in time
 the plan that holds it. Revising an approved plan releases the commitment until the new version is
 approved in its turn.
 
+## The activity plan
+
+An approved projection laid out over the calendar: one task per activity per block, with the dates
+the dependency chain and the working week allow.
+
+Every date is generated, never typed. `domain.GenerateTasks` is a pure function of three inputs —
+the projection's blocks, the activity master with its dependencies, and the working calendar — so
+the same inputs always produce the same programme. That is what makes regeneration safe and what
+lets a what-if scenario try a different calendar without touching what was agreed.
+
+Each activity starts on the later of two dates: its standard offset from the block's planting day,
+and the working day after everything it waits for has finished, plus that dependency's lag. Both
+are moved forward to the next working day, so nothing lands on a Sunday or a holiday. A ratoon crop
+skips the activities that do not apply to it, and a dependency on a skipped activity is ignored
+rather than stalling the chain.
+
+The calendar is stored with the plan rather than read from a global — the working week and the
+holiday list both — so a plan generated a year ago can be reproduced exactly.
+
+| State | Means |
+|-------|-------|
+| Draft | Regenerate it as often as you like; the dates are still a proposal. |
+| Released | The programme is with the field. Regenerating and deleting are refused; reopen it first. |
+| Closed | Finished. |
+
+Only an **approved** projection can be planned: an unapproved one holds no land, so scheduling work
+against it would schedule work on blocks another plan may still take.
+
 ## Land classification
 
 Only two figures about a block are ever entered: its **total area** and its **plantable area**.
@@ -234,6 +263,8 @@ too — otherwise breaking a cross-row rule would answer 500 instead of naming t
 | `POST /api/projections/{id}/lines` · `PUT`/`DELETE` `.../lines/{lineId}` | the blocks a plan covers |
 | `POST /api/projections/{id}/{submit\|review\|approve\|reject\|returnforcorrection\|revise\|close}` | one step of the workflow |
 | `GET /api/projections/workflow` | the transition graph, so a client need not hold a copy |
+| `GET/POST /api/plans` · `GET/DELETE /api/plans/{id}` | activity plans; POST generates or regenerates one |
+| `POST /api/plans/{id}/{release\|close\|reopen}` | the plan's lifecycle |
 | `GET/POST /api/planting` · `DELETE /api/planting/{id}` | planting records, planned and actual |
 | `GET /api/summaries/farm-area` · `/zone-area` · `/block-area` | one level of the tree |
 | `GET /api/farms/tree` · `GET /api/reports/farm-area-tree` | the whole hierarchy |
@@ -282,11 +313,11 @@ curl -s "localhost:8080/api/dashboard/farm-area?cropYear=2026" -H "Authorization
 
 ```bash
 cd backend
-go test ./...                                   # 76 unit tests; the database tests skip
+go test ./...                                   # 87 unit tests; the database tests skip
 
 createdb farmarea_test && psql -d farmarea_test -c 'CREATE EXTENSION postgis'
 export FARMAREA_TEST_DATABASE_URL="postgres://farmarea:farmarea@127.0.0.1:5432/farmarea_test"
-go test ./...                                   # 138 tests
+go test ./...                                   # 157 tests
 ```
 
 The integration tests run over the real stack — HTTP handler, service, repository, PostGIS — and

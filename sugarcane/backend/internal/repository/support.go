@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/jackc/pgx/v5"
 
@@ -199,4 +200,32 @@ func nullIfEmpty(s string) any {
 		return nil
 	}
 	return s
+}
+
+// unmarshalDependencies reads the blocking predecessors the planning query aggregates into JSON.
+// Doing it in one query rather than one per activity keeps the generator's input to a single round
+// trip, which matters when the master runs to nineteen activities.
+func unmarshalDependencies(raw []byte, into *[]domain.PlanDependency) error {
+	if len(raw) == 0 {
+		return nil
+	}
+	var parsed []struct {
+		DependsOnID int  `json:"dependsOnId"`
+		LagDays     int  `json:"lagDays"`
+		IsBlocking  bool `json:"isBlocking"`
+	}
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return fmt.Errorf("activity dependencies: %w", err)
+	}
+	for _, p := range parsed {
+		*into = append(*into, domain.PlanDependency{
+			DependsOnID: p.DependsOnID, LagDays: p.LagDays, IsBlocking: p.IsBlocking})
+	}
+	return nil
+}
+
+// sortStrings keeps the holiday list in a stable order, so two plans with the same calendar store
+// it identically and a diff of the two rows shows nothing.
+func sortStrings(values []string) {
+	sort.Strings(values)
 }
