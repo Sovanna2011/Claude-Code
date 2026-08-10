@@ -1,0 +1,5 @@
+# Build output. The executable is ten megabytes and is rebuilt from source in seconds; what belongs
+# in the repository is the source and the manifest, not the artefact.
+/dist/
+*.exe
+*.syso

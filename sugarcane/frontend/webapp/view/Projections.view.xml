@@ -1,0 +1,125 @@
+<mvc:View
+    controllerName="farm.area.dashboard.controller.Projections"
+    xmlns="sap.m"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns:core="sap.ui.core"
+    xmlns:l="sap.ui.layout"
+    height="100%">
+
+    <Page id="projectionsPage" showHeader="true" class="faDashboardPage">
+        <customHeader>
+            <Bar>
+                <contentLeft>
+                    <Button icon="sap-icon://nav-back" tooltip="{i18n>backToDashboard}" press=".onBack" />
+                    <core:Icon src="sap-icon://sales-order" class="sapUiTinyMarginBegin sapUiTinyMarginEnd" />
+                    <Title text="{i18n>projections}" level="H1" />
+                </contentLeft>
+                <contentRight>
+                    <Text text="{session>/user/fullName} · {session>/user/role}" class="faMuted sapUiTinyMarginEnd" />
+                    <Button icon="sap-icon://log" text="{i18n>signOut}" press=".onSignOut" />
+                </contentRight>
+            </Bar>
+        </customHeader>
+
+        <content>
+            <MessageStrip id="errorStrip" type="Error" showIcon="true" showCloseButton="true"
+                          visible="false" class="sapUiSmallMargin" />
+
+            <Panel expandable="false" expanded="true" class="faFilterBar">
+                <headerToolbar>
+                    <OverflowToolbar>
+                        <core:Icon src="sap-icon://filter" />
+                        <Title text="{i18n>filters}" level="H2" />
+                        <ToolbarSpacer />
+                        <Text text="{view>/summary}" class="faMuted" />
+                        <Button text="{i18n>clearFilters}" press=".onClearFilters" />
+                        <Button text="{i18n>newProjection}" type="Emphasized" icon="sap-icon://add"
+                                visible="{session>/canPlan}" press=".onNewProjection" />
+                    </OverflowToolbar>
+                </headerToolbar>
+
+                <l:Grid defaultSpan="XL2 L3 M4 S12" class="sapUiSmallMarginTop">
+                    <VBox>
+                        <Label text="{i18n>season}" labelFor="filterSeason" />
+                        <Select id="filterSeason" width="100%" forceSelection="false" change=".onFilterChanged"
+                                items="{ path: 'lookups>/seasons', templateShareable: false }">
+                            <core:Item key="{lookups>id}" text="{lookups>display}" />
+                        </Select>
+                    </VBox>
+                    <!-- Farm narrows the zones and zone narrows the blocks, as on the dashboard: a
+                         list that offers zones from another farm invites an empty answer. -->
+                    <VBox>
+                        <Label text="{i18n>farm}" labelFor="filterFarm" />
+                        <Select id="filterFarm" width="100%" forceSelection="false" change=".onFarmFilterChanged"
+                                items="{ path: 'lookups>/farms', templateShareable: false }">
+                            <core:Item key="{lookups>id}" text="{lookups>display}" />
+                        </Select>
+                    </VBox>
+                    <VBox>
+                        <Label text="{i18n>zone}" labelFor="filterZone" />
+                        <Select id="filterZone" width="100%" forceSelection="false" change=".onZoneFilterChanged"
+                                items="{ path: 'lookups>/zones', templateShareable: false }">
+                            <core:Item key="{lookups>id}" text="{lookups>display}" />
+                        </Select>
+                    </VBox>
+                    <VBox>
+                        <Label text="{i18n>block}" labelFor="filterBlock" />
+                        <Select id="filterBlock" width="100%" forceSelection="false" change=".onFilterChanged"
+                                items="{ path: 'lookups>/blocks', templateShareable: false }">
+                            <core:Item key="{lookups>id}" text="{lookups>display}" />
+                        </Select>
+                    </VBox>
+                    <VBox>
+                        <Label text="{i18n>status}" labelFor="filterStatus" />
+                        <Select id="filterStatus" width="100%" forceSelection="false" change=".onFilterChanged"
+                                items="{ path: 'lookups>/statuses', templateShareable: false }">
+                            <core:Item key="{lookups>id}" text="{lookups>display}" />
+                        </Select>
+                    </VBox>
+                    <VBox>
+                        <Label text="{i18n>search}" labelFor="filterSearch" />
+                        <SearchField id="filterSearch" width="100%" search=".onFilterChanged" />
+                    </VBox>
+                    <VBox justifyContent="End">
+                        <CheckBox id="filterCurrent" selected="true" text="{i18n>currentOnly}" select=".onFilterChanged" />
+                    </VBox>
+                </l:Grid>
+            </Panel>
+
+            <!-- selectionChange, not itemPress: in SingleSelectMaster the row click is the
+                 selection, and press never fires. Selecting is also what should open the plan, and
+                 it leaves the row highlighted so the list shows which one is on the right. -->
+            <Table id="projectionTable" class="sapUiSmallMargin" mode="SingleSelectMaster"
+                   autoPopinMode="true" selectionChange=".onOpenProjection"
+                   items="{ path: 'list>/items', templateShareable: false }"
+                   noDataText="{i18n>noProjections}">
+                <columns>
+                    <Column><Text text="{i18n>projectionNo}" /></Column>
+                    <Column hAlign="End" width="5rem" importance="Medium"><Text text="{i18n>revision}" /></Column>
+                    <Column importance="Low"><Text text="{i18n>season}" /></Column>
+                    <Column importance="Low"><Text text="{i18n>planningWindow}" /></Column>
+                    <Column hAlign="End" importance="Low"><Text text="{i18n>lines}" /></Column>
+                    <Column hAlign="End"><Text text="{i18n>projectedArea}" /></Column>
+                    <Column hAlign="End" importance="Medium"><Text text="{i18n>expectedTons}" /></Column>
+                    <Column><Text text="{i18n>status}" /></Column>
+                </columns>
+                <items>
+                    <ColumnListItem type="Navigation">
+                        <cells>
+                            <ObjectIdentifier title="{list>projectionNo}" text="{list>preparedBy}" />
+                            <Text text="v{list>revision}" />
+                            <Text text="{list>cropSeasonCode}" />
+                            <Text text="{list>planningStart} → {list>planningEnd}" />
+                            <Text text="{list>lineCount}" />
+                            <ObjectNumber number="{ path: 'list>totalProjectedAreaHa', formatter: '.formatter.hectares' }" unit="ha" />
+                            <ObjectNumber number="{ path: 'list>totalExpectedTons', formatter: '.formatter.hectares' }" unit="t" />
+                            <ObjectStatus text="{list>status}"
+                                          state="{ path: 'list>status', formatter: '.formatter.projectionState' }"
+                                          icon="{ path: 'list>status', formatter: '.formatter.projectionIcon' }" />
+                        </cells>
+                    </ColumnListItem>
+                </items>
+            </Table>
+        </content>
+    </Page>
+</mvc:View>

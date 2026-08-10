@@ -1,0 +1,224 @@
+<core:FragmentDefinition
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core"
+    xmlns:l="sap.ui.layout"
+    xmlns:f="sap.ui.layout.form">
+
+    <!--
+        Block master maintenance: the fields of section 4, the non-plantable breakdown of
+        section 5 and the planting records of section 11, in one dialog.
+
+        Everything derived is shown but not editable — the unplantable remainder, the area with
+        cane and the area still available are calculated from what is entered above them, and a
+        form that let you type one of them would let you contradict the block's own arithmetic.
+    -->
+    <Dialog
+        id="blockDialog"
+        title="{i18n>editBlock} {edit>/code}"
+        contentWidth="52rem"
+        contentHeight="40rem"
+        resizable="true"
+        draggable="true"
+        stretch="{device>/isPhone}"
+        afterClose=".onBlockDialogClosed">
+
+        <content>
+            <MessageStrip
+                id="blockDialogError"
+                type="Error"
+                showIcon="true"
+                showCloseButton="true"
+                visible="false"
+                class="sapUiSmallMargin" />
+
+            <IconTabBar id="blockTabs" expanded="true" class="sapUiResponsiveContentPadding">
+                <items>
+                    <!-- Master data: the fields of section 4. -->
+                    <IconTabFilter icon="sap-icon://tree" text="{i18n>tabMaster}" key="master">
+                        <f:SimpleForm editable="true" layout="ResponsiveGridLayout"
+                                      labelSpanM="4" columnsM="2" columnsL="2" columnsXL="2">
+                            <Label text="{i18n>blockCode}" />
+                            <Input id="editCode" value="{edit>/code}" maxLength="20" />
+
+                            <Label text="{i18n>blockName}" />
+                            <Input id="editName" value="{edit>/name}" maxLength="150" />
+
+                            <Label text="{i18n>farm}" />
+                            <Text text="{edit>/farmName}" />
+
+                            <Label text="{i18n>zone}" />
+                            <Text text="{edit>/zoneName}" />
+
+                            <Label text="{i18n>totalArea}" />
+                            <Input id="editTotalArea" value="{edit>/totalAreaHa}" type="Number"
+                                   description="ha" liveChange=".onAreaChanged" />
+
+                            <Label text="{i18n>plantableArea}" />
+                            <Input id="editPlantableArea" value="{edit>/plantableAreaHa}" type="Number"
+                                   description="ha" liveChange=".onAreaChanged" />
+
+                            <Label text="{i18n>cannotPlant}" />
+                            <ObjectStatus
+                                text="{ parts: ['edit>/nonPlantableAreaHa'], formatter: '.formatter.hectaresUnit' }"
+                                state="{ parts: ['edit>/nonPlantableAreaHa'], formatter: '.formatter.remainderState' }" />
+
+                            <Label text="{i18n>landStatus}" />
+                            <Select id="editLandStatus" selectedKey="{edit>/landStatus}"
+                                    items="{ path: 'lookups>/landStatuses', templateShareable: false }">
+                                <core:Item key="{lookups>id}" text="{lookups>display}" />
+                            </Select>
+
+                            <Label text="{i18n>caneStatus}" />
+                            <Select id="editCaneStatus" selectedKey="{edit>/caneStatus}"
+                                    items="{ path: 'lookups>/caneStatuses', templateShareable: false }">
+                                <core:Item key="{lookups>id}" text="{lookups>display}" />
+                            </Select>
+
+                            <Label text="{i18n>latitude}" />
+                            <Input id="editLatitude" value="{edit>/latitude}" type="Number" />
+
+                            <Label text="{i18n>longitude}" />
+                            <Input id="editLongitude" value="{edit>/longitude}" type="Number" />
+
+                            <Label text="{i18n>boundary}" />
+                            <HBox alignItems="Center">
+                                <ObjectStatus
+                                    text="{ parts: ['edit>/boundaryAreaHa'], formatter: '.formatter.boundaryText' }"
+                                    state="{ parts: ['edit>/boundaryAreaHa', 'edit>/totalAreaHa'], formatter: '.formatter.boundaryState' }" />
+                                <Link text="{i18n>openMap}" target="_blank" href="{edit>/mapUrl}"
+                                      visible="{= !!${edit>/mapUrl} }" class="sapUiTinyMarginBegin" />
+                            </HBox>
+
+                            <Label text="{i18n>remark}" />
+                            <TextArea id="editRemark" value="{edit>/remark}" rows="2" growing="true" />
+
+                            <Label text="{i18n>active}" />
+                            <CheckBox id="editActive" selected="{edit>/active}" />
+                        </f:SimpleForm>
+                    </IconTabFilter>
+
+                    <!-- The breakdown of section 5. -->
+                    <IconTabFilter icon="sap-icon://blocked" text="{i18n>tabNonPlantable}" key="reasons"
+                                   count="{= ${edit>/nonPlantableParts}.length }">
+                        <VBox class="sapUiSmallMargin">
+                            <MessageStrip
+                                type="Information"
+                                showIcon="true"
+                                text="{i18n>reasonsHint}"
+                                class="sapUiSmallMarginBottom" />
+                            <Table id="reasonTable" items="{ path: 'edit>/nonPlantableParts', templateShareable: false }">
+                                <headerToolbar>
+                                    <OverflowToolbar>
+                                        <Title text="{i18n>tabNonPlantable}" level="H3" />
+                                        <ToolbarSpacer />
+                                        <ObjectStatus
+                                            text="{ parts: ['edit>/reasonTotalHa', 'edit>/nonPlantableAreaHa'], formatter: '.formatter.reasonCoverage' }"
+                                            state="{ parts: ['edit>/reasonTotalHa', 'edit>/nonPlantableAreaHa'], formatter: '.formatter.reasonCoverageState' }" />
+                                        <Button icon="sap-icon://add" text="{i18n>addReason}" press=".onAddReason" />
+                                    </OverflowToolbar>
+                                </headerToolbar>
+                                <columns>
+                                    <Column><Text text="{i18n>reason}" /></Column>
+                                    <Column hAlign="End" width="9rem"><Text text="{i18n>area}" /></Column>
+                                    <Column><Text text="{i18n>remark}" /></Column>
+                                    <Column width="3rem" />
+                                </columns>
+                                <items>
+                                    <ColumnListItem>
+                                        <cells>
+                                            <Select selectedKey="{edit>reasonCode}" width="100%"
+                                                    items="{ path: 'lookups>/reasons', templateShareable: false }">
+                                                <core:Item key="{lookups>code}" text="{lookups>name}" />
+                                            </Select>
+                                            <Input value="{edit>areaHa}" type="Number" description="ha"
+                                                   liveChange=".onReasonAreaChanged" />
+                                            <Input value="{edit>remark}" maxLength="200" />
+                                            <Button icon="sap-icon://delete" type="Transparent" press=".onRemoveReason" />
+                                        </cells>
+                                    </ColumnListItem>
+                                </items>
+                            </Table>
+                        </VBox>
+                    </IconTabFilter>
+
+                    <!-- Planned and actual planting, section 11. -->
+                    <IconTabFilter icon="sap-icon://sys-add" text="{i18n>tabPlanting}" key="planting"
+                                   count="{= ${edit>/plantings}.length }">
+                        <VBox class="sapUiSmallMargin">
+                            <MessageStrip
+                                type="Information"
+                                showIcon="true"
+                                text="{i18n>plantingHint}"
+                                class="sapUiSmallMarginBottom" />
+                            <Table id="plantingTable" items="{ path: 'edit>/plantings', templateShareable: false }">
+                                <headerToolbar>
+                                    <OverflowToolbar>
+                                        <Title text="{i18n>tabPlanting}" level="H3" />
+                                        <ToolbarSpacer />
+                                        <Button icon="sap-icon://add" text="{i18n>addPlanting}" press=".onAddPlanting" />
+                                    </OverflowToolbar>
+                                </headerToolbar>
+                                <columns>
+                                    <Column width="7rem"><Text text="{i18n>cropYear}" /></Column>
+                                    <Column width="9rem"><Text text="{i18n>plantingType}" /></Column>
+                                    <Column><Text text="{i18n>variety}" /></Column>
+                                    <Column hAlign="End" width="8rem"><Text text="{i18n>planned}" /></Column>
+                                    <Column hAlign="End" width="8rem"><Text text="{i18n>actual}" /></Column>
+                                    <Column width="9rem"><Text text="{i18n>plantingDate}" /></Column>
+                                    <Column width="4rem" />
+                                </columns>
+                                <items>
+                                    <ColumnListItem>
+                                        <cells>
+                                            <Input value="{edit>cropYear}" type="Number" />
+                                            <Select selectedKey="{edit>plantingType}" width="100%">
+                                                <core:Item key="NewPlanting" text="New planting" />
+                                                <core:Item key="Ratoon" text="Ratoon" />
+                                            </Select>
+                                            <Select selectedKey="{edit>caneVarietyId}" width="100%"
+                                                    items="{ path: 'lookups>/varieties', templateShareable: false }">
+                                                <core:Item key="{lookups>id}" text="{lookups>display}" />
+                                            </Select>
+                                            <Input value="{edit>plannedAreaHa}" type="Number" description="ha" />
+                                            <Input value="{edit>actualAreaHa}" type="Number" description="ha"
+                                                   liveChange=".onPlantingAreaChanged" />
+                                            <DatePicker value="{edit>actualDate}" valueFormat="yyyy-MM-dd"
+                                                        displayFormat="yyyy-MM-dd" />
+                                            <Button icon="sap-icon://save" type="Transparent"
+                                                    tooltip="{i18n>savePlanting}" press=".onSavePlanting" />
+                                        </cells>
+                                    </ColumnListItem>
+                                </items>
+                            </Table>
+
+                            <l:Grid defaultSpan="XL4 L4 M6 S12" class="sapUiSmallMarginTop">
+                                <VBox>
+                                    <Label text="{i18n>haveCane}" />
+                                    <ObjectStatus
+                                        text="{ parts: ['edit>/areaWithCaneHa'], formatter: '.formatter.hectaresUnit' }"
+                                        state="{ parts: ['edit>/areaWithCaneHa', 'edit>/plantableAreaHa'], formatter: '.formatter.withinPlantableState' }" />
+                                </VBox>
+                                <VBox>
+                                    <Label text="{i18n>available}" />
+                                    <Text text="{ parts: ['edit>/availableAreaHa'], formatter: '.formatter.hectaresUnit' }" />
+                                </VBox>
+                                <VBox>
+                                    <Label text="{i18n>plantableArea}" />
+                                    <Text text="{ parts: ['edit>/plantableAreaHa'], formatter: '.formatter.hectaresUnit' }" />
+                                </VBox>
+                            </l:Grid>
+                        </VBox>
+                    </IconTabFilter>
+                </items>
+            </IconTabBar>
+        </content>
+
+        <beginButton>
+            <Button id="blockSave" text="{i18n>save}" type="Emphasized" press=".onSaveBlock"
+                    enabled="{= ${session>/canEditMaster} }" />
+        </beginButton>
+        <endButton>
+            <Button text="{i18n>cancel}" press=".onCloseBlockDialog" />
+        </endButton>
+    </Dialog>
+</core:FragmentDefinition>

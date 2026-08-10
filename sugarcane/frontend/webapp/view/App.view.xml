@@ -1,0 +1,20 @@
+<mvc:View
+    controllerName="farm.area.dashboard.controller.App"
+    xmlns="sap.m"
+    xmlns:f="sap.f"
+    xmlns:mvc="sap.ui.core.mvc"
+    displayBlock="true"
+    height="100%">
+
+    <!-- A FlexibleColumnLayout, so a plan opens beside the list it came from rather than replacing
+         it: the planner keeps their place while reading one. The login and the dashboard are
+         one-column routes and fill the whole width. -->
+    <f:FlexibleColumnLayout
+        id="fcl"
+        busy="{appView>/busy}"
+        busyIndicatorDelay="0"
+        layout="{appView>/layout}"
+        stateChange=".onStateChange"
+        backgroundDesign="Solid"
+        class="faShell" />
+</mvc:View>

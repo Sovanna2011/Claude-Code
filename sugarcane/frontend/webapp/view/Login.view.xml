@@ -1,0 +1,40 @@
+<mvc:View
+    controllerName="farm.area.dashboard.controller.Login"
+    xmlns="sap.m"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns:f="sap.ui.layout.form">
+    <Page showHeader="false" class="faLoginPage">
+        <VBox alignItems="Center" justifyContent="Center" height="100%">
+            <Panel class="faLoginPanel" width="26rem">
+                <headerToolbar>
+                    <Toolbar>
+                        <Title text="{i18n>appTitle}" level="H1" />
+                    </Toolbar>
+                </headerToolbar>
+                <VBox class="sapUiSmallMargin">
+                    <Text text="{i18n>loginIntro}" class="sapUiSmallMarginBottom" />
+                    <MessageStrip
+                        id="loginError"
+                        type="Error"
+                        showIcon="true"
+                        visible="false"
+                        class="sapUiSmallMarginBottom" />
+                    <f:SimpleForm editable="true" layout="ResponsiveGridLayout" labelSpanM="4" columnsM="1">
+                        <Label text="{i18n>userName}" labelFor="userName" />
+                        <Input id="userName" value="admin" submit=".onSignIn" />
+                        <Label text="{i18n>password}" labelFor="password" />
+                        <Input id="password" type="Password" value="Farm#2026" submit=".onSignIn" />
+                    </f:SimpleForm>
+                    <Button
+                        id="signIn"
+                        text="{i18n>signIn}"
+                        type="Emphasized"
+                        width="100%"
+                        press=".onSignIn"
+                        class="sapUiSmallMarginTop" />
+                    <Text text="{i18n>loginAccounts}" class="sapUiSmallMarginTop faMuted" />
+                </VBox>
+            </Panel>
+        </VBox>
+    </Page>
+</mvc:View>

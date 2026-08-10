@@ -1,0 +1,437 @@
+<mvc:View
+    controllerName="farm.area.dashboard.controller.Dashboard"
+    xmlns="sap.m"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns:core="sap.ui.core"
+    xmlns:l="sap.ui.layout"
+    xmlns:t="sap.ui.table"
+    xmlns:f="sap.f"
+    xmlns:fa="farm.area.dashboard.control"
+    height="100%">
+
+    <!-- A DynamicPage rather than a plain Page: the filters and the KPI cards live in a header
+         that snaps away as the reader scrolls into the charts and the tree, and can be pinned open
+         when they want to keep the figures in view while they read. -->
+    <f:DynamicPage id="dashboardPage" headerExpanded="true" toggleHeaderOnTitleClick="true"
+                   preserveHeaderStateOnScroll="false" class="faDashboardPage" fitContent="false">
+        <f:title>
+            <f:DynamicPageTitle>
+                <f:heading>
+                    <HBox alignItems="Center">
+                        <core:Icon src="sap-icon://tree" class="sapUiTinyMarginEnd" />
+                        <Title text="{i18n>appTitle}" level="H1" />
+                    </HBox>
+                </f:heading>
+                <!-- What the header shows when it is collapsed: the filter in one line, so the
+                     figures below are never read without knowing what land they describe. -->
+                <f:snappedContent>
+                    <HBox alignItems="Center">
+                        <core:Icon src="sap-icon://filter" class="sapUiTinyMarginEnd faMuted" />
+                        <Text text="{view>/filterSummary}" class="faMuted" />
+                    </HBox>
+                </f:snappedContent>
+                <f:actions>
+                    <Button icon="sap-icon://sales-order" text="{i18n>projections}" press=".onOpenProjections" />
+                    <Text text="{session>/user/fullName} · {session>/user/role}" class="faMuted sapUiTinyMarginEnd" />
+                    <Button icon="sap-icon://log" text="{i18n>signOut}" press=".onSignOut" />
+                </f:actions>
+            </f:DynamicPageTitle>
+        </f:title>
+
+        <f:header>
+            <f:DynamicPageHeader pinnable="true">
+                <!-- ============================ Filters ============================ -->
+                <Toolbar class="faFilterToolbar">
+                    <core:Icon src="sap-icon://filter" />
+                    <Title text="{i18n>filters}" level="H2" />
+                    <ToolbarSpacer />
+                    <Text id="filterSummary" text="{view>/filterSummary}" class="faMuted" />
+                    <Button text="{i18n>clearFilters}" press=".onClearFilters" />
+                    <Button text="{i18n>applyFilters}" type="Emphasized" press=".onApplyFilters" />
+                </Toolbar>
+
+                <l:Grid defaultSpan="XL2 L3 M4 S12" class="sapUiSmallMarginTop">
+                    <VBox>
+                        <Label text="{i18n>company}" labelFor="filterCompany" />
+                        <Select id="filterCompany" width="100%" forceSelection="false"
+                                change=".onFilterChanged"
+                                items="{ path: 'lookups>/companies', templateShareable: false }">
+                            <core:Item key="{lookups>id}" text="{lookups>display}" />
+                        </Select>
+                    </VBox>
+                    <VBox>
+                        <Label text="{i18n>plantation}" labelFor="filterPlantation" />
+                        <Select id="filterPlantation" width="100%" forceSelection="false"
+                                change=".onFilterChanged"
+                                items="{ path: 'lookups>/plantations', templateShareable: false }">
+                            <core:Item key="{lookups>id}" text="{lookups>display}" />
+                        </Select>
+                    </VBox>
+                    <VBox>
+                        <Label text="{i18n>farm}" labelFor="filterFarm" />
+                        <Select id="filterFarm" width="100%" forceSelection="false"
+                                change=".onFarmFilterChanged"
+                                items="{ path: 'lookups>/farms', templateShareable: false }">
+                            <core:Item key="{lookups>id}" text="{lookups>display}" />
+                        </Select>
+                    </VBox>
+                    <VBox>
+                        <Label text="{i18n>zone}" labelFor="filterZone" />
+                        <Select id="filterZone" width="100%" forceSelection="false"
+                                change=".onZoneFilterChanged"
+                                items="{ path: 'lookups>/zones', templateShareable: false }">
+                            <core:Item key="{lookups>id}" text="{lookups>display}" />
+                        </Select>
+                    </VBox>
+                    <VBox>
+                        <Label text="{i18n>block}" labelFor="filterBlock" />
+                        <Select id="filterBlock" width="100%" forceSelection="false"
+                                change=".onFilterChanged"
+                                items="{ path: 'lookups>/blocks', templateShareable: false }">
+                            <core:Item key="{lookups>id}" text="{lookups>display}" />
+                        </Select>
+                    </VBox>
+                    <VBox>
+                        <Label text="{i18n>cropYear}" labelFor="filterCropYear" />
+                        <Select id="filterCropYear" width="100%" forceSelection="false"
+                                change=".onFilterChanged"
+                                items="{ path: 'lookups>/cropYears', templateShareable: false }">
+                            <core:Item key="{lookups>id}" text="{lookups>display}" />
+                        </Select>
+                    </VBox>
+                    <VBox>
+                        <Label text="{i18n>plantingYear}" labelFor="filterPlantingYear" />
+                        <Select id="filterPlantingYear" width="100%" forceSelection="false"
+                                change=".onFilterChanged"
+                                items="{ path: 'lookups>/plantingYears', templateShareable: false }">
+                            <core:Item key="{lookups>id}" text="{lookups>display}" />
+                        </Select>
+                    </VBox>
+                    <VBox>
+                        <Label text="{i18n>season}" labelFor="filterSeason" />
+                        <Select id="filterSeason" width="100%" forceSelection="false"
+                                change=".onFilterChanged"
+                                items="{ path: 'lookups>/seasons', templateShareable: false }">
+                            <core:Item key="{lookups>id}" text="{lookups>display}" />
+                        </Select>
+                    </VBox>
+                    <VBox>
+                        <Label text="{i18n>variety}" labelFor="filterVariety" />
+                        <Select id="filterVariety" width="100%" forceSelection="false"
+                                change=".onFilterChanged"
+                                items="{ path: 'lookups>/varieties', templateShareable: false }">
+                            <core:Item key="{lookups>id}" text="{lookups>display}" />
+                        </Select>
+                    </VBox>
+                    <VBox>
+                        <Label text="{i18n>plantingType}" labelFor="filterPlantingType" />
+                        <Select id="filterPlantingType" width="100%" forceSelection="false"
+                                change=".onFilterChanged"
+                                items="{ path: 'lookups>/plantingTypes', templateShareable: false }">
+                            <core:Item key="{lookups>id}" text="{lookups>display}" />
+                        </Select>
+                    </VBox>
+                    <VBox>
+                        <Label text="{i18n>landStatus}" labelFor="filterLandStatus" />
+                        <Select id="filterLandStatus" width="100%" forceSelection="false"
+                                change=".onFilterChanged"
+                                items="{ path: 'lookups>/landStatuses', templateShareable: false }">
+                            <core:Item key="{lookups>id}" text="{lookups>display}" />
+                        </Select>
+                    </VBox>
+                    <VBox>
+                        <Label text="{i18n>caneStatus}" labelFor="filterCaneStatus" />
+                        <Select id="filterCaneStatus" width="100%" forceSelection="false"
+                                change=".onFilterChanged"
+                                items="{ path: 'lookups>/caneStatuses', templateShareable: false }">
+                            <core:Item key="{lookups>id}" text="{lookups>display}" />
+                        </Select>
+                    </VBox>
+                </l:Grid>
+
+                <!-- ============================ KPI cards ============================ -->
+                <l:Grid id="kpiGrid" defaultSpan="XL2 L4 M6 S12" class="faKpiGrid"
+                        content="{ path: 'kpi>/kpis', templateShareable: false }">
+                <!-- OneByOne, not one of the half-height frames: those render no subheader, and
+                     the specification asks for the percentage of the total area beside every
+                     hectare figure. -->
+                <GenericTile
+                    class="faKpiTile"
+                    header="{kpi>label}"
+                    subheader="{ parts: ['kpi>percentOfTotalArea'], formatter: '.formatter.percentOfTotal' }"
+                    press=".onKpiPress"
+                    frameType="OneByOne">
+                    <TileContent unit="ha">
+                        <NumericContent
+                            value="{ parts: ['kpi>areaHa'], formatter: '.formatter.hectaresShort' }"
+                            valueColor="{ parts: ['kpi>key'], formatter: '.formatter.kpiColour' }"
+                            icon="{ parts: ['kpi>key'], formatter: '.formatter.kpiIcon' }"
+                            truncateValueTo="9"
+                            withMargin="false" />
+                        </TileContent>
+                    </GenericTile>
+                </l:Grid>
+            </f:DynamicPageHeader>
+        </f:header>
+
+        <f:content>
+            <!-- DynamicPage takes a single content control, so everything below the header lives in
+                 one VBox. Without it UI5 keeps only the last child and silently drops the rest. -->
+            <VBox width="100%" class="faDashboardContent">
+            <MessageStrip
+                id="errorStrip"
+                type="Error"
+                showIcon="true"
+                showCloseButton="true"
+                visible="false"
+                class="sapUiSmallMarginBottom" />
+
+            <!-- ============================ Analysis ============================ -->
+            <l:Grid defaultSpan="XL6 L6 M12 S12">
+                <Panel headerText="{i18n>chartLandUtilisation}" class="faCard">
+                    <fa:AreaChart id="chartLandUtilisation" chartType="donut" unit="ha"
+                                  title="{i18n>chartLandUtilisation}" height="17rem"
+                                  select=".onChartSelect" />
+                </Panel>
+                <Panel headerText="{i18n>chartCaneArea}" class="faCard">
+                    <fa:AreaChart id="chartCaneArea" chartType="donut" unit="ha"
+                                  title="{i18n>chartCaneArea}" height="17rem"
+                                  select=".onChartSelect" />
+                </Panel>
+                <Panel headerText="{i18n>chartAreaByFarm}" class="faCard">
+                    <fa:AreaChart id="chartAreaByFarm" chartType="bar" unit="ha"
+                                  title="{i18n>chartAreaByFarm}" height="15rem"
+                                  extraLabel="{i18n>withCane}" select=".onFarmChartSelect" />
+                </Panel>
+                <Panel headerText="{i18n>chartAreaByZone}" class="faCard">
+                    <fa:AreaChart id="chartAreaByZone" chartType="bar" unit="ha"
+                                  title="{i18n>chartAreaByZone}" height="15rem"
+                                  extraLabel="{i18n>withCane}" select=".onZoneChartSelect" />
+                </Panel>
+            </l:Grid>
+
+            <!-- ==================== Tree report and map ==================== -->
+            <l:Grid defaultSpan="XL12 L12 M12 S12" class="sapUiSmallMarginTop">
+                <Panel class="faCard">
+                    <layoutData>
+                        <l:GridData span="XL7 L7 M12 S12" />
+                    </layoutData>
+                    <headerToolbar>
+                        <OverflowToolbar>
+                            <Title text="{i18n>treeReport}" level="H2" />
+                            <ToolbarSpacer />
+                            <SearchField id="treeSearch" width="14rem" placeholder="{i18n>searchPlaceholder}"
+                                         search=".onSearch" liveChange=".onSearchLive" />
+                            <Button icon="sap-icon://expand-all" tooltip="{i18n>expandAll}" press=".onExpandAll" />
+                            <Button icon="sap-icon://collapse-all" tooltip="{i18n>collapseAll}" press=".onCollapseAll" />
+                            <Button icon="sap-icon://excel-attachment" text="{i18n>exportExcel}"
+                                    press=".onExportExcel" />
+                        </OverflowToolbar>
+                    </headerToolbar>
+
+                    <t:TreeTable
+                        id="treeTable"
+                        rows="{ path: 'tree>/tree', parameters: { arrayNames: ['children'] } }"
+                        selectionMode="Single"
+                        enableColumnReordering="false"
+                        visibleRowCountMode="Fixed"
+                        visibleRowCount="12"
+                        rowHeight="46"
+                        rowSelectionChange=".onTreeRowSelected"
+                        ariaLabelledBy="treeReportLabel">
+                        <t:extension>
+                            <Text id="treeReportLabel" text="{i18n>treeReport}" visible="false" />
+                        </t:extension>
+                        <t:columns>
+                            <t:Column width="13rem" label="{i18n>hierarchy}">
+                                <t:template>
+                                    <HBox alignItems="Center">
+                                        <core:Icon src="{ parts: ['tree>nodeType'], formatter: '.formatter.nodeIcon' }"
+                                                   class="sapUiTinyMarginEnd faNodeIcon" />
+                                        <VBox>
+                                            <Text text="{tree>code}" class="faNodeCode" />
+                                            <Text text="{tree>name}" class="faMuted faSmall" />
+                                        </VBox>
+                                    </HBox>
+                                </t:template>
+                            </t:Column>
+                            <t:Column width="6.6rem" hAlign="End" label="{i18n>totalArea}">
+                                <t:template>
+                                    <Text text="{ parts: ['tree>areas/totalAreaHa'], formatter: '.formatter.hectares' }" />
+                                </t:template>
+                            </t:Column>
+                            <t:Column width="6.6rem" hAlign="End" label="{i18n>newPlanting}">
+                                <t:template>
+                                    <Text text="{ parts: ['tree>areas/newPlantingAreaHa'], formatter: '.formatter.hectares' }" />
+                                </t:template>
+                            </t:Column>
+                            <t:Column width="6.6rem" hAlign="End" label="{i18n>ratoon}">
+                                <t:template>
+                                    <Text text="{ parts: ['tree>areas/ratoonAreaHa'], formatter: '.formatter.hectares' }" />
+                                </t:template>
+                            </t:Column>
+                            <t:Column width="6.6rem" hAlign="End" label="{i18n>haveCane}">
+                                <t:template>
+                                    <ObjectNumber
+                                        number="{ parts: ['tree>areas/areaWithCaneHa'], formatter: '.formatter.hectares' }"
+                                        unit=""
+                                        state="{ parts: ['tree>percentWithCane'], formatter: '.formatter.coverageState' }" />
+                                </t:template>
+                            </t:Column>
+                            <t:Column width="6.6rem" hAlign="End" label="{i18n>available}">
+                                <t:template>
+                                    <Text text="{ parts: ['tree>areas/availableAreaHa'], formatter: '.formatter.hectares' }" />
+                                </t:template>
+                            </t:Column>
+                            <t:Column width="6.6rem" hAlign="End" label="{i18n>cannotPlant}">
+                                <t:template>
+                                    <Text text="{ parts: ['tree>areas/nonPlantableAreaHa'], formatter: '.formatter.hectares' }" />
+                                </t:template>
+                            </t:Column>
+                            <t:Column width="5rem" hAlign="Center" label="{i18n>map}">
+                                <t:template>
+                                    <Link text="{i18n>openMap}" target="_blank" href="{tree>mapUrl}"
+                                          visible="{= !!${tree>mapUrl} }" />
+                                </t:template>
+                            </t:Column>
+                            <t:Column width="3.5rem" hAlign="Center" label="{i18n>edit}">
+                                <t:template>
+                                    <!-- Only a block has master data of its own; a farm or zone row
+                                         shows figures that are the sum of what is beneath it. -->
+                                    <Button icon="sap-icon://edit" type="Transparent"
+                                            tooltip="{i18n>editBlock}"
+                                            visible="{= ${tree>nodeType} === 'Block' }"
+                                            press=".onEditFromTree" />
+                                </t:template>
+                            </t:Column>
+                        </t:columns>
+                    </t:TreeTable>
+
+                    <Toolbar design="Info">
+                        <Text text="{view>/treeSummary}" />
+                    </Toolbar>
+                </Panel>
+
+                <Panel class="faCard">
+                    <layoutData>
+                        <l:GridData span="XL5 L5 M12 S12" />
+                    </layoutData>
+                    <headerToolbar>
+                        <OverflowToolbar>
+                            <Title text="{i18n>mapTitle}" level="H2" />
+                            <ToolbarSpacer />
+                            <!-- Which location level the map draws. Clicking a farm or a zone on
+                                 the map steps down a level and narrows the whole dashboard to it,
+                                 so the same buttons walk both ways. -->
+                            <SegmentedButton id="mapLevel" selectedKey="Block" selectionChange=".onMapLevelChanged">
+                                <items>
+                                    <SegmentedButtonItem key="Farm" text="{i18n>farm}" />
+                                    <SegmentedButtonItem key="Zone" text="{i18n>zone}" />
+                                    <SegmentedButtonItem key="Block" text="{i18n>block}" />
+                                </items>
+                            </SegmentedButton>
+                            <Link id="estateMapLink" text="{i18n>openEstateMap}" target="_blank"
+                                  href="{view>/estateMapUrl}" visible="{= !!${view>/estateMapUrl} }" />
+                        </OverflowToolbar>
+                    </headerToolbar>
+
+                    <fa:LocationMap id="locationMap" height="26rem" featureSelect=".onMapFeatureSelect" />
+
+                    <!-- The panel describes whichever location was last selected, at any level.
+                         The rows below the six area figures are a block's own and are hidden for a
+                         farm or a zone, which have no single variety, status or planting date. -->
+                    <Panel id="locationDetail" class="faBlockDetail" visible="{= !!${detail>/code} }">
+                        <headerToolbar>
+                            <Toolbar>
+                                <Title text="{detail>/code} — {detail>/name}" level="H3" />
+                                <ToolbarSpacer />
+                                <Button icon="sap-icon://edit" text="{i18n>edit}" press=".onEditFromMap"
+                                        visible="{= ${detail>/level} === 'Block' }" />
+                                <Link text="{i18n>openMap}" target="_blank" href="{detail>/mapUrl}"
+                                      visible="{= !!${detail>/mapUrl} }" class="sapUiTinyMarginBegin" />
+                            </Toolbar>
+                        </headerToolbar>
+                        <l:Grid defaultSpan="XL4 L4 M6 S6" class="faDetailGrid">
+                            <VBox visible="{= ${detail>/level} === 'Block' }"><Label text="{i18n>farm}" /><Text text="{detail>/farmName}" /></VBox>
+                            <VBox visible="{= ${detail>/level} === 'Block' }"><Label text="{i18n>zone}" /><Text text="{detail>/zoneName}" /></VBox>
+                            <VBox visible="{= ${detail>/level} === 'Block' }"><Label text="{i18n>caneStatus}" /><Text text="{detail>/caneStatus}" /></VBox>
+                            <VBox visible="{= ${detail>/level} !== 'Block' }"><Label text="{i18n>blocks}" /><Text text="{detail>/blockCount}" /></VBox>
+                            <VBox visible="{= ${detail>/level} !== 'Block' }"><Label text="{i18n>plantedShare}" /><Text text="{ parts: ['detail>/plantedPercent'], formatter: '.formatter.percent' }" /></VBox>
+                            <VBox><Label text="{i18n>totalArea}" /><Text text="{ parts: ['detail>/totalAreaHa'], formatter: '.formatter.hectaresUnit' }" /></VBox>
+                            <VBox><Label text="{i18n>newPlanting}" /><Text text="{ parts: ['detail>/newPlantingAreaHa'], formatter: '.formatter.hectaresUnit' }" /></VBox>
+                            <VBox><Label text="{i18n>ratoon}" /><Text text="{ parts: ['detail>/ratoonAreaHa'], formatter: '.formatter.hectaresUnit' }" /></VBox>
+                            <VBox><Label text="{i18n>haveCane}" /><Text text="{ parts: ['detail>/areaWithCaneHa'], formatter: '.formatter.hectaresUnit' }" /></VBox>
+                            <VBox><Label text="{i18n>available}" /><Text text="{ parts: ['detail>/availableAreaHa'], formatter: '.formatter.hectaresUnit' }" /></VBox>
+                            <VBox><Label text="{i18n>cannotPlant}" /><Text text="{ parts: ['detail>/nonPlantableAreaHa'], formatter: '.formatter.hectaresUnit' }" /></VBox>
+                            <VBox visible="{= ${detail>/level} === 'Block' }"><Label text="{i18n>variety}" /><Text text="{detail>/caneVarietyName}" /></VBox>
+                            <VBox visible="{= ${detail>/level} === 'Block' }"><Label text="{i18n>plantingDate}" /><Text text="{detail>/plantingDate}" /></VBox>
+                            <VBox visible="{= ${detail>/level} === 'Block' }"><Label text="{i18n>harvestDate}" /><Text text="{detail>/expectedHarvestDate}" /></VBox>
+                        </l:Grid>
+                    </Panel>
+                </Panel>
+            </l:Grid>
+
+            <!-- ==================== Planning versus actual ==================== -->
+            <l:Grid defaultSpan="XL12 L12 M12 S12" class="sapUiSmallMarginTop">
+                <Panel class="faCard">
+                    <headerToolbar>
+                        <OverflowToolbar>
+                            <Title text="{i18n>planVsActual}" level="H2" />
+                            <ToolbarSpacer />
+                            <ObjectStatus
+                                title="{i18n>achievement}"
+                                text="{ parts: ['plan>/achievementPercent'], formatter: '.formatter.percent' }"
+                                state="{ parts: ['plan>/achievementPercent'], formatter: '.formatter.achievementState' }" />
+                            <SegmentedButton id="planLevel" selectedKey="farm" selectionChange=".onPlanLevelChanged">
+                                <items>
+                                    <SegmentedButtonItem key="farm" text="{i18n>farm}" />
+                                    <SegmentedButtonItem key="zone" text="{i18n>zone}" />
+                                    <SegmentedButtonItem key="block" text="{i18n>block}" />
+                                </items>
+                            </SegmentedButton>
+                        </OverflowToolbar>
+                    </headerToolbar>
+
+                    <l:Grid defaultSpan="XL6 L6 M12 S12">
+                        <Table id="planTable" items="{ path: 'plan>/rows', templateShareable: false }"
+                               growing="true" growingThreshold="12" class="faCompactTable">
+                            <columns>
+                                <Column><Text text="{i18n>hierarchy}" /></Column>
+                                <Column hAlign="End"><Text text="{i18n>planned}" /></Column>
+                                <Column hAlign="End"><Text text="{i18n>actual}" /></Column>
+                                <Column hAlign="End"><Text text="{i18n>variance}" /></Column>
+                                <Column hAlign="End"><Text text="{i18n>achievement}" /></Column>
+                            </columns>
+                            <items>
+                                <ColumnListItem>
+                                    <cells>
+                                        <VBox>
+                                            <Text text="{plan>code}" class="faNodeCode" />
+                                            <Text text="{plan>name}" class="faMuted faSmall" />
+                                        </VBox>
+                                        <Text text="{ parts: ['plan>plannedAreaWithCaneHa'], formatter: '.formatter.hectares' }" />
+                                        <Text text="{ parts: ['plan>actualAreaWithCaneHa'], formatter: '.formatter.hectares' }" />
+                                        <ObjectNumber
+                                            number="{ parts: ['plan>varianceAreaHa'], formatter: '.formatter.signedHectares' }"
+                                            state="{ parts: ['plan>varianceAreaHa'], formatter: '.formatter.varianceState' }" />
+                                        <ObjectNumber
+                                            number="{ parts: ['plan>achievementPercent'], formatter: '.formatter.percent' }"
+                                            state="{ parts: ['plan>achievementPercent'], formatter: '.formatter.achievementState' }" />
+                                    </cells>
+                                </ColumnListItem>
+                            </items>
+                        </Table>
+
+                        <VBox>
+                            <fa:AreaChart id="chartMonthly" chartType="column" unit="ha"
+                                          title="{i18n>chartMonthly}" height="17rem"
+                                          extraLabel="{i18n>planned}" />
+                            <Text text="{i18n>monthlyHint}" class="faMuted sapUiTinyMarginTop" />
+                        </VBox>
+                    </l:Grid>
+                </Panel>
+            </l:Grid>
+            </VBox>
+        </f:content>
+    </f:DynamicPage>
+</mvc:View>

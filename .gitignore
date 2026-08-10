@@ -16,6 +16,10 @@ dist/
 npm-debug.log*
 yarn-error.log
 
+# Vendored client libraries are part of the app, not build output (source maps excluded).
+!sugarcane/src/SugarcanePlanning.Client/wwwroot/lib/**
+sugarcane/src/SugarcanePlanning.Client/wwwroot/lib/**/*.map
+
 # ---- IDE ----
 .idea/
 *.swp
@@ -29,3 +33,12 @@ Thumbs.db
 *.log
 appsettings.*.local.json
 .env
+
+# Site-specific CAs for the test-system build; see test-system/ca/.keep
+sugarcane/test-system/ca/*.crt
+
+# Local publish output from deployment smoke tests.
+publish/
+
+# The SAPUI5 runtime is fetched by npm install.
+farm-area/frontend/node_modules/

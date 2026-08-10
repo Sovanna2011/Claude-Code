@@ -1,0 +1,138 @@
+{
+  "_version": "1.60.0",
+  "sap.app": {
+    "id": "farm.area.dashboard",
+    "type": "application",
+    "title": "{{appTitle}}",
+    "description": "{{appDescription}}",
+    "applicationVersion": {
+      "version": "1.0.0"
+    },
+    "dataSources": {
+      "farmArea": {
+        "uri": "http://localhost:8080/api/",
+        "type": "JSON",
+        "settings": {
+          "localUri": "http://localhost:8080/api/"
+        }
+      }
+    }
+  },
+  "sap.ui": {
+    "technology": "UI5",
+    "deviceTypes": {
+      "desktop": true,
+      "tablet": true,
+      "phone": true
+    },
+    "supportedThemes": [
+      "sap_horizon",
+      "sap_horizon_dark"
+    ]
+  },
+  "sap.ui5": {
+    "rootView": {
+      "viewName": "farm.area.dashboard.view.App",
+      "type": "XML",
+      "id": "app",
+      "async": true
+    },
+    "dependencies": {
+      "minUI5Version": "1.120.0",
+      "libs": {
+        "sap.ui.core": {},
+        "sap.m": {},
+        "sap.f": {},
+        "sap.ui.layout": {},
+        "sap.ui.table": {},
+        "sap.ui.unified": {},
+        "sap.uxap": {}
+      }
+    },
+    "contentDensities": {
+      "compact": true,
+      "cozy": true
+    },
+    "models": {
+      "i18n": {
+        "type": "sap.ui.model.resource.ResourceModel",
+        "settings": {
+          "bundleName": "farm.area.dashboard.i18n.i18n",
+          "supportedLocales": [
+            "",
+            "en"
+          ],
+          "fallbackLocale": ""
+        }
+      }
+    },
+    "resources": {
+      "css": [
+        {
+          "uri": "css/style.css"
+        }
+      ]
+    },
+    "routing": {
+      "config": {
+        "routerClass": "sap.f.routing.Router",
+        "type": "View",
+        "viewType": "XML",
+        "path": "farm.area.dashboard.view",
+        "controlId": "fcl",
+        "async": true
+      },
+      "routes": [
+        {
+          "pattern": "",
+          "name": "login",
+          "target": "login",
+          "layout": "OneColumn"
+        },
+        {
+          "pattern": "dashboard",
+          "name": "dashboard",
+          "target": "dashboard",
+          "layout": "OneColumn"
+        },
+        {
+          "pattern": "projections",
+          "name": "projections",
+          "target": "projections",
+          "layout": "OneColumn"
+        },
+        {
+          "pattern": "projections/{id}",
+          "name": "projection",
+          "target": [
+            "projections",
+            "projection"
+          ],
+          "layout": "TwoColumnsMidExpanded"
+        }
+      ],
+      "targets": {
+        "login": {
+          "id": "login",
+          "name": "Login",
+          "controlAggregation": "beginColumnPages"
+        },
+        "dashboard": {
+          "id": "dashboard",
+          "name": "Dashboard",
+          "controlAggregation": "beginColumnPages"
+        },
+        "projections": {
+          "id": "projections",
+          "name": "Projections",
+          "controlAggregation": "beginColumnPages"
+        },
+        "projection": {
+          "id": "projection",
+          "name": "Projection",
+          "controlAggregation": "midColumnPages"
+        }
+      }
+    }
+  }
+}

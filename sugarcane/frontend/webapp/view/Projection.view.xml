@@ -1,0 +1,235 @@
+<mvc:View
+    controllerName="farm.area.dashboard.controller.Projection"
+    xmlns="sap.m"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns:core="sap.ui.core"
+    xmlns:l="sap.ui.layout"
+    xmlns:form="sap.ui.layout.form"
+    xmlns:uxap="sap.uxap"
+    height="100%">
+
+    <!-- An ObjectPageLayout: the plan's own figures sit in a header that collapses as the reader
+         scrolls, and Blocks / Plan / Approval trail become anchored sections rather than tabs, so
+         all three can be read in one pass or jumped between from the anchor bar. -->
+    <uxap:ObjectPageLayout id="projectionPage" showTitleInHeaderContent="true"
+                           upperCaseAnchorBar="false" useIconTabBar="false"
+                           showAnchorBarPopover="false" enableLazyLoading="false"
+                           showFooter="true">
+
+        <uxap:headerTitle>
+            <uxap:ObjectPageDynamicHeaderTitle>
+                <uxap:heading>
+                    <HBox alignItems="Center">
+                        <Title text="{p>/projectionNo}" level="H1" />
+                        <Text text="v{p>/revision}" class="faMuted sapUiTinyMarginBegin" />
+                        <ObjectStatus class="sapUiSmallMarginBegin"
+                                      text="{p>/status}"
+                                      state="{ path: 'p>/status', formatter: '.formatter.projectionState' }"
+                                      icon="{ path: 'p>/status', formatter: '.formatter.projectionIcon' }" />
+                    </HBox>
+                </uxap:heading>
+                <uxap:expandedContent>
+                    <Text text="{p>/cropSeasonCode} · {p>/planningStart} → {p>/planningEnd}" class="faMuted" />
+                </uxap:expandedContent>
+                <uxap:snappedContent>
+                    <Text text="{p>/cropSeasonCode} · {p>/lineCount} block(s)" class="faMuted" />
+                </uxap:snappedContent>
+                <uxap:actions>
+                    <!-- The workflow buttons live in the footer, where Fiori puts the actions that
+                         commit something; this is only the close for the detail column. -->
+                    <Button id="closeColumn" icon="sap-icon://decline" type="Transparent"
+                            tooltip="{i18n>closeDetail}" press=".onCloseColumn" />
+                </uxap:actions>
+            </uxap:ObjectPageDynamicHeaderTitle>
+        </uxap:headerTitle>
+
+        <uxap:headerContent>
+            <l:Grid defaultSpan="XL3 L3 M6 S12" width="100%">
+                <GenericTile header="{i18n>projectedArea}" frameType="OneByOne" class="faKpiTile">
+                    <TileContent unit="ha">
+                        <NumericContent value="{ path: 'p>/totalProjectedAreaHa', formatter: '.formatter.hectaresShort' }"
+                                        truncateValueTo="9" icon="sap-icon://map" valueColor="Neutral" />
+                    </TileContent>
+                </GenericTile>
+                <GenericTile header="{i18n>harvestableArea}" frameType="OneByOne" class="faKpiTile">
+                    <TileContent unit="ha">
+                        <NumericContent value="{ path: 'p>/totalHarvestableAreaHa', formatter: '.formatter.hectaresShort' }"
+                                        truncateValueTo="9" icon="sap-icon://accept" valueColor="Good" />
+                    </TileContent>
+                </GenericTile>
+                <GenericTile header="{i18n>expectedTons}" frameType="OneByOne" class="faKpiTile">
+                    <TileContent unit="t">
+                        <NumericContent value="{ path: 'p>/totalExpectedTons', formatter: '.formatter.hectaresShort' }"
+                                        truncateValueTo="9" icon="sap-icon://cart" valueColor="Good" />
+                    </TileContent>
+                </GenericTile>
+                <GenericTile header="{i18n>seedCane}" frameType="OneByOne" class="faKpiTile">
+                    <TileContent unit="t">
+                        <NumericContent value="{ path: 'view>/seedCaneTons', formatter: '.formatter.hectaresShort' }"
+                                        truncateValueTo="9" icon="sap-icon://tree" valueColor="Neutral" />
+                    </TileContent>
+                </GenericTile>
+            </l:Grid>
+        </uxap:headerContent>
+
+        <uxap:sections>
+            <!-- ============================ Blocks ============================ -->
+            <uxap:ObjectPageSection id="sectionLines" title="{i18n>tabLines}" titleUppercase="false">
+                <uxap:subSections>
+                    <uxap:ObjectPageSubSection titleUppercase="false">
+                        <uxap:blocks>
+                            <!-- One VBox per section: the blocks aggregation is a responsive grid,
+                                 so separate children would sit beside one another rather than
+                                 stacking. -->
+                            <VBox width="100%">
+                            <MessageStrip id="errorStrip" type="Error" showIcon="true" showCloseButton="true"
+                                          visible="false" class="sapUiSmallMarginBottom" />
+
+                            <MessageStrip id="chainStrip" type="Information" showIcon="true"
+                                          visible="{view>/hasChain}" class="sapUiSmallMarginBottom"
+                                          text="{view>/chainText}">
+                                <link>
+                                    <Link text="{view>/chainLink}" press=".onOpenChain" />
+                                </link>
+                            </MessageStrip>
+
+                            <!-- autoPopinMode, because this table lives in a column whose width the
+                                 user can drag: columns move into a popin as the column narrows,
+                                 rather than squeezing every heading onto three lines. -->
+                            <Table id="lineTable" items="{ path: 'p>/lines', templateShareable: false }"
+                                   autoPopinMode="true" noDataText="{i18n>noLines}">
+                                <headerToolbar>
+                                    <OverflowToolbar>
+                                        <Title text="{i18n>tabLines}" level="H3" />
+                                        <ToolbarSpacer />
+                                        <Text text="{i18n>linesFrozen}" class="faMuted"
+                                              visible="{= !${p>/linesEditable} }" />
+                                        <Button text="{i18n>addLine}" icon="sap-icon://add" type="Emphasized"
+                                                visible="{p>/linesEditable}" press=".onAddLine" />
+                                    </OverflowToolbar>
+                                </headerToolbar>
+                                <columns>
+                                    <Column><Text text="{i18n>block}" /></Column>
+                                    <Column><Text text="{i18n>variety}" /></Column>
+                                    <Column importance="Low"><Text text="{i18n>plantingType}" /></Column>
+                                    <Column hAlign="End"><Text text="{i18n>projectedArea}" /></Column>
+                                    <Column hAlign="End" importance="Low"><Text text="{i18n>availableArea}" /></Column>
+                                    <Column width="13rem" importance="Medium"><Text text="{i18n>planningWindow}" /></Column>
+                                    <Column width="9rem" importance="Low"><Text text="{i18n>harvestDate}" /></Column>
+                                    <Column hAlign="End"><Text text="{i18n>expectedTons}" /></Column>
+                                    <Column hAlign="End" width="8rem"><Text text="{i18n>actions}" /></Column>
+                                </columns>
+                                <items>
+                                    <ColumnListItem>
+                                        <cells>
+                                            <ObjectIdentifier title="{p>blockCode}" text="{p>farmCode} · {p>zoneCode}" />
+                                            <Text text="{p>caneVarietyCode}" />
+                                            <Text text="{p>plantingType}" />
+                                            <ObjectNumber number="{ path: 'p>projectedPlantingAreaHa', formatter: '.formatter.hectares' }" unit="ha" />
+                                            <Text text="{ path: 'p>availableAreaHa', formatter: '.formatter.hectares' }" />
+                                            <Text text="{p>plannedPlantingStart} → {p>plannedPlantingEnd}" />
+                                            <Text text="{p>expectedHarvestDate}" />
+                                            <ObjectNumber number="{ path: 'p>expectedProductionTons', formatter: '.formatter.hectares' }" unit="t" />
+                                            <HBox justifyContent="End">
+                                                <Button icon="sap-icon://map" type="Transparent"
+                                                        tooltip="{i18n>openInGoogleMaps}" press=".onOpenMap" />
+                                                <Button icon="sap-icon://edit" type="Transparent" tooltip="{i18n>edit}"
+                                                        visible="{p>/linesEditable}" press=".onEditLine" />
+                                                <Button icon="sap-icon://delete" type="Transparent"
+                                                        tooltip="{i18n>deleteLine}"
+                                                        visible="{p>/linesEditable}" press=".onDeleteLine" />
+                                            </HBox>
+                                        </cells>
+                                    </ColumnListItem>
+                                </items>
+                            </Table>
+                            </VBox>
+                        </uxap:blocks>
+                    </uxap:ObjectPageSubSection>
+                </uxap:subSections>
+            </uxap:ObjectPageSection>
+
+            <!-- ============================ Plan ============================ -->
+            <uxap:ObjectPageSection id="sectionHeader" title="{i18n>tabHeader}" titleUppercase="false">
+                <uxap:subSections>
+                    <uxap:ObjectPageSubSection titleUppercase="false">
+                        <uxap:blocks>
+                            <!-- One VBox per section: the blocks aggregation is a responsive grid,
+                                 so separate children would sit beside one another rather than
+                                 stacking. -->
+                            <VBox width="100%">
+                            <form:SimpleForm editable="false" layout="ResponsiveGridLayout"
+                                             columnsM="2" columnsL="2" columnsXL="2">
+                                <Label text="{i18n>projectionNo}" />
+                                <Text text="{p>/projectionNo}" />
+                                <Label text="{i18n>revision}" />
+                                <Text text="v{p>/revision}" />
+                                <Label text="{i18n>season}" />
+                                <Text text="{p>/cropSeasonCode} ({p>/cropYear})" />
+                                <Label text="{i18n>plantation}" />
+                                <Text text="{p>/plantationName}" />
+                                <Label text="{i18n>projectionDate}" />
+                                <Text text="{p>/projectionDate}" />
+                                <Label text="{i18n>planningWindow}" />
+                                <Text text="{p>/planningStart} → {p>/planningEnd}" />
+                                <Label text="{i18n>preparedBy}" />
+                                <Text text="{p>/preparedBy}" />
+                                <Label text="{i18n>approvedBy}" />
+                                <Text text="{p>/approvedBy} {p>/approvedAt}" />
+                                <Label text="{i18n>rejectionReason}" />
+                                <Text text="{p>/rejectionReason}" />
+                                <Label text="{i18n>remark}" />
+                                <Text text="{p>/remark}" />
+                            </form:SimpleForm>
+                            </VBox>
+                        </uxap:blocks>
+                    </uxap:ObjectPageSubSection>
+                </uxap:subSections>
+            </uxap:ObjectPageSection>
+
+            <!-- ============================ Approval trail ============================ -->
+            <uxap:ObjectPageSection id="sectionHistory" title="{i18n>tabHistory}" titleUppercase="false">
+                <uxap:subSections>
+                    <uxap:ObjectPageSubSection titleUppercase="false">
+                        <uxap:blocks>
+                            <!-- One VBox per section: the blocks aggregation is a responsive grid,
+                                 so separate children would sit beside one another rather than
+                                 stacking. -->
+                            <VBox width="100%">
+                            <Table items="{ path: 'p>/history', templateShareable: false }"
+                                   autoPopinMode="true" noDataText="{i18n>noHistory}">
+                                <columns>
+                                    <Column><Text text="{i18n>when}" /></Column>
+                                    <Column><Text text="{i18n>who}" /></Column>
+                                    <Column><Text text="{i18n>action}" /></Column>
+                                    <Column importance="Low"><Text text="{i18n>fromTo}" /></Column>
+                                    <Column importance="Medium"><Text text="{i18n>comments}" /></Column>
+                                </columns>
+                                <items>
+                                    <ColumnListItem>
+                                        <cells>
+                                            <Text text="{p>at}" />
+                                            <Text text="{p>actor}" />
+                                            <ObjectStatus text="{p>action}"
+                                                          state="{ path: 'p>toStatus', formatter: '.formatter.projectionState' }" />
+                                            <Text text="{p>fromStatus} → {p>toStatus}" />
+                                            <Text text="{p>comments}" />
+                                        </cells>
+                                    </ColumnListItem>
+                                </items>
+                            </Table>
+                            </VBox>
+                        </uxap:blocks>
+                    </uxap:ObjectPageSubSection>
+                </uxap:subSections>
+            </uxap:ObjectPageSection>
+        </uxap:sections>
+
+        <uxap:footer>
+            <OverflowToolbar id="workflowBar">
+                <Text id="workflowHint" text="{view>/workflowHint}" class="faMuted" />
+                <ToolbarSpacer />
+            </OverflowToolbar>
+        </uxap:footer>
+    </uxap:ObjectPageLayout>
+</mvc:View>

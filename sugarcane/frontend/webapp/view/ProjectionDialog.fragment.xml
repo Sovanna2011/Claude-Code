@@ -1,0 +1,44 @@
+<core:FragmentDefinition
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core"
+    xmlns:form="sap.ui.layout.form">
+
+    <Dialog id="projectionDialog" title="{i18n>newProjection}" contentWidth="34rem" draggable="true">
+        <content>
+            <MessageStrip id="projectionDialogError" type="Error" showIcon="true" visible="false"
+                          class="sapUiSmallMargin" />
+
+            <form:SimpleForm editable="true" layout="ResponsiveGridLayout" columnsM="1" columnsL="1" columnsXL="1">
+                <Label text="{i18n>projectionNo}" required="true" labelFor="dlgProjectionNo" />
+                <Input id="dlgProjectionNo" maxLength="40" placeholder="PRJ-2026-001" />
+
+                <Label text="{i18n>season}" required="true" labelFor="dlgSeason" />
+                <Select id="dlgSeason" width="100%" forceSelection="false"
+                        items="{ path: 'lookups>/seasonsOnly', templateShareable: false }">
+                    <core:Item key="{lookups>id}" text="{lookups>display}" />
+                </Select>
+
+                <Label text="{i18n>projectionDate}" required="true" labelFor="dlgProjectionDate" />
+                <DatePicker id="dlgProjectionDate" valueFormat="yyyy-MM-dd" displayFormat="yyyy-MM-dd" width="100%" />
+
+                <Label text="{i18n>planningStart}" required="true" labelFor="dlgPlanningStart" />
+                <DatePicker id="dlgPlanningStart" valueFormat="yyyy-MM-dd" displayFormat="yyyy-MM-dd" width="100%" />
+
+                <Label text="{i18n>planningEnd}" required="true" labelFor="dlgPlanningEnd" />
+                <DatePicker id="dlgPlanningEnd" valueFormat="yyyy-MM-dd" displayFormat="yyyy-MM-dd" width="100%" />
+
+                <Label text="{i18n>preparedBy}" labelFor="dlgPreparedBy" />
+                <Input id="dlgPreparedBy" maxLength="100" />
+
+                <Label text="{i18n>remark}" labelFor="dlgProjectionRemark" />
+                <TextArea id="dlgProjectionRemark" rows="2" width="100%" />
+            </form:SimpleForm>
+        </content>
+        <beginButton>
+            <Button text="{i18n>save}" type="Emphasized" press=".onSaveProjection" />
+        </beginButton>
+        <endButton>
+            <Button text="{i18n>cancel}" press=".onCloseProjectionDialog" />
+        </endButton>
+    </Dialog>
+</core:FragmentDefinition>

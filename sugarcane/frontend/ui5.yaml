@@ -1,0 +1,7 @@
+specVersion: "4.0"
+metadata:
+  name: farm.area.dashboard
+type: application
+# The OpenUI5 libraries come from package.json (npm), not from the framework resolver, so the
+# runtime is vendored with the application and the dashboard starts on a machine with no route to
+# a CDN. Listing them in both places is what UI5 tooling rejects as a duplicate definition.
