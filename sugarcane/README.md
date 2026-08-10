@@ -24,7 +24,8 @@ The port is being done module by module, each complete and tested before the nex
 | Database | **PostgreSQL 16 + PostGIS 3.4** — real `geography(MultiPolygon, 4326)` boundaries, areas measured with `ST_Area` |
 | Backend | **Go 1.24** REST API — repository pattern, service layer, constructor injection, transactions, global error handling, JWT role-based authorisation, optimistic concurrency, pagination and filtering, audit logging |
 | Frontend | **SAPUI5 (OpenUI5 1.151)** — Fiori Horizon, `sap.f.FlexibleColumnLayout`, `sap.f.DynamicPage`, `sap.uxap.ObjectPageLayout`, `sap.ui.table.TreeTable`, KPI tiles, analytical charts, filter bar, interactive map |
-| Tests | 160 Go tests — 87 unit, 73 integration against a real PostGIS database |
+| Desktop | **Go + lxn/walk** — a native Win32 window form over the same REST service, cross-compiled from Linux with no cgo |
+| Tests | 209 Go tests — 160 for the service, 49 for the desktop client |
 
 ```
 sugarcane/
@@ -47,8 +48,16 @@ sugarcane/
 │       ├── database/       pool, migrations, transaction helper
 │       └── config/         environment
 ├── frontend/webapp/        the SAPUI5 application
+├── desktop/                the Windows client — see desktop/README.md
+│   ├── cmd/farmarea-desktop/   the executable and its manifest
+│   └── internal/
+│       ├── api/            the whole conversation with the service
+│       ├── geo/            GeoJSON to rings, rings to pixels and back
+│       ├── mapimage/       the map, drawn into an ordinary picture
+│       └── ui/             the window; only these files are Windows-only
 └── scripts/
     ├── system.sh           start · stop · restart · status for the whole stack
+    ├── build-desktop.sh    cross-compile the Windows client
     └── api.sh              the API alone
 ```
 
@@ -123,6 +132,23 @@ pass, from one filter value — they cannot end up describing different land.
 The dashboard is a **DynamicPage**: the filter bar and the KPI cards sit in a header that snaps
 away as you scroll into the charts and the tree, leaving the filter summary on the title bar so a
 figure is never read without knowing what land it describes. The header can be pinned open.
+
+## The Windows desktop client
+
+A native Win32 window form, written in Go with `lxn/walk`, over the same REST service — real menus,
+a real status bar, real list and combo controls drawn by Windows itself.
+
+```bash
+./scripts/build-desktop.sh          # cross-compiles farmarea-desktop.exe from Linux, no cgo
+```
+
+It shows the filter bar, the six cards, the farm → zone → block report as a table with a column for
+every figure, and the location map at all three levels with the same two-way selection the browser
+has. It calculates nothing: every figure comes from the service.
+
+The map is drawn into an ordinary `image.RGBA` by a package that knows nothing about Windows, so the
+same function that fills the control writes a PNG on the build machine — which is how it is checked
+without a screen. `desktop/README.md` has the detail.
 
 ## Planting projections
 

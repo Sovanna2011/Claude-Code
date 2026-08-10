@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- Copy this file next to farmarea-desktop.exe, keeping the name farmarea-desktop.exe.manifest.
+
+     Windows reads it when the programme starts. Without it the window still opens, but it opens
+     with the grey Windows-95 controls of comctl32 version 5 and no idea of the monitor's scaling,
+     so on a modern laptop the form is both ugly and blurred. Three things are asked for:
+
+       · comctl32 version 6, which is what makes the buttons, the list and the tabs current;
+       · per-monitor DPI awareness, so the form is sharp on a high-resolution screen and stays
+         sharp when it is dragged to a second monitor of a different scale;
+       · asInvoker, so the programme runs as the person who started it. It reads a REST service
+         over HTTP and writes nothing outside its own window: it has no business asking to be
+         elevated.
+
+     It can also be compiled into the executable itself with a resource tool such as
+     github.com/akavel/rsrc, which removes the need to ship a second file:
+
+         rsrc -manifest farmarea-desktop.exe.manifest -arch amd64 -o rsrc_windows_amd64.syso
+
+     Put the .syso beside main.go and the Go toolchain links it in automatically. -->
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <assemblyIdentity
+      version="1.0.0.0"
+      processorArchitecture="*"
+      name="FarmArea.Desktop"
+      type="win32"/>
+  <description>Farm Area Monitoring — the Windows client of the Sugarcane Planting Planning system.</description>
+
+  <dependency>
+    <dependentAssembly>
+      <assemblyIdentity
+          type="win32"
+          name="Microsoft.Windows.Common-Controls"
+          version="6.0.0.0"
+          processorArchitecture="*"
+          publicKeyToken="6595b64144ccf1df"
+          language="*"/>
+    </dependentAssembly>
+  </dependency>
+
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
+    <security>
+      <requestedPrivileges>
+        <requestedExecutionLevel level="asInvoker" uiAccess="false"/>
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/pm</dpiAware>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">permonitorv2,permonitor</dpiAwareness>
+      <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
+    </windowsSettings>
+  </application>
+
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!-- Windows 10 and 11. Declaring them stops Windows applying compatibility shims meant for
+           programmes written before either existed. -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/>
+      <supportedOS Id="{1f676c76-80e1-4239-95bb-83d0f6d0da78}"/>
+      <supportedOS Id="{4a2f28e3-53b9-4441-ba9c-d69d4a4a6e38}"/>
+    </application>
+  </compatibility>
+</assembly>
