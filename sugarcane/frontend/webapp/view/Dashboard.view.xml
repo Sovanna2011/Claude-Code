@@ -320,36 +320,52 @@
                         <OverflowToolbar>
                             <Title text="{i18n>mapTitle}" level="H2" />
                             <ToolbarSpacer />
+                            <!-- Which location level the map draws. Clicking a farm or a zone on
+                                 the map steps down a level and narrows the whole dashboard to it,
+                                 so the same buttons walk both ways. -->
+                            <SegmentedButton id="mapLevel" selectedKey="Block" selectionChange=".onMapLevelChanged">
+                                <items>
+                                    <SegmentedButtonItem key="Farm" text="{i18n>farm}" />
+                                    <SegmentedButtonItem key="Zone" text="{i18n>zone}" />
+                                    <SegmentedButtonItem key="Block" text="{i18n>block}" />
+                                </items>
+                            </SegmentedButton>
                             <Link id="estateMapLink" text="{i18n>openEstateMap}" target="_blank"
                                   href="{view>/estateMapUrl}" visible="{= !!${view>/estateMapUrl} }" />
                         </OverflowToolbar>
                     </headerToolbar>
 
-                    <fa:BlockMap id="blockMap" height="26rem" blockSelect=".onMapBlockSelect" />
+                    <fa:LocationMap id="locationMap" height="26rem" featureSelect=".onMapFeatureSelect" />
 
-                    <Panel id="blockDetail" class="faBlockDetail" visible="{= !!${detail>/blockCode} }">
+                    <!-- The panel describes whichever location was last selected, at any level.
+                         The rows below the six area figures are a block's own and are hidden for a
+                         farm or a zone, which have no single variety, status or planting date. -->
+                    <Panel id="locationDetail" class="faBlockDetail" visible="{= !!${detail>/code} }">
                         <headerToolbar>
                             <Toolbar>
-                                <Title text="{detail>/blockCode} — {detail>/blockName}" level="H3" />
+                                <Title text="{detail>/code} — {detail>/name}" level="H3" />
                                 <ToolbarSpacer />
-                                <Button icon="sap-icon://edit" text="{i18n>edit}" press=".onEditFromMap" />
+                                <Button icon="sap-icon://edit" text="{i18n>edit}" press=".onEditFromMap"
+                                        visible="{= ${detail>/level} === 'Block' }" />
                                 <Link text="{i18n>openMap}" target="_blank" href="{detail>/mapUrl}"
                                       visible="{= !!${detail>/mapUrl} }" class="sapUiTinyMarginBegin" />
                             </Toolbar>
                         </headerToolbar>
                         <l:Grid defaultSpan="XL4 L4 M6 S6" class="faDetailGrid">
-                            <VBox><Label text="{i18n>farm}" /><Text text="{detail>/farmName}" /></VBox>
-                            <VBox><Label text="{i18n>zone}" /><Text text="{detail>/zoneName}" /></VBox>
-                            <VBox><Label text="{i18n>caneStatus}" /><Text text="{detail>/caneStatus}" /></VBox>
+                            <VBox visible="{= ${detail>/level} === 'Block' }"><Label text="{i18n>farm}" /><Text text="{detail>/farmName}" /></VBox>
+                            <VBox visible="{= ${detail>/level} === 'Block' }"><Label text="{i18n>zone}" /><Text text="{detail>/zoneName}" /></VBox>
+                            <VBox visible="{= ${detail>/level} === 'Block' }"><Label text="{i18n>caneStatus}" /><Text text="{detail>/caneStatus}" /></VBox>
+                            <VBox visible="{= ${detail>/level} !== 'Block' }"><Label text="{i18n>blocks}" /><Text text="{detail>/blockCount}" /></VBox>
+                            <VBox visible="{= ${detail>/level} !== 'Block' }"><Label text="{i18n>plantedShare}" /><Text text="{ parts: ['detail>/plantedPercent'], formatter: '.formatter.percent' }" /></VBox>
                             <VBox><Label text="{i18n>totalArea}" /><Text text="{ parts: ['detail>/totalAreaHa'], formatter: '.formatter.hectaresUnit' }" /></VBox>
                             <VBox><Label text="{i18n>newPlanting}" /><Text text="{ parts: ['detail>/newPlantingAreaHa'], formatter: '.formatter.hectaresUnit' }" /></VBox>
                             <VBox><Label text="{i18n>ratoon}" /><Text text="{ parts: ['detail>/ratoonAreaHa'], formatter: '.formatter.hectaresUnit' }" /></VBox>
                             <VBox><Label text="{i18n>haveCane}" /><Text text="{ parts: ['detail>/areaWithCaneHa'], formatter: '.formatter.hectaresUnit' }" /></VBox>
                             <VBox><Label text="{i18n>available}" /><Text text="{ parts: ['detail>/availableAreaHa'], formatter: '.formatter.hectaresUnit' }" /></VBox>
                             <VBox><Label text="{i18n>cannotPlant}" /><Text text="{ parts: ['detail>/nonPlantableAreaHa'], formatter: '.formatter.hectaresUnit' }" /></VBox>
-                            <VBox><Label text="{i18n>variety}" /><Text text="{detail>/caneVarietyName}" /></VBox>
-                            <VBox><Label text="{i18n>plantingDate}" /><Text text="{detail>/plantingDate}" /></VBox>
-                            <VBox><Label text="{i18n>harvestDate}" /><Text text="{detail>/expectedHarvestDate}" /></VBox>
+                            <VBox visible="{= ${detail>/level} === 'Block' }"><Label text="{i18n>variety}" /><Text text="{detail>/caneVarietyName}" /></VBox>
+                            <VBox visible="{= ${detail>/level} === 'Block' }"><Label text="{i18n>plantingDate}" /><Text text="{detail>/plantingDate}" /></VBox>
+                            <VBox visible="{= ${detail>/level} === 'Block' }"><Label text="{i18n>harvestDate}" /><Text text="{detail>/expectedHarvestDate}" /></VBox>
                         </l:Grid>
                     </Panel>
                 </Panel>

@@ -24,7 +24,7 @@ The port is being done module by module, each complete and tested before the nex
 | Database | **PostgreSQL 16 + PostGIS 3.4** — real `geography(MultiPolygon, 4326)` boundaries, areas measured with `ST_Area` |
 | Backend | **Go 1.24** REST API — repository pattern, service layer, constructor injection, transactions, global error handling, JWT role-based authorisation, optimistic concurrency, pagination and filtering, audit logging |
 | Frontend | **SAPUI5 (OpenUI5 1.151)** — Fiori Horizon, `sap.f.FlexibleColumnLayout`, `sap.f.DynamicPage`, `sap.uxap.ObjectPageLayout`, `sap.ui.table.TreeTable`, KPI tiles, analytical charts, filter bar, interactive map |
-| Tests | 157 Go tests — 87 unit, 70 integration against a real PostGIS database |
+| Tests | 160 Go tests — 87 unit, 73 integration against a real PostGIS database |
 
 ```
 sugarcane/
@@ -96,9 +96,16 @@ progress by month. Clicking a farm or zone bar filters the whole screen to it.
 **Tree report** — farm → zone → block in a `TreeTable`, expandable, searchable, with a Google Maps
 link on every row and an export to Excel that mirrors the hierarchy as a real outline.
 
-**Map** — the blocks' own polygons from PostGIS, with the farm and zone outlines beneath them,
-coloured by cane status. Clicking a block selects its row in the tree and fills the detail panel;
-selecting a block row highlights it on the map.
+**Location map** — the estate's own polygons from PostGIS, drawn by farm, by zone or by block:
+the *Draw by* buttons over the map choose the level. A farm or a zone is drawn as the union of the
+blocks the filter admits, so its shape and its figures always describe the same land, over its
+registered boundary, so its full extent is visible too. Blocks are coloured by cane status; a farm
+or a zone by the share of it already under cane, which is the question a whole location answers.
+
+Clicking works both ways. Clicking a farm narrows the whole dashboard to it and steps the map down
+to its zones; clicking a zone steps down to its blocks; clicking a block selects its row in the
+tree. The detail panel beneath describes whichever location was last picked. Selecting a row in
+the tree highlights that location on the map when the map is drawing that level.
 
 **Planning versus actual** — planned against actual by farm, zone or block, with variance and
 achievement, and a monthly breakdown beside it.
@@ -270,7 +277,7 @@ too — otherwise breaking a cross-row rule would answer 500 instead of naming t
 | `GET /api/farms/tree` · `GET /api/reports/farm-area-tree` | the whole hierarchy |
 | `GET /api/reports/farm-area-tree.xlsx` | the same report as a workbook |
 | `GET /api/dashboard/farm-area` | KPI cards |
-| `GET /api/dashboard/farm-area/map` | block polygons and farm/zone outlines as GeoJSON |
+| `GET /api/dashboard/farm-area/map` | the filtered land as GeoJSON at one location level — `?level=Farm`, `Zone` or `Block` (default `Block`) — with the registered boundaries as outlines |
 | `GET /api/dashboard/charts` | every chart series in one response |
 | `GET /api/reports/planting-plan-vs-actual` | planned against actual, by farm, zone, block and month |
 | `GET /api/lookups/{kind}` | the filter bar's values |
@@ -317,7 +324,7 @@ go test ./...                                   # 87 unit tests; the database te
 
 createdb farmarea_test && psql -d farmarea_test -c 'CREATE EXTENSION postgis'
 export FARMAREA_TEST_DATABASE_URL="postgres://farmarea:farmarea@127.0.0.1:5432/farmarea_test"
-go test ./...                                   # 157 tests
+go test ./...                                   # 160 tests
 ```
 
 The integration tests run over the real stack — HTTP handler, service, repository, PostGIS — and

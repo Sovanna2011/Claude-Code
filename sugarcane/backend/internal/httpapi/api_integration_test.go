@@ -179,6 +179,17 @@ type node struct {
 
 func near(a, b float64) bool { return math.Abs(a-b) < 0.01 }
 
+// errorCode reads the machine-readable code out of a refusal, so a test can assert which rule
+// answered rather than only that something was refused.
+func errorCode(t *testing.T, raw []byte) string {
+	t.Helper()
+	var body struct {
+		Code string `json:"code"`
+	}
+	decode(t, raw, &body)
+	return body.Code
+}
+
 // ---------------------------------------------------------------- authentication
 
 func TestLogin(t *testing.T) {
@@ -367,16 +378,165 @@ func TestFiltersNarrowEveryPartOfTheDashboardTogether(t *testing.T) {
 		t.Errorf("tree %v and KPI %v disagree under the same filter", tree[0].Areas.Total, oneFarm.Areas.Total)
 	}
 
-	var mapData struct {
-		Blocks struct {
-			Features []struct {
-				Properties map[string]any `json:"properties"`
-			} `json:"features"`
-		} `json:"blocks"`
+	mapData := readMap(t, h, admin, "cropYear=2026&farmId=1")
+	if len(mapData.Features.Features) != oneFarm.BlockCount {
+		t.Errorf("the map drew %d blocks, the cards counted %d", len(mapData.Features.Features), oneFarm.BlockCount)
 	}
-	decode(t, h.do(t, "GET", "/api/dashboard/farm-area/map?cropYear=2026&farmId=1", admin, nil, http.StatusOK), &mapData)
-	if len(mapData.Blocks.Features) != oneFarm.BlockCount {
-		t.Errorf("the map drew %d blocks, the cards counted %d", len(mapData.Blocks.Features), oneFarm.BlockCount)
+}
+
+// mapResponse is the shape of GET /api/dashboard/farm-area/map at any of its three levels.
+type mapResponse struct {
+	Level    string        `json:"level"`
+	Features mapCollection `json:"features"`
+	Outlines mapCollection `json:"outlines"`
+}
+
+type mapCollection struct {
+	Features []struct {
+		Geometry   map[string]any `json:"geometry"`
+		Properties map[string]any `json:"properties"`
+	} `json:"features"`
+}
+
+func readMap(t *testing.T, h *harness, token, query string) mapResponse {
+	t.Helper()
+	var out mapResponse
+	decode(t, h.do(t, "GET", "/api/dashboard/farm-area/map?"+query, token, nil, http.StatusOK), &out)
+	return out
+}
+
+// The map can be drawn by farm, by zone or by block. Whichever level is asked for, it has to
+// describe the same land as the KPI cards above it — the point of the level is to group the land
+// differently, not to measure a different amount of it.
+func TestMapDrawsTheSameLandAtEveryLocationLevel(t *testing.T) {
+	h := newHarness(t)
+	admin := h.token(t, "admin")
+
+	var cards struct {
+		Areas      areas `json:"areas"`
+		BlockCount int   `json:"blockCount"`
+	}
+	decode(t, h.do(t, "GET", "/api/dashboard/farm-area?cropYear=2026", admin, nil, http.StatusOK), &cards)
+
+	// The tree is the authority on which locations exist. The map may leave out one that has no
+	// shape to draw — a zone surveyed on paper only — but it may never draw one the tree does not
+	// list, and it may never leave out one that holds land.
+	var tree []*node
+	decode(t, h.do(t, "GET", "/api/farms/tree?cropYear=2026", admin, nil, http.StatusOK), &tree)
+
+	known := map[string]map[int]bool{"Farm": {}, "Zone": {}, "Block": {}}
+	holdsLand := map[string]map[int]bool{"Farm": {}, "Zone": {}, "Block": {}}
+	var walk func(level string, nodes []*node)
+	walk = func(level string, nodes []*node) {
+		next := map[string]string{"Farm": "Zone", "Zone": "Block"}[level]
+		for _, n := range nodes {
+			known[level][n.ID] = true
+			if n.Areas.Total > 0 {
+				holdsLand[level][n.ID] = true
+			}
+			if next != "" {
+				walk(next, n.Children)
+			}
+		}
+	}
+	walk("Farm", tree)
+
+	// Under the filled features the map draws the registered boundaries, so a location shows both
+	// its full extent and the part of it the filter admits.
+	outlineLevels := map[string][]string{
+		"Farm":  {"Farm"},
+		"Zone":  {"Farm", "Zone"},
+		"Block": {"Farm", "Zone"},
+	}
+
+	for _, level := range []string{"Farm", "Zone", "Block"} {
+		drawn := readMap(t, h, admin, "cropYear=2026&level="+level)
+
+		if drawn.Level != level {
+			t.Errorf("asked for %s, the response says %q", level, drawn.Level)
+		}
+		total := 0.0
+		wasDrawn := map[int]bool{}
+		for _, feature := range drawn.Features.Features {
+			if feature.Geometry["type"] == nil {
+				t.Errorf("%s level drew a feature with no geometry: %v", level, feature.Properties["code"])
+			}
+			if feature.Properties["level"] != level {
+				t.Errorf("%s level tagged a feature %q", level, feature.Properties["level"])
+			}
+			for _, key := range []string{"id", "code", "name", "totalAreaHa", "plantedPercent"} {
+				if feature.Properties[key] == nil {
+					t.Errorf("%s level feature is missing %s", level, key)
+				}
+			}
+			id := int(feature.Properties["id"].(float64))
+			if !known[level][id] {
+				t.Errorf("%s level drew %v, which the tree does not list", level, feature.Properties["code"])
+			}
+			wasDrawn[id] = true
+			total += feature.Properties["totalAreaHa"].(float64)
+		}
+		for id := range holdsLand[level] {
+			if !wasDrawn[id] {
+				t.Errorf("%s level left out %d, which holds land", level, id)
+			}
+		}
+		if !near(total, cards.Areas.Total) {
+			t.Errorf("%s level totals %v ha, the cards say %v ha", level, total, cards.Areas.Total)
+		}
+
+		seen := map[string]bool{}
+		for _, outline := range drawn.Outlines.Features {
+			seen[outline.Properties["level"].(string)] = true
+		}
+		if len(seen) != len(outlineLevels[level]) {
+			t.Errorf("%s level drew outlines for %v, expected %v", level, seen, outlineLevels[level])
+		}
+		for _, want := range outlineLevels[level] {
+			if !seen[want] {
+				t.Errorf("%s level drew no %s outline", level, want)
+			}
+		}
+	}
+}
+
+// A farm-level map under a zone filter has to describe the zone, not the whole farm: the shape and
+// the figures both come from the blocks the filter admits.
+func TestMapByFarmFollowsTheFilterBeneathIt(t *testing.T) {
+	h := newHarness(t)
+	admin := h.token(t, "admin")
+
+	whole := readMap(t, h, admin, "cropYear=2026&farmId=1&level=Farm")
+	narrowed := readMap(t, h, admin, "cropYear=2026&farmId=1&zoneId=1&level=Farm")
+
+	if len(whole.Features.Features) != 1 || len(narrowed.Features.Features) != 1 {
+		t.Fatalf("expected one farm each, drew %d and %d",
+			len(whole.Features.Features), len(narrowed.Features.Features))
+	}
+	wholeArea := whole.Features.Features[0].Properties["totalAreaHa"].(float64)
+	narrowedArea := narrowed.Features.Features[0].Properties["totalAreaHa"].(float64)
+	if !(narrowedArea < wholeArea) {
+		t.Errorf("one zone of the farm measures %v ha, the whole farm %v ha", narrowedArea, wholeArea)
+	}
+
+	var zoneSummary []struct {
+		ID    int   `json:"id"`
+		Areas areas `json:"areas"`
+	}
+	decode(t, h.do(t, "GET", "/api/summaries/zone-area?cropYear=2026&farmId=1&zoneId=1", admin, nil, http.StatusOK), &zoneSummary)
+	if len(zoneSummary) != 1 {
+		t.Fatalf("expected one zone summary, got %d", len(zoneSummary))
+	}
+	if !near(narrowedArea, zoneSummary[0].Areas.Total) {
+		t.Errorf("the farm-level map says %v ha, the zone summary %v ha", narrowedArea, zoneSummary[0].Areas.Total)
+	}
+}
+
+func TestMapRefusesAnUnknownLocationLevel(t *testing.T) {
+	h := newHarness(t)
+	body := h.do(t, "GET", "/api/dashboard/farm-area/map?level=district", h.token(t, "admin"), nil, http.StatusBadRequest)
+	if code := errorCode(t, body); code != "INVALID_FILTER" {
+		t.Errorf("expected INVALID_FILTER, got %s", code)
 	}
 }
 

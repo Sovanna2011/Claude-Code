@@ -48,18 +48,18 @@
 
 /* ---------------------------------------------------------------- map */
 
-.faBlockMap {
+.faLocationMap {
     position: relative; width: 100%;
     background: var(--sapNeutralBackground, #f5f6f7);
     border: 1px solid var(--sapGroup_ContentBorderColor);
     border-radius: var(--sapElement_BorderCornerRadius);
     overflow: hidden;
 }
-.faBlockMap svg { width: 100%; height: calc(100% - 2rem); display: block; }
-.faMapBlock:focus { outline: none; }
-.faMapBlock:focus polygon { stroke: var(--sapContent_FocusColor); stroke-width: 3; }
-.faMapBlock:hover polygon { fill-opacity: 0.9; }
-.faMapBlockOn polygon { filter: drop-shadow(0 0 3px var(--sapSelectedColor)); }
+.faLocationMap svg { width: 100%; height: calc(100% - 2rem); display: block; }
+.faMapShape:focus { outline: none; }
+.faMapShape:focus polygon { stroke: var(--sapContent_FocusColor); stroke-width: 3; }
+.faMapShape:hover polygon { fill-opacity: 0.9; }
+.faMapShapeOn polygon { filter: drop-shadow(0 0 3px var(--sapSelectedColor)); }
 .faMapLabel { font-size: 11px; font-weight: 600; }
 .faMapLegend { padding: 0.25rem 0.5rem; }
 

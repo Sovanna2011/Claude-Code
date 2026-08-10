@@ -153,7 +153,8 @@ sap.ui.define([
 				api.get("dashboard/farm-area", filter),
 				api.get("dashboard/charts", filter),
 				api.get("reports/farm-area-tree", filter),
-				api.get("dashboard/farm-area/map", filter),
+				api.get("dashboard/farm-area/map",
+					Object.assign({ level: this._mapLevel() }, filter)),
 				api.get("reports/planting-plan-vs-actual",
 					Object.assign({ level: this.byId("planLevel").getSelectedKey() }, filter))
 			]).then(function (results) {
@@ -165,9 +166,12 @@ sap.ui.define([
 
 				this._applyCharts(charts, plan);
 
-				var blockMap = this.byId("blockMap");
-				blockMap.setBlocks(map.blocks);
-				blockMap.setOutlines(map.outlines);
+				// The level comes back with the response rather than being read off the button,
+				// so the fills and the legend always describe the features actually received.
+				var locationMap = this.byId("locationMap");
+				locationMap.setLevel(map.level);
+				locationMap.setFeatures(map.features);
+				locationMap.setOutlines(map.outlines);
 
 				this._describe(kpi, tree || []);
 				page.setBusy(false);
@@ -264,6 +268,9 @@ sap.ui.define([
 				this.byId(id).setSelectedKey("");
 			}.bind(this));
 			this.byId("treeSearch").setValue("");
+			// The detail panel describes a location the filter may no longer admit.
+			this.getView().getModel("detail").setData({});
+			this.byId("locationMap").setSelectedId(0);
 			this._reload();
 		},
 
@@ -334,7 +341,16 @@ sap.ui.define([
 			this.byId("treeTable").collapseAll();
 		},
 
-		/** Tree → map: selecting a block row highlights it on the map and fills the detail panel. */
+		/** The Farm / Zone / Block buttons over the map: redraw the same land, grouped differently. */
+		onMapLevelChanged: function () {
+			this.getView().getModel("detail").setData({});
+			this._reload();
+		},
+
+		/**
+		 * Tree → map: selecting a row highlights that location on the map when the map is drawing
+		 * that level, and fills the detail panel either way.
+		 */
 		onTreeRowSelected: function (event) {
 			var index = event.getParameter("rowIndex");
 			if (index === undefined || index < 0) {
@@ -345,22 +361,88 @@ sap.ui.define([
 			if (!node) {
 				return;
 			}
+
+			var map = this.byId("locationMap");
+			map.setSelectedId(node.nodeType === this._mapLevel() ? node.id : 0);
+
 			if (node.nodeType !== "Block") {
-				// A farm or zone row still moves the map, by clearing the block selection.
-				this.byId("blockMap").setSelectedBlockId(0);
-				this.getView().getModel("detail").setData({});
+				this._showFeatureDetail(node.id);
 				return;
 			}
-			this.byId("blockMap").setSelectedBlockId(node.id);
 			this._showBlockDetail(node.id);
 		},
 
-		/** Map → tree: clicking a block selects its row, expanding the branch to reach it. */
-		onMapBlockSelect: function (event) {
-			var block = event.getParameter("block");
-			this.byId("blockMap").setSelectedBlockId(block.blockId);
-			this.getView().getModel("detail").setData(block);
-			this._selectTreeRow(block.blockId);
+		/**
+		 * Map → dashboard. Clicking a block selects its row in the tree, as it always has. Clicking
+		 * a farm or a zone steps down a level and narrows the whole filter bar to it, so the cards,
+		 * the charts and the tree follow the map rather than the map becoming a view of its own.
+		 */
+		onMapFeatureSelect: function (event) {
+			var feature = event.getParameter("feature");
+			if (feature.level === "Block") {
+				this.byId("locationMap").setSelectedId(feature.id);
+				this.getView().getModel("detail").setData(feature);
+				this._selectTreeRow(feature.id);
+				return;
+			}
+			this.getView().getModel("detail").setData(feature);
+			this._drillInto(feature);
+		},
+
+		/**
+		 * Narrows to the clicked location and draws the level beneath it. The zone and block lists
+		 * are reloaded first, for the same reason the filter bar reloads them: a zone list still
+		 * offering another farm's zones invites an empty report.
+		 */
+		_drillInto: function (feature) {
+			var api = this._api();
+
+			if (feature.level === "Farm") {
+				this.byId("filterFarm").setSelectedKey(String(feature.id));
+				this.byId("filterZone").setSelectedKey("");
+				this.byId("filterBlock").setSelectedKey("");
+				this.byId("mapLevel").setSelectedKey("Zone");
+
+				api.get("lookups/zones", { parentId: feature.id }).then(function (zones) {
+					this._setLookup("zones", zones);
+					return api.get("lookups/blocks", {});
+				}.bind(this)).then(function (blocks) {
+					this._setLookup("blocks", blocks);
+					this._reload();
+				}.bind(this)).catch(this._showError.bind(this));
+				return;
+			}
+
+			this.byId("filterZone").setSelectedKey(String(feature.id));
+			this.byId("filterBlock").setSelectedKey("");
+			this.byId("mapLevel").setSelectedKey("Block");
+
+			api.get("lookups/blocks", { parentId: feature.id }).then(function (blocks) {
+				this._setLookup("blocks", blocks);
+				this._reload();
+			}.bind(this)).catch(this._showError.bind(this));
+		},
+
+		_setLookup: function (key, items) {
+			this.getView().getModel("lookups")
+				.setProperty("/" + key, [{ id: "", display: "" }].concat(items || []));
+		},
+
+		_mapLevel: function () {
+			return this.byId("mapLevel").getSelectedKey() || "Block";
+		},
+
+		/** Fills the detail panel from a farm or zone already drawn on the map. */
+		_showFeatureDetail: function (id) {
+			var features = ((this.byId("locationMap").getFeatures() || {}).features) || [];
+			for (var i = 0; i < features.length; i++) {
+				if (features[i].properties.id === id) {
+					this.getView().getModel("detail").setData(features[i].properties);
+					return;
+				}
+			}
+			// The map is drawing another level, so it has nothing to say about this row.
+			this.getView().getModel("detail").setData({});
 		},
 
 		_selectTreeRow: function (blockId) {
@@ -385,16 +467,18 @@ sap.ui.define([
 		},
 
 		_showBlockDetail: function (blockId) {
-			var features = ((this.byId("blockMap").getBlocks() || {}).features) || [];
+			var features = ((this.byId("locationMap").getFeatures() || {}).features) || [];
 			for (var i = 0; i < features.length; i++) {
 				if (features[i].properties.blockId === blockId) {
 					this.getView().getModel("detail").setData(features[i].properties);
 					return;
 				}
 			}
-			// Not on the map — no boundary and no coordinates — so ask the service for it.
+			// Not on the map — the map is drawing farms or zones, or the block has no boundary and
+			// no coordinates — so ask the service for it.
 			this._api().get("blocks/" + blockId).then(function (block) {
 				this.getView().getModel("detail").setData({
+					level: "Block", id: block.id, code: block.code, name: block.name,
 					blockId: block.id, blockCode: block.code, blockName: block.name,
 					farmName: block.farmName, zoneName: block.zoneName,
 					caneStatus: block.caneStatus, mapUrl: block.mapUrl,

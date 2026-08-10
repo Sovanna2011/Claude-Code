@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/sovanna2011/sugarcane-go/backend/internal/database"
 	"github.com/sovanna2011/sugarcane-go/backend/internal/domain"
@@ -504,9 +505,20 @@ func (r *DashboardRepository) MonthlyPlanVsActual(ctx context.Context, f domain.
 	return out, rows.Err()
 }
 
-// MapData returns the blocks as GeoJSON with their figures attached, plus the farm and zone
-// outlines, so one request draws the whole map and fills the detail panel on click.
-func (r *DashboardRepository) MapData(ctx context.Context, f domain.Filter) (domain.MapFeatureCollection, error) {
+// MapData returns the land in scope as GeoJSON with its figures attached, drawn at the location
+// level the caller asked for: one polygon per farm, per zone, or per block. Block level carries the
+// per-block detail the panel beside the map shows; the two grouped levels carry the same six area
+// figures summed over exactly the blocks the filter admits.
+func (r *DashboardRepository) MapData(ctx context.Context, f domain.Filter, level string) (domain.MapFeatureCollection, error) {
+	if canonical, ok := domain.Canonical(level, domain.ValidMapLevels); ok {
+		level = canonical
+	} else {
+		level = domain.MapLevelBlock
+	}
+	if level != domain.MapLevelBlock {
+		return r.groupedMapData(ctx, f, level)
+	}
+
 	b := areaSource(f, "ba")
 	b.applyScope(f, "ba")
 	subScope := plantingScope(b, f)
@@ -569,7 +581,11 @@ func (r *DashboardRepository) MapData(ctx context.Context, f domain.Filter) (dom
 			Type:     "Feature",
 			Geometry: geometry,
 			Properties: map[string]any{
-				"blockId": id, "blockCode": code, "blockName": name,
+				// The four generic keys are what the map itself reads, so one renderer draws all
+				// three levels; the block-specific keys below are what the detail panel binds to.
+				"level": domain.MapLevelBlock, "id": id, "code": code, "name": name,
+				"plantedPercent": domain.PercentOfTotal(withCane, total),
+				"blockId":        id, "blockCode": code, "blockName": name,
 				"farmId": farmID, "farmName": farmName, "zoneId": zoneID, "zoneName": zoneName,
 				"totalAreaHa": total, "plantableAreaHa": plantable, "nonPlantableAreaHa": nonPlantable,
 				"newPlantingAreaHa": newPlanting, "ratoonAreaHa": ratoon,
@@ -587,23 +603,183 @@ func (r *DashboardRepository) MapData(ctx context.Context, f domain.Filter) (dom
 	return domain.MapFeatureCollection{Type: "FeatureCollection", Features: features}, nil
 }
 
-// Outlines returns the farm and zone boundaries, drawn under the blocks so the map shows the
-// hierarchy rather than a scatter of squares.
-func (r *DashboardRepository) Outlines(ctx context.Context, f domain.Filter) (domain.MapFeatureCollection, error) {
+// groupedMapData draws one polygon per farm or per zone.
+//
+// The shape is the union of the boundaries of the blocks the filter admits, not the registered
+// boundary of the farm or zone. That is deliberate: the figures on the feature are summed over
+// those same blocks, so the shape and the numbers describe the same land even when a zone or a
+// status filter narrows the location to part of itself. The registered boundary is the fallback
+// for a location whose blocks have not been surveyed yet, and a point is the fallback after that.
+//
+// The locations come from the farm and zone tables and the figures are joined onto them, exactly as
+// the tree report does it, so a zone that has been surveyed but has no blocks registered yet is
+// still drawn — at nought hectares, which is the fact worth seeing about it.
+func (r *DashboardRepository) groupedMapData(ctx context.Context, f domain.Filter, level string) (domain.MapFeatureCollection, error) {
+	groupCol, parentFrom := "ba.farm_id", "farm p JOIN plantation pl ON pl.id = p.plantation_id"
+	if level == domain.MapLevelZone {
+		groupCol = "ba.zone_id"
+		parentFrom = "zone p JOIN farm f ON f.id = p.farm_id JOIN plantation pl ON pl.id = f.plantation_id"
+	}
+	parentFrom += " JOIN company c ON c.id = pl.company_id"
+
+	// The block filters belong inside the aggregate; only the hierarchy narrows the list of
+	// locations, and it narrows it to those the filter is asking about rather than to those that
+	// happen to have a matching block.
+	b := areaSource(f, "ba")
+	b.applyScope(f, "ba")
+	inner := b.whereSQL()
+
+	outer := &builder{args: b.args}
+	if f.CompanyID != nil {
+		outer.eq("c.id", *f.CompanyID)
+	}
+	if f.PlantationID != nil {
+		outer.eq("pl.id", *f.PlantationID)
+	}
+	if !f.IncludeInactive {
+		outer.raw("p.active")
+	}
+	switch level {
+	case domain.MapLevelZone:
+		if !f.IncludeInactive {
+			outer.raw("f.active")
+		}
+		if f.FarmID != nil {
+			outer.eq("p.farm_id", *f.FarmID)
+		}
+		if f.ZoneID != nil {
+			outer.eq("p.id", *f.ZoneID)
+		}
+		if f.BlockID != nil {
+			outer.raw(fmt.Sprintf("p.id = (SELECT zone_id FROM block WHERE id = %s)", outer.add(*f.BlockID)))
+		}
+	default:
+		if f.FarmID != nil {
+			outer.eq("p.id", *f.FarmID)
+		}
+		// A filter on something beneath a farm still names one farm: the one that contains it.
+		if f.ZoneID != nil {
+			outer.raw(fmt.Sprintf("p.id = (SELECT farm_id FROM zone WHERE id = %s)", outer.add(*f.ZoneID)))
+		}
+		if f.BlockID != nil {
+			outer.raw(fmt.Sprintf(
+				"p.id = (SELECT z.farm_id FROM zone z JOIN block bk ON bk.zone_id = z.id WHERE bk.id = %s)",
+				outer.add(*f.BlockID)))
+		}
+	}
+
+	// The centre is the centroid of the shape actually drawn, which is what the "open in Google
+	// Maps" link points at; it falls back to the average of the block coordinates for a location
+	// with no geometry at all. ST_Centroid matches how the tree report derives its own coordinates.
+	query := fmt.Sprintf(`
+		SELECT p.id, p.code, p.name, COALESCE(g.block_count, 0),
+		       COALESCE(g.total_area_ha, 0), COALESCE(g.plantable_area_ha, 0),
+		       COALESCE(g.non_plantable_area_ha, 0), COALESCE(g.new_planting_area_ha, 0),
+		       COALESCE(g.ratoon_area_ha, 0), COALESCE(g.area_with_cane_ha, 0),
+		       COALESCE(g.available_area_ha, 0),
+		       ST_AsGeoJSON(COALESCE(g.blocks_boundary, p.boundary::geometry)),
+		       COALESCE(ST_Y(ST_Centroid(COALESCE(g.blocks_boundary, p.boundary::geometry))), g.latitude),
+		       COALESCE(ST_X(ST_Centroid(COALESCE(g.blocks_boundary, p.boundary::geometry))), g.longitude)
+		  FROM %[2]s
+		  LEFT JOIN (SELECT %[3]s AS id, count(*)::int AS block_count,
+		               COALESCE(sum(ba.total_area_ha), 0)         AS total_area_ha,
+		               COALESCE(sum(ba.plantable_area_ha), 0)     AS plantable_area_ha,
+		               COALESCE(sum(ba.non_plantable_area_ha), 0) AS non_plantable_area_ha,
+		               COALESCE(sum(ba.new_planting_area_ha), 0)  AS new_planting_area_ha,
+		               COALESCE(sum(ba.ratoon_area_ha), 0)        AS ratoon_area_ha,
+		               COALESCE(sum(ba.area_with_cane_ha), 0)     AS area_with_cane_ha,
+		               COALESCE(sum(ba.available_area_ha), 0)     AS available_area_ha,
+		               ST_Multi(ST_Union(bl.boundary::geometry))  AS blocks_boundary,
+		               avg(ba.latitude)::float8                   AS latitude,
+		               avg(ba.longitude)::float8                  AS longitude
+		          FROM %[1]s
+		          JOIN block bl ON bl.id = ba.block_id
+		         %[4]s
+		         GROUP BY %[3]s) g ON g.id = p.id
+		 %[5]s
+		 ORDER BY p.code`, b.source, parentFrom, groupCol, inner, outer.whereSQL())
+
+	rows, err := r.db.Pool().Query(ctx, query, outer.args...)
+	if err != nil {
+		return domain.MapFeatureCollection{}, fmt.Errorf("map data by %s: %w", strings.ToLower(level), err)
+	}
+	defer rows.Close()
+
+	features := []domain.MapFeature{}
+	for rows.Next() {
+		var (
+			id, blockCount                           int
+			code, name                               string
+			total, plantable, nonPlantable           float64
+			newPlanting, ratoon, withCane, available float64
+			geoJSON                                  *string
+			lat, lng                                 *float64
+		)
+		if err := rows.Scan(&id, &code, &name, &blockCount,
+			&total, &plantable, &nonPlantable, &newPlanting, &ratoon, &withCane, &available,
+			&geoJSON, &lat, &lng); err != nil {
+			return domain.MapFeatureCollection{}, err
+		}
+
+		var geometry any
+		if geoJSON != nil {
+			if err := json.Unmarshal([]byte(*geoJSON), &geometry); err != nil {
+				return domain.MapFeatureCollection{}, fmt.Errorf("%s %s geometry: %w", strings.ToLower(level), code, err)
+			}
+		} else if lat != nil && lng != nil {
+			geometry = map[string]any{"type": "Point", "coordinates": []float64{*lng, *lat}}
+		} else {
+			continue
+		}
+
+		features = append(features, domain.MapFeature{
+			Type:     "Feature",
+			Geometry: geometry,
+			Properties: map[string]any{
+				"level": level, "id": id, "code": code, "name": name,
+				"blockCount":  blockCount,
+				"totalAreaHa": total, "plantableAreaHa": plantable, "nonPlantableAreaHa": nonPlantable,
+				"newPlantingAreaHa": newPlanting, "ratoonAreaHa": ratoon,
+				"areaWithCaneHa": withCane, "availableAreaHa": available,
+				"plantedPercent": domain.PercentOfTotal(withCane, total),
+				"latitude":       lat, "longitude": lng,
+				"mapUrl": domain.GoogleMapsURL(lat, lng),
+			},
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return domain.MapFeatureCollection{}, err
+	}
+	return domain.MapFeatureCollection{Type: "FeatureCollection", Features: features}, nil
+}
+
+// Outlines returns the registered boundaries the map draws underneath its filled features, so a
+// location shows both its full extent and the part of it the filter admits. Drawing farms, the farm
+// outlines are enough; drawing zones or blocks, the zone boundaries divide them up.
+func (r *DashboardRepository) Outlines(ctx context.Context, f domain.Filter, level string) (domain.MapFeatureCollection, error) {
+	if canonical, ok := domain.Canonical(level, domain.ValidMapLevels); ok {
+		level = canonical
+	} else {
+		level = domain.MapLevelBlock
+	}
+
 	// One argument serves both halves of the UNION: "$1 IS NULL OR id = $1" means "no filter set"
 	// without the two branches needing a placeholder each.
 	var farmID *int
 	if f.FarmID != nil {
 		farmID = f.FarmID
 	}
-	const query = `
+	query := `
 		SELECT 'Farm', f.id, f.code, f.name, ST_AsGeoJSON(f.boundary::geometry)
 		  FROM farm f
-		 WHERE f.boundary IS NOT NULL AND ($1::int IS NULL OR f.id = $1)
+		 WHERE f.boundary IS NOT NULL AND ($1::int IS NULL OR f.id = $1)`
+	if level != domain.MapLevelFarm {
+		query += `
 		 UNION ALL
 		SELECT 'Zone', z.id, z.code, z.name, ST_AsGeoJSON(z.boundary::geometry)
 		  FROM zone z
 		 WHERE z.boundary IS NOT NULL AND ($1::int IS NULL OR z.farm_id = $1)`
+	}
 
 	rows, err := r.db.Pool().Query(ctx, query, farmID)
 	if err != nil {

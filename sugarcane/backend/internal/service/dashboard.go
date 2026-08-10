@@ -51,16 +51,23 @@ func (s *DashboardService) Tree(ctx context.Context, f domain.Filter) ([]*domain
 	return s.repo.Tree(ctx, f)
 }
 
-func (s *DashboardService) MapData(ctx context.Context, f domain.Filter) (map[string]any, error) {
-	blocks, err := s.repo.MapData(ctx, f)
+// MapData draws the filtered land at one location level. The level travels back with the response
+// because the caller may have asked for a spelling the service did not accept, and the map has to
+// know which vocabulary the properties it just received are in.
+func (s *DashboardService) MapData(ctx context.Context, f domain.Filter, level string) (map[string]any, error) {
+	canonical, ok := domain.Canonical(level, domain.ValidMapLevels)
+	if !ok {
+		canonical = domain.MapLevelBlock
+	}
+	features, err := s.repo.MapData(ctx, f, canonical)
 	if err != nil {
 		return nil, err
 	}
-	outlines, err := s.repo.Outlines(ctx, f)
+	outlines, err := s.repo.Outlines(ctx, f, canonical)
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"blocks": blocks, "outlines": outlines}, nil
+	return map[string]any{"level": canonical, "features": features, "outlines": outlines}, nil
 }
 
 // Charts returns every series the analysis section draws, in one request: five round trips for one

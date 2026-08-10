@@ -620,7 +620,18 @@ func (a *API) dashboardMap(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, err, a.log)
 		return
 	}
-	result, err := a.svc.Dashboard.MapData(r.Context(), f)
+	// An unknown level is refused rather than quietly answered at block level: a caller asking for
+	// "district" wants to be told the word means nothing here, not handed the wrong map.
+	level, err := optionalEnum(r, "level", domain.ValidMapLevels)
+	if err != nil {
+		writeError(w, r, err, a.log)
+		return
+	}
+	chosen := domain.MapLevelBlock
+	if level != nil {
+		chosen = *level
+	}
+	result, err := a.svc.Dashboard.MapData(r.Context(), f, chosen)
 	a.respond(w, r, result, err)
 }
 

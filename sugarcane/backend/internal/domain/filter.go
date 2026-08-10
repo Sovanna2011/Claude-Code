@@ -100,6 +100,17 @@ var (
 	ValidCaneStatuses  = []string{"Fallow", "Prepared", "Planted", "Growing", "ReadyForHarvest", "Harvested"}
 )
 
+// The map draws one location level at a time: the whole estate as farms, a farm as its zones, or a
+// zone as its blocks. The level is the caller's choice rather than a consequence of the filter, so
+// an estate can be looked at farm by farm without narrowing anything first.
+const (
+	MapLevelFarm  = "Farm"
+	MapLevelZone  = "Zone"
+	MapLevelBlock = "Block"
+)
+
+var ValidMapLevels = []string{MapLevelFarm, MapLevelZone, MapLevelBlock}
+
 func IsOneOf(value string, allowed []string) bool {
 	for _, a := range allowed {
 		if strings.EqualFold(a, value) {
